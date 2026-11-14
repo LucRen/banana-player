@@ -16,9 +16,9 @@ namespace bp
 
 	std::vector<int> Ui::mangaSettingRows() const
 	{
-		const int T = TOGGLE_ROW;
-		return {MANGA_MODE_ROW, MANGA_FIT_ROW, T + 13, MANGA_HINGE_ROW, T + 18, MANGA_PRELOAD_ROW, MANGA_CACHE_ROW,
-			MANGA_CLEAR_ROW, MANGA_JAVA_ROW, T + 14, T + 15, MANGA_DNS_ROW, EXT_NOTE};	// (T + 16, In Recent on Home: kept in settings.conf, not shown: the reader stays off Home)
+		// (In Recent on Home, manga-recent, is kept in settings.conf and not shown: the reader stays off Home)
+		auto rows = pageRows(SG_MANGA, {{80, MANGA_CLEAR_ROW}, {90, MANGA_JAVA_ROW}, {130, EXT_NOTE}});
+		return rows;
 	}
 
 	void Ui::openMangaSettings()

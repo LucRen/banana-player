@@ -205,9 +205,11 @@ Moved out of `CLAUDE.md`, which keeps the one-line rules and the map; the reason
   `playlist`, `browser`, `png`, `battery`, `photo`, `update`, `backlight`, `netpath`, `servers`, `secret`, `netstore`,
   `sidecar`, `keyboard`, `ftplist`, `eq`, `soundfx`, `playlists`, `webauth`, `webpath`, `json`, `webmedia`, `webstate`) builds as `bpcore` and is covered by `tests/core_test.cpp` (a hand-rolled `CHECK_EQ`).
   Keep window/mpv-handle code out of these.
-- **Settings** are an INI-ish `key = value` file. New switches go in `Settings` plus the `REMEMBER` table in
-  `settings.cpp`. In `src/ui_internal.h`, the `REMEMBER`/`REMEMBER_LABELS` arrays, `TOGGLES` and the row ids (`TOGGLE_ROW`,
-  `PAN_ROW`, `DRAG_ROW`, `CLEAR_ROW`, `CHECK_ROW`, `INSTALL_ROW`…) in `ui.h` must be kept in step with them, and the row placed in a group in `settingRows()`.
+- **Settings** are an INI-ish `key = value` file. A setting is a member in `Settings` plus one entry in `settingDefs()`
+  (`settings.cpp`; `SettingDef` in `settings.h`): its key, how it is read and written and clamped, and, if the Settings
+  page shows it, its group, place, label, value text and help. Parse, serialize and the page's rows, value text and
+  Left/Right come from the entry; the actions, brightness, Sound FX and the subtitle style keep their own rows in
+  `ui_settings.cpp`. What to write for each kind and what keeps custom code: `docs/notes/settings-table.md`.
 
 ## Where things live
 
@@ -266,9 +268,9 @@ CLAUDE.md now keeps one line per rule; this is the full text it had, kept here w
   640×480 units scaled by `sx`/`sy`. Colours and radii come from `src/theme.h`; a new box goes through `fillRound`/
   `drawBox`/`drawLevel`/`fillRoundBand`, not `fill`. A new path check goes through `pseudoDir()` (PLROOT, PLDIR, FORMDIR,
   FINDNET are pseudo-dirs). `dropTouch()` swallows only a finger still down.
-- **Settings:** a new switch goes in `Settings` plus the `REMEMBER` table in `settings.cpp`; in `src/ui_internal.h` keep
-  `REMEMBER`/`REMEMBER_LABELS`, `TOGGLES` and the row ids (`TOGGLE_ROW`, `PAN_ROW`, … in `ui.h`) in step, and place the row
-  in a group in `settingRows()` (+ `settingHelp()`).
+- **Settings:** a new one is a member in `Settings` plus one entry in `settingDefs()` (`settings.cpp`), with `.page(...)`
+  for a row on the Settings page (or the manga page: `SG_MANGA`); `docs/notes/settings-table.md`. Anything it does beyond
+  keeping its value goes in `Ui::changeSetting`'s hooks.
 - **Threads:** background threads (`SleepWatch`, `BottomTouch`, `LevelWatch`, mpv callbacks, web server, `NetWorker`)
   never touch `Player`/`Ui`: they push SDL user events (`evMpv`, `evRender`, `evTouch`, `evLevel`, `evNet`, `evWeb`).
   Never block on a server in a destructor. The Updater and `WebServer` are never destroyed.

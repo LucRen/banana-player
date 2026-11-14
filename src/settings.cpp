@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <cstring>
 #include <fstream>
 #include <sstream>
 #include <sys/stat.h>
@@ -20,38 +21,6 @@ namespace bp
 	static const char* DOC_FILTER_IDS[] = {"off", "warm", "warmer", "dim"};
 	static const char* TXT_VIEW_IDS[] = {"scroll", "book-left", "book-right"};
 	static const char* TXT_TURN_IDS[] = {"fold", "off"};
-	static const struct { const char* key; int Settings::*field; const char* const* ids; int count; } DOC_INTS[] = {
-		{"text-font", &Settings::txtFont, TXT_FONT_IDS, 5}, {"text-size", &Settings::txtSize, TXT_SIZE_IDS, 5},
-		{"text-spacing", &Settings::txtSpacing, TXT_SPACING_IDS, 3}, {"text-margins", &Settings::txtMargins, TXT_MARGIN_IDS, 3},
-		{"text-theme", &Settings::txtTheme, TXT_THEME_IDS, 4}, {"text-filter", &Settings::txtFilter, DOC_FILTER_IDS, 4},
-		{"pdf-filter", &Settings::pdfFilter, DOC_FILTER_IDS, 4}, {"text-view", &Settings::txtBook, TXT_VIEW_IDS, 3},
-		{"text-turn", &Settings::txtTurn, TXT_TURN_IDS, 2},
-	};
-	static const struct { const char* key; bool Settings::*field; } REMEMBER[] = {
-		{"remember-position", &Settings::rememberPosition},
-		{"remember-audio", &Settings::rememberAudio},
-		{"remember-subtitles", &Settings::rememberSubs},
-		{"remember-folder", &Settings::rememberFolder},
-		{"keep-history", &Settings::keepHistory},
-		{"keep-network-history", &Settings::keepNetHistory},
-		{"button-hotkeys", &Settings::buttonHotkeys},
-		{"show-hidden-folders", &Settings::showHiddenFolders},
-		{"battery-percent", &Settings::batteryPercent},
-		{"keep-photo-zoom", &Settings::keepPhotoZoom},
-		{"check-updates", &Settings::checkUpdates},
-		{"same-brightness", &Settings::sameBrightness},
-		{"shuffle", &Settings::shuffle},	// (no row: the play mode, as loop)
-		{"manga-reader", &Settings::mangaOn},
-		{"manga-intro-shown", &Settings::mangaIntroShown},
-		{"manga-swap-lr", &Settings::mangaSwapLR},
-		{"manga-adult", &Settings::mangaAdult},
-		{"manga-history", &Settings::mangaHistory},
-		{"manga-recent", &Settings::mangaRecent},
-		{"manga-full-seen", &Settings::mangaFullSeen},
-		{"manga-open-full", &Settings::mangaOpenFull},
-		{"manga-secure-dns", &Settings::mangaSecureDns},
-		{"song-info", &Settings::songInfo},
-	};
 
 	static const char* SHOW_IDS[SHOWS] = {"art", "both", "visualizer", "none"};
 	static const char* SHOW_LABELS[SHOWS] = {"Album art", "Art + visualizer", "Visualizer", "None"};
@@ -71,6 +40,7 @@ namespace bp
 	static const long long MANGA_CACHE_MB[MANGA_CACHES] = {100, 300, 1024};
 	static const char* CLOCK_IDS[CLOCKS] = {"24h", "12h", "off"};
 	static const char* SCREEN_OFF_IDS[SCREEN_OFFS] = {"never", "15s", "30s", "1m", "2m", "5m"};
+	static const char* SCREEN_OFF_LABELS[SCREEN_OFFS] = {"Never", "15 seconds", "30 seconds", "1 minute", "2 minutes", "5 minutes"};
 
 	int stepMangaPreload(int v, int dir)
 	{
@@ -95,8 +65,7 @@ namespace bp
 
 	const char* screenOffLabel(int v)
 	{
-		static const char* L[SCREEN_OFFS] = {"Never", "15 seconds", "30 seconds", "1 minute", "2 minutes", "5 minutes"};
-		return v >= 0 && v < SCREEN_OFFS ? L[v] : L[0];
+		return v >= 0 && v < SCREEN_OFFS ? SCREEN_OFF_LABELS[v] : SCREEN_OFF_LABELS[0];
 	}
 	static const char* LOOP_LABELS[LOOPS] = {"No loop", "Loop all", "Loop one"};
 
@@ -517,44 +486,321 @@ namespace bp
 		return "[aid1] asplit [ao] [a]; [a] showwaves=s=32x24:rate=5,drawbox=c=black:t=fill,format=yuv420p [vo]";
 	}
 
+
+	SettingDef SettingDef::flag(const char* key, bool Settings::*f, const char* no, const char* yes)
+	{
+		// the words live as long as the table: a pair is kept per distinct (no, yes)
+		static std::vector<std::vector<const char*>*> pairs;
+		std::vector<const char*>* found = nullptr;
+		for (auto* p : pairs)
+			if (std::strcmp((*p)[0], no) == 0 && std::strcmp((*p)[1], yes) == 0) found = p;
+		if (!found) pairs.push_back(found = new std::vector<const char*>{no, yes});
+		SettingDef d;
+		d.kind = FLAG; d.key = key; d.flagField = f; d.ids = found->data(); d.count = 2;
+		return d;
+	}
+
+	SettingDef SettingDef::choice(const char* key, int Settings::*f, const char* const* ids, int count)
+	{
+		SettingDef d;
+		d.kind = CHOICE; d.key = key; d.intField = f; d.ids = ids; d.count = count;
+		return d;
+	}
+
+	SettingDef SettingDef::ints(const char* key, int Settings::*f, const int* values, int count)
+	{
+		SettingDef d;
+		d.kind = INT_LIST; d.key = key; d.intField = f; d.values = values; d.count = count;
+		return d;
+	}
+
+	SettingDef SettingDef::range(const char* key, int Settings::*f, int min, int max, int snap)
+	{
+		SettingDef d;
+		d.kind = INT_RANGE; d.key = key; d.intField = f; d.min = min; d.max = max; d.snap = snap;
+		return d;
+	}
+
+	SettingDef SettingDef::text(const char* key, std::string Settings::*f)
+	{
+		SettingDef d;
+		d.kind = TEXT; d.key = key; d.textField = f;
+		return d;
+	}
+
+	SettingDef SettingDef::custom(const char* key, void (*parse)(Settings&, const std::string&), bool (*write)(const Settings&, std::string&))
+	{
+		SettingDef d;
+		d.kind = CUSTOM; d.key = key; d.parse = parse; d.write = write;
+		return d;
+	}
+
+	// ---- the table: what a line of settings.conf means, and what the Settings page shows for it ----
+	// In the order the file is written (an old file is read by key, so that order matters only for byte-for-byte
+	// output). A choice is stored as its index in `ids`; the page's `place` orders a group's rows (the page's own rows,
+	// such as Clear play history, have places of their own in ui_settings.cpp); a default is the member's initializer.
+
+	// a style not offered (Bars, Waves, Spectrum, and the ones kept but not offered: VIS_SHOWN) is read as Peaks Banana
+	// (the default), and so is Timeline (0.5.x, briefly: it became Peaks)
+	static void readVisualizer(Settings& s, const std::string& value)
+	{
+		if (value == "timeline") s.visualizer = VIS_PEAKS_BANANA;
+		if (std::find(std::begin(VIS_SHOWN), std::end(VIS_SHOWN), s.visualizer) == std::end(VIS_SHOWN)) s.visualizer = VIS_PEAKS_BANANA;
+	}
+
+	static void readSoundFx(Settings& s, const std::string& value) { s.soundFx = soundFxFromKey(value); }
+	static bool writeSoundFx(const Settings& s, std::string& value) { value = soundFxKey(s.soundFx); return true; }
+	static void readEqGains(Settings& s, const std::string& value) { parseEqGains(value, s.eqGains); }
+	static bool writeEqGains(const Settings& s, std::string& value) { value = formatEqGains(s.eqGains); return true; }
+	static void readRemindAfter(Settings& s, const std::string& value) { s.updateRemindAfter = atoll(value.c_str()); }
+	// written only once there's a time to remember
+	static bool writeRemindAfter(const Settings& s, std::string& value)
+	{
+		if (s.updateRemindAfter <= 0) return false;
+		value = std::to_string(s.updateRemindAfter);
+		return true;
+	}
+
+	const std::vector<SettingDef>& settingDefs()
+	{
+		using D = SettingDef;
+		static const char* MODE_NAMES[MANGA_MODES] = {"Right to left", "Left to right", "Vertical scroll"};
+		static const char* FIT_NAMES[MANGA_FITS] = {"Page", "Width", "Fill"};
+		static const char* CACHE_NAMES[MANGA_CACHES] = {"100 MB", "300 MB", "1 GB"};
+		static const char* CLOCK_NAMES[CLOCKS] = {"24-hour", "12-hour", "Off"};
+		static const char* SHOWN_ADULT[2] = {"Hidden", "Shown"};
+		static const char* SHOWN_DNS[2] = {"Off", "Cloudflare (1.1.1.1)"};
+		static const char* SHOWN_PAN[2] = {"Left", "Right"};
+		static const char* SHOWN_DRAG[2] = {"The photo", "The box"};
+		static const int VIZ_FPS[] = {30, 45, 60};
+		static const int VOLUME_TOPS[] = {100, 120, 150};
+		static const std::vector<SettingDef> table = {
+			D::choice("music-show", &Settings::musicShow, SHOW_IDS, SHOWS)
+				.page(SG_MUSIC, 10, "Music display", "What the top screen shows while a song plays (SELECT while playing).").shownAs(SHOW_LABELS).stepped(true),
+			D::choice("visualizer", &Settings::visualizer, VIS_IDS, VISUALIZERS)
+				.page(SG_MUSIC, 20, "Visualizer", "How the music is drawn: twenty styles, from Peaks to Washing machine (SELECT while playing).")
+				.shownAs(VIS_LABELS).stepped(true, stepVisualizer).afterRead(readVisualizer),
+			D::ints("visualizer-fps", &Settings::vizFps, VIZ_FPS, 3)
+				.page(SG_MUSIC, 30, "Visualizer frame rate", "How smoothly the visualizers move: 60 is smoothest, 30 lightest on the battery. Peaks and Circle stay at 30.")
+				.shownAs(nullptr, " fps"),
+			D::range("manga-filter", &Settings::mangaFilter, 0, 3),
+			D::range("read-dim", &Settings::readDim, 0, 80, 10).stepped(false, nullptr, 10),
+			D::ints("volume-max", &Settings::volumeMax, VOLUME_TOPS, 3)
+				.page(SG_CONTROLS, 40, "Max volume", "How far the volume keys go: past 100% the player turns the sound up itself (louder than the handheld's own top, a little rougher on loud parts). Over 120% can damage your hearing and the speakers.")
+				.shownAs(nullptr, "%"),
+			D::choice("loop", &Settings::loop, LOOP_IDS, LOOPS),
+			D::choice("manga-mode", &Settings::mangaMode, MANGA_MODE_IDS, MANGA_MODES)
+				.page(SG_MANGA, 10, "Reading mode", "How a series opens until you pick one for it (X while reading).").shownAs(MODE_NAMES).stepped(true),
+			D::choice("manga-fit", &Settings::mangaFit, MANGA_FIT_IDS, MANGA_FITS)
+				.page(SG_MANGA, 20, "Page fit", "Width: a page as wide as the screen, read down with RIGHT a screenful at a time.").shownAs(FIT_NAMES).stepped(true),
+			// the document viewers' choices, by name (textreader.h's order); their rows are Files' viewers', not this page's
+			D::choice("text-font", &Settings::txtFont, TXT_FONT_IDS, 5),
+			D::choice("text-size", &Settings::txtSize, TXT_SIZE_IDS, 5),
+			D::choice("text-spacing", &Settings::txtSpacing, TXT_SPACING_IDS, 3),
+			D::choice("text-margins", &Settings::txtMargins, TXT_MARGIN_IDS, 3),
+			D::choice("text-theme", &Settings::txtTheme, TXT_THEME_IDS, 4),
+			D::choice("text-filter", &Settings::txtFilter, DOC_FILTER_IDS, 4),
+			D::choice("pdf-filter", &Settings::pdfFilter, DOC_FILTER_IDS, 4),
+			D::choice("text-view", &Settings::txtBook, TXT_VIEW_IDS, 3),
+			D::choice("text-turn", &Settings::txtTurn, TXT_TURN_IDS, 2),
+			D::flag("pdf-view", &Settings::pdfStrip, "page", "strip"),
+			D::ints("manga-preload", &Settings::mangaPreload, MANGA_PRELOADS, MANGA_PRELOAD_COUNT)
+				.page(SG_MANGA, 60, "Preload", "More: smoother on a slow server, more data.").shownAs(nullptr, " pages").stepped(true).digitsOnly(),
+			// 0 to 200 in steps of 4 (a value a file kept from before may sit off the step: it snaps onto one on the page)
+			D::range("manga-hinge", &Settings::mangaHinge, 0, 200)
+				.page(SG_MANGA, 40, "Hinge gap", "The part of the page hidden under the hinge in fullscreen, so pictures line up across the gap. Measure on your handheld.")
+				.shownAs(nullptr, " px").stepped(false, nullptr, 4).ignoreBlank(),
+			D::choice("manga-cache", &Settings::mangaCacheSize, MANGA_CACHE_IDS, MANGA_CACHES)
+				.page(SG_MANGA, 70, "Page cache", "Pages kept on the card to read again without downloading. Covers: 50 MB more.").shownAs(CACHE_NAMES).stepped(true),
+			D::flag("remember-position", &Settings::rememberPosition)
+				.page(SG_REMEMBER, 10, "Remember position", "A video opens where you stopped. Songs always start at the beginning."),
+			D::flag("remember-audio", &Settings::rememberAudio)
+				.page(SG_REMEMBER, 20, "Remember audio track", "Keeps each file's audio track. A new file starts in the language you chose last."),
+			D::flag("remember-subtitles", &Settings::rememberSubs)
+				.page(SG_REMEMBER, 30, "Remember subtitles", "Keeps each file's subtitles. A new file starts in the language you chose last."),
+			D::flag("remember-folder", &Settings::rememberFolder)
+				.page(SG_FILES, 10, "Remember last folder", "The file list opens where you last were."),
+			D::flag("keep-history", &Settings::keepHistory)
+				.page(SG_FILES, 30, "Keep play history", "Keeps Recent. Turning it off also deletes the history."),
+			D::flag("keep-network-history", &Settings::keepNetHistory)
+				.page(SG_FILES, 40, "Network files in Recent", "Files played from a network folder go in Recent too. Off: they're left out, and the ones there now go."),
+			D::flag("button-hotkeys", &Settings::buttonHotkeys)
+				.page(SG_CONTROLS, 50, "Button hotkeys", "Off: the buttons can't pause, skip or close while something plays (touch still can)."),
+			D::flag("show-hidden-folders", &Settings::showHiddenFolders)
+				.page(SG_FILES, 20, "Show hidden folders", "Shows the folders you've hidden (X on a folder), so you can unhide them."),
+			D::flag("battery-percent", &Settings::batteryPercent)
+				.page(SG_CONTROLS, 60, "Battery percentage", "Shows the battery's percent beside its icon."),
+			D::flag("keep-photo-zoom", &Settings::keepPhotoZoom)
+				.page(SG_PHOTOS, 10, "Keep zoom between photos", "The next photo opens at the same zoom and place. Off: each opens whole."),
+			D::flag("check-updates", &Settings::checkUpdates)
+				.page(SG_UPDATES, 10, "Check automatically", "Looks for a new version a few seconds after the start (Wi-Fi needed)."),
+			D::flag("same-brightness", &Settings::sameBrightness)
+				.page(SG_CONTROLS, 30, "Same for both screens", "One brightness for both screens. Off: each its own."),
+			D::flag("shuffle", &Settings::shuffle),	// (no row: the play mode, as loop)
+			D::flag("manga-reader", &Settings::mangaOn),
+			D::flag("manga-intro-shown", &Settings::mangaIntroShown),
+			D::flag("manga-swap-lr", &Settings::mangaSwapLR)
+				.page(SG_MANGA, 30, "Swap Left/Right", "Off: RIGHT is always forward. On: LEFT is forward (to match a right-to-left book)."),
+			D::flag("manga-adult", &Settings::mangaAdult)
+				.page(SG_MANGA, 100, "Adult sources", "Sources a repository marks as adult.").shownAs(SHOWN_ADULT),
+			D::flag("manga-history", &Settings::mangaHistory)
+				.page(SG_MANGA, 110, "Reading history", "Off clears it."),
+			D::flag("manga-recent", &Settings::mangaRecent),	// (kept, not shown: the reader stays off Home)
+			D::flag("manga-full-seen", &Settings::mangaFullSeen),
+			D::flag("manga-open-full", &Settings::mangaOpenFull)
+				.page(SG_MANGA, 50, "Open fullscreen", "A chapter opens on both screens. SELECT leaves."),
+			D::flag("manga-secure-dns", &Settings::mangaSecureDns)
+				.page(SG_MANGA, 120, "Secure DNS", "Looks up sites through Cloudflare over HTTPS (one.one.one.one), past a network that blocks them.").shownAs(SHOWN_DNS),
+			D::flag("song-info", &Settings::songInfo)
+				.page(SG_MUSIC, 40, "Song info on top", "The song's title, artist and album over the top screen's picture (None shows the title anyway)."),
+			D::choice("clock", &Settings::clock, CLOCK_IDS, CLOCKS)
+				.page(SG_CONTROLS, 70, "Clock", "The time in the top corner of this screen").shownAs(CLOCK_NAMES).stepped(true),
+			// (not round: Never at one end, 5 minutes at the other)
+			D::choice("screen-off", &Settings::screenOffAfter, SCREEN_OFF_IDS, SCREEN_OFFS)
+				.page(SG_CONTROLS, 80, "Screen off (music)", "While a song plays, this screen goes dark after that long untouched. A touch brings it back.").shownAs(SCREEN_OFF_LABELS),
+			D::choice("screen-off-video", &Settings::screenOffVideo, SCREEN_OFF_IDS, SCREEN_OFFS)
+				.page(SG_CONTROLS, 90, "Screen off (video)", "While a video plays, this screen goes dark after that long untouched. A touch brings it back.").shownAs(SCREEN_OFF_LABELS),
+			D::flag("pan-area", &Settings::panRight, "left", "right")
+				.page(SG_PHOTOS, 20, "Pan area", "Which side the pan area (the small photo) is on.").shownAs(SHOWN_PAN),
+			D::flag("pan-drag", &Settings::dragBox, "photo", "box")
+				.page(SG_PHOTOS, 30, "Drag moves", "The box: a drag moves the frame over the small photo. The photo: a drag moves the photo, as on a phone.").shownAs(SHOWN_DRAG),
+			D::flag("eq", &Settings::eqOn, "off", "on"),
+			D::text("eq-preset", &Settings::eqPreset),
+			D::text("manga-langs", &Settings::mangaLangs),
+			D::text("eq-origin", &Settings::eqOrigin),
+			D::custom("eq-gains", readEqGains, writeEqGains),
+			D::custom("sound-effect", readSoundFx, writeSoundFx),
+			D::flag("web-dashboard", &Settings::webDashboard, "off", "on"),
+			D::custom("update-remind-after", readRemindAfter, writeRemindAfter),
+		};
+		return table;
+	}
+
+	int settingIndex(const char* key)
+	{
+		const auto& defs = settingDefs();
+		for (size_t i = 0; i < defs.size(); i++)
+			if (std::strcmp(defs[i].key, key) == 0) return (int)i;
+		return -1;
+	}
+
+	std::vector<int> settingsOfGroup(int group)
+	{
+		const auto& defs = settingDefs();
+		std::vector<int> out;
+		for (size_t i = 0; i < defs.size(); i++)
+			if (defs[i].group == group) out.push_back((int)i);
+		std::stable_sort(out.begin(), out.end(), [&](int a, int b) { return defs[a].place < defs[b].place; });
+		return out;
+	}
+
+	std::string settingValueText(const SettingDef& d, const Settings& s)
+	{
+		switch (d.kind)
+		{
+		case SettingDef::FLAG:
+		{
+			bool on = s.*d.flagField;
+			return d.shown ? d.shown[on] : on ? "On" : "Off";
+		}
+		case SettingDef::CHOICE:
+		{
+			int v = s.*d.intField;
+			return d.shown[v >= 0 && v < d.count ? v : 0];
+		}
+		default: return std::to_string(s.*d.intField) + d.unit;
+		}
+	}
+
+	void stepSetting(const SettingDef& d, Settings& s, int dir)
+	{
+		switch (d.kind)
+		{
+		case SettingDef::FLAG: s.*d.flagField = !(s.*d.flagField); break;
+		case SettingDef::CHOICE:
+		{
+			int& v = s.*d.intField;
+			if (d.stepFn) v = d.stepFn(v, dir);
+			else if (d.wrap) v = ((v + dir) % d.count + d.count) % d.count;
+			else v = std::clamp(v + dir, 0, d.count - 1);
+			break;
+		}
+		case SettingDef::INT_LIST:
+		{
+			// a value that isn't listed starts from the first
+			int i = 0;
+			for (int k = 0; k < d.count; k++)
+				if (d.values[k] == s.*d.intField) i = k;
+			i = d.wrap ? (i + (dir < 0 ? -1 : 1) + d.count) % d.count : std::clamp(i + dir, 0, d.count - 1);
+			s.*d.intField = d.values[i];
+			break;
+		}
+		case SettingDef::INT_RANGE:
+		{
+			int v = std::clamp(s.*d.intField + dir * d.stepBy, d.min, d.max);
+			s.*d.intField = v - v % d.stepBy;
+			break;
+		}
+		default: break;
+		}
+	}
+
 	std::string serializeSettings(const Settings& s)
 	{
 		std::string out = serializeSubStyle(s.style);
-		out += std::string("music-show = ") + SHOW_IDS[s.musicShow] + "\n";
-		out += std::string("visualizer = ") + VIS_IDS[s.visualizer] + "\n";
-		out += "visualizer-fps = " + std::to_string(s.vizFps) + "\n";
-		out += "manga-filter = " + std::to_string(s.mangaFilter) + "\n";
-		out += "read-dim = " + std::to_string(s.readDim) + "\n";
-		out += "volume-max = " + std::to_string(s.volumeMax) + "\n";
-		out += std::string("loop = ") + LOOP_IDS[s.loop] + "\n";
-		out += std::string("manga-mode = ") + MANGA_MODE_IDS[s.mangaMode] + "\n";
-		out += std::string("manga-fit = ") + MANGA_FIT_IDS[s.mangaFit] + "\n";
-		for (auto& d : DOC_INTS) out += std::string(d.key) + " = " + d.ids[std::clamp(s.*d.field, 0, d.count - 1)] + "\n";
-		out += std::string("pdf-view = ") + (s.pdfStrip ? "strip" : "page") + "\n";
-		out += "manga-preload = " + std::to_string(s.mangaPreload) + "\n";
-		out += "manga-hinge = " + std::to_string(s.mangaHinge) + "\n";
-		out += std::string("manga-cache = ") + MANGA_CACHE_IDS[s.mangaCacheSize] + "\n";
-		for (auto& r : REMEMBER) out += std::string(r.key) + " = " + (s.*r.field ? "yes" : "no") + "\n";
-		out += std::string("clock = ") + CLOCK_IDS[s.clock] + "\n";
-		out += std::string("screen-off = ") + SCREEN_OFF_IDS[s.screenOffAfter] + "\n";
-		out += std::string("screen-off-video = ") + SCREEN_OFF_IDS[s.screenOffVideo] + "\n";
-		out += std::string("pan-area = ") + (s.panRight ? "right" : "left") + "\n";
-		out += std::string("pan-drag = ") + (s.dragBox ? "box" : "photo") + "\n";
-		out += std::string("eq = ") + (s.eqOn ? "on" : "off") + "\n";
-		out += "eq-preset = " + s.eqPreset + "\n";
-		out += "manga-langs = " + s.mangaLangs + "\n";
-		out += "eq-origin = " + s.eqOrigin + "\n";
-		out += "eq-gains = " + formatEqGains(s.eqGains) + "\n";
-		out += std::string("sound-effect = ") + soundFxKey(s.soundFx) + "\n";
-		out += std::string("web-dashboard = ") + (s.webDashboard ? "on" : "off") + "\n";
-		if (s.updateRemindAfter > 0) out += "update-remind-after = " + std::to_string(s.updateRemindAfter) + "\n";
+		for (const auto& d : settingDefs())
+		{
+			std::string value;
+			switch (d.kind)
+			{
+			case SettingDef::FLAG: value = d.ids[s.*d.flagField ? 1 : 0]; break;
+			case SettingDef::CHOICE: value = d.ids[std::clamp(s.*d.intField, 0, d.count - 1)]; break;
+			case SettingDef::INT_LIST: case SettingDef::INT_RANGE: value = std::to_string(s.*d.intField); break;
+			case SettingDef::TEXT: value = s.*d.textField; break;
+			case SettingDef::CUSTOM: if (!d.write(s, value)) continue; break;
+			}
+			out += std::string(d.key) + " = " + value + "\n";
+		}
 		return out;
+	}
+
+	// one line's value into the setting it names; what isn't a value of it leaves the setting as it was
+	static void readSetting(const SettingDef& d, Settings& s, const std::string& value)
+	{
+		switch (d.kind)
+		{
+		case SettingDef::FLAG:
+			if (value == d.ids[0]) s.*d.flagField = false;
+			else if (value == d.ids[1]) s.*d.flagField = true;
+			break;
+		case SettingDef::CHOICE:
+			for (int v = 0; v < d.count; v++)
+				if (value == d.ids[v]) s.*d.intField = v;
+			break;
+		case SettingDef::INT_LIST:
+		{
+			int n = std::atoi(value.c_str());
+			for (int v = 0; v < d.count; v++)
+				if (d.canonical ? value == std::to_string(d.values[v]) : n == d.values[v]) s.*d.intField = d.values[v];
+			break;
+		}
+		case SettingDef::INT_RANGE:
+		{
+			int n = std::atoi(value.c_str());
+			if (n >= d.min && n <= d.max && !(d.blankIgnored && value.empty())) s.*d.intField = n / d.snap * d.snap;
+			break;
+		}
+		case SettingDef::TEXT: s.*d.textField = value; break;
+		case SettingDef::CUSTOM: d.parse(s, value); break;
+		}
+		if (d.after) d.after(s, value);
 	}
 
 	Settings parseSettings(const std::string& text)
 	{
 		Settings s;
 		s.style = parseSubStyle(text);	// it leaves out the keys below
+		const auto& defs = settingDefs();
 		std::istringstream in(text);
 		std::string line;
 		while (std::getline(in, line))
@@ -566,54 +812,8 @@ namespace bp
 				return a == std::string::npos ? std::string() : v.substr(a, b - a + 1);
 			};
 			std::string key = trim(line.substr(0, eq)), value = trim(line.substr(eq + 1));
-			for (auto& r : REMEMBER)
-				if (key == r.key && (value == "yes" || value == "no")) s.*r.field = value == "yes";
-			for (int v = 0; v < SHOWS; v++)
-				if (key == "music-show" && value == SHOW_IDS[v]) s.musicShow = v;
-			for (int v = 0; v < VISUALIZERS; v++)
-				if (key == "visualizer" && value == VIS_IDS[v]) s.visualizer = v;
-			// Timeline (0.5.x, briefly) became Peaks; a style not offered (Bars, Waves, Spectrum, and those kept but
-			// not offered: VIS_SHOWN) is read as Peaks Banana (the default)
-			if (key == "visualizer-fps") { int f = std::atoi(value.c_str()); if (f == 30 || f == 45 || f == 60) s.vizFps = f; }
-			if (key == "manga-filter") { int f = std::atoi(value.c_str()); if (f >= 0 && f <= 3) s.mangaFilter = f; }
-			if (key == "read-dim") { int d = std::atoi(value.c_str()); if (d >= 0 && d <= 80) s.readDim = d / 10 * 10; }
-			if (key == "volume-max") { int m = std::atoi(value.c_str()); if (m == 100 || m == 120 || m == 150) s.volumeMax = m; }
-			if (key == "visualizer" && value == "timeline") s.visualizer = VIS_PEAKS_BANANA;
-			if (key == "visualizer" && std::find(std::begin(VIS_SHOWN), std::end(VIS_SHOWN), s.visualizer) == std::end(VIS_SHOWN))
-				s.visualizer = VIS_PEAKS_BANANA;
-			for (int v = 0; v < LOOPS; v++)
-				if (key == "loop" && value == LOOP_IDS[v]) s.loop = v;
-			for (int v = 0; v < CLOCKS; v++)
-				if (key == "clock" && value == CLOCK_IDS[v]) s.clock = v;
-			for (int v = 0; v < SCREEN_OFFS; v++)
-			{
-				if (key == "screen-off" && value == SCREEN_OFF_IDS[v]) s.screenOffAfter = v;
-				if (key == "screen-off-video" && value == SCREEN_OFF_IDS[v]) s.screenOffVideo = v;
-			}
-			for (int v = 0; v < MANGA_MODES; v++)
-				if (key == "manga-mode" && value == MANGA_MODE_IDS[v]) s.mangaMode = v;
-			for (int v = 0; v < MANGA_FITS; v++)
-				if (key == "manga-fit" && value == MANGA_FIT_IDS[v]) s.mangaFit = v;
-			for (auto& d : DOC_INTS)
-				for (int v = 0; v < d.count; v++)
-					if (key == d.key && value == d.ids[v]) s.*d.field = v;
-			if (key == "pdf-view" && (value == "strip" || value == "page")) s.pdfStrip = value == "strip";
-			for (int v = 0; v < MANGA_PRELOAD_COUNT; v++)
-				if (key == "manga-preload" && value == std::to_string(MANGA_PRELOADS[v])) s.mangaPreload = MANGA_PRELOADS[v];
-			for (int v = 0; v < MANGA_CACHES; v++)
-				if (key == "manga-cache" && value == MANGA_CACHE_IDS[v]) s.mangaCacheSize = v;
-			// (0 to 120: a gap no panel pair has more of)
-			if (key == "manga-hinge") { int g = atoi(value.c_str()); if (g >= 0 && g <= 200 && !value.empty()) s.mangaHinge = g; }
-			if (key == "pan-area" && (value == "left" || value == "right")) s.panRight = value == "right";
-			if (key == "pan-drag" && (value == "photo" || value == "box")) s.dragBox = value == "box";
-			if (key == "eq" && (value == "on" || value == "off")) s.eqOn = value == "on";
-			if (key == "eq-preset") s.eqPreset = value;
-			if (key == "manga-langs") s.mangaLangs = value;
-			if (key == "eq-origin") s.eqOrigin = value;
-			if (key == "eq-gains") parseEqGains(value, s.eqGains);
-			if (key == "sound-effect") s.soundFx = soundFxFromKey(value);
-			if (key == "web-dashboard" && (value == "on" || value == "off")) s.webDashboard = value == "on";
-			if (key == "update-remind-after") s.updateRemindAfter = atoll(value.c_str());
+			for (const auto& d : defs)
+				if (key == d.key) { readSetting(d, s, value); break; }
 			// the one setting before 0.1.1, kept: auto, cover-bars, bars, waves, spectrum, cover
 			if (key == "audio-display")
 			{

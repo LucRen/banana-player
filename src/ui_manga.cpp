@@ -2278,10 +2278,10 @@ namespace bp
 			else mangaSetMode((readerStatus.mode + dir + MANGA_MODES) % MANGA_MODES, p);
 			break;
 		// the setting itself, so the next chapter opens the same way
-		case MGM_FIT: changeSetting(MANGA_FIT_ROW, dir, p); break;
+		case MGM_FIT: changeSetting(settingRow("manga-fit"), dir, p); break;
 		case MGM_ZOOM: mangaZoomStep(dir); break;
-		case MGM_HINGE: changeSetting(MANGA_HINGE_ROW, dir, p); break;
-		case MGM_SWAP: changeSetting(TOGGLE_ROW + 13, dir, p); break;	// Swap Left/Right
+		case MGM_HINGE: changeSetting(settingRow("manga-hinge"), dir, p); break;
+		case MGM_SWAP: changeSetting(settingRow("manga-swap-lr"), dir, p); break;	// Swap Left/Right
 		default: break;	// Pages and All Manga settings: nothing to step
 		}
 	}

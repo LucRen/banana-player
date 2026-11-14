@@ -1440,20 +1440,13 @@ namespace bp
 		static constexpr Rect BAR{24, 150, 592, 24};
 		static constexpr int BTN_W = 108, BTN_H = 60, BTN_STEP = 121, ROW1_Y = 228, ROW2_Y = 300;
 		static constexpr int ROW_Y = 84, ROW_H = 48, ROWS_SHOWN = 7;	// 7 rows end at 420, above the hints (and the mini bar)
-		// the settings' rows by id: the subtitle style's, Music display, Visualizer, the switches (REMEMBER), Pan area,
-		// Clear play history, ..., Sound (it opens the Sound page). Shown a group at a time (settingRows), after a list of
-		// the groups. The manga reader's rows are its own page's (Page::MangaSettings): EXT_NOTE is its note, no value
-		static constexpr int STYLE_ROW0 = 0, MUSIC_ROW = STYLE_KEYS, VIS_ROW = STYLE_KEYS + 1, TOGGLE_ROW = STYLE_KEYS + 2,
-			TOGGLES = 21, PAN_ROW = TOGGLE_ROW + TOGGLES, DRAG_ROW = PAN_ROW + 1, CLEAR_ROW = DRAG_ROW + 1,
-			CHECK_ROW = CLEAR_ROW + 1, INSTALL_ROW = CHECK_ROW + 1, TOP_LIGHT_ROW = INSTALL_ROW + 1,
-			BOTTOM_LIGHT_ROW = TOP_LIGHT_ROW + 1, SOUND_ROW = BOTTOM_LIGHT_ROW + 1, CLOCK_ROW = SOUND_ROW + 1,
-			SCREEN_OFF_ROW = CLOCK_ROW + 1, EXT_NOTE = SCREEN_OFF_ROW + 1, MANGA_MODE_ROW = EXT_NOTE + 1,
-			MANGA_FIT_ROW = MANGA_MODE_ROW + 1, MANGA_HINGE_ROW = MANGA_FIT_ROW + 1, MANGA_PRELOAD_ROW = MANGA_HINGE_ROW + 1,
-			MANGA_CACHE_ROW = MANGA_PRELOAD_ROW + 1, MANGA_CLEAR_ROW = MANGA_CACHE_ROW + 1,
-			MANGA_JAVA_ROW = MANGA_CLEAR_ROW + 1, SCREEN_OFF_VIDEO_ROW = MANGA_JAVA_ROW + 1, VIS_FPS_ROW = SCREEN_OFF_VIDEO_ROW + 1,
-			// Secure DNS is one of the REMEMBER switches (the last), so its id is that switch's: changeSetting's
-			// generic branch toggles it by that index
-			MANGA_DNS_ROW = TOGGLE_ROW + 19, SONG_INFO_ROW = TOGGLE_ROW + 20, VOLUME_MAX_ROW = VIS_FPS_ROW + 1;
+		// the settings' rows by id: the subtitle style's, and the actions and pages that have their own code (the rest are
+		// the settings table's: SET_ROW0 + the index in settingDefs(), ui_internal.h). Shown a group at a time
+		// (settingRows), after a list of the groups. The manga reader's rows are its own page's (Page::MangaSettings):
+		// EXT_NOTE is its note, no value
+		static constexpr int STYLE_ROW0 = 0, CLEAR_ROW = STYLE_KEYS, CHECK_ROW = CLEAR_ROW + 1, INSTALL_ROW = CHECK_ROW + 1,
+			TOP_LIGHT_ROW = INSTALL_ROW + 1, BOTTOM_LIGHT_ROW = TOP_LIGHT_ROW + 1, SOUND_ROW = BOTTOM_LIGHT_ROW + 1,
+			EXT_NOTE = SOUND_ROW + 1, MANGA_CLEAR_ROW = EXT_NOTE + 1, MANGA_JAVA_ROW = MANGA_CLEAR_ROW + 1;
 		// the panels' backlights (BananaOS's own levels: changed here as its menu changes them)
 		Backlight backlight;
 		bool sameBrightness = true;	// the setting's, kept here for settingRows (no Player there)

@@ -5627,6 +5627,107 @@ static void testSubtitleCodePages()
 		"WEBVTT\n\n00:00:01.000 --> 00:00:02.000\n" + want + "\n\n");
 }
 
+// the settings table (SettingDef): every entry reads what it writes, an old settings.conf reads as it did before the
+// table (values captured from the build before it), and the page's text and stepping come from the entry
+static void testSettingsTable()
+{
+	const auto& defs = settingDefs();
+	std::string plain = serializeSettings(Settings());
+	CHECK_EQ(serializeSettings(parseSettings(plain)), plain);
+	std::set<std::string> keys;
+	for (size_t i = 0; i < defs.size(); i++)
+	{
+		const SettingDef& d = defs[i];
+		CHECK_EQ(keys.insert(d.key).second, true);	// a key twice would be read by its first entry only
+		CHECK_EQ(settingIndex(d.key), (int)i);
+		// a row on the page has what a row shows; a choice its value texts and a flag its words
+		if (d.group != SG_NONE)
+		{
+			CHECK_EQ(std::string(d.label).empty(), false);
+			CHECK_EQ(std::string(d.help).empty(), false);
+		}
+		if (d.kind == SettingDef::CHOICE && d.group != SG_NONE) CHECK_EQ(d.shown != nullptr, true);
+		// each value it can take is written, read back and written the same; Left and Right reach each of them
+		Settings s;
+		for (int k = 0; k < 8 && d.kind != SettingDef::TEXT && d.kind != SettingDef::CUSTOM; k++)
+		{
+			stepSetting(d, s, k < 4 ? 1 : -1);
+			std::string once = serializeSettings(s);
+			CHECK_EQ(serializeSettings(parseSettings(once)), once);
+			if (d.group != SG_NONE) CHECK_EQ(settingValueText(d, s).empty(), false);
+		}
+	}
+	// the page's rows come in their places, by group
+	auto controls = settingsOfGroup(SG_CONTROLS);
+	CHECK_EQ(std::string(defs[controls.front()].key), "same-brightness");
+	CHECK_EQ(std::string(defs[controls.back()].key), "screen-off-video");
+	auto files = settingsOfGroup(SG_FILES);
+	CHECK_EQ(files.size(), (size_t)4);
+	CHECK_EQ(std::string(defs[files[1]].key), "show-hidden-folders");	// (not the file's order: its row's)
+	// Left/Right and the value texts as the page had them
+	Settings s;
+	const SettingDef& vol = defs[settingIndex("volume-max")];
+	CHECK_EQ(settingValueText(vol, s), "120%");
+	stepSetting(vol, s, 1);
+	CHECK_EQ(s.volumeMax, 150);
+	stepSetting(vol, s, 1);
+	CHECK_EQ(s.volumeMax, 150);	// stops at the end
+	stepSetting(vol, s, -1); stepSetting(vol, s, -1); stepSetting(vol, s, -1);
+	CHECK_EQ(settingValueText(vol, s), "100%");
+	const SettingDef& pre = defs[settingIndex("manga-preload")];
+	stepSetting(pre, s, 1);
+	CHECK_EQ(settingValueText(pre, s), "6 pages");
+	stepSetting(pre, s, 1);
+	CHECK_EQ(s.mangaPreload, 2);	// goes round
+	const SettingDef& hinge = defs[settingIndex("manga-hinge")];
+	s.mangaHinge = 38;
+	stepSetting(hinge, s, 1);
+	CHECK_EQ(s.mangaHinge, 40);	// onto the step
+	CHECK_EQ(settingValueText(hinge, s), "40 px");
+	s.mangaHinge = 200;
+	stepSetting(hinge, s, 1);
+	CHECK_EQ(s.mangaHinge, 200);
+	const SettingDef& pan = defs[settingIndex("pan-area")];
+	CHECK_EQ(settingValueText(pan, s), "Left");
+	stepSetting(pan, s, -1);
+	CHECK_EQ(settingValueText(pan, s), "Right");
+	CHECK_EQ(serializeSettings(s).find("pan-area = right\n") != std::string::npos, true);
+	const SettingDef& scr = defs[settingIndex("screen-off")];
+	s.screenOffAfter = SOFF_NEVER;
+	stepSetting(scr, s, -1);
+	CHECK_EQ(s.screenOffAfter, (int)SOFF_NEVER);	// not round
+	const SettingDef& clk = defs[settingIndex("clock")];
+	stepSetting(clk, s, -1);
+	CHECK_EQ(settingValueText(clk, s), "Off");	// round
+	const SettingDef& vis = defs[settingIndex("visualizer")];
+	s.visualizer = VIS_CIRCLE;
+	stepSetting(vis, s, 1);
+	CHECK_EQ(s.visualizer, (int)VIS_POCKET);	// the styles offered, in order
+	// an old file, as it read before the table (hand-made values; each read by the build before it)
+	Settings o = parseSettings("visualizer-fps = 045\nmanga-filter = abc\nread-dim = 55\nvolume-max = 130\nmanga-hinge =\nmanga-preload = 03\n"
+		"update-remind-after = 99999\nmanga-cache = 2g\nclock = 36h\naudio-display = cover-bars\n");
+	CHECK_EQ(o.vizFps, 45);
+	CHECK_EQ(o.mangaFilter, 0);	// (atoi: no digits is 0)
+	CHECK_EQ(o.readDim, 50);	// (to a ten)
+	CHECK_EQ(o.volumeMax, 120);	// (not one of 100, 120, 150)
+	CHECK_EQ(o.mangaHinge, 36);	// (blank: left alone)
+	CHECK_EQ(o.mangaPreload, 3);	// ("03" is no preload's digits)
+	CHECK_EQ(o.updateRemindAfter, 99999LL);
+	CHECK_EQ(o.mangaCacheSize, (int)MANGA_CACHE_DEFAULT);	// (not one of its names)
+	CHECK_EQ(o.clock, (int)CLOCK_24);
+	CHECK_EQ(o.musicShow, (int)SHOW_BOTH);
+	Settings o2 = parseSettings("manga-hinge = abc\nmanga-hinge = 201\nmanga-filter =\nread-dim = 85\nmanga-preload = 6\n");
+	CHECK_EQ(o2.mangaHinge, 0);	// (atoi again: "abc" is 0, and 201 is past the top)
+	CHECK_EQ(o2.readDim, 0);
+	CHECK_EQ(o2.mangaPreload, 6);
+	// the file's lines and their order, as written before the table
+	std::string head = serializeSettings(Settings());
+	size_t a = head.find("music-show = "), b = head.find("visualizer = "), c = head.find("update-remind-after");
+	CHECK_EQ(a < b, true);
+	CHECK_EQ(c, std::string::npos);	// only once there's a time
+	CHECK_EQ(head.find("remember-position = yes\n") > head.find("manga-cache = "), true);
+}
+
 static void testSettings()
 {
 	Settings d = parseSettings("");
@@ -10253,6 +10354,7 @@ int main()
 	testSubStyle();
 	testSubtitleCodePages();
 	testSettings();
+	testSettingsTable();
 	testEq();
 	testSoundFx();
 	testResume();

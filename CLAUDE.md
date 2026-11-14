@@ -63,7 +63,7 @@ tools/make-sprite.py                                 # web/sprite.svg from the G
 - **Ui:** redraws only when `signature()` changes (new drawing state goes in it); a new dialog or sheet is a
   `Ui::Overlay` (`ui_overlay.cpp`, docs/notes/overlay-stack.md), not a flag checked in `press`/`pointer`/`draw`; 640×480 units; colours/radii from
   `theme.h` via `fillRound`/`drawBox`; path checks via `pseudoDir()`.
-- **Settings:** a new one goes in `Settings` + the `REMEMBER` table, kept in step with `ui_internal.h` and the row ids.
+- **Settings:** a new one is a member in `Settings` + one entry in `settingDefs()` (`settings.cpp`: key, default via the member, range, and the page row's group/label/help); `docs/notes/settings-table.md`.
 - **Threads:** background threads never touch `Player`/`Ui`; they push SDL user events. Never block on a server in a
   destructor; the Updater and `WebServer` are never destroyed.
 - **Memory:** glibc's mmap threshold stays pinned (`mallopt` in `main`): a big buffer freed goes back to the system.

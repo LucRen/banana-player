@@ -22,7 +22,10 @@ namespace bp
 {
 	std::vector<int> Ui::settingRows() const
 	{
-		const int T = TOGGLE_ROW;
+		// the page's groups are settings.h's SettingsGroup: the table's rows name theirs
+		static_assert(GROUP_SUBS == SG_SUBS && GROUP_MUSIC == SG_MUSIC && GROUP_PHOTOS == SG_PHOTOS &&
+			GROUP_REMEMBER == SG_REMEMBER && GROUP_FILES == SG_FILES && GROUP_CONTROLS == SG_CONTROLS &&
+			GROUP_UPDATES == SG_UPDATES && GROUP_WEB == SG_WEB, "Ui::SetGroup and SettingsGroup go together");
 		switch (setGroup)
 		{
 		case GROUP_SUBS:
@@ -31,25 +34,21 @@ namespace bp
 			for (int k = 0; k < STYLE_KEYS; k++) out.push_back(STYLE_ROW0 + k);
 			return out;
 		}
-		case GROUP_MUSIC: return {MUSIC_ROW, VIS_ROW, VIS_FPS_ROW, SONG_INFO_ROW, SOUND_ROW};
-		case GROUP_PHOTOS: return {T + 8, PAN_ROW, DRAG_ROW};
-		case GROUP_REMEMBER: return {T + 0, T + 1, T + 2};
-		case GROUP_FILES: return {T + 3, T + 6, T + 4, T + 11, CLEAR_ROW};
+		// (Sound FX opens a page of its own; Clear play history is an action)
+		case GROUP_MUSIC: return pageRows(SG_MUSIC, {{50, SOUND_ROW}});
+		case GROUP_PHOTOS: return pageRows(SG_PHOTOS);
+		case GROUP_REMEMBER: return pageRows(SG_REMEMBER);
+		case GROUP_FILES: return pageRows(SG_FILES, {{50, CLEAR_ROW}});
 		case GROUP_CONTROLS:
 		{
-			// the brightness rows where there are backlights (the handheld)
-			std::vector<int> out;
-			// one row for both panels (Same for both screens), or one each
+			// the brightness rows where there are backlights (the handheld): one row for both panels (Same for both
+			// screens, which is there only with two), or one each
+			std::vector<std::pair<int, int>> own;
 			bool both = backlight.present(Backlight::TOP) && backlight.present(Backlight::BOTTOM);
-			if (backlight.present(Backlight::TOP)) out.push_back(TOP_LIGHT_ROW);
-			if (backlight.present(Backlight::BOTTOM) && !(both && sameBrightness)) out.push_back(BOTTOM_LIGHT_ROW);
-			if (both) out.push_back(T + 10);
-			out.push_back(VOLUME_MAX_ROW);
-			out.push_back(T + 5);
-			out.push_back(T + 7);
-			out.push_back(CLOCK_ROW);
-			out.push_back(SCREEN_OFF_ROW);
-			out.push_back(SCREEN_OFF_VIDEO_ROW);
+			if (backlight.present(Backlight::TOP)) own.push_back({10, TOP_LIGHT_ROW});
+			if (backlight.present(Backlight::BOTTOM) && !(both && sameBrightness)) own.push_back({20, BOTTOM_LIGHT_ROW});
+			std::vector<int> out = pageRows(SG_CONTROLS, own);
+			if (!both) out.erase(std::remove(out.begin(), out.end(), settingRow("same-brightness")), out.end());
 			return out;
 		}
 		case GROUP_UPDATES:
@@ -59,8 +58,8 @@ namespace bp
 			Updater::State st = updater->state();
 			bool install = st == Updater::State::Available || st == Updater::State::Downloading || st == Updater::State::Ready ||
 				(st == Updater::State::Failed && !updater->available().empty());
-			if (install) return {T + 9, CHECK_ROW, INSTALL_ROW};
-			return {T + 9, CHECK_ROW};
+			if (install) return pageRows(SG_UPDATES, {{20, CHECK_ROW}, {30, INSTALL_ROW}});
+			return pageRows(SG_UPDATES, {{20, CHECK_ROW}});
 		}
 		default: return {};
 		}
@@ -68,56 +67,19 @@ namespace bp
 
 	std::string Ui::settingHelp(int row) const
 	{
-		const int T = TOGGLE_ROW;
+		if (const SettingDef* d = rowDef(row)) return d->help;
 		if (row == STYLE_ROW0 + ENCODING)
 			return "How a subtitle file's letters are read. Auto works for most; if letters like š, č or ж come out wrong, pick the file's encoding.";
 		if (row >= STYLE_ROW0 && row < STYLE_ROW0 + STYLE_KEYS) return "How plain subtitles (SRT, VTT...) look. Styled ones (ASS) keep theirs.";
-		if (row == MANGA_MODE_ROW) return "How a series opens until you pick one for it (X while reading).";
-		if (row == MANGA_FIT_ROW) return "Width: a page as wide as the screen, read down with RIGHT a screenful at a time.";
-		if (row == MANGA_HINGE_ROW)
-			return "The part of the page hidden under the hinge in fullscreen, so pictures line up across the gap. Measure on your handheld.";
-		if (row == MANGA_PRELOAD_ROW) return "More: smoother on a slow server, more data.";
-		if (row == MANGA_CACHE_ROW) return "Pages kept on the card to read again without downloading. Covers: 50 MB more.";
 		if (row == MANGA_CLEAR_ROW) return "Empties the pages kept on the card. Press A twice.";
-		if (row == MANGA_DNS_ROW) return "Looks up sites through Cloudflare over HTTPS (one.one.one.one), past a network that blocks them.";
 		if (row == MANGA_JAVA_ROW)
 			return "Needed for repositories whose address ends in index.pb or index.min.json: a 241 MB download, and about 300 MB of memory while one of their sources is open.";
-		if (row == MUSIC_ROW) return "What the top screen shows while a song plays (SELECT while playing).";
-		if (row == VOLUME_MAX_ROW) return "How far the volume keys go: past 100% the player turns the sound up itself (louder than the handheld's own top, a little rougher on loud parts). Over 120% can damage your hearing and the speakers.";
-		if (row == VIS_FPS_ROW) return "How smoothly the visualizers move: 60 is smoothest, 30 lightest on the battery. Peaks and Circle stay at 30.";
-		if (row == SONG_INFO_ROW) return "The song's title, artist and album over the top screen's picture (None shows the title anyway).";
-		if (row == VIS_ROW) return "How the music is drawn: twenty styles, from Peaks to Washing machine (SELECT while playing).";
 		if (row == SOUND_ROW) return "Equalizer and effects for music (not videos). A opens it";
-		if (row == CLOCK_ROW) return "The time in the top corner of this screen";
-		if (row == SCREEN_OFF_ROW) return "While a song plays, this screen goes dark after that long untouched. A touch brings it back.";
-		if (row == SCREEN_OFF_VIDEO_ROW) return "While a video plays, this screen goes dark after that long untouched. A touch brings it back.";
-		if (row == PAN_ROW) return "Which side the pan area (the small photo) is on.";
-		if (row == DRAG_ROW) return "The box: a drag moves the frame over the small photo. The photo: a drag moves the photo, as on a phone.";
 		if (row == CLEAR_ROW) return "Empties Recent. Press A twice. The places you stopped at are kept.";
 		if (row == TOP_LIGHT_ROW || row == BOTTOM_LIGHT_ROW) return "The backlight, 10% to 100%: the same levels as BananaOS's own settings.";
 		if (row == CHECK_ROW) return "Looks for a new version now.";
 		if (row == INSTALL_ROW) return "Downloads the new version, then Restart now.";
-		switch (row - T)
-		{
-		case 0: return "A video opens where you stopped. Songs always start at the beginning.";
-		case 1: return "Keeps each file's audio track. A new file starts in the language you chose last.";
-		case 2: return "Keeps each file's subtitles. A new file starts in the language you chose last.";
-		case 3: return "The file list opens where you last were.";
-		case 4: return "Keeps Recent. Turning it off also deletes the history.";
-		case 5: return "Off: the buttons can't pause, skip or close while something plays (touch still can).";
-		case 6: return "Shows the folders you've hidden (X on a folder), so you can unhide them.";
-		case 7: return "Shows the battery's percent beside its icon.";
-		case 8: return "The next photo opens at the same zoom and place. Off: each opens whole.";
-		case 9: return "Looks for a new version a few seconds after the start (Wi-Fi needed).";
-		case 10: return "One brightness for both screens. Off: each its own.";
-		case 11: return "Files played from a network folder go in Recent too. Off: they're left out, and the ones there now go.";
-		case 13: return "Off: RIGHT is always forward. On: LEFT is forward (to match a right-to-left book).";
-		case 14: return "Sources a repository marks as adult.";
-		case 15: return "Off clears it.";
-		case 16: return "Chapters you open show in Home's Recent. Off: they're left out.";
-		case 18: return "A chapter opens on both screens. SELECT leaves.";
-		default: return "";
-		}
+		return "";
 	}
 
 	void Ui::stepGroup(int dir)
@@ -170,7 +132,7 @@ namespace bp
 			else mangaCacheAt = now;
 			return;
 		}
-		// a note, not a value: nothing to change (and no switch beyond the last REMEMBER row)
+		// a note, not a value: nothing to change
 		if (row == EXT_NOTE) return;
 		if (row == MANGA_JAVA_ROW) { mangaJavaAct(); return; }
 		if (row == CHECK_ROW) { if (updater) updater->check(); return; }
@@ -189,67 +151,44 @@ namespace bp
 			return;
 		}
 		Settings s = p.settings;
-		if (row - STYLE_ROW0 < STYLE_KEYS) stepStyle(s.style, (StyleKey)(row - STYLE_ROW0), dir);
-		else if (row == MUSIC_ROW) s.musicShow = ((s.musicShow + dir) % SHOWS + SHOWS) % SHOWS;
-		else if (row == MANGA_MODE_ROW) s.mangaMode = ((s.mangaMode + dir) % MANGA_MODES + MANGA_MODES) % MANGA_MODES;
-		else if (row == MANGA_FIT_ROW)
+		if (const SettingDef* d = rowDef(row))
 		{
-			s.mangaFit = ((s.mangaFit + dir) % MANGA_FITS + MANGA_FITS) % MANGA_FITS;
-			// a chapter open on the top panel takes it at once, as X takes the mode
-			if (readerStatus.open) readerCmds.push_back({ReaderCmd::Fit, (double)s.mangaFit, (int64_t)SDL_GetTicks()});
-		}
-		else if (row == MANGA_HINGE_ROW)
-		{
-			// 0 to 200 in steps of 4 (a value a file kept from before may sit off the step: it snaps onto one)
-			int h = std::clamp(s.mangaHinge + dir * 4, 0, 200);
-			s.mangaHinge = h - h % 4;
-			// both panels are one view while reading fullscreen: the reader relayouts now, not at the next open
-			if (readerStatus.open && readerStatus.fullscreen)
-				readerCmds.push_back({ReaderCmd::Fullscreen, 1.0, (int64_t)SDL_GetTicks(), (double)s.mangaHinge});
-		}
-		else if (row == MANGA_PRELOAD_ROW) s.mangaPreload = stepMangaPreload(s.mangaPreload, dir);
-		else if (row == MANGA_CACHE_ROW)
-		{
-			s.mangaCacheSize = ((s.mangaCacheSize + dir) % MANGA_CACHES + MANGA_CACHES) % MANGA_CACHES;
-			// over a smaller cap the cache gives its oldest pages up at once
-			mangaPageCache.setLimit(mangaCacheBytes(s.mangaCacheSize));
-			mangaNetTrim(mangaRead.path, p);
-		}
-		else if (row == TOGGLE_ROW + 15)
-		{
-			s.mangaHistory = !s.mangaHistory;
-			mangaHistOn = s.mangaHistory;
-			// off: the list goes; the places and the read marks stay (progress isn't history)
-			if (!s.mangaHistory && mangaStore)
+			stepSetting(*d, s, dir);
+			// what a few settings do besides keeping the value (the rest are the table's alone)
+			if (d->intField == &Settings::mangaFit)
 			{
-				mangaStore->clearHistory();
-				mangaSave();
+				// a chapter open on the top panel takes it at once, as X takes the mode
+				if (readerStatus.open) readerCmds.push_back({ReaderCmd::Fit, (double)s.mangaFit, (int64_t)SDL_GetTicks()});
 			}
+			else if (d->intField == &Settings::mangaHinge)
+			{
+				// both panels are one view while reading fullscreen: the reader relayouts now, not at the next open
+				if (readerStatus.open && readerStatus.fullscreen)
+					readerCmds.push_back({ReaderCmd::Fullscreen, 1.0, (int64_t)SDL_GetTicks(), (double)s.mangaHinge});
+			}
+			else if (d->intField == &Settings::mangaCacheSize)
+			{
+				// over a smaller cap the cache gives its oldest pages up at once
+				mangaPageCache.setLimit(mangaCacheBytes(s.mangaCacheSize));
+				mangaNetTrim(mangaRead.path, p);
+			}
+			else if (d->flagField == &Settings::mangaHistory)
+			{
+				mangaHistOn = s.mangaHistory;
+				// off: the list goes; the places and the read marks stay (progress isn't history)
+				if (!s.mangaHistory && mangaStore)
+				{
+					mangaStore->clearHistory();
+					mangaSave();
+				}
+			}
+			else if (d->intField == &Settings::volumeMax && s.volumeMax == 150)
+				alert("Up to 150%", "Over 120% can damage your hearing, and the speakers (headphones too). The volume keys go there only one step at a time past 100%.");
 		}
-		else if (row == VIS_ROW) s.visualizer = stepVisualizer(s.visualizer, dir);
-		else if (row == VOLUME_MAX_ROW)
-		{
-			static const int TOPS[3] = {100, 120, 150};
-			int i = s.volumeMax == 120 ? 1 : s.volumeMax == 150 ? 2 : 0;
-			s.volumeMax = TOPS[std::clamp(i + dir, 0, 2)];
-			if (s.volumeMax == 150) alert("Up to 150%", "Over 120% can damage your hearing, and the speakers (headphones too). The volume keys go there only one step at a time past 100%.");
-		}
-		else if (row == VIS_FPS_ROW)
-		{
-			static const int RATES[3] = {30, 45, 60};
-			int i = s.vizFps == 30 ? 0 : s.vizFps == 60 ? 2 : 1;
-			s.vizFps = RATES[std::clamp(i + dir, 0, 2)];
-		}
-		else if (row == CLOCK_ROW) s.clock = ((s.clock + dir) % CLOCKS + CLOCKS) % CLOCKS;
-		// (not round: Never at one end, 5 minutes at the other)
-		else if (row == SCREEN_OFF_ROW) s.screenOffAfter = std::clamp(s.screenOffAfter + dir, 0, SCREEN_OFFS - 1);
-		else if (row == SCREEN_OFF_VIDEO_ROW) s.screenOffVideo = std::clamp(s.screenOffVideo + dir, 0, SCREEN_OFFS - 1);
-		else if (row == PAN_ROW) s.panRight = !s.panRight;
-		else if (row == DRAG_ROW) s.dragBox = !s.dragBox;
-		else s.*REMEMBER[row - TOGGLE_ROW] = !(s.*REMEMBER[row - TOGGLE_ROW]);
+		else if (row - STYLE_ROW0 < STYLE_KEYS) stepStyle(s.style, (StyleKey)(row - STYLE_ROW0), dir);
 		p.setSettings(s);
 		// a lower top than the volume now: down to it
-		if (row == VOLUME_MAX_ROW && p.boost > std::max(100, s.volumeMax)) p.setBoost(s.volumeMax);
+		if (rowDef(row) && rowDef(row)->intField == &Settings::volumeMax && p.boost > std::max(100, s.volumeMax)) p.setBoost(s.volumeMax);
 	}
 
 	// a settings row: its label on the left, the arrows and the value; an action's or the repositories' note's own look
@@ -325,99 +264,16 @@ namespace bp
 			label = subStyleSettings()[k].label;
 			value = styleValueLabel(p.settings.style, (StyleKey)k);
 		}
-		else if (row == MANGA_MODE_ROW)
-		{
-			static const char* NAMES[MANGA_MODES] = {"Right to left", "Left to right", "Vertical scroll"};
-			label = "Reading mode";
-			value = NAMES[p.settings.mangaMode];
-		}
-		else if (row == MANGA_FIT_ROW)
-		{
-			static const char* FITS[MANGA_FITS] = {"Page", "Width", "Fill"};
-			label = "Page fit";
-			value = FITS[p.settings.mangaFit];
-		}
-		else if (row == MANGA_HINGE_ROW)
-		{
-			label = "Hinge gap";
-			value = std::to_string(p.settings.mangaHinge) + " px";
-		}
-		else if (row == MANGA_PRELOAD_ROW)
-		{
-			label = "Preload";
-			value = std::to_string(p.settings.mangaPreload) + (p.settings.mangaPreload == 1 ? " page" : " pages");
-		}
-		else if (row == MANGA_CACHE_ROW)
-		{
-			static const char* SIZES[MANGA_CACHES] = {"100 MB", "300 MB", "1 GB"};
-			label = "Page cache";
-			value = SIZES[p.settings.mangaCacheSize];
-		}
-		else if (row == TOGGLE_ROW + 14)
-		{
-			label = REMEMBER_LABELS[row - TOGGLE_ROW];
-			value = p.settings.mangaAdult ? "Shown" : "Hidden";
-		}
-		else if (row == MANGA_DNS_ROW)
-		{
-			label = REMEMBER_LABELS[row - TOGGLE_ROW];
-			value = p.settings.mangaSecureDns ? "Cloudflare (1.1.1.1)" : "Off";
-		}
-		else if (row == MUSIC_ROW)
-		{
-			label = "Music display";
-			value = musicShowLabel(p.settings.musicShow);
-		}
-		else if (row == VOLUME_MAX_ROW)
-		{
-			label = "Max volume";
-			value = std::to_string(p.settings.volumeMax) + "%";
-		}
-		else if (row == VIS_FPS_ROW)
-		{
-			label = "Visualizer frame rate";
-			value = std::to_string(p.settings.vizFps) + " fps";
-		}
-		else if (row == VIS_ROW)
-		{
-			label = "Visualizer";
-			value = visualizerLabel(p.settings.visualizer);
-		}
 		else if (row == TOP_LIGHT_ROW || row == BOTTOM_LIGHT_ROW)
 		{
 			label = row == BOTTOM_LIGHT_ROW ? "Bottom brightness" : sameBrightness ? "Brightness" : "Top brightness";
 			int pm = backlight.permille(row == TOP_LIGHT_ROW ? Backlight::TOP : Backlight::BOTTOM);
 			value = pm < 0 ? "-" : std::to_string((pm + 5) / 10) + "%";
 		}
-		else if (row == CLOCK_ROW)
+		else if (const SettingDef* d = rowDef(row))
 		{
-			label = "Clock";
-			value = p.settings.clock == CLOCK_12 ? "12-hour" : p.settings.clock == CLOCK_OFF ? "Off" : "24-hour";
-		}
-		else if (row == SCREEN_OFF_ROW)
-		{
-			label = "Screen off (music)";
-			value = screenOffLabel(p.settings.screenOffAfter);
-		}
-		else if (row == SCREEN_OFF_VIDEO_ROW)
-		{
-			label = "Screen off (video)";
-			value = screenOffLabel(p.settings.screenOffVideo);
-		}
-		else if (row == PAN_ROW)
-		{
-			label = "Pan area";
-			value = p.settings.panRight ? "Right" : "Left";
-		}
-		else if (row == DRAG_ROW)
-		{
-			label = "Drag moves";
-			value = p.settings.dragBox ? "The box" : "The photo";
-		}
-		else
-		{
-			label = REMEMBER_LABELS[row - TOGGLE_ROW];
-			value = p.settings.*REMEMBER[row - TOGGLE_ROW] ? "On" : "Off";
+			label = d->label;
+			value = settingValueText(*d, p.settings);
 		}
 		drawTextMid(label, 1, at ? ACCENT : TEXT, 32, mid, 330);
 		// arrows on every row: they are where a finger steps back and on

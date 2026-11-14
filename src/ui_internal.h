@@ -8,7 +8,10 @@
 #include "playlist.h"
 #include "netpath.h"
 #include "theme.h"
+#include <algorithm>
 #include <cstring>
+#include <utility>
+#include <vector>
 #include <sys/stat.h>
 
 namespace bp
@@ -45,20 +48,24 @@ namespace bp
 		{{Button::Y, "Y"}, {Button::X, "X"}, {Button::Select, "SELECT"}, {Button::Up, "UP/DOWN"}, {Button::Start, "START"}},
 	};
 
-	// the settings' on/off rows (TOGGLE_ROW + their index). The manga reader's are its own page's, which no group of
-	// Settings lists, and the fullscreen tip's is a switch too though nothing shows it: it has a label only because the
-	// two arrays go together
-	inline const char* REMEMBER_LABELS[21] = {"Remember position", "Remember audio track", "Remember subtitles",
-		"Remember last folder", "Keep play history", "Button hotkeys", "Show hidden folders", "Battery percentage",
-		"Keep zoom between photos", "Check automatically", "Same for both screens", "Network files in Recent",
-		"Manga reader", "Swap Left/Right", "Adult sources", "Reading history", "In Recent on Home", "Fullscreen tip seen",
-		"Open fullscreen", "Secure DNS", "Song info on top"};
-	inline bool Settings::*const REMEMBER[21] = {&Settings::rememberPosition, &Settings::rememberAudio, &Settings::rememberSubs,
-		&Settings::rememberFolder, &Settings::keepHistory, &Settings::buttonHotkeys, &Settings::showHiddenFolders,
-		&Settings::batteryPercent, &Settings::keepPhotoZoom, &Settings::checkUpdates, &Settings::sameBrightness,
-		&Settings::keepNetHistory, &Settings::mangaOn, &Settings::mangaSwapLR, &Settings::mangaAdult, &Settings::mangaHistory,
-		&Settings::mangaRecent, &Settings::mangaFullSeen, &Settings::mangaOpenFull, &Settings::mangaSecureDns,
-		&Settings::songInfo};
+	// a Settings row made from the settings table (settings.h's SettingDef): SET_ROW0 + its index in settingDefs()
+	inline constexpr int SET_ROW0 = 1000;
+	inline int settingRow(const char* key) { return SET_ROW0 + settingIndex(key); }
+	inline const SettingDef* rowDef(int row)
+	{
+		return row >= SET_ROW0 && row - SET_ROW0 < (int)settingDefs().size() ? &settingDefs()[row - SET_ROW0] : nullptr;
+	}
+	// a page's rows in order: the table's settings of the group, and the page's own rows (their ids and places: `own`,
+	// each {place, row id}) among them, by place
+	inline std::vector<int> pageRows(int group, std::vector<std::pair<int, int>> own = {})
+	{
+		std::vector<std::pair<int, int>> all = own;
+		for (int i : settingsOfGroup(group)) all.push_back({settingDefs()[i].place, SET_ROW0 + i});
+		std::stable_sort(all.begin(), all.end(), [](auto& a, auto& b) { return a.first < b.first; });
+		std::vector<int> out;
+		for (auto& r : all) out.push_back(r.second);
+		return out;
+	}
 	struct GroupName { const char* name; const char* about; };
 	inline const GroupName GROUP_NAMES[] = {
 		{"Subtitles", "Font, size, text encoding"},

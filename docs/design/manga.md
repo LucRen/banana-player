@@ -512,8 +512,8 @@ while you read.
 The reader's own on/off switch is not among these rows: it is in **Manage extensions** (A on its row), or on the web
 dashboard.
 
-Each switch goes into `Settings` + `REMEMBER` in `settings.cpp`, the row ids in `ui.h`, and `mangaSettingRows()` /
-`settingHelp()`, per the rules.
+Each switch is a member of `Settings` + an entry in `settingDefs()` in `settings.cpp` with `.page(SG_MANGA, ...)`
+(`docs/notes/settings-table.md`); its row comes with `mangaSettingRows()`.
 
 ## 10. v1 and later
 

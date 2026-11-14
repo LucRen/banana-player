@@ -4,6 +4,7 @@
 #include "substyle.h"
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace bp
 {
@@ -193,4 +194,72 @@ namespace bp
 
 	std::string serializeSettings(const Settings& s);
 	Settings parseSettings(const std::string& text);
+
+	// The Settings page's groups (Ui::SetGroup's order: ui_settings.cpp checks it), and the manga reader's own page
+	enum SettingsGroup { SG_NONE = -1, SG_SUBS, SG_MUSIC, SG_PHOTOS, SG_REMEMBER, SG_FILES, SG_CONTROLS, SG_UPDATES, SG_WEB, SG_MANGA = 100 };
+
+	// One setting of settings.conf, declared once in settings.cpp's table: its key, its member, how its value is read and
+	// written, and (when a page shows it) the group, place, label, value text and help line of its row. Parsing,
+	// writing, clamping, the page's value text and its Left/Right all read this. The default is the member's own
+	// initializer in Settings. Built by the helpers below: flag(), choice(), ints(), range(), text(), custom(), then
+	// .page(...) for a row.
+	struct SettingDef
+	{
+		enum Kind { FLAG, CHOICE, INT_LIST, INT_RANGE, TEXT, CUSTOM };
+		Kind kind = FLAG;
+		const char* key = "";
+		bool Settings::*flagField = nullptr;
+		int Settings::*intField = nullptr;
+		std::string Settings::*textField = nullptr;
+		// the file's words: a FLAG's (no, yes) or a CHOICE's, by value
+		const char* const* ids = nullptr;
+		int count = 0;
+		// INT_LIST: the values the file may name. INT_RANGE: min..max, rounded down to a multiple of snap (1: as is)
+		const int* values = nullptr;
+		int min = 0, max = 0, snap = 1;
+		bool blankIgnored = false;	// INT_RANGE: an empty value is left alone (the rest read it as 0, as atoi does)
+		bool canonical = false;	// INT_LIST: only the value written as its own digits ("03" isn't 3)
+		// run after a line of this key is read (Visualizer: a retired style reads as the default)
+		void (*after)(Settings&, const std::string& value) = nullptr;
+		// CUSTOM: its own reading (the value of a line) and writing (the whole line's value, or false to leave it out)
+		void (*parse)(Settings&, const std::string& value) = nullptr;
+		bool (*write)(const Settings&, std::string& value) = nullptr;
+		// the page: group (SG_NONE: no row), place in the group (ascending; the page's own rows have theirs), text
+		int group = SG_NONE, place = 0;
+		const char* label = "";
+		const char* help = "";
+		const char* const* shown = nullptr;	// the value text by value (a FLAG's: off, on; default Off, On)
+		const char* unit = "";	// an int's value text: the number, then this
+		bool wrap = false;	// Left/Right go round (otherwise stop at the ends)
+		int (*stepFn)(int v, int dir) = nullptr;	// Left/Right by its own rule (Visualizer's: the styles offered)
+		int stepBy = 1;	// INT_RANGE: the step
+
+		static SettingDef flag(const char* key, bool Settings::*f, const char* no = "no", const char* yes = "yes");
+		static SettingDef choice(const char* key, int Settings::*f, const char* const* ids, int count);
+		static SettingDef ints(const char* key, int Settings::*f, const int* values, int count);
+		static SettingDef range(const char* key, int Settings::*f, int min, int max, int snap = 1);
+		static SettingDef text(const char* key, std::string Settings::*f);
+		static SettingDef custom(const char* key, void (*parse)(Settings&, const std::string&), bool (*write)(const Settings&, std::string&));
+		SettingDef page(int group, int place, const char* label, const char* help = "") const
+		{
+			SettingDef d = *this;
+			d.group = group; d.place = place; d.label = label; d.help = help;
+			return d;
+		}
+		SettingDef shownAs(const char* const* shown_, const char* unit_ = "") const { SettingDef d = *this; d.shown = shown_; d.unit = unit_; return d; }
+		SettingDef stepped(bool wrap_, int (*fn)(int, int) = nullptr, int by = 1) const { SettingDef d = *this; d.wrap = wrap_; d.stepFn = fn; d.stepBy = by; return d; }
+		SettingDef digitsOnly() const { SettingDef d = *this; d.canonical = true; return d; }
+		SettingDef ignoreBlank() const { SettingDef d = *this; d.blankIgnored = true; return d; }
+		SettingDef afterRead(void (*fn)(Settings&, const std::string&)) const { SettingDef d = *this; d.after = fn; return d; }
+	};
+
+	// every setting, in the order serializeSettings writes them (the style's keys come first, apart)
+	const std::vector<SettingDef>& settingDefs();
+	// the table's index of a key (-1: none), and the rows of one group of the page: their indexes, by place
+	int settingIndex(const char* key);
+	std::vector<int> settingsOfGroup(int group);
+	// the text a row shows for the setting's value now ("On", "120%", "Cloudflare (1.1.1.1)")
+	std::string settingValueText(const SettingDef& d, const Settings& s);
+	// Left (-1) / Right (1) on the row: flips a FLAG, steps the others
+	void stepSetting(const SettingDef& d, Settings& s, int dir);
 }
