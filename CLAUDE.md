@@ -44,7 +44,7 @@ tools/make-sprite.py                                 # web/sprite.svg from the G
   `web/style.css` (copies `src/theme.h` by hand), embedded by `cmake/EmbedWeb.cmake`.
 - Books and documents: `pagebook.*` (a chapter in one file: CBZ, CBR via libarchive, PDF via pdfium, a comic EPUB),
   `epub.*`, `textdoc.*` (a TXT mapped, read only around the place shown), `textsource.*`, `textreader.*` (the text
-  viewer on the top panel), `ui_docs.cpp` (Files' TXT/EPUB/PDF viewers).
+  viewer on the top panel), `ui_docs.h` + `ui_docs.cpp` (Files' TXT/EPUB/PDF viewers: the area `Ui::Docs`).
 - Network: `net*.cpp`, `netstore`, `networker`, `netstream`, `discovery`. Updater: `updater.*`, `update.cpp`.
   Durations: `durations.*`, `durprobe.*`, `durworker.*`.
 
@@ -61,7 +61,8 @@ tools/make-sprite.py                                 # web/sprite.svg from the G
   expression cached as a quick lookup: `src/vizcache.h`); 16-bit ones stay plain.
   EQ/effect is one `af` after the graph (`syncEq`).
 - **Ui:** redraws only when `signature()` changes (new drawing state goes in it); a new dialog or sheet is a
-  `Ui::Overlay` (`ui_overlay.cpp`, docs/notes/overlay-stack.md), not a flag checked in `press`/`pointer`/`draw`; 640×480 units; colours/radii from
+  `Ui::Overlay` (`ui_overlay.cpp`, docs/notes/overlay-stack.md), not a flag checked in `press`/`pointer`/`draw`; an area's state and handlers go in its own struct and header
+  (`Ui::Docs`, `ui_docs.h`; docs/notes/ui-areas.md), not `ui.h`; 640×480 units; colours/radii from
   `theme.h` via `fillRound`/`drawBox`; path checks via `pseudoDir()`.
 - **Settings:** a new one is a member in `Settings` + one entry in `settingDefs()` (`settings.cpp`: key, default via the member, range, and the page row's group/label/help); `docs/notes/settings-table.md`.
 - **Threads:** background threads never touch `Player`/`Ui`; they push SDL user events. Never block on a server in a

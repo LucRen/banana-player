@@ -218,9 +218,10 @@ Ui (class declared in `src/ui.h`; file-static names shared by the files are in `
 
 | file | holds |
 |---|---|
-| `ui.cpp` | init/destructor, `press`, `pointer`, `act`, `tick`, `signature` (dispatch and the redraw rule) |
+| `ui.cpp` | the constructor (the areas listed), init/destructor, `press`, `pointer`, `act`, `tick`, `signature` (dispatch and the redraw rule) |
 | `ui_draw.cpp` | text (`runs`, `drawText`), `fill`/`fillRound`/`drawBox`/`drawLevel`, `draw`/`renderPage`, header, battery, clock, hints, glyph drawing, `drawButton`, `wrapText`, `capture` |
 | `ui_overlay.cpp` | the overlay stack (`Ui::Overlay`: a dialog or sheet as one nested struct that gets the keys, the touches, its drawing and its part of `signature()` from the stack; docs/notes/overlay-stack.md) and the message dialog (`alert`). `ui_light.cpp`: the readers' Brightness sheet, an overlay |
+| `ui_docs.h`, `ui_docs.cpp` | Files' document viewers, an **area** (`Ui::Docs : Ui::Area`): the text viewer (`Page::DocText`) and the PDF/comic viewer (`Page::DocPages`) with all their state (places, bookmarks, Find, the menus, the channel to main's `TextReader`). An area is a struct nested in `Ui`, in its own header, that `press`, `pointer`, `tick`, `renderPage`, `signature` and `animating` send its pages to (`Ui::area()`); a feature inside one touches its two files, not `ui.h` (docs/notes/ui-areas.md) |
 | `ui_slider.cpp` | the sliders (`slideGrab`, `slideFollow`, `drawSlider`; the arithmetic in `slider.h`, bpcore's side): every bar a finger moves is grabbed through it and kept until the finger lifts (docs/notes/sliders.md) |
 | `ui_menus.cpp` | rows/`choose`, START menu tabs, Tracks/Chapters pages (`openTracks`, `drawChapters`), Up next (`openUpNext`, `drawUpNext`), quick settings (F), update popup, the browse Options menu's drawing, Exit/About/Info, Like, Playing tab, `volumeLevel` |
 | `ui_browse.cpp` | the file list: `enterFolder`, `netListed`, sections/tabs, Options menu items (`openBrowseMenu`, `chooseBrowseMenu`), `drawTracks` (the list), `folderChanged` |
@@ -264,7 +265,9 @@ CLAUDE.md now keeps one line per rule; this is the full text it had, kept here w
   Art+viz Bars (~0.85 ms/frame on the Mac, ~4 on the handheld). Circle reads `remap` tables written by `graphFor()`.
 - **Equalizer and effect** are one `af` after the graph: `@bpin` (to 48 kHz, always), `@bpeq`, `@bpfx`, built by
   `syncEq`/`fxPart`. Band edits go by `af-command`; anything that rebuilds the chain needs `syncEq(true)` first.
-- **Ui redraws only when `signature()` changes:** any new state that affects drawing goes into it. Layout is fixed
+- **Ui redraws only when `signature()` changes:** any new state that affects drawing goes into it (an area's: its own
+  `signature()`). A part of the app with pages of its own is an area (`Ui::Area`, docs/notes/ui-areas.md): its state and
+  handlers go in its struct and header (`Ui::Docs`, `ui_docs.h`), not `ui.h`. Layout is fixed
   640×480 units scaled by `sx`/`sy`. Colours and radii come from `src/theme.h`; a new box goes through `fillRound`/
   `drawBox`/`drawLevel`/`fillRoundBand`, not `fill`. A new path check goes through `pseudoDir()` (PLROOT, PLDIR, FORMDIR,
   FINDNET are pseudo-dirs). `dropTouch()` swallows only a finger still down.
