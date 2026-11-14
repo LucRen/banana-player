@@ -188,7 +188,7 @@ namespace bp
 				{
 					cursor = i;
 					SliderRange range = row == LR_DIM ? SliderRange{0, 80, 10} : SliderRange{10, 100, 10};
-					ui.slideGrab(SL_LIGHT, i, {track(i), range}, x, y, p, [this, row](double v, bool, Player& p) {
+					ui.slideGrab(SL_LIGHT, i, {track(i), range, false, 0, (double)value(row, p)}, x, y, p, [this, row](double v, bool, Player& p) {
 						if ((int)v != value(row, p)) set(row, (int)v, p);
 					}, this);
 					return false;

@@ -1367,6 +1367,7 @@ namespace bp
 			SliderRange range;
 			bool upright = false;
 			Uint32 everyMs = 0;	// a costly target: told this often at most while held (0: every change)
+			double now = 0;	// its value as the finger lands: a slide moves it on from here, by the finger's travel
 		};
 		using SlideSet = std::function<void(double v, bool last, Player& p)>;
 		struct Slide
@@ -1382,8 +1383,9 @@ namespace bp
 			SliderPace pace;
 		} slide;
 		void slideGrab(int id, int sub, const SlideSpec& spec, int x, int y, Player& p, SlideSet set, const Overlay* owner = nullptr);
-		bool slideHeld(int id) const { return slide.on && slide.id == id; }
-		bool slideHeld(int id, int sub) const { return slide.on && slide.id == id && slide.sub == sub; }
+		// held: a finger on it that has slid along it (a touch alone changes nothing and shows nothing yet)
+		bool slideHeld(int id) const { return slide.on && slide.moved && slide.id == id; }
+		bool slideHeld(int id, int sub) const { return slide.on && slide.moved && slide.id == id && slide.sub == sub; }
 		bool slideFollow(const Pointer& pt, int x, int y, Player& p);	// pointer(): a move or the lift while one is held
 		void slideLive(Player& p);	// the value to the target, if it's due (tick() too: a finger at rest)
 		bool slideWaiting() const;

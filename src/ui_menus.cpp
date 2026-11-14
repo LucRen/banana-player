@@ -340,7 +340,7 @@ namespace bp
 		if (which == Q_VOLUME)
 		{
 			if (volumePct < 0) return;
-			slideGrab(SL_QUICK, row, {quickBar(row), {0, 100, 5}}, x, y, p, [this](double v, bool, Player&) {
+			slideGrab(SL_QUICK, row, {quickBar(row), {0, 100, 5}, false, 0, (double)std::min(volumePct, 100)}, x, y, p, [this](double v, bool, Player&) {
 				if ((int)v == volumePct) return;
 				volumePct = (int)v;
 				volume.set(volumePct);
@@ -348,7 +348,7 @@ namespace bp
 			return;
 		}
 		Backlight::Panel panelOf = which == Q_BOTTOM ? Backlight::BOTTOM : Backlight::TOP;
-		slideGrab(SL_QUICK, row, {quickBar(row), {0, 1000, 100}}, x, y, p, [this, panelOf](double v, bool, Player& p) {
+		slideGrab(SL_QUICK, row, {quickBar(row), {0, 1000, 100}, false, 0, (double)std::max(100, backlight.permille(panelOf))}, x, y, p, [this, panelOf](double v, bool, Player& p) {
 			int pm = std::max(100, (int)v);
 			if (pm != backlight.permille(panelOf)) setBrightness(panelOf, pm, p);
 		});

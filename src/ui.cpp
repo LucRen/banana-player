@@ -1130,10 +1130,11 @@ namespace bp
 		// the bar is easier to hit with some room around it
 		if (Rect{BAR.x - 8, BAR.y - 20, BAR.w + 16, BAR.h + 40}.hit(x, y) && p.duration > 0)
 		{
-			// the bar goes to the finger and follows it (drawMain shows slide.value while it's held). The picture
+			// a trackpad's scrub: a slide moves the place on by the finger's travel, a tap jumps there as it lifts
+			// (drawMain shows slide.value while it's held). The picture
 			// follows too, keyframes only and no more often than the decoder keeps up with (SCRUB_MS); lifted, the
 			// exact seek to where it was left, and the bar held there until playback arrives (seekHeld)
-			slideGrab(SL_SEEK, 0, {BAR, {0, 1, 0}, false, SCRUB_MS}, x, y, p, [this, scrubs = 0](double f, bool last, Player& p) mutable {
+			slideGrab(SL_SEEK, 0, {BAR, {0, 1, 0}, false, SCRUB_MS, seekHeld >= 0 ? seekHeld : shownPosition(p) >= 0 ? std::clamp(shownPosition(p) / p.duration, 0.0, 1.0) : 0}, x, y, p, [this, scrubs = 0](double f, bool last, Player& p) mutable {
 				if (!last)
 				{
 					scrubs++;

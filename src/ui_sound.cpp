@@ -714,7 +714,7 @@ namespace bp
 				if (eqTapBand != i) eqTapAt = 0;
 				eqBand = i;
 				// its gain where the finger is, in whole dB (the scale's 168 … 360 is +12 … −12), and with it
-				slideGrab(SL_EQ, i, {{cx - 2, 168, 4, 192}, {-12, 12, 1}, true}, x, y, p, [this, i](double g, bool last, Player& p) {
+				slideGrab(SL_EQ, i, {{cx - 2, 168, 4, 192}, {-12, 12, 1}, true, 0, p.settings.eqGains[i]}, x, y, p, [this, i](double g, bool last, Player& p) {
 					Uint32 now = SDL_GetTicks();
 					if (!last) { eqSetBand(i, g, p); return; }
 					// two taps on it, no drag: back to 0 dB

@@ -32,6 +32,15 @@ namespace bp
 		return sliderSnap(r.lo + f * (r.hi - r.lo), r);
 	}
 
+	// A slide's value: `from` moved on by the finger's travel `by` along a track `len` long (the whole track is the
+	// whole range), clamped and snapped. upright: up (a negative y travel) is more
+	inline double sliderMoveBy(double from, int by, int len, const SliderRange& r, bool upright = false)
+	{
+		if (len <= 0) return sliderSnap(from, r);
+		double d = (upright ? -by : by) / (double)len * (r.hi - r.lo);
+		return sliderSnap(from + d, r);
+	}
+
 	// Where a held slider is, given where it was and where the finger is now: it goes with the finger less `slack`
 	// either way. So the small shift of a fingertip as it lands or lifts (under the slack) changes nothing: a tap
 	// stays where it touched, a drag ends where it was left; a real move is followed at once, the slack behind.

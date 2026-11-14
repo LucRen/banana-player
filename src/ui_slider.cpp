@@ -1,6 +1,8 @@
-// The bottom panel's sliders: one finger, one slider. A touch in a slider's hit area grabs it (slideGrab) and the
-// value jumps to the finger; from then on Ui::pointer hands every move and the lift to the slider (slideFollow),
-// whatever is under the finger, so a finger that drifts off the row still holds it and nothing else reacts. The
+// The bottom panel's sliders: one finger, one slider, as a trackpad scrubs. A touch in a slider's hit area takes it
+// (slideGrab) but changes nothing; a slide moves the value on from where it was by the finger's travel along the
+// track (the knob needn't be under the finger); a tap, lifted without sliding, puts it where the finger was. From
+// the touch on, Ui::pointer hands every move and the lift to the slider (slideFollow), whatever is under the
+// finger, so a finger that drifts off the row still holds it and nothing else reacts. The
 // slider tells its target through the setter it was grabbed with: every change while held (or, for a costly
 // target, one each `everyMs` at most), and the last value once more as the finger lifts (last = true).
 // The arithmetic is slider.h's. docs/notes/sliders.md: how to add one, and how a held one must look.
@@ -19,10 +21,9 @@ namespace bp
 		slide.owner = owner;
 		slide.page = page;
 		slide.at0 = slide.at = spec.upright ? y : x;
-		slide.value = spec.upright ? sliderValueAt(y, spec.track.y, spec.track.h, spec.range, true)
-			: sliderValueAt(x, spec.track.x, spec.track.w, spec.range);
+		// a touch alone: nothing yet (the value as it is, the target not told)
+		slide.value = sliderSnap(spec.now, spec.range);
 		slide.pace.start(SDL_GetTicks(), spec.everyMs);
-		slideLive(p);
 	}
 
 	bool Ui::slideStale() const
@@ -36,13 +37,14 @@ namespace bp
 	{
 		if (!slide.on) return;
 		if (slideStale()) { slideDrop(); return; }
+		if (!slide.moved) return;	// (a touch that hasn't slid tells nothing)
 		if (slide.pace.due(slide.value, SDL_GetTicks())) slide.set(slide.value, false, p);
 	}
 
 	bool Ui::slideWaiting() const
 	{
 		// a paced slider whose finger rests on a value its target hasn't heard: tick() sends it when it's due
-		return slide.on && slide.spec.everyMs && (!slide.pace.any || slide.pace.sent != slide.value);
+		return slide.on && slide.moved && slide.spec.everyMs && (!slide.pace.any || slide.pace.sent != slide.value);
 	}
 
 	bool Ui::slideFollow(const Pointer& pt, int x, int y, Player& p)
@@ -51,10 +53,18 @@ namespace bp
 		// along the track only (a finger wandering off the row across it hasn't moved the slider), and less the
 		// slack: a fingertip's shift as it lifts isn't a move
 		const SlideSpec& s = slide.spec;
-		slide.at = sliderFollow(slide.at, s.upright ? y : x, SLIDE_SLACK);
+		int finger = s.upright ? y : x;
+		slide.at = sliderFollow(slide.at, finger, SLIDE_SLACK);
 		if (std::abs(slide.at - slide.at0) >= DRAG_SLOP) slide.moved = true;
-		slide.value = s.upright ? sliderValueAt(slide.at, s.track.y, s.track.h, s.range, true)
-			: sliderValueAt(slide.at, s.track.x, s.track.w, s.range);
+		if (slide.moved)
+			slide.value = sliderMoveBy(s.now, slide.at - slide.at0, s.upright ? s.track.h : s.track.w, s.range, s.upright);
+		else if (pt.kind == Pointer::Up)
+		{
+			// a tap: the value where the finger was (the knob goes there)
+			slide.value = s.upright ? sliderValueAt(finger, s.track.y, s.track.h, s.range, true)
+				: sliderValueAt(finger, s.track.x, s.track.w, s.range);
+			slide.moved = slide.value != sliderSnap(s.now, s.range);
+		}
 		if (pt.kind == Pointer::Up) slideEnd(p);
 		else slideLive(p);
 		return false;
@@ -67,7 +77,8 @@ namespace bp
 		slide.on = false;
 		SlideSet set = std::move(slide.set);
 		slide.set = nullptr;
-		if (!slideStale() && set) set(slide.value, true, p);
+		// (a touch lifted where the value already was, or let go by a key before sliding: nothing to tell)
+		if (!slideStale() && set && slide.moved) set(slide.value, true, p);
 	}
 
 	void Ui::slideDrop()

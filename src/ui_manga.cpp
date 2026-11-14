@@ -460,7 +460,7 @@ namespace bp
 		// sheet's: the sheet stays up while it's held, and 4 s more from the last move
 		if (readerStatus.pages <= 1) return;
 		mangaSliderPage = -1;
-		slideGrab(SL_MANGA, 0, {mangaSliderTrack(), {0, (double)(readerStatus.pages - 1), 1}, false, SCRUB_MS}, x, y, p,
+		slideGrab(SL_MANGA, 0, {mangaSliderTrack(), {0, (double)(readerStatus.pages - 1), 1}, false, SCRUB_MS, (double)readerStatus.page}, x, y, p,
 			[this](double v, bool, Player&) {
 				if (readerStatus.fullscreen) mangaCtrlUntil = SDL_GetTicks() + MG_CTRL_MS;
 				mangaSeek((int)v);

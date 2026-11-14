@@ -927,13 +927,13 @@ namespace bp
 				// the bar: the text goes with the finger; the pages (decoded as they come) at the scrub's pace, the
 				// page it's let go on always
 				if (text)
-					slideGrab(SL_DOC, 0, {docBarTrack(), {0, 1, 0}}, x, y, p, [this](double f, bool, Player&) {
+					slideGrab(SL_DOC, 0, {docBarTrack(), {0, 1, 0}, false, 0, textStatus.fraction}, x, y, p, [this](double f, bool, Player&) {
 						textCmds.push_back({TextReader::Jump, f, (int64_t)SDL_GetTicks()});
 					});
 				else if (readerStatus.pages > 1)
 				{
 					mangaSliderPage = -1;
-					slideGrab(SL_DOC, 0, {docBarTrack(), {0, (double)(readerStatus.pages - 1), 1}, false, SCRUB_MS}, x, y, p,
+					slideGrab(SL_DOC, 0, {docBarTrack(), {0, (double)(readerStatus.pages - 1), 1}, false, SCRUB_MS, (double)readerStatus.page}, x, y, p,
 						[this](double v, bool, Player&) { mangaSeek((int)v); });
 				}
 				return false;

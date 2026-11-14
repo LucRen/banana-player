@@ -10181,6 +10181,17 @@ static void testSlider()
 	for (int y = 168; y <= 360; y++)
 		if ((264 - y) % 8 != 4 && (264 - y) % 8 != -4)	// (but the exact halves, which round either way)
 			CHECK_EQ(sliderValueAt(y, 168, 192, db, true), std::round((264 - y) / 8.0) + 0.0);
+	// a slide, trackpad-style: the value moves on from where it was by the finger's travel (the whole track is the
+	// whole range), clamped, snapped; upright, up is more
+	CHECK_EQ(sliderMoveBy(0.5, 0, 560, SliderRange{0, 1, 0}), 0.5);
+	CHECK_EQ(sliderMoveBy(0.5, 56, 560, SliderRange{0, 1, 0}), 0.6);
+	CHECK_EQ(sliderMoveBy(0.5, -280, 560, SliderRange{0, 1, 0}), 0.0);
+	CHECK_EQ(sliderMoveBy(0.9, 560, 560, SliderRange{0, 1, 0}), 1.0);
+	CHECK_EQ(sliderMoveBy(0.1, -560, 560, SliderRange{0, 1, 0}), 0.0);
+	CHECK_EQ(sliderMoveBy(4, 62, 560, pages), 5.0);	// 4 + 0.996 -> 5
+	CHECK_EQ(sliderMoveBy(4, 20, 560, pages), 4.0);	// a small travel, under half a page: stays
+	CHECK_EQ(sliderMoveBy(0, -24, 192, db, true), 3.0);	// 24 up on an EQ band: +3 dB
+	CHECK_EQ(sliderMoveBy(0, 1000, 192, db, true), -12.0);
 	// a held slider and its finger: within the slack nothing moves (a tap, a lift's shift); past it, it follows
 	CHECK_EQ(sliderFollow(100, 100, 6), 100);
 	CHECK_EQ(sliderFollow(100, 106, 6), 100);
