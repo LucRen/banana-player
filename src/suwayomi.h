@@ -24,6 +24,8 @@ namespace bp
 
 	// every extension the server sees (installed or not, from every registered store)
 	std::string suwayomiFetchExtensions();
+	// the installed extensions and their sources alone (no store fetched: small and quick, asked as the engine starts)
+	std::string suwayomiFetchInstalledSources();
 
 	// install / update / uninstall one extension by its package name; uninstall is updateExtension with install=false
 	std::string suwayomiInstallExtension(const std::string& pkgName);
@@ -58,13 +60,6 @@ namespace bp
 
 	// ---- answer types ----
 
-	struct SuwayomiExt
-	{
-		std::string pkgName, name, lang, versionName, iconUrl;
-		int64_t versionCode = 0;
-		bool isNsfw = false, isInstalled = false, hasUpdate = false, isObsolete = false;
-	};
-
 	// the sources an install / update returns; the id is a string because Suwayomi writes 64-bit ints that
 	// overflow a double (1998944621602463790 in install.json)
 	struct SuwayomiSource
@@ -72,6 +67,18 @@ namespace bp
 		std::string id, name, lang, displayName;
 		bool supportsLatest = false, isNsfw = false;
 	};
+
+	struct SuwayomiExt
+	{
+		std::string pkgName, name, lang, versionName, iconUrl;
+		int64_t versionCode = 0;
+		bool isNsfw = false, isInstalled = false, hasUpdate = false, isObsolete = false;
+		// what the engine loaded from it (the list's answer carries them): the player's own list is rebuilt from
+		// these, so a lost sources.tsv heals; installed with none: the engine couldn't load its jar
+		std::vector<SuwayomiSource> sources;
+		bool sourcesKnown = false;
+	};
+
 
 	struct SuwayomiManga
 	{
@@ -127,6 +134,8 @@ namespace bp
 	bool suwayomiParseRemoveExtensionStore(const std::string& json, std::string& error);
 
 	bool suwayomiParseExtensions(const std::string& json, std::vector<SuwayomiExt>& out, std::string& error);
+	// suwayomiFetchInstalledSources's answer: each installed extension's pkgName and sources (sourcesKnown set)
+	bool suwayomiParseInstalledSources(const std::string& json, std::vector<SuwayomiExt>& out, std::string& error);
 
 	// the install / update / uninstall answers: the extension's sources (the sources list the install returns)
 	bool suwayomiParseInstallResult(const std::string& json, std::vector<SuwayomiSource>& out, std::string& error);

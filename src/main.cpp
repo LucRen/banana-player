@@ -709,6 +709,7 @@ int main(int argc, char** argv)
 			st.margins = player.settings.txtMargins;
 			st.theme = player.settings.txtTheme;
 			st.filter = player.settings.txtFilter;
+			st.dim = player.settings.readDim;
 			return st;
 		};
 		ReaderFetch readerFetch;	// a URL chapter's pages, kept coming while reader is open
@@ -716,8 +717,10 @@ int main(int argc, char** argv)
 		mangaNet->setFetchOwner([&readerFetch](MangaFetch::Result& r) { return readerFetch.own(r); });
 		bool readerReady = false;
 		const Uint32 evReader = SDL_RegisterEvents(1);	// a page decoded: the loop wakes and takes it
+		// a reader open, its pages on the top panel; not while the player's own pages show (they show what plays)
+		auto readerOnTop = [&] { return (reader.isOpen() || textReader.isOpen()) && !ui.topShowsPlayer(); };
 		auto drainUnder = [&] {
-			if ((!photos.playing() && !reader.isOpen() && !textReader.isOpen()) || !player.playing() || !player.frameDue()) return;
+			if ((!photos.playing() && !readerOnTop()) || !player.playing() || !player.frameDue()) return;
 			SDL_GL_MakeCurrent(top, gl);
 			if (!sinkFbo)
 			{
@@ -764,8 +767,8 @@ int main(int argc, char** argv)
 			using ReadPixels = void (*)(int, int, int, int, unsigned, unsigned, void*);
 			auto readPixels = (ReadPixels)SDL_GL_GetProcAddress("glReadPixels");
 			if (!readPixels) return nullptr;
-			if (reader.isOpen()) reader.draw(w, h);	// a manga chapter's pages
-			else if (textReader.isOpen()) textReader.draw(w, h);	// a document's text
+			if (reader.isOpen() && readerOnTop()) reader.draw(w, h);	// a manga chapter's pages
+			else if (textReader.isOpen() && readerOnTop()) textReader.draw(w, h);	// a document's text
 			else renderTop(w, h);	// a video, a photo, or the icon with nothing playing
 			std::vector<unsigned char> rgba((size_t)w * h * 4);
 			readPixels(0, 0, w, h, 0x1908 /* GL_RGBA */, 0x1401 /* GL_UNSIGNED_BYTE */, rgba.data());
@@ -1006,7 +1009,7 @@ int main(int argc, char** argv)
 					shown().showLevel(*what == "brightness" ? "Brightness" : "Volume", e.user.code);
 					// the manga reader draws the top panel itself: mpv's card would be under its pages, so the card
 					// goes over them as a picture of its own
-					if (reader.isOpen() && haveUi)
+					if (reader.isOpen() && readerOnTop() && haveUi)
 					{
 						int cw = 0, ch = 0;
 						auto card = ui.levelCard(*what == "brightness" ? "Brightness" : "Volume", e.user.code, cw, ch);
@@ -1547,6 +1550,18 @@ int main(int argc, char** argv)
 				levelUntil = 0;
 				topDark = false;	// with no video: black again, without the card
 			}
+			// the top panel goes between a reader's pages and what plays (the player's pages over a reader): drawn at once
+			{
+				static bool readerWasOnTop = false;
+				if (readerOnTop() != readerWasOnTop)
+				{
+					readerWasOnTop = !readerWasOnTop;
+					refreshedAt = 0;
+					renderPending = true;
+					topDark = false;
+					if (readerWasOnTop && reader.isOpen()) reader.redrawSoon();
+				}
+			}
 			bool refresh = now - refreshedAt >= (now < freshUntil ? 100u : 2000u);
 			if (refresh)
 			{
@@ -1728,7 +1743,7 @@ int main(int argc, char** argv)
 					ui.textCmds.clear();
 				}
 				// a song's visualizer rests while the pages cover the top panel (nobody sees it; its frames cost CPU)
-				player.setTopCovered(reader.isOpen() || textReader.isOpen());
+				player.setTopCovered(readerOnTop());
 				// and while the manga engine starts (its ~25 s of Java start-up wants the cores the graph would take)
 				player.setEngineLoading(ui.mangaNet && ui.mangaNet->javaExt().state() == JavaExtHost::State::Starting);
 				// a URL chapter's pages: requests reordered and the free slots filled (the answers themselves come
@@ -1742,8 +1757,9 @@ int main(int argc, char** argv)
 					// a document of Files: its reading filter, and its pan area's page and box
 					{
 						int f = ui.docPagesFilter(player);
+						// (the Manga reader's own filter; either's Extra dim)
 						float r, g, b;
-						docFilterTint(f < 0 ? DOC_FILTER_OFF : f, r, g, b);
+						docFilterTint(f >= 0 ? f : player.settings.mangaFilter, r, g, b, player.settings.readDim);
 						reader.setTint(r, g, b);
 						Ui::DocPan dp;
 						if (f >= 0 && reader.panBox(dp.page, dp.x0, dp.y0, dp.x1, dp.y1))
@@ -1819,7 +1835,7 @@ int main(int argc, char** argv)
 			// with nothing playing the top panel is drawn on a change only, and mpv may not have the level card yet
 			// when it's asked to show: drawn again and again while the card is up
 			drainUnder();
-			if (reader.isOpen())
+			if (reader.isOpen() && readerOnTop())
 			{
 				// the pages, not mpv's picture (what plays goes on under them: drainUnder)
 				renderPending = false;
@@ -1832,7 +1848,7 @@ int main(int argc, char** argv)
 					SDL_GL_SwapWindow(top);
 				}
 			}
-			else if (textReader.isOpen())
+			else if (textReader.isOpen() && readerOnTop())
 			{
 				// a document's text, not mpv's picture (what plays goes on under it: drainUnder)
 				renderPending = false;

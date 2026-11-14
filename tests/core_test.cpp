@@ -9608,6 +9608,24 @@ static void testSuwayomi()
 	CHECK_EQ(foundMp, true);
 	// a malformed answer isn't usable
 	CHECK_EQ(suwayomiParseExtensions("not json", exts, error), false);
+	// the list carries each extension's sources: an installed one's are taken from it (a lost sources.tsv heals),
+	// and one installed with none is an extension the engine couldn't load
+	CHECK_EQ(suwayomiFetchExtensions().find("source { nodes { id name lang displayName supportsLatest isNsfw } }") != std::string::npos, true);
+	{
+		std::string j = "{\"data\":{\"fetchExtensions\":{\"extensions\":["
+			"{\"pkgName\":\"a.komiku\",\"name\":\"Komiku\",\"isInstalled\":true,\"source\":{\"nodes\":[{\"id\":\"4838485846640015979\",\"name\":\"Komiku\",\"lang\":\"id\",\"displayName\":\"Komiku (ID)\",\"supportsLatest\":true,\"isNsfw\":false}]}},"
+			"{\"pkgName\":\"a.broken\",\"name\":\"Broken\",\"isInstalled\":true,\"source\":{\"nodes\":[]}},"
+			"{\"pkgName\":\"a.old\",\"name\":\"Old\",\"isInstalled\":false}]}}}";
+		std::vector<SuwayomiExt> ex;
+		CHECK_EQ(suwayomiParseExtensions(j, ex, error), true);
+		CHECK_EQ(ex.size(), (size_t)3);
+		CHECK_EQ(ex[0].sourcesKnown, true);
+		CHECK_EQ(ex[0].sources.size(), (size_t)1);
+		CHECK_EQ(ex[0].sources[0].id, std::string("4838485846640015979"));
+		CHECK_EQ(ex[0].sources[0].displayName, std::string("Komiku (ID)"));
+		CHECK_EQ(ex[1].sourcesKnown && ex[1].sources.empty(), true);
+		CHECK_EQ(ex[2].sourcesKnown, false);
+	}
 
 	// install.json: the sources an install returns; ids are strings (the 64-bit overflow rule)
 	std::string instJson = read(F + "install.json");

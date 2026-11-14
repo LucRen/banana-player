@@ -1,4 +1,5 @@
 #include "ui.h"
+#include "textreader.h"
 #include "manganet.h"
 #include "ui_internal.h"
 #include "pagebook.h"
@@ -907,6 +908,7 @@ namespace bp
 				if (ci > 0 && mangaPrevRect().hit(x, y)) mangaPressed = MG_PREV;
 				else if (ci >= 0 && ci + 1 < mangaReadChapterTotal() && mangaNextRect().hit(x, y)) mangaPressed = MG_NEXT;
 				else if (mangaFullRect().hit(x, y)) mangaPressed = MG_FULL;
+				else if (mangaLightRect().hit(x, y)) mangaPressed = MG_LIGHT;
 				return false;
 			}
 			if (pt.kind == Pointer::Move)
@@ -996,6 +998,7 @@ namespace bp
 				if (id == MG_PREV && mangaPrevRect().hit(x, y)) mangaChapterStep(-1, p);
 				else if (id == MG_NEXT && mangaNextRect().hit(x, y)) mangaChapterStep(1, p);
 				else if (id == MG_FULL && mangaFullRect().hit(x, y)) mangaFullscreen(!readerStatus.fullscreen, p);
+				else if (id == MG_LIGHT && mangaLightRect().hit(x, y)) openLight();
 			}
 			return false;
 		}
@@ -2041,6 +2044,10 @@ namespace bp
 		// between them, as big as they are: fullscreen, exactly as SELECT turns it on
 		drawBox(fb, mangaPressed == MG_FULL ? PRESSED : BUTTON, R_BUTTON);
 		drawButton(fb, nullptr, "Fullscreen", keys ? "SELECT" : nullptr, false, 0);
+		Rect lb = mangaLightRect();
+		drawBox(lb, mangaPressed == MG_LIGHT ? PRESSED : BUTTON, R_BUTTON);
+		std::string lightOn = lightNote(p);	// (while Extra dim or a filter is on: lit, what's on under it)
+		drawButton(lb, &G_SUN, "Brightness", lightOn.empty() ? nullptr : lightOn.c_str(), false, 0, !lightOn.empty());
 		drawBox(nb, mangaPressed == MG_NEXT ? PRESSED : BUTTON, R_BUTTON);
 		drawButton(nb, &G_NEXT, "Next chapter", keys ? "R2" : nullptr, !next, 0);
 		// what the keys do: the useful ones, one line (the Reading menu, START, lists the rest); the fullscreen
@@ -2216,6 +2223,7 @@ namespace bp
 		}
 		if (v == MV_FULL && readerStatus.mode == MANGA_STRIP) r.push_back(MGM_HINGE);
 		r.push_back(MGM_SWAP);
+		r.push_back(MGM_LIGHT);
 		r.push_back(MGM_PAGES);
 		r.push_back(MGM_SETTINGS);
 		return r;
@@ -2302,6 +2310,10 @@ namespace bp
 			mangaMenu = false;
 			mangaPagesOpen(p);
 			break;
+		case MGM_LIGHT:
+			mangaMenu = false;
+			openLight();
+			break;
 		case MGM_SETTINGS:
 			// the app's own settings page; B there comes back here, the menu closed
 			mangaMenu = false;
@@ -2333,7 +2345,7 @@ namespace bp
 		int fit = p.settings.mangaFit >= 0 && p.settings.mangaFit < MANGA_FITS ? p.settings.mangaFit : 0;
 		int zoom = readerStatus.zoomPct > 0 ? readerStatus.zoomPct : 100;
 		static const char* LABELS[MGM_COUNT] = {"View", "Hold", "Reading mode", "Page fit", "Zoom", "Hinge gap",
-			"Swap Left/Right", "Pages", "All Manga settings\xE2\x80\xA6"};
+			"Swap Left/Right", "Brightness & filter\xE2\x80\xA6", "Pages", "All Manga settings\xE2\x80\xA6"};
 		auto rows = mangaMenuRows();
 		if (std::find(rows.begin(), rows.end(), mangaMenuCursor) == rows.end()) mangaMenuCursor = MGM_VIEW;
 		for (int i = 0; i < (int)rows.size(); i++)
@@ -2346,7 +2358,7 @@ namespace bp
 			SDL_Color ink = at ? ACCENT : TEXT;
 			drawTextMid(LABELS[id], 1, ink, 32, mid, 330);
 			// the last two rows are doors (Pages, All Manga settings), not values: a chevron, no step arrows
-			if (id == MGM_PAGES || id == MGM_SETTINGS)
+			if (id == MGM_PAGES || id == MGM_SETTINGS || id == MGM_LIGHT)
 			{
 				drawGlyphMid(G_RIGHT, 604, mid, at ? ACCENT : DIM);
 				continue;
@@ -2378,6 +2390,7 @@ namespace bp
 		case MGM_ZOOM: help = "UP/DOWN step the zoom; A goes twice or back to the fit."; break;
 		case MGM_HINGE: help = "The gap skipped under the hinge, so pictures line up."; break;
 		case MGM_SWAP: help = book ? "Turns round which way UP and DOWN turn the spread." : "Off: RIGHT is forward. On: LEFT is forward."; break;
+		case MGM_LIGHT: help = "The screens' brightness, darker than its lowest, and a warm filter."; break;
 		case MGM_PAGES: help = "The chapter's thumbnails; A jumps to a page."; break;
 		case MGM_SETTINGS: help = "The reader's own settings page; B comes back here."; break;
 		default: break;
@@ -2483,6 +2496,10 @@ namespace bp
 			}
 			FullTex& ft = it->second;
 			ft.used = now;
+			// the reading filter and Extra dim, as the top panel's pages have them
+			float fr, fg, fb;
+			docFilterTint(readFilterNow, fr, fg, fb, readDimNow);
+			for (SDL_Texture* tt : ft.tiles) SDL_SetTextureColorMod(tt, (Uint8)(fr * 255), (Uint8)(fg * 255), (Uint8)(fb * 255));
 			for (size_t k = 0; k < ft.tiles.size(); k++)
 			{
 				int y0 = (int)k * 2048, th = std::min(2048, ft.h - y0);

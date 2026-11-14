@@ -92,6 +92,8 @@ namespace bp
 
 	bool Ui::press(Button b, Player& p)
 	{
+		// the readers' Brightness sheet takes the keys while it shows
+		if (lightOpen) return lightKey(b, p);
 		// a message's dialog: A or B closes it (nothing else, so a press meant for the page isn't lost on it)
 		if (alertOpen)
 		{
@@ -733,6 +735,7 @@ namespace bp
 		webInputAt = SDL_GetTicks();
 		// a list's finger whose lift never came (a dialog took it): a new touch starts afresh
 		if (pt.kind == Pointer::Down) mlist = MangaListDrag();
+		if (lightOpen) return lightPointer(pt, x, y, p);
 		if (alertOpen)
 		{
 			if (pt.kind == Pointer::Up) alertOpen = false;	// OK, or a tap anywhere
@@ -1372,7 +1375,9 @@ namespace bp
 				}
 			}
 		}
-		return buf + photo + "|al" + (alertOpen ? alertTitle + alertText : "") + "|me" + std::to_string((int)mangaErrOpen) + "|ld" + (loaderShown ? std::to_string(SDL_GetTicks() / 110) : std::string()) + "|xn" + extNoticeText() + "|" + p.title + "|" + p.error + "|" + serializeSettings(p.settings) + "|bat" + std::to_string(battery.percent) + (battery.charging ? "c" : "") + (inMenu ? "|menu" + std::to_string(menuTab) : "") + (ctxOpen ? "|ctx" + std::to_string(ctxCursor) + std::to_string(pressedBtn) + ctxStatus + (ctxArmed ? "!" : "") : "") + upd
+		return buf + photo + "|al" + (alertOpen ? alertTitle + alertText : "") +
+			(lightOpen ? "|li" + std::to_string(lightCursor) + " " + std::to_string(backlight.permille(Backlight::TOP)) + " " +
+				std::to_string(backlight.permille(Backlight::BOTTOM)) : std::string()) + "|me" + std::to_string((int)mangaErrOpen) + "|ld" + (loaderShown ? std::to_string(SDL_GetTicks() / 110) : std::string()) + "|xn" + extNoticeText() + "|" + p.title + "|" + p.error + "|" + serializeSettings(p.settings) + "|bat" + std::to_string(battery.percent) + (battery.charging ? "c" : "") + (inMenu ? "|menu" + std::to_string(menuTab) : "") + (ctxOpen ? "|ctx" + std::to_string(ctxCursor) + std::to_string(pressedBtn) + ctxStatus + (ctxArmed ? "!" : "") : "") + upd
 			+ (kbOpen ? "|kb" + eqNameNote + std::to_string(kbCursor) + "," + std::to_string(kbPressed) + "," + std::to_string((int)kbShift) + (kbSymbols ? "s" : "") + std::to_string(kbEdit.caret) + kbEdit.text + (kbCaretShown() ? "|" : "") : "");
 	}
 }

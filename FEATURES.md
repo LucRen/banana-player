@@ -109,7 +109,8 @@ the list while the playing screen was up.
 - **The playing file's row** carries a chip: **Playing**, **Paused** or **In browser** (the web dashboard plays it). Its card on Home says **Now** with its time and bar running. **A** on that row or card goes back to it,
   never from its start.
 - **Back to the playing screen:** **SELECT** on any page with the bar (or on Home), a tap on the mini bar, **START** ›
-  **Playing** › **Now playing**, **A** on its row or card, or **B** on Home.
+  **Playing** › **Now playing**, **A** on its row or card, or **B** on Home. From a book or a comic, a video takes the top screen
+  back while its player shows; **B** returns to the page you were reading.
 - **L3** (press the stick) likes or unlikes what plays, from the lists too.
 - **Stop** ends it: **Stop** at the bottom right of the playing screen, **START** › **Playing** › **Stop**, or the mini
   bar's menu. The place is kept (its card on Home resumes it). Reaching the end of the folder or playlist stops too:
@@ -429,8 +430,7 @@ it); a word says when there's nothing more to find.
 words; the list, in reading order, goes to one with **A** and deletes one with **X** (twice).
 
 **Text options:** **Find…**, **Bookmarks**, **View** (Scroll or Book mode), **Hold** and **Page turn** (in Book mode), **Font** (Serif, Sans, Mono, Pixel, Pixel CJK), **Text size** (five sizes), **Line spacing**,
-**Margins**, **Colours** (Dark, Light, Sepia, Black), **Filter** (Off, Warm, Warmer, Dim: a warm, yellowish light is
-easier on the eyes at night) and **Encoding** (a TXT only: Auto, or the code page an old file was written in, when
+**Margins**, **Colours** (Dark, Light, Sepia, Black), **Brightness & filter** (the sheet below) and **Encoding** (a TXT only: Auto, or the code page an old file was written in, when
 its letters come out wrong). They're kept for the next file. To go anywhere in the text, tap or drag the bar at the
 top of the bottom screen.
 
@@ -447,7 +447,7 @@ for the size it's shown at.
 
 - **Single page** (the first time): the bottom screen shows the page small, in the **pan area**, with a box around
   the part you see on top, as with a photo: drag the box to look around, tap the small page to look there, double-tap
-  to zoom to 200% or back. Beside it: **Prev**, **Next**, **Zoom −**, **Zoom +**, **Page fit** (Page or Width), **Filter**,
+  to zoom to 200% or back. Beside it: **Prev**, **Next**, **Zoom −**, **Zoom +**, **Page fit** (Page or Width), **Brightness**,
   **Pages** and **Options**, and under them **Vertical scroll** (**X**), to change to the other view.
 - **Vertical scroll**: the pages one under the other, scrolled with a finger on the bottom screen's big area, or a
   screenful at a time with **LEFT/RIGHT** (and **A**).
@@ -461,11 +461,25 @@ for the size it's shown at.
 | **A** | Single page: 200% or back to the whole page. Vertical scroll: on |
 | **X** | Single page or Vertical scroll (kept for the next PDF) |
 | **Y** | **Pages**: every page small; **A** goes to one |
-| **START** | **Options**: View, Fullscreen (Vertical scroll), Filter, Page fit (Page or Width), Zoom, Pages |
+| **START** | **Options**: View, Fullscreen (Vertical scroll), Brightness & filter, Page fit (Page or Width), Zoom, Pages |
 | **B** | Back to Files |
 
-**Filter** (Off, Warm, Warmer, Dim) tints the pages, on both screens, to rest the eyes. It's the PDF viewer's own; the
-Manga reader has none. A PDF locked with a password says so and doesn't open.
+A PDF locked with a password says so and doesn't open.
+
+### Brightness while reading
+
+Every reader (TXT and EPUB, PDF, the Manga reader) has a **Brightness** button (the sun beside the text viewer's
+buttons) and a **Brightness & filter** row in its options. The sheet it opens, over the bottom screen:
+
+- **Screens** (or **Top screen** and **Bottom screen**): the screens' own light, 10–100%. Under it, **Same brightness
+  for both screens** (the quick settings' box): ticked, one slider sets both; unticked, each screen has its own.
+- **Extra dim**: darker than the screens' lowest, for reading in the dark: the pages themselves are darkened, 10–80%,
+  on both screens. Kept for every reader.
+- **Filter** (Off, Warm, Warmer, Dim): a warm, yellowish light is easier on the eyes at night. Each reader keeps its own.
+
+**UP/DOWN** choose, **LEFT/RIGHT** change, a finger drags a bar or taps a filter; **B** (or a tap outside) closes it.
+While Extra dim or a filter is on, the Brightness button says so: lit in yellow with what's on (**Warm · −30%**; the
+text viewer's sun gets a dot).
 
 ## Picture size
 
@@ -929,7 +943,8 @@ The reader is an app of its own. It opens on **Library** and has four tabs, step
 **History**, **Browse** and **Downloads**. **B** goes back — out of Browse's list of series first, then to the drawer.
 **START** opens **Manga settings**, the reader's own settings page, on any of its pages (a series page too); **B** there
 comes back where you were. Music keeps playing while you read: the pages take the top screen, and the mini bar is on the
-app's pages, the reading page included (**SELECT** there goes to what plays). **Sources** is a page of its own, opened
+app's pages, the reading page included (**SELECT** there goes to what plays: a video shows on the top screen again, and
+**B** comes back to the pages). **Sources** is a page of its own, opened
 with **X** on Browse (below), where sources are installed from repositories you add; **Downloads** is the queue and what's
 on the card (below).
 
@@ -1104,8 +1119,8 @@ here to scroll* in **Vertical scroll**), and *Loading…* shows beside the page 
 - **Scrolling is the finger's alone**: the D-pad's **UP/DOWN** zoom, they never scroll. **By touch**: drag in the big
   area on the bottom screen to turn the page — it follows your finger and snaps to a page when you let go (a quick
   flick turns the page even from a short drag), and in **Vertical scroll** it scrolls — the slider jumps to a page, and the
-  buttons go to the chapter before or after, or turn fullscreen on (the middle one, as **SELECT** does). The row is
-  three buttons of one size with equal margins and gaps, above the **Now playing** mini bar when something plays. In
+  buttons go to the chapter before or after, turn fullscreen on (as **SELECT** does), or open **Brightness** (above,
+  under Books and documents). The row is four buttons of one size with equal margins and gaps, above the **Now playing** mini bar when something plays. In
   fullscreen the whole bottom screen is the page, and the finger drags it anywhere; the controls bar has the mini bar
   along its foot too, and a tap anywhere on the page — including the top-left corner — shows it. A double-tap on the
   page zooms to 200 % at that spot, and a double-tap again goes back to the fit.

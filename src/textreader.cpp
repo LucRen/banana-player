@@ -39,8 +39,10 @@ namespace bp
 		constexpr size_t CACHE_BLOCKS = 400;
 	}
 
-	void docFilterTint(int filter, float& r, float& g, float& b)
+	void docFilterTint(int filter, float& r, float& g, float& b, int dim)
 	{
+		float k = 1.0f - std::clamp(dim, 0, 90) / 100.0f;
+		struct Scale { float& r; float& g; float& b; float k; ~Scale() { r *= k; g *= k; b *= k; } } scale{r, g, b, k};
 		switch (filter)
 		{
 		case DOC_FILTER_WARM: r = 1.0f; g = 0.9f; b = 0.72f; break;		// less blue: yellowish, as a night light
@@ -333,7 +335,7 @@ namespace bp
 		style = st;
 		openFonts();
 		float r, g, b;
-		docFilterTint(style.filter, r, g, b);
+		docFilterTint(style.filter, r, g, b, style.dim);
 		pr.setTint(r, g, b);
 		if (src->first() >= src->end())
 		{
@@ -384,7 +386,7 @@ namespace bp
 		bool layout = st.font != style.font || st.size != style.size || st.spacing != style.spacing || st.margins != style.margins;
 		style = st;
 		float r, g, b;
-		docFilterTint(style.filter, r, g, b);
+		docFilterTint(style.filter, r, g, b, style.dim);
 		pr.setTint(r, g, b);
 		if (layout) openFonts();
 		if (src) relayout();	// (a theme only: the rows drawn again in its colours)

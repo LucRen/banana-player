@@ -17,7 +17,7 @@ Moved out of CLAUDE.md word for word (CLAUDE.md keeps the commands and a line on
   phone-size browser run (WebKit for the browser player) and one scripted handheld run, then copy the card first and let
   the owner test while anything longer runs; the full multi-size browser suite only before a release, in the background.
   Subagents don't run long suites unless asked. When a bug can't be pinned from `log.txt`, add logging that would.
-- **Test variables:** `BP_POWER_SUPPLY` (fake `/sys/class/power_supply`), `BP_OSD_FILE` (bananad's level file),
+- **Test variables:** `BP_POWER_SUPPLY` (fake `/sys/class/power_supply`), `BP_BACKLIGHT_DIR` (fake `/sys/class/backlight`: `backlight0`/`backlight1` with `max_brightness` and `brightness`), `BP_OSD_FILE` (bananad's level file),
   `BP_FONT_PROVIDER=none` (libass with no system fonts, as on BananaOS), `BP_SCREENSHOTS`, `BP_BOTTOM_SIZE=1024x768`,
   `BP_AO_PCM=FILE` (sound out as raw 44.1 kHz s16 stereo, untimed), `BP_CRASH_TEST=segv|abort|throw|overflow` (crashes
   1.5 s after start), `BP_BACKLIGHT_DIR`/`BP_BACKLIGHT_STORE`, `BP_VOLUME_SCRIPT`, `BP_PACKAGE_DIR`/`BP_UPDATE_URL`;

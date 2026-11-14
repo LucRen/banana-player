@@ -341,6 +341,12 @@ namespace bp
 			mstJavaUninstallArmed = false;
 			mstJavaLocal++;
 		}
+		// the installed extensions' sources, once the engine answers (small: Browse lists them from these)
+		if (mgr.syncWanted() && mangaJavaInstalled() && mangaNet->javaExt().state() == JavaExtHost::State::Running)
+		{
+			mgr.syncInstalled();
+			mstJavaLocal++;
+		}
 		// repositories added while the engine wasn't there: sent as soon as it answers
 		if (mgr.hasQueued() && mangaNet->javaExt().state() == JavaExtHost::State::Running)
 		{
@@ -550,6 +556,13 @@ namespace bp
 		auto busy = mstJavaBusy.find(e->pkgName);
 		if (busy != mstJavaBusy.end())
 			drawTextMid(busy->second, 0, ACCENT, 520, mid, 0, 1);
+		else if (e->isInstalled && e->sourcesKnown && e->sources.empty())
+		{
+			// installed, but the engine couldn't load it (an extension built for a newer engine): it gives no sources
+			int w = (int)std::lround(textWidth("Can't load", 0) / sx) + 16;
+			drawBox({608 - w, mid - 10, w, 20}, TRACK, R_CHIP);
+			drawTextMid("Can't load", 0, DANGER, 608 - w / 2, mid, w - 6, 2);
+		}
 		else if (e->isInstalled && e->hasUpdate)
 		{
 			int w = (int)std::lround(textWidth("Update", 0) / sx) + 16;

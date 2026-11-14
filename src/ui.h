@@ -132,6 +132,12 @@ namespace bp
 		// what plays (a song or a video) has its screen as the bottom panel's base: Main, or a page or the menu over it.
 		// False while it plays behind the browser (the player left with B, "<" or Back)
 		bool playerShown(const Player& p) const { return p.playing() && !bgPlay; }
+		// the player's own pages: over an open reader (the mini bar tapped while reading), the top panel shows what
+		// plays, not the pages; B comes back to the reader, and its pages to the top panel
+		bool topShowsPlayer() const
+		{
+			return page == Page::Main || page == Page::Tracks || page == Page::Chapters || page == Page::Info || page == Page::UpNext;
+		}
 		// the player's own Stop (Main's Stop, START › Playing › Stop, the mini bar's menu), once: main stops what plays
 		bool takeStopPressed() { bool r = stopPressed; stopPressed = false; return r; }
 		// the mini bar's tap over a photo: the photo closes and the player of what plays takes the screen (once; main
@@ -555,6 +561,26 @@ namespace bp
 		// one): in the order it was shown, so nothing moves under the cursor; a newly played one comes when it's
 		// entered again (each entry lists it newest first)
 		bool recentKeepOrder = false;
+		// the readers' Brightness sheet (ui_light.cpp): the screens' backlight, Extra dim, the reader's filter
+		enum { LR_SCREENS, LR_TOP, LR_BOTTOM, LR_SAME, LR_DIM, LR_FILTER };
+		bool lightOpen = false;
+		int lightCursor = 0, lightDrag = -1;
+		std::vector<int> lightRows() const;
+		int& lightFilter(Settings& s) const;
+		void openLight();
+		Rect lightBox() const;
+		Rect lightRow(int i) const;
+		Rect lightTrack(int i) const;
+		Rect lightChip(int i, int k) const;
+		void lightSet(int row, int value, Player& p);
+		int lightValue(int row, const Player& p) const;
+		bool lightKey(Button b, Player& p);
+		bool lightPointer(const Pointer& pt, int x, int y, Player& p);
+		void drawLight(const Player& p);
+		void lightSame(Player& p);
+		// what the reader's Brightness button says while Extra dim or a filter is on ("Warm · 30%"); empty: neither
+		std::string lightNote(const Player& p) const;
+		int readFilterNow = 0, readDimNow = 0;	// (Ui::draw: the reading filter and Extra dim as the pages are drawn)
 		// All recent's tabs: 0 everything, 1 videos, 2 music, 3 books and documents (L2/R2, or a tap on them); the counts
 		// as last listed, and where each tab was drawn (for a tap)
 		int recentTab = 0, recentCounts[4] = {0, 0, 0, 0};
@@ -1647,7 +1673,7 @@ namespace bp
 		static constexpr int MGM_ROWS = 8, MGM_ROW_H = 34, MGM_TOP = 164;	// at most 8 rows, above the help line (452)
 		// the rows a menu may have, in order; mangaMenuRows() lists the ones that mean something now (the cursor is
 		// one of these ids, so it stays on its row as others come and go)
-		enum { MGM_VIEW, MGM_HOLD, MGM_MODE, MGM_FIT, MGM_ZOOM, MGM_HINGE, MGM_SWAP, MGM_PAGES, MGM_SETTINGS, MGM_COUNT };
+		enum { MGM_VIEW, MGM_HOLD, MGM_MODE, MGM_FIT, MGM_ZOOM, MGM_HINGE, MGM_SWAP, MGM_LIGHT, MGM_PAGES, MGM_SETTINGS, MGM_COUNT };
 		// the View row: the pages on one screen, on both as one tall view (fullscreen), or Book (held sideways)
 		enum { MV_ONE, MV_FULL, MV_BOOK, MV_COUNT };
 		int mangaViewAsked = -1, mangaHoldAsked = 0;	// what the menu just asked, till the reader's status says it
@@ -1803,15 +1829,16 @@ namespace bp
 		// the chapter row: three buttons of one size, equal margins and gaps across the panel's 608 (16, 208 wide
 		// pieces, 16 apart: the last one ends at 624, 16 from the right edge)
 		// (52 tall: room for the key under the label, Button hotkeys on)
-		Rect mangaPrevRect() const { return {16, miniUp ? 364 : 396, 192, 52}; }
-		Rect mangaFullRect() const { return {224, miniUp ? 364 : 396, 192, 52}; }	// the Fullscreen button: what SELECT does
-		Rect mangaNextRect() const { return {432, miniUp ? 364 : 396, 192, 52}; }
+		Rect mangaPrevRect() const { return {16, miniUp ? 364 : 396, 146, 52}; }
+		Rect mangaFullRect() const { return {170, miniUp ? 364 : 396, 146, 52}; }	// the Fullscreen button: what SELECT does
+		Rect mangaLightRect() const { return {324, miniUp ? 364 : 396, 146, 52}; }	// the Brightness sheet
+		Rect mangaNextRect() const { return {478, miniUp ? 364 : 396, 146, 52}; }
 		static constexpr int MG_SER_ROWS = 5, MG_SER_TOP = 140;	// Page::MangaSeries' chapter rows
 		static constexpr int MG_ROW_TOP = 102, MG_ROWS = 6;
 		// History's rows hold two lines (series, then chapter and page): taller, so fewer
 		static constexpr int MG_HIST_ROW_H = 58, MG_HIST_ROWS = 5;	// the tabs end at 86: History's and Browse's rows below them
 		// the touch ids: their own space (mangaPointer acts on them; act() never sees them)
-		static constexpr int MG_RESUME = 3080, MG_HEART = 3081, MG_PREV = 3100, MG_NEXT = 3101, MG_FULL = 3102;
+		static constexpr int MG_RESUME = 3080, MG_HEART = 3081, MG_PREV = 3100, MG_NEXT = 3101, MG_FULL = 3102, MG_LIGHT = 3103;
 		// the pages grid: 6 columns of 96 px wide thumbnails, 6 px gap, centred in the 640-wide panel;
 		// each row is 130 px (thumb + page number), the grid starts below the header and ends above the hints
 		static constexpr int MPG_COLS = 6, MPG_THUMB_W = 96, MPG_GAP = 6, MPG_ROW_H = 130;

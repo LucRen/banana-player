@@ -11,6 +11,9 @@ namespace bp
 	{
 		std::string sysDir = "/sys/class/backlight", store = "/data/banana/backlight";
 		enum Panel { TOP, BOTTOM };
+		// BP_BACKLIGHT_DIR: a made-up sysfs (backlight0/, backlight1/ with max_brightness, brightness) and its store,
+		// for test runs off the handheld
+		Backlight();
 
 		bool present(Panel p) const;
 		// thousandths of the maximum, -1 where it can't be read

@@ -76,7 +76,7 @@ Twenty looks for your music, picked with **SELECT** while a song plays. Each one
 
 ## Install
 
-1. **Download** `BananaPlayer-0.7.17-aarch64.zip` from the [latest release](https://github.com/tonywei92/banana-player/releases/tag/v0.7.17).
+1. **Download** `BananaPlayer-0.7.18-aarch64.zip` from the [latest release](https://github.com/tonywei92/banana-player/releases/tag/v0.7.18).
 2. **Unzip it into `roms/ports`** on your SD card. You should see `Banana Player.sh`, a `BananaPlayer` folder and a
    `media` folder there.
 3. **Open the Ports shelf** on the handheld and choose **Banana Player**.
@@ -108,6 +108,10 @@ To uninstall, delete `Banana Player.sh`, the `BananaPlayer` folder and `media/bo
 Want to build it or help out? See [DEVELOPMENT.md](DEVELOPMENT.md).
 
 ## Support
+
+<p align="center">
+  <a href="https://ko-fi.com/tonysong"><img src="docs/img/kofi-banner.png" width="100%" alt="Support my work on Ko-fi: help me keep building Banana Player and other fun projects for BananaOS. ko-fi.com/tonysong"></a>
+</p>
 
 Banana Player is free and always will be. If it makes your handheld better and you'd like to say thanks:
 ☕ [buy me a coffee on Ko-fi](https://ko-fi.com/tonysong). Entirely optional: every feature is for everyone. ❤️

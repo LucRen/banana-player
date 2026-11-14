@@ -370,6 +370,39 @@ namespace bp
 		});
 	}
 
+	void MangaJava::syncInstalled()
+	{
+		if (syncAsked_) return;
+		syncTries_++;
+		syncAsked_ = submitRequest(Kind::SyncInstalled, suwayomiFetchInstalledSources(), "", "");
+	}
+
+	void MangaJava::adoptSources(const std::vector<SuwayomiExt>& exts, bool complete)
+	{
+		size_t before = sources_.size();
+		std::vector<std::string> installed;
+		for (const SuwayomiExt& e : exts)
+		{
+			if (!e.sourcesKnown) continue;
+			if (e.isInstalled)
+			{
+				addSources(e.sources, e.pkgName);
+				installed.push_back(e.pkgName);
+				if (e.sources.empty())
+					fprintf(stderr, "manga: extension %s is installed but the engine couldn't load it (no sources)\n", e.pkgName.c_str());
+			}
+			else dropSources(e.pkgName);
+		}
+		// the installed list is all of them: a source whose extension isn't there any more goes
+		if (complete)
+			sources_.erase(std::remove_if(sources_.begin(), sources_.end(), [&](const Source& s) {
+				return std::find(installed.begin(), installed.end(), s.pkgName) == installed.end();
+			}), sources_.end());
+		fprintf(stderr, "manga: extension sources %zu -> %zu, from the engine (%zu installed)\n", before, sources_.size(), installed.size());
+		serial_++;
+		save();
+	}
+
 	void MangaJava::dropSources(const std::string& pkgName)
 	{
 		sources_.erase(std::remove_if(sources_.begin(), sources_.end(),
@@ -451,11 +484,24 @@ namespace bp
 					if (!ok || rename(tmp.c_str(), path.c_str()) != 0) unlink(tmp.c_str());
 				}
 			}
+			adoptSources(extensions_, false);
 			// an adult extension's sources are all adult, even when the source nodes don't repeat the flag
 			for (Source& s : sources_)
 				if (const SuwayomiExt* e = extension(s.pkgName))
 					if (e->isNsfw) s.nsfw = true;
 			addEvent(Event::ExtensionsLoaded, "", "", "");
+			break;
+		}
+		case Kind::SyncInstalled:
+		{
+			std::vector<SuwayomiExt> out;
+			if (!error.empty() || !suwayomiParseInstalledSources(body, out, parseError))
+			{
+				syncAsked_ = false;	// asked again (syncWanted), a few times at most
+				fprintf(stderr, "manga: the installed extensions' sources didn't come: %s\n", (parseError.empty() ? error : parseError).c_str());
+				break;
+			}
+			adoptSources(out, true);
 			break;
 		}
 		case Kind::Install:

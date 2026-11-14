@@ -47,10 +47,10 @@ namespace bp
 		constexpr Uint32 TAP_MS = 350;
 
 		// the reading filter as SDL's colour mod (the bottom panel's copies of the pages)
-		void tintTexture(SDL_Texture* t, int filter)
+		void tintTexture(SDL_Texture* t, int filter, int dim)
 		{
 			float r, g, b;
-			docFilterTint(filter, r, g, b);
+			docFilterTint(filter, r, g, b, dim);
 			SDL_SetTextureColorMod(t, (Uint8)(r * 255), (Uint8)(g * 255), (Uint8)(b * 255));
 		}
 	}
@@ -399,7 +399,7 @@ namespace bp
 		case DT_SPACING: s.txtSpacing = std::clamp(s.txtSpacing + dir, 0, TXT_SPACINGS - 1); break;
 		case DT_MARGINS: s.txtMargins = std::clamp(s.txtMargins + dir, 0, TXT_MARGINS - 1); break;
 		case DT_THEME: cyc(s.txtTheme, TXT_THEMES); break;
-		case DT_FILTER: cyc(s.txtFilter, DOC_FILTERS); break;
+		case DT_FILTER: case DP_FILTER: docMenu = DOC_MENU_NONE; openLight(); return;	// the Brightness sheet
 		case DT_VIEW:
 			// Scroll or Book, held as Book was last (the top panel on the left the first time)
 			s.txtBook = s.txtBook ? 0 : (docBookHoldLast ? docBookHoldLast : MANGA_BOOK_LEFT);
@@ -411,7 +411,6 @@ namespace bp
 			docBookHoldLast = s.txtBook;
 			docBookToastUntil = SDL_GetTicks() + 4000;
 			break;
-		case DP_FILTER: cyc(s.pdfFilter, DOC_FILTERS); break;
 		case DT_ENCODING:
 		{
 			// the subtitles' own list of code pages (Auto first)
@@ -556,8 +555,8 @@ namespace bp
 				continue;
 			}
 			int id = rows[i];
-			static const char* LABELS[] = {"Font", "Text size", "Line spacing", "Margins", "Colours", "Filter", "Encoding",
-				"Go to", "View", "Fullscreen", "Filter", "Page fit", "Zoom", "Pages", "View", "Hold", "Bookmarks", "Page turn", "Find\u2026"};
+			static const char* LABELS[] = {"Font", "Text size", "Line spacing", "Margins", "Colours", "Brightness & filter", "Encoding",
+				"Go to", "View", "Fullscreen", "Brightness & filter", "Page fit", "Zoom", "Pages", "View", "Hold", "Bookmarks", "Page turn", "Find\u2026"};
 			drawTextMid(LABELS[id], 1, ink, 32, mid, 300);
 			if (id == DT_FIND)
 			{
@@ -565,8 +564,12 @@ namespace bp
 				drawGlyphMid(G_RIGHT, 604, mid, at ? ACCENT : DIM);
 				continue;
 			}
-			if (id == DP_PAGES || id == DT_MARKS)
+			if (id == DP_PAGES || id == DT_MARKS || id == DT_FILTER || id == DP_FILTER)
 			{
+				// Brightness & filter opens its sheet: the filter on now beside it
+				if (id == DT_FILTER || id == DP_FILTER)
+					drawTextMid(FILTER_NAMES[std::clamp(id == DT_FILTER ? p.settings.txtFilter : p.settings.pdfFilter, 0, DOC_FILTERS - 1)], 0,
+						at ? ACCENT : DIM, 580, mid, 160, 1);
 				if (id == DT_MARKS)
 				{
 					int nm = (int)docMarksHere().size();
@@ -799,6 +802,7 @@ namespace bp
 			return {368 + i % 2 * 128, 80 + i / 2 * 64, 120, 56};
 		}
 		int y = (miniUp ? 344 : 396) - 56;
+		if (page == Page::DocText) return i == 4 ? Rect{574, y, 50, 56} : Rect{16 + i * 140, y, 134, 56};	// four, then Brightness's sun
 		return {16 + i * 154, y, 146, 56};
 	}
 
@@ -892,7 +896,7 @@ namespace bp
 		bool text = page == Page::DocText;
 		bool full = !text && readerStatus.fullscreen;
 		bool single = !text && readerStatus.mode != MANGA_STRIP;
-		int nBtn = text ? 4 : single ? 9 : 4;
+		int nBtn = text ? 5 : single ? 9 : 4;
 		if (pt.kind == Pointer::Down)
 		{
 			docPressed = -1;
@@ -1027,19 +1031,15 @@ namespace bp
 			case 1: docMarksOpen(); break;	// Bookmarks
 			case 2: docKey(Button::Start, p); break;	// Text options
 			case 3: docKey(Button::Select, p); break;	// Book
+			case 4: openLight(); break;	// Brightness
 			}
 			return false;
 		}
 		if (single)
 		{
-			// (4: the page fit, 5: the filter, each says its value; 8, under them: Vertical scroll, as X)
+			// (4: the page fit, saying its value; 5: Brightness; 8, under them: Vertical scroll, as X)
 			static const Button KEYS[9] = {Button::L, Button::R, Button::Down, Button::Up, Button::None, Button::None, Button::Y, Button::Start, Button::X};
-			if (i == 5)
-			{
-				Settings s = p.settings;
-				s.pdfFilter = (s.pdfFilter + 1) % DOC_FILTERS;
-				p.setSettings(s);
-			}
+			if (i == 5) openLight();
 			else if (i == 4)
 			{
 				Settings s = p.settings;
@@ -1054,7 +1054,7 @@ namespace bp
 		{
 		case 0: docKey(Button::X, p); break;	// Single page
 		case 1: docKey(Button::Select, p); break;	// Fullscreen
-		case 2: { Settings s = p.settings; s.pdfFilter = (s.pdfFilter + 1) % DOC_FILTERS; p.setSettings(s); break; }
+		case 2: openLight(); break;	// Brightness
 		case 3: docKey(Button::Y, p); break;	// Pages
 		}
 		return false;
@@ -1096,7 +1096,7 @@ namespace bp
 			// a page squeezed to frac of the panel, against the spine (this panel's top edge, at the hinge)
 			auto at = [&](SDL_Texture* t, double frac) {
 				if (!t) return;
-				tintTexture(t, filter);
+				tintTexture(t, filter, p.settings.readDim);
 				SDL_Rect d{0, 0, pw, (int)std::lround(ph * frac)};
 				SDL_RenderCopy(ren, t, nullptr, &d);
 			};
@@ -1212,16 +1212,24 @@ namespace bp
 			if (textStatus.atEnd) drawTextMid("The end", 0, ACCENT, W / 2, pad.y + pad.h - 20, 0, 2);
 		}
 		// each with its key under it (as the photo viewer's), so Book is seen to be there
-		struct { const char* label; const char* key; bool off; } btns[4] = {
+		struct { const char* label; const char* key; bool off; } btns[5] = {
 			{"Contents", "Y", textStatus.contents.empty()}, {"Bookmarks", "X", false}, {"Options", "START", false},
-			{"Book mode", "SELECT", false}};
+			{"Book mode", "SELECT", false}, {"Brightness", "", false}};
 		bool hints = p.settings.buttonHotkeys;
-		for (int i = 0; i < 4; i++)
+		for (int i = 0; i < 5; i++)
 		{
 			Rect b = docBtn(i);
 			drawBox(b, docPressed == i ? PRESSED : BUTTON, R_BUTTON);
+			if (i == 4)
+			{
+				// Brightness: its sun, lit with a dot while Extra dim or a filter is on
+				bool tweaked = !lightNote(p).empty();
+				drawGlyphMid(G_SUN, b.x + b.w / 2, b.y + b.h / 2, tweaked ? ACCENT : TEXT);
+				if (tweaked) fillRound({b.x + b.w - 14, b.y + 6, 8, 8}, ACCENT, 4);
+				continue;
+			}
 			bool hint = hints && *btns[i].key;
-			drawText(btns[i].label, 1, btns[i].off ? DIM : TEXT, b.x + b.w / 2, b.y + (hint ? 5 : 15), b.w - 6, 2);
+			drawText(btns[i].label, 1, btns[i].off ? DIM : TEXT, b.x + b.w / 2, b.y + (hint ? 5 : 15), b.w - 2, 2);
 			if (hint) drawText(btns[i].key, 0, btns[i].off ? DIM : ACCENT, b.x + b.w / 2, b.y + 33, b.w - 6, 2);
 		}
 		if (findOn)
@@ -1305,7 +1313,7 @@ namespace bp
 				Rect tr = docPanThumb();
 				if (docPanTex)
 				{
-					tintTexture(docPanTex, filter);
+					tintTexture(docPanTex, filter, p.settings.readDim);
 					SDL_Rect dst{(int)std::lround(tr.x * sx), (int)std::lround(tr.y * sy), (int)std::lround(tr.w * sx), (int)std::lround(tr.h * sy)};
 					SDL_RenderCopy(ren, docPanTex, nullptr, &dst);
 				}
@@ -1326,8 +1334,8 @@ namespace bp
 			drawText("Zoom " + std::to_string(readerStatus.zoomPct) + "%", 0, TEXT, pan.x, pan.y + pan.h + (miniUp ? 4 : 10), pan.w);
 			drawText(readerStatus.zoomPct > 100 ? "Drag the box \xC2\xB7 double-tap: zoom out" : "Double-tap: zoom in", 0, DIM, pan.x,
 				pan.y + pan.h + (miniUp ? 24 : 36), pan.w);
-			const char* labels[9] = {"Prev", "Next", "Zoom -", "Zoom +", "Page fit", "Filter", "Pages", "Options", "Vertical scroll"};
-			const char* keys[9] = {"L", "R", "DOWN", "UP", p.settings.mangaFit == MANGA_FIT_WIDTH ? "Width" : "Page", FILTER_NAMES[filter], "Y",
+			const char* labels[9] = {"Prev", "Next", "Zoom -", "Zoom +", "Page fit", "Brightness", "Pages", "Options", "Vertical scroll"};
+			const char* keys[9] = {"L", "R", "DOWN", "UP", p.settings.mangaFit == MANGA_FIT_WIDTH ? "Width" : "Page", "", "Y",
 				"START", "X"};
 			bool hints = p.settings.buttonHotkeys;
 			for (int i = 0; i < 9; i++)
@@ -1337,7 +1345,16 @@ namespace bp
 				bool off = (i == 0 && readerStatus.page <= 0) || (i == 1 && readerStatus.page + 1 >= pages) ||
 					(i == 2 && readerStatus.zoomPct <= 100);
 				std::string label = labels[i];
-				bool hint = (hints && *keys[i]) || i == 4 || i == 5;	// (the fit's and the filter's say which one is on)
+				if (i == 5)
+				{
+					// Brightness: its sun, the word small under it (the label doesn't fit beside the others')
+					// (while Extra dim or a filter is on: lit, and what's on in place of the word)
+					std::string note = lightNote(p);
+					drawGlyphMid(G_SUN, b.x + b.w / 2, b.y + 20, note.empty() ? TEXT : ACCENT);
+					drawText(note.empty() ? labels[i] : note, 0, note.empty() ? TEXT : ACCENT, b.x + b.w / 2, b.y + 35, b.w - 6, 2);
+					continue;
+				}
+				bool hint = (hints && *keys[i]) || i == 4;	// (the fit's says which one is on)
 				drawText(label, 1, off ? DIM : TEXT, b.x + b.w / 2, b.y + (hint ? 5 : 15), b.w - 6, 2);
 				if (hint) drawText(keys[i], 0, off ? DIM : ACCENT, b.x + b.w / 2, b.y + 33, b.w - 6, 2);
 			}
@@ -1354,17 +1371,19 @@ namespace bp
 			if (readerStatus.failedHere) drawTextMid("A page couldn't be shown \xC2\xB7 A: try again", 1, DANGER, W / 2, pad.y + pad.h / 2, 560, 2);
 			else drawTextMid(readerStatus.loading ? "Loading" + std::string(SDL_GetTicks() / 400 % 4, '.') : "Drag here to scroll", 1, DIM, W / 2,
 				pad.y + pad.h / 2, 0, 2);
-			// each with its key (or, the filter, its setting) under it, as the single page's
-			const char* labels[4] = {"Single page", "Fullscreen", "Filter", "Pages"};
-			const char* keys[4] = {"X", "SELECT", FILTER_NAMES[filter], "Y"};
+			// each with its key under it, as the single page's
+			const char* labels[4] = {"Single page", "Fullscreen", "Brightness", "Pages"};
+			const char* keys[4] = {"X", "SELECT", "", "Y"};
 			bool hints = p.settings.buttonHotkeys;
 			for (int i = 0; i < 4; i++)
 			{
 				Rect b = docBtn(i);
 				drawBox(b, docPressed == i ? PRESSED : BUTTON, R_BUTTON);
-				bool hint = hints || i == 2;
+				// (Brightness: what's on under it while Extra dim or a filter is)
+				std::string key = i == 2 ? lightNote(p) : std::string(hints ? keys[i] : "");
+				bool hint = !key.empty();
 				drawText(labels[i], 1, TEXT, b.x + b.w / 2, b.y + (hint ? 5 : 15), b.w - 6, 2);
-				if (hint) drawText(keys[i], 0, ACCENT, b.x + b.w / 2, b.y + 33, b.w - 6, 2);
+				if (hint) drawText(key, 0, ACCENT, b.x + b.w / 2, b.y + 33, b.w - 6, 2);
 			}
 			drawHints({{"UP/DOWN", "Zoom"}, {"LEFT/RIGHT", "Scroll"}, {"B", "Close"}});
 		}

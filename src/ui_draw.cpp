@@ -349,6 +349,9 @@ namespace bp
 	void Ui::draw(const Player& p, bool force)
 	{
 		sameBrightness = p.settings.sameBrightness;
+		// (the readers' filter and Extra dim, for the drawing that has no Player: the Manga reader's bottom pages)
+		readFilterNow = page == Page::DocPages ? p.settings.pdfFilter : p.settings.mangaFilter;
+		readDimNow = p.settings.readDim;
 		mangaOn = p.settings.mangaOn;
 		mangaHistOn = p.settings.mangaHistory;
 		// before the signature: "Again to clear" goes back to how it was when the second tap would no longer clear
@@ -481,6 +484,7 @@ namespace bp
 		if (quickOpen) drawQuick(p);
 		if (kbOpen) drawKeyboard();
 		drawFileInfo();
+		if (lightOpen) drawLight(p);
 		if (alertOpen) drawAlert();
 		drawFileJob();	// (over everything: it holds the panel until it ends)
 	}

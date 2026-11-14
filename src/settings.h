@@ -160,6 +160,9 @@ namespace bp
 		// Book mode's page turn: 0 the fold (a page folding at the spine), 1 none (the pages change at once)
 		int txtTurn = 0;
 		int pdfFilter = 0;
+		// the Manga reader's own reading filter (DOC_FILTER_*), and every reader's extra dimming past the screen's
+		// lowest backlight (0-80 percent darker: the pages' colours scaled down)
+		int mangaFilter = 0, readDim = 0;
 		bool pdfStrip = false;
 		// Off: RIGHT is forward on the reader's page. On: LEFT is (to match a right-to-left book)
 		bool mangaSwapLR = false;

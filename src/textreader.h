@@ -26,7 +26,8 @@ namespace bp
 	constexpr int TXT_THEME_DARK = 0, TXT_THEME_LIGHT = 1, TXT_THEME_SEPIA = 2, TXT_THEME_BLACK = 3, TXT_THEMES = 4;
 	// a reading filter over the page (the PDF viewer's too): off, warm, warmer, dim
 	constexpr int DOC_FILTER_OFF = 0, DOC_FILTER_WARM = 1, DOC_FILTER_WARMER = 2, DOC_FILTER_DIM = 3, DOC_FILTERS = 4;
-	void docFilterTint(int filter, float& r, float& g, float& b);
+	// dim: percent darker on top of it (the readers' Extra dim, past the screen's lowest backlight)
+	void docFilterTint(int filter, float& r, float& g, float& b, int dim = 0);
 
 	class TextReader
 	{
@@ -34,10 +35,11 @@ namespace bp
 		~TextReader();
 		struct Style
 		{
-			int font = TXT_FONT_SERIF, size = 2, theme = TXT_THEME_DARK, filter = DOC_FILTER_OFF, spacing = 1, margins = 1;
+			int font = TXT_FONT_SERIF, size = 2, theme = TXT_THEME_DARK, filter = DOC_FILTER_OFF, spacing = 1, margins = 1, dim = 0;
 			bool operator==(const Style& o) const
 			{
-				return font == o.font && size == o.size && theme == o.theme && filter == o.filter && spacing == o.spacing && margins == o.margins;
+				return font == o.font && size == o.size && theme == o.theme && filter == o.filter && spacing == o.spacing && margins == o.margins &&
+					dim == o.dim;
 			}
 		};
 		// once, with the top window's context current

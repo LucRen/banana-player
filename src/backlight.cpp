@@ -15,6 +15,15 @@ namespace bp
 		return v;
 	}
 
+	Backlight::Backlight()
+	{
+		if (const char* d = getenv("BP_BACKLIGHT_DIR"); d && *d)
+		{
+			sysDir = d;
+			store = std::string(d) + "/store";
+		}
+	}
+
 	bool Backlight::present(Panel p) const
 	{
 		return readInt(sysDir + "/" + NAMES[p] + "/max_brightness") > 0;

@@ -399,8 +399,13 @@ namespace bp
 
 	std::string suwayomiFetchExtensions()
 	{
-		const char* q = "mutation { fetchExtensions(input: {}) { extensions { pkgName name lang versionName versionCode isNsfw isInstalled hasUpdate isObsolete iconUrl } } }";
+		const char* q = "mutation { fetchExtensions(input: {}) { extensions { pkgName name lang versionName versionCode isNsfw isInstalled hasUpdate isObsolete iconUrl source { nodes { id name lang displayName supportsLatest isNsfw } } } } }";
 		return gqlBody(q);
+	}
+
+	std::string suwayomiFetchInstalledSources()
+	{
+		return gqlBody("query { extensions(condition: {isInstalled: true}) { nodes { pkgName name isInstalled source { nodes { id name lang displayName supportsLatest isNsfw } } } } }");
 	}
 
 	std::string suwayomiInstallExtension(const std::string& pkgName)
@@ -541,6 +546,34 @@ namespace bp
 		return true;
 	}
 
+	// a `source { nodes [...] }` object's sources (an install's answer, each extension in the list's)
+	static bool parseSourceNodes(const JVal* src, std::vector<SuwayomiSource>& out)
+	{
+		if (!src || src->kind != JVal::OBJ) return false;
+		const JVal* nodes = src->find("nodes");
+		if (!nodes || nodes->kind != JVal::ARR) return false;
+		out.clear();
+		out.reserve(nodes->elems.size());
+		for (const JVal& el : nodes->elems)
+		{
+			if (el.kind != JVal::OBJ) continue;
+			SuwayomiSource s;
+			// the source id is a string: Suwayomi writes 64-bit ints (1998944621602463790) that overflow a
+			// double, so it must be read as the string it is, not parsed as a number
+			const JVal* id = el.find("id");
+			if (id && id->kind == JVal::STR) s.id = id->s;
+			else if (id && id->kind == JVal::NUM) s.id = id->s;	// the raw token the parser kept
+			s.name = jStr(el.find("name"));
+			s.lang = jStr(el.find("lang"));
+			s.displayName = jStr(el.find("displayName"));
+			s.supportsLatest = jBool(el.find("supportsLatest"));
+			s.isNsfw = jBool(el.find("isNsfw"));
+			if (s.id.empty()) continue;
+			out.push_back(std::move(s));
+		}
+		return true;
+	}
+
 	bool suwayomiParseExtensions(const std::string& json, std::vector<SuwayomiExt>& out, std::string& error)
 	{
 		error.clear();
@@ -569,7 +602,34 @@ namespace bp
 			e.isInstalled = jBool(el.find("isInstalled"));
 			e.hasUpdate = jBool(el.find("hasUpdate"));
 			e.isObsolete = jBool(el.find("isObsolete"));
+			e.sourcesKnown = parseSourceNodes(el.find("source"), e.sources);
 			if (e.pkgName.empty()) continue;	// an entry without a key can't be addressed later
+			out.push_back(std::move(e));
+		}
+		return true;
+	}
+
+	bool suwayomiParseInstalledSources(const std::string& json, std::vector<SuwayomiExt>& out, std::string& error)
+	{
+		error.clear();
+		if (suwayomiCheckErrors(json, error)) return false;
+		JVal root;
+		if (!jParse(json, root)) { error = "bad JSON"; return false; }
+		const JVal* data = root.find("data");
+		if (!data || data->kind != JVal::OBJ) { error = "no data"; return false; }
+		const JVal* exts = data->find("extensions");
+		const JVal* nodes = exts && exts->kind == JVal::OBJ ? exts->find("nodes") : nullptr;
+		if (!nodes || nodes->kind != JVal::ARR) { error = "no extensions"; return false; }
+		out.clear();
+		for (const JVal& el : nodes->elems)
+		{
+			if (el.kind != JVal::OBJ) continue;
+			SuwayomiExt e;
+			e.pkgName = jStr(el.find("pkgName"));
+			e.name = jStr(el.find("name"));
+			e.isInstalled = true;
+			e.sourcesKnown = parseSourceNodes(el.find("source"), e.sources);
+			if (e.pkgName.empty() || !e.sourcesKnown) continue;
 			out.push_back(std::move(e));
 		}
 		return true;
@@ -589,27 +649,7 @@ namespace bp
 		if (!ext || ext->kind != JVal::OBJ) { error = "no extension"; return false; }
 		const JVal* src = ext->find("source");
 		if (!src || src->kind != JVal::OBJ) { error = "no source"; return false; }
-		const JVal* nodes = src->find("nodes");
-		if (!nodes || nodes->kind != JVal::ARR) { error = "no source nodes"; return false; }
-		out.clear();
-		out.reserve(nodes->elems.size());
-		for (const JVal& el : nodes->elems)
-		{
-			if (el.kind != JVal::OBJ) continue;
-			SuwayomiSource s;
-			// the source id is a string: Suwayomi writes 64-bit ints (1998944621602463790) that overflow a
-			// double, so it must be read as the string it is, not parsed as a number
-			const JVal* id = el.find("id");
-			if (id && id->kind == JVal::STR) s.id = id->s;
-			else if (id && id->kind == JVal::NUM) s.id = id->s;	// the raw token the parser kept
-			s.name = jStr(el.find("name"));
-			s.lang = jStr(el.find("lang"));
-			s.displayName = jStr(el.find("displayName"));
-			s.supportsLatest = jBool(el.find("supportsLatest"));
-			s.isNsfw = jBool(el.find("isNsfw"));
-			if (s.id.empty()) continue;
-			out.push_back(std::move(s));
-		}
+		if (!parseSourceNodes(src, out)) { error = "no source nodes"; return false; }
 		return true;
 	}
 

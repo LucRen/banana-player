@@ -75,6 +75,10 @@ namespace bp
 		bool addRepo(const std::string& url, std::string& error);
 		bool removeRepo(const std::string& url, std::string& error);
 		void refreshExtensions();
+		// the installed extensions' sources asked of the engine once it runs (the card's sources.tsv is a copy: lost or
+		// stale, Browse would miss sources the engine has); asked once, again after a failed answer (3 tries)
+		void syncInstalled();
+		bool syncWanted() const { return !syncAsked_ && syncTries_ < 3; }
 		bool install(const std::string& pkgName, std::string& error);
 		bool update(const std::string& pkgName, std::string& error);
 		bool uninstall(const std::string& pkgName, std::string& error);
@@ -91,7 +95,7 @@ namespace bp
 		void cancelAll();
 
 	private:
-		enum class Kind { AddStore, RemoveStore, FetchExtensions, Install, Update, Uninstall };
+		enum class Kind { AddStore, RemoveStore, FetchExtensions, Install, Update, Uninstall, SyncInstalled };
 		struct Pending
 		{
 			Kind kind = Kind::AddStore;
@@ -114,6 +118,10 @@ namespace bp
 		std::vector<Source> sources_;
 		std::vector<SuwayomiExt> extensions_;
 		bool extensionsKnown_ = false;
+		bool syncAsked_ = false;
+		int syncTries_ = 0;
+		// the sources as the engine has them, from a list of extensions: complete, what isn't in it has none
+		void adoptSources(const std::vector<SuwayomiExt>& exts, bool complete);
 		std::map<uint64_t, Pending> pending_;
 		std::vector<Event> events_;
 		uint64_t serial_ = 0;
