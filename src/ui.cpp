@@ -17,6 +17,7 @@
 #include <qrcodegen.hpp>
 #endif
 #include "ui_internal.h"
+#include "ui_docs.h"
 #include "durworker.h"
 
 namespace bp
@@ -72,6 +73,20 @@ namespace bp
 			else for (auto* x : f) if (x) TTF_CloseFont(x);
 		}
 		return true;
+	}
+
+	// the areas: each made here and listed, which is all the wiring one needs (docs/notes/ui-areas.md)
+	Ui::Ui()
+	{
+		docs = std::make_unique<Docs>(*this);
+		areas.push_back(docs.get());
+	}
+
+	Ui::Area* Ui::area() const
+	{
+		for (Area* a : areas)
+			if (a->has(page)) return a;
+		return nullptr;
 	}
 
 	Ui::~Ui()
@@ -229,8 +244,8 @@ namespace bp
 		}
 		// Files' Copy / Move held: SELECT pastes in this folder, X lets go
 		if (clipKey(b, p)) return false;
-		// Files' document viewers: their own keys (ui_docs.cpp)
-		if (page == Page::DocText || page == Page::DocPages) return docKey(b, p);
+		// an area's page (Files' document viewers): its own keys
+		if (Area* a = area()) return a->key(b, p);
 		if (page == Page::Sound) return soundKey(b, p);
 		if (page == Page::Web) return webKey(b, p);
 		if (page == Page::Playing) return playingKey(b, p);
@@ -502,7 +517,7 @@ namespace bp
 		// a held slider whose target is told at a pace: a finger resting on a new value, sent when it's due
 		slideLive(p);
 		mangaVideoGuard(p);
-		if (page == Page::DocText || page == Page::DocPages) docTick(p);
+		if (Area* a = area()) a->tick(p);
 		fileJobTick(p);
 		rootsCheck(p);
 		mangaEngineWatch(p);	// the engine's download sheet: closed when done
@@ -967,7 +982,7 @@ namespace bp
 		}
 		// the reader's page: its drag area and slider take the finger's moves too (the mini bar's taken above)
 		if (page == Page::MangaRead) return mangaPointer(pt, x, y, p);
-		if (page == Page::DocText || page == Page::DocPages) return docPointer(pt, x, y, p);
+		if (Area* a = area()) return a->pointer(pt, x, y, p);
 		// a manga source's grid scrolls with the finger: its moves and lift go to it (its down comes below)
 		if (((page == Page::Manga && mangaView == 1) || (page == Page::MangaSeries && mangaSourceSeriesOn())) && pt.kind != Pointer::Down)
 			return mangaPointer(pt, x, y, p);
@@ -1286,21 +1301,7 @@ namespace bp
 		photo += fileJobSignature();
 		if (infoOpen) photo += "|info" + infoTitle + std::to_string(infoRows.size());
 		if (clipOp != CLIP_NONE) photo += "|clip" + std::to_string(clipOp) + clipPath + (clipCanPaste() ? "p" : "");
-		if (page == Page::DocText || page == Page::DocPages)
-		{
-			photo += docSignature();
-			// (the pages grid and fullscreen are the manga reader's own drawing: their state as it signs it)
-			if (page == Page::DocPages && mangaPages)
-				photo += "|pg" + std::to_string(mangaPagesCursor) + "," + std::to_string(mangaPagesScroll) + " " +
-					std::to_string(mpTex.size()) + "," + std::to_string(readerThumbs.pages.size());
-			if (page == Page::DocPages && readerStatus.fullscreen)
-			{
-				photo += "|full" + std::to_string(readerBottom.gen) + " " + std::to_string(mfTex.size()) + " " +
-					std::to_string(mfWaiting) + " " + std::to_string(readerBottom.pages.size()) + (SDL_GetTicks() < mfTagUntil ? "T" : "");
-				for (auto& b : readerBottom.boxes)
-					photo += " " + std::to_string(b.page) + ":" + std::to_string((int)std::lround(b.x * 4096)) + "," + std::to_string((int)std::lround(b.y * 4096));
-			}
-		}
+		if (Area* a = area()) photo += a->signature(p);
 		if (page == Page::Manga || page == Page::MangaSeries || page == Page::MangaRead || page == Page::MangaSources)
 		{
 			char mb[200];

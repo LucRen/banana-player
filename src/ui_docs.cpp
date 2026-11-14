@@ -3,6 +3,7 @@
 // viewer's pan area, or down a strip (fullscreen across both panels). Each document's place is kept in
 // doc-places.conf (the state folder), so it opens where it was left.
 #include "ui_internal.h"
+#include "ui_docs.h"
 #include "epub.h"
 #include "pagebook.h"
 #include "substyle.h"
@@ -56,7 +57,7 @@ namespace bp
 	}
 
 	// a Find under way (below: Find)
-	struct Ui::FindJob
+	struct Ui::Docs::FindJob
 	{
 		std::string path, charset, query;
 		bool epub = false, back = false;
@@ -75,12 +76,17 @@ namespace bp
 
 	bool Ui::openDocument(const std::string& path, Player& p)
 	{
+		return docs->open(path, p);
+	}
+
+	bool Ui::Docs::open(const std::string& path, Player& p)
+	{
 		bool comic = isComicName(path);
 		if (isNetPath(path) || (!isDocumentName(path) && !comic)) return false;
 		// a comic (CBZ, CBR) reads with the Manga reader's pages: only with it turned on
 		if (comic && !p.settings.mangaOn)
 		{
-			alert("Comics need the Manga reader", "Turn it on in Extensions to read CBZ and CBR files.");
+			ui.alert("Comics need the Manga reader", "Turn it on in Extensions to read CBZ and CBR files.");
 			return true;
 		}
 		std::string e = extLower(path);
@@ -94,7 +100,7 @@ namespace bp
 			Epub book;
 			pictures = book.open(path) && book.pictureBook();
 		}
-		if (page != Page::DocText && page != Page::DocPages) docFrom = page;
+		if (ui.page != Page::DocText && ui.page != Page::DocPages) docFrom = ui.page;
 		docPath = path;
 		docLive = false;
 		docMenu = DOC_MENU_NONE;
@@ -108,59 +114,89 @@ namespace bp
 			textRead = {path, kept && kept->position > 0 ? (uint64_t)kept->position : 0};
 			textStatus = {};
 			textStatus.title = name;
-			page = Page::DocText;
+			ui.page = Page::DocText;
 			return true;
 		}
 		int page0 = kept && kept->position > 0 ? (int)kept->position : 0;
-		mangaRead = {"", name, "", name, path, true, page0, p.settings.pdfStrip ? MANGA_STRIP : MANGA_LTR, MANGA_FIT_PAGE};
-		mangaReadSeriesId.clear();
-		mangaReadChapterId.clear();
-		mangaReadChapterTitle = name;
-		mangaZoomAsked = 100;
-		mangaPages = false;
-		readerStatus = {};
+		ui.mangaRead = {"", name, "", name, path, true, page0, p.settings.pdfStrip ? MANGA_STRIP : MANGA_LTR, MANGA_FIT_PAGE};
+		ui.mangaReadSeriesId.clear();
+		ui.mangaReadChapterId.clear();
+		ui.mangaReadChapterTitle = name;
+		ui.mangaZoomAsked = 100;
+		ui.mangaPages = false;
+		ui.readerStatus = {};
 		docPan = {};
-		page = Page::DocPages;
+		ui.page = Page::DocPages;
 		return true;
 	}
 
-	int Ui::docPagesFilter(const Player& p) const
+	int Ui::Docs::docPagesFilter(const Player& p) const
 	{
-		return page == Page::DocPages ? p.settings.pdfFilter : -1;
+		return ui.page == Page::DocPages ? p.settings.pdfFilter : -1;
 	}
 
-	void Ui::docPlacesLoad()
+	void Ui::Docs::docPlacesLoad()
 	{
 		if (docPlaces) return;
 		docPlaces = std::make_unique<ResumeStore>();
-		if (stateDirPath.empty()) return;
-		std::ifstream f(stateDirPath + "/doc-places.conf");
+		if (ui.stateDirPath.empty()) return;
+		std::ifstream f(ui.stateDirPath + "/doc-places.conf");
 		std::stringstream ss;
 		ss << f.rdbuf();
 		docPlaces->parse(ss.str());
 	}
 
-	void Ui::docPlacesSave(bool now)
+	const ResumeEntry* Ui::Docs::placeOf(const std::string& path)
 	{
-		if (!docPlaces || !docPlacesDirty || stateDirPath.empty()) return;
+		docPlacesLoad();
+		return docPlaces->find(path);
+	}
+
+	void Ui::Docs::forgetPlace(const std::string& path)
+	{
+		docPlacesLoad();
+		ResumeEntry e;
+		e.path = path;
+		docPlaces->put(e);
+		docPlacesDirty = true;
+	}
+
+	void Ui::Docs::pathMoved(const std::string& from, const std::string& to)
+	{
+		docPlacesLoad();
+		if (docPlaces->moved(from, to)) { docPlacesDirty = true; docPlacesSave(true); }
+		docMarksLoad();
+		bool marks = false;
+		for (auto& m : docMarks)
+		{
+			std::string n;
+			if (movedPath(m.path, from, to, n)) { m.path = n; marks = true; }
+		}
+		if (marks) docMarksSave();
+		if (!docPath.empty()) { std::string n; if (movedPath(docPath, from, to, n)) docPath = n; }
+	}
+
+	void Ui::Docs::docPlacesSave(bool now)
+	{
+		if (!docPlaces || !docPlacesDirty || ui.stateDirPath.empty()) return;
 		if (!now && SDL_GetTicks() - docSavedAt < 2000) return;
-		std::string tmp = stateDirPath + "/doc-places.conf.tmp";
+		std::string tmp = ui.stateDirPath + "/doc-places.conf.tmp";
 		{
 			std::ofstream f(tmp);
 			f << docPlaces->serialize();
 		}
-		std::rename(tmp.c_str(), (stateDirPath + "/doc-places.conf").c_str());
+		std::rename(tmp.c_str(), (ui.stateDirPath + "/doc-places.conf").c_str());
 		docPlacesDirty = false;
 		docSavedAt = SDL_GetTicks();
 	}
 
-	void Ui::docRemember()
+	void Ui::Docs::docRemember()
 	{
 		if (docPath.empty() || !docLive) return;
 		docPlacesLoad();
 		ResumeEntry e;
 		e.path = docPath;
-		if (page == Page::DocText)
+		if (ui.page == Page::DocText)
 		{
 			if (!textStatus.open) return;
 			e.position = (double)textStatus.place;
@@ -169,9 +205,9 @@ namespace bp
 		}
 		else
 		{
-			if (!readerStatus.open || readerStatus.pages <= 0) return;
-			e.position = readerStatus.page;
-			e.duration = readerStatus.pages;
+			if (!ui.readerStatus.open || ui.readerStatus.pages <= 0) return;
+			e.position = ui.readerStatus.page;
+			e.duration = ui.readerStatus.pages;
 			e.aid = 2;	// (the kind: a page of so many)
 		}
 		const ResumeEntry* was = docPlaces->find(docPath);
@@ -180,19 +216,19 @@ namespace bp
 		docPlacesDirty = true;
 	}
 
-	void Ui::docClose(Player& p)
+	void Ui::Docs::docClose(Player& p)
 	{
 		(void)p;
 		docRemember();
 		docPlacesSave(true);
-		if (page == Page::DocText) textCloseAsked = true;
+		if (ui.page == Page::DocText) textCloseAsked = true;
 		else
 		{
-			readerCmds.push_back({ReaderCmd::Close, 0, (int64_t)SDL_GetTicks()});
-			mangaPages = false;
-			mpFree();
-			mfFree();
-			mangaZoomAsked = 100;
+			ui.readerCmds.push_back({ReaderCmd::Close, 0, (int64_t)SDL_GetTicks()});
+			ui.mangaPages = false;
+			ui.mpFree();
+			ui.mfFree();
+			ui.mangaZoomAsked = 100;
 		}
 		if (docPanTex) SDL_DestroyTexture(docPanTex);
 		docPanTex = nullptr;
@@ -210,14 +246,14 @@ namespace bp
 		docNote.clear();
 		fprintf(stderr, "docs: closed %s\n", fileName(docPath).c_str());
 		docPath.clear();
-		page = docFrom == Page::DocText || docFrom == Page::DocPages ? Page::Browse : docFrom;
+		ui.page = docFrom == Page::DocText || docFrom == Page::DocPages ? Page::Browse : docFrom;
 	}
 
-	void Ui::docTick(Player& p)
+	void Ui::Docs::tick(Player& p)
 	{
 		if (p.settings.txtBook) docBookHoldLast = p.settings.txtBook;
 		findTick();
-		bool open = page == Page::DocText ? textStatus.open : readerStatus.open;
+		bool open = ui.page == Page::DocText ? textStatus.open : ui.readerStatus.open;
 		if (open) docLive = true;
 		docRemember();
 		docPlacesSave(false);
@@ -225,14 +261,20 @@ namespace bp
 
 	// ---- Find ----
 
-	void Ui::runFind(FindJob* j)
+	void Ui::Docs::runFind(FindJob* j)
 	{
 		j->hit = findInFile(j->path, j->epub, j->charset, j->query, j->from, j->back, j->found,
 			[j] { return j->cancel.load(); }, [j](double f) { j->permille = (int)(f * 1000); });
 		j->done = true;
 	}
 
-	void Ui::findStart(bool back)
+	void Ui::Docs::findTyped(const std::string& query)
+	{
+		findQuery = query;
+		findStart(false);
+	}
+
+	void Ui::Docs::findStart(bool back)
 	{
 		if (findQuery.empty() || findJob || docPath.empty()) return;
 		auto j = std::make_shared<FindJob>();
@@ -248,12 +290,12 @@ namespace bp
 		j->t = std::thread([raw] { runFind(raw); });
 	}
 
-	std::string Ui::docHighlight() const
+	std::string Ui::Docs::docHighlight() const
 	{
-		return findOn && page == Page::DocText ? findQuery : std::string();
+		return findOn && ui.page == Page::DocText ? findQuery : std::string();
 	}
 
-	void Ui::findTick()
+	void Ui::Docs::findTick()
 	{
 		// a step within the block shown came back: none there, the search goes on that way
 		if (findStepWay && textStatus.matchStep)
@@ -280,7 +322,7 @@ namespace bp
 		fprintf(stderr, "docs: found at %llu\n", (unsigned long long)j->found);
 	}
 
-	std::string Ui::findSignature() const
+	std::string Ui::Docs::findSignature() const
 	{
 		std::string s = "|find" + std::to_string(findOn) + findQuery;
 		if (findJob) s += "~" + std::to_string(findJob->permille / 20);
@@ -289,28 +331,28 @@ namespace bp
 		return s;
 	}
 
-	void Ui::drawFind()
+	void Ui::Docs::drawFind()
 	{
 		// a search running: over everything, how far, B stops it
 		if (findJob)
 		{
 			Rect box{100, 170, 440, 140};
-			drawDialog(box, "Finding\u2026");
-			drawTextMid("\u201C" + findQuery + "\u201D", 1, TEXT, W / 2, box.y + 70, box.w - 40, 2);
+			ui.drawDialog(box, "Finding\u2026");
+			ui.drawTextMid("\u201C" + findQuery + "\u201D", 1, TEXT, W / 2, box.y + 70, box.w - 40, 2);
 			Rect track{box.x + 30, box.y + 96, box.w - 60, 10};
-			drawLevel(track, track.w * findJob->permille / 1000, TRACK, ACCENT);
-			drawHints({{"B", "Stop"}});
+			ui.drawLevel(track, track.w * findJob->permille / 1000, TRACK, ACCENT);
+			ui.drawHints({{"B", "Stop"}});
 		}
 	}
 
 	// ---- bookmarks ----
 
-	void Ui::docMarksLoad()
+	void Ui::Docs::docMarksLoad()
 	{
 		if (docMarksLoaded) return;
 		docMarksLoaded = true;
-		if (stateDirPath.empty()) return;
-		std::ifstream f(stateDirPath + "/doc-bookmarks.conf");
+		if (ui.stateDirPath.empty()) return;
+		std::ifstream f(ui.stateDirPath + "/doc-bookmarks.conf");
 		std::string line;
 		// a line a bookmark: the place, its share, the file, its label (tabs between; the label last, as typed)
 		while (std::getline(f, line))
@@ -327,9 +369,9 @@ namespace bp
 		}
 	}
 
-	void Ui::docMarksSave()
+	void Ui::Docs::docMarksSave()
 	{
-		if (stateDirPath.empty()) return;
+		if (ui.stateDirPath.empty()) return;
 		std::string out = "# banana-player: bookmarks in documents (place, share, file, label)\n";
 		for (auto& m : docMarks)
 		{
@@ -339,15 +381,15 @@ namespace bp
 			snprintf(head, sizeof head, "%llu\t%.4f\t", (unsigned long long)m.id, m.frac);
 			out += head + m.path + "\t" + label + "\n";
 		}
-		std::string tmp = stateDirPath + "/doc-bookmarks.conf.tmp";
+		std::string tmp = ui.stateDirPath + "/doc-bookmarks.conf.tmp";
 		{
 			std::ofstream f(tmp);
 			f << out;
 		}
-		std::rename(tmp.c_str(), (stateDirPath + "/doc-bookmarks.conf").c_str());
+		std::rename(tmp.c_str(), (ui.stateDirPath + "/doc-bookmarks.conf").c_str());
 	}
 
-	std::vector<int> Ui::docMarksHere() const
+	std::vector<int> Ui::Docs::docMarksHere() const
 	{
 		std::vector<int> v;
 		for (int i = 0; i < (int)docMarks.size(); i++)
@@ -356,7 +398,7 @@ namespace bp
 		return v;
 	}
 
-	void Ui::docMarksOpen()
+	void Ui::Docs::docMarksOpen()
 	{
 		docMarksLoad();
 		docMenu = DOC_MENU_MARKS;
@@ -366,9 +408,9 @@ namespace bp
 
 	// ---- the menus ----
 
-	std::vector<int> Ui::docMenuRows() const
+	std::vector<int> Ui::Docs::docMenuRows() const
 	{
-		if (page == Page::DocText)
+		if (ui.page == Page::DocText)
 		{
 			std::vector<int> r = {DT_FIND, DT_MARKS, DT_VIEW};
 			if (textStatus.book) { r.push_back(DT_HOLD); r.push_back(DT_TURN); }
@@ -376,7 +418,7 @@ namespace bp
 			if (!textStatus.encoding.empty()) r.push_back(DT_ENCODING);
 			return r;
 		}
-		bool strip = readerStatus.mode == MANGA_STRIP;
+		bool strip = ui.readerStatus.mode == MANGA_STRIP;
 		std::vector<int> r = {DP_VIEW};
 		if (strip) r.push_back(DP_FULL);
 		r.push_back(DP_FILTER);
@@ -385,7 +427,7 @@ namespace bp
 		return r;
 	}
 
-	void Ui::docMenuStep(int dir, Player& p)
+	void Ui::Docs::docMenuStep(int dir, Player& p)
 	{
 		auto rows = docMenuRows();
 		if (docMenuCursor < 0 || docMenuCursor >= (int)rows.size()) return;
@@ -399,7 +441,7 @@ namespace bp
 		case DT_SPACING: s.txtSpacing = std::clamp(s.txtSpacing + dir, 0, TXT_SPACINGS - 1); break;
 		case DT_MARGINS: s.txtMargins = std::clamp(s.txtMargins + dir, 0, TXT_MARGINS - 1); break;
 		case DT_THEME: cyc(s.txtTheme, TXT_THEMES); break;
-		case DT_FILTER: case DP_FILTER: docMenu = DOC_MENU_NONE; openLight(); return;	// the Brightness sheet
+		case DT_FILTER: case DP_FILTER: docMenu = DOC_MENU_NONE; ui.openLight(); return;	// the Brightness sheet
 		case DT_VIEW:
 			// Scroll or Book, held as Book was last (the top panel on the left the first time)
 			s.txtBook = s.txtBook ? 0 : (docBookHoldLast ? docBookHoldLast : MANGA_BOOK_LEFT);
@@ -435,29 +477,29 @@ namespace bp
 			return;
 		case DP_VIEW:
 		{
-			bool strip = readerStatus.mode != MANGA_STRIP;
+			bool strip = ui.readerStatus.mode != MANGA_STRIP;
 			// (each view opens at its fit: a page's zoom would cut a strip's lines at both edges)
-			if (readerStatus.zoomPct != 100) mangaZoomTo(1.0);
-			if (!strip && readerStatus.fullscreen) readerCmds.push_back({ReaderCmd::Fullscreen, 0, (int64_t)SDL_GetTicks()});
-			readerCmds.push_back({ReaderCmd::Mode, (double)(strip ? MANGA_STRIP : MANGA_LTR), (int64_t)SDL_GetTicks()});
+			if (ui.readerStatus.zoomPct != 100) ui.mangaZoomTo(1.0);
+			if (!strip && ui.readerStatus.fullscreen) ui.readerCmds.push_back({ReaderCmd::Fullscreen, 0, (int64_t)SDL_GetTicks()});
+			ui.readerCmds.push_back({ReaderCmd::Mode, (double)(strip ? MANGA_STRIP : MANGA_LTR), (int64_t)SDL_GetTicks()});
 			s.pdfStrip = strip;
 			break;
 		}
 		case DP_FULL:
-			readerCmds.push_back({ReaderCmd::Fullscreen, readerStatus.fullscreen ? 0.0 : 1.0, (int64_t)SDL_GetTicks(), (double)p.settings.mangaHinge});
-			if (!readerStatus.fullscreen) docFullTagUntil = SDL_GetTicks() + 2500;
+			ui.readerCmds.push_back({ReaderCmd::Fullscreen, ui.readerStatus.fullscreen ? 0.0 : 1.0, (int64_t)SDL_GetTicks(), (double)p.settings.mangaHinge});
+			if (!ui.readerStatus.fullscreen) docFullTagUntil = SDL_GetTicks() + 2500;
 			return;
 		case DP_FIT:
 			cyc(s.mangaFit, 2);	// Page and Width (Fill crops a document's margins away)
-			readerCmds.push_back({ReaderCmd::Fit, (double)s.mangaFit, (int64_t)SDL_GetTicks()});
+			ui.readerCmds.push_back({ReaderCmd::Fit, (double)s.mangaFit, (int64_t)SDL_GetTicks()});
 			break;
-		case DP_ZOOM: mangaZoomStep(dir); return;
+		case DP_ZOOM: ui.mangaZoomStep(dir); return;
 		default: return;
 		}
 		p.setSettings(s);
 	}
 
-	void Ui::docMenuAct(Player& p)
+	void Ui::Docs::docMenuAct(Player& p)
 	{
 		if (docMenu == DOC_MENU_MARKS)
 		{
@@ -495,7 +537,7 @@ namespace bp
 		if (id == DP_PAGES)
 		{
 			docMenu = DOC_MENU_NONE;
-			mangaPagesOpen(p);
+			ui.mangaPagesOpen(p);
 			return;
 		}
 		if (id == DT_MARKS)
@@ -506,19 +548,19 @@ namespace bp
 		if (id == DT_FIND)
 		{
 			docMenu = DOC_MENU_NONE;
-			openKeyboard(FIND_FIELD, findQuery);
+			ui.openKeyboard(FIND_FIELD, findQuery);
 			return;
 		}
 		docMenuStep(1, p);
 	}
 
-	void Ui::drawDocMenu(const Player& p)
+	void Ui::Docs::drawDocMenu(const Player& p)
 	{
 		bool contents = docMenu == DOC_MENU_CONTENTS, marks = docMenu == DOC_MENU_MARKS;
 		// over the whole panel, its title where the page's was
-		fill({0, 0, W, H}, BG);
-		fill({0, 60, W, 2}, RULE);
-		drawTextMid(marks ? "Bookmarks" : contents ? "Contents" : page == Page::DocText ? "Text options" : "Options", 1, TEXT, 24, 32, 400);
+		ui.fill({0, 0, W, H}, BG);
+		ui.fill({0, 60, W, 2}, RULE);
+		ui.drawTextMid(marks ? "Bookmarks" : contents ? "Contents" : ui.page == Page::DocText ? "Text options" : "Options", 1, TEXT, 24, 32, 400);
 		auto here = docMarksHere();
 		int shown = (H - MENU_TOP - 40) / MENU_ROW_H;
 		int n = marks ? (int)here.size() + 1 : contents ? (int)textStatus.contents.size() : (int)docMenuRows().size();
@@ -530,52 +572,52 @@ namespace bp
 		{
 			Rect r{16, MENU_TOP + (i - docMenuScroll) * MENU_ROW_H, W - 32, MENU_ROW_H - 4};
 			bool at = i == docMenuCursor;
-			if (at) drawFocus(r);
+			if (at) ui.drawFocus(r);
 			int mid = r.y + r.h / 2;
 			SDL_Color ink = at ? ACCENT : TEXT;
 			if (marks)
 			{
 				if (i == 0)
 				{
-					drawGlyphMid(G_PLUS, 40, mid, ink);
-					drawTextMid("Add a bookmark here", 1, ink, 64, mid, 520);
+					ui.drawGlyphMid(G_PLUS, 40, mid, ink);
+					ui.drawTextMid("Add a bookmark here", 1, ink, 64, mid, 520);
 					continue;
 				}
 				const DocMark& m = docMarks[here[i - 1]];
-				drawGlyphMid(G_BOOKMARK, 40, mid, at ? ACCENT : DIM);
-				drawTextMid(std::to_string((int)std::lround(m.frac * 100)) + "%", 1, ink, 64, mid, 70);
+				ui.drawGlyphMid(G_BOOKMARK, 40, mid, at ? ACCENT : DIM);
+				ui.drawTextMid(std::to_string((int)std::lround(m.frac * 100)) + "%", 1, ink, 64, mid, 70);
 				bool armedHere = at && docMarkArmed;
-				drawTextMid(armedHere ? "X again to delete it" : m.label, 0, armedHere ? ACCENT : at ? TEXT : DIM, 140, mid, 470);
+				ui.drawTextMid(armedHere ? "X again to delete it" : m.label, 0, armedHere ? ACCENT : at ? TEXT : DIM, 140, mid, 470);
 				continue;
 			}
 			if (contents)
 			{
 				const auto& c = textStatus.contents[i];
-				drawTextMid(c.first, 1, ink, 32 + std::min(c.second.second, 4) * 20, mid, 560 - std::min(c.second.second, 4) * 20);
+				ui.drawTextMid(c.first, 1, ink, 32 + std::min(c.second.second, 4) * 20, mid, 560 - std::min(c.second.second, 4) * 20);
 				continue;
 			}
 			int id = rows[i];
 			static const char* LABELS[] = {"Font", "Text size", "Line spacing", "Margins", "Colours", "Brightness & filter", "Encoding",
 				"Go to", "View", "Fullscreen", "Brightness & filter", "Page fit", "Zoom", "Pages", "View", "Hold", "Bookmarks", "Page turn", "Find\u2026"};
-			drawTextMid(LABELS[id], 1, ink, 32, mid, 300);
+			ui.drawTextMid(LABELS[id], 1, ink, 32, mid, 300);
 			if (id == DT_FIND)
 			{
-				if (!findQuery.empty()) drawTextMid("\u201C" + findQuery + "\u201D", 0, at ? ACCENT : DIM, 580, mid, 220, 1);
-				drawGlyphMid(G_RIGHT, 604, mid, at ? ACCENT : DIM);
+				if (!findQuery.empty()) ui.drawTextMid("\u201C" + findQuery + "\u201D", 0, at ? ACCENT : DIM, 580, mid, 220, 1);
+				ui.drawGlyphMid(G_RIGHT, 604, mid, at ? ACCENT : DIM);
 				continue;
 			}
 			if (id == DP_PAGES || id == DT_MARKS || id == DT_FILTER || id == DP_FILTER)
 			{
 				// Brightness & filter opens its sheet: the filter on now beside it
 				if (id == DT_FILTER || id == DP_FILTER)
-					drawTextMid(FILTER_NAMES[std::clamp(id == DT_FILTER ? p.settings.txtFilter : p.settings.pdfFilter, 0, DOC_FILTERS - 1)], 0,
+					ui.drawTextMid(FILTER_NAMES[std::clamp(id == DT_FILTER ? p.settings.txtFilter : p.settings.pdfFilter, 0, DOC_FILTERS - 1)], 0,
 						at ? ACCENT : DIM, 580, mid, 160, 1);
 				if (id == DT_MARKS)
 				{
 					int nm = (int)docMarksHere().size();
-					drawTextMid(nm ? std::to_string(nm) : "None yet", 0, at ? ACCENT : DIM, 580, mid, 160, 1);
+					ui.drawTextMid(nm ? std::to_string(nm) : "None yet", 0, at ? ACCENT : DIM, 580, mid, 160, 1);
 				}
-				drawGlyphMid(G_RIGHT, 604, mid, at ? ACCENT : DIM);
+				ui.drawGlyphMid(G_RIGHT, 604, mid, at ? ACCENT : DIM);
 				continue;
 			}
 			std::string v;
@@ -593,25 +635,25 @@ namespace bp
 			case DT_VIEW: v = p.settings.txtBook ? "Book mode" : "Scroll"; break;
 			case DT_TURN: v = p.settings.txtTurn ? "Off" : "Fold"; break;
 			case DT_HOLD: v = p.settings.txtBook == MANGA_BOOK_RIGHT ? "Top screen right" : "Top screen left"; break;
-			case DP_VIEW: v = readerStatus.mode == MANGA_STRIP ? "Vertical scroll" : "Single page"; break;
-			case DP_FULL: v = readerStatus.fullscreen ? "On" : "Off"; break;
+			case DP_VIEW: v = ui.readerStatus.mode == MANGA_STRIP ? "Vertical scroll" : "Single page"; break;
+			case DP_FULL: v = ui.readerStatus.fullscreen ? "On" : "Off"; break;
 			case DP_FIT: v = p.settings.mangaFit == MANGA_FIT_WIDTH ? "Width" : "Page"; break;
-			case DP_ZOOM: v = std::to_string(readerStatus.zoomPct) + "%"; break;
+			case DP_ZOOM: v = std::to_string(ui.readerStatus.zoomPct) + "%"; break;
 			default: break;
 			}
-			drawTextMid("<", 1, at ? ACCENT : DIM, SET_ARROW_X, mid);
-			drawTextMid(v, 1, ink, 490, mid, 196, 2);
-			drawTextMid(">", 1, at ? ACCENT : DIM, 608, mid, 0, 1);
+			ui.drawTextMid("<", 1, at ? ACCENT : DIM, SET_ARROW_X, mid);
+			ui.drawTextMid(v, 1, ink, 490, mid, 196, 2);
+			ui.drawTextMid(">", 1, at ? ACCENT : DIM, 608, mid, 0, 1);
 		}
-		if (n > shown) drawScrollBar(MENU_TOP, shown * MENU_ROW_H, docMenuScroll, shown, n);
-		if (marks) drawHints({{"A", docMenuCursor == 0 ? "Add" : "Go"}, {"X", "Delete"}, {"B", "Close"}});
-		else if (contents) drawHints({{"A", "Go"}, {"Y", "Close"}, {"B", "Close"}});
-		else drawHints({{"LEFT/RIGHT", "Change"}, {"START", "Close"}, {"B", "Close"}});
+		if (n > shown) ui.drawScrollBar(MENU_TOP, shown * MENU_ROW_H, docMenuScroll, shown, n);
+		if (marks) ui.drawHints({{"A", docMenuCursor == 0 ? "Add" : "Go"}, {"X", "Delete"}, {"B", "Close"}});
+		else if (contents) ui.drawHints({{"A", "Go"}, {"Y", "Close"}, {"B", "Close"}});
+		else ui.drawHints({{"LEFT/RIGHT", "Change"}, {"START", "Close"}, {"B", "Close"}});
 	}
 
 	// ---- the keys ----
 
-	bool Ui::docKey(Button b, Player& p)
+	bool Ui::Docs::key(Button b, Player& p)
 	{
 		int64_t now = SDL_GetTicks();
 		// a search running: B stops it, nothing else answers meanwhile
@@ -621,7 +663,7 @@ namespace bp
 			return false;
 		}
 		// a match shown: R / L the next / previous, B leaves Find (the text stays where it is)
-		if (page == Page::DocText && findOn && docMenu == DOC_MENU_NONE)
+		if (ui.page == Page::DocText && findOn && docMenu == DOC_MENU_NONE)
 		{
 			// (the block shown first: a long paragraph's other matches, then on to the next block that has one)
 			if (b == Button::R || b == Button::L)
@@ -634,9 +676,9 @@ namespace bp
 			if (b == Button::B) { findOn = false; return false; }
 		}
 		// L3: Find (the query typed again, the last one ready)
-		if (page == Page::DocText && b == Button::L3 && docMenu == DOC_MENU_NONE)
+		if (ui.page == Page::DocText && b == Button::L3 && docMenu == DOC_MENU_NONE)
 		{
-			openKeyboard(FIND_FIELD, findQuery);
+			ui.openKeyboard(FIND_FIELD, findQuery);
 			return false;
 		}
 		if (docMenu != DOC_MENU_NONE)
@@ -673,7 +715,7 @@ namespace bp
 			}
 			return false;
 		}
-		if (page == Page::DocText && textStatus.book)
+		if (ui.page == Page::DocText && textStatus.book)
 		{
 			// held sideways: UP and DOWN point along the spread (as the manga reader's Book); the shoulders turn too
 			switch (b)
@@ -700,7 +742,7 @@ namespace bp
 			}
 			return false;
 		}
-		if (page == Page::DocText)
+		if (ui.page == Page::DocText)
 		{
 			switch (b)
 			{
@@ -739,26 +781,26 @@ namespace bp
 			return false;
 		}
 		// the PDF viewer
-		if (mangaPages) return mangaPagesKey(b, p);
-		bool strip = readerStatus.mode == MANGA_STRIP;
-		if (readerStatus.fullscreen && (b == Button::B || b == Button::Select))
+		if (ui.mangaPages) return ui.mangaPagesKey(b, p);
+		bool strip = ui.readerStatus.mode == MANGA_STRIP;
+		if (ui.readerStatus.fullscreen && (b == Button::B || b == Button::Select))
 		{
-			readerCmds.push_back({ReaderCmd::Fullscreen, 0, now});
+			ui.readerCmds.push_back({ReaderCmd::Fullscreen, 0, now});
 			return false;
 		}
 		switch (b)
 		{
-		case Button::Left: readerCmds.push_back({ReaderCmd::Step, -1, now}); break;
-		case Button::Right: readerCmds.push_back({ReaderCmd::Step, 1, now}); break;
-		case Button::L: readerCmds.push_back({ReaderCmd::Page, -1, now}); break;
-		case Button::R: readerCmds.push_back({ReaderCmd::Page, 1, now}); break;
+		case Button::Left: ui.readerCmds.push_back({ReaderCmd::Step, -1, now}); break;
+		case Button::Right: ui.readerCmds.push_back({ReaderCmd::Step, 1, now}); break;
+		case Button::L: ui.readerCmds.push_back({ReaderCmd::Page, -1, now}); break;
+		case Button::R: ui.readerCmds.push_back({ReaderCmd::Page, 1, now}); break;
 		// zoom in either view, as the manga reader and the photo viewer do (the finger, LEFT/RIGHT and A move on)
-		case Button::Up: mangaZoomStep(1); break;
-		case Button::Down: mangaZoomStep(-1); break;
+		case Button::Up: ui.mangaZoomStep(1); break;
+		case Button::Down: ui.mangaZoomStep(-1); break;
 		case Button::A:
-			if (readerStatus.failedHere) mangaRetry();
-			else if (strip) readerCmds.push_back({ReaderCmd::Step, 1, now});
-			else mangaZoomToggle();
+			if (ui.readerStatus.failedHere) ui.mangaRetry();
+			else if (strip) ui.readerCmds.push_back({ReaderCmd::Step, 1, now});
+			else ui.mangaZoomToggle();
 			break;
 		case Button::X:
 		{
@@ -770,11 +812,11 @@ namespace bp
 		case Button::Select:
 			if (strip)
 			{
-				readerCmds.push_back({ReaderCmd::Fullscreen, 1, now, (double)p.settings.mangaHinge});
+				ui.readerCmds.push_back({ReaderCmd::Fullscreen, 1, now, (double)p.settings.mangaHinge});
 				docFullTagUntil = SDL_GetTicks() + 2500;
 			}
 			break;
-		case Button::Y: mangaPagesOpen(p); break;
+		case Button::Y: ui.mangaPagesOpen(p); break;
 		case Button::Start: docMenu = DOC_MENU_OPTIONS; docMenuCursor = docMenuScroll = 0; break;
 		case Button::B: docClose(p); break;
 		default: break;
@@ -782,7 +824,7 @@ namespace bp
 		return false;
 	}
 
-	void Ui::docBookTurn(int dpadDy, Player& p)
+	void Ui::Docs::docBookTurn(int dpadDy, Player& p)
 	{
 		int step = mangaBookStep(textStatus.book, false, false, dpadDy);
 		if (step) textCmds.push_back({TextReader::BookTurn, (double)step, (int64_t)SDL_GetTicks()});
@@ -791,23 +833,23 @@ namespace bp
 
 	// ---- the finger ----
 
-	Ui::Rect Ui::docBarRect() const { return {24, 66, W - 48, 30}; }
-	Ui::Rect Ui::docPadRect() const { return {16, 104, W - 32, (miniUp ? 344 : 396) - 104 - 64}; }
-	Ui::Rect Ui::docBtn(int i) const
+	Ui::Rect Ui::Docs::docBarRect() const { return {24, 66, W - 48, 30}; }
+	Ui::Rect Ui::Docs::docPadRect() const { return {16, 104, W - 32, (ui.miniUp ? 344 : 396) - 104 - 64}; }
+	Ui::Rect Ui::Docs::docBtn(int i) const
 	{
-		if (page == Page::DocPages && readerStatus.mode != MANGA_STRIP)
+		if (ui.page == Page::DocPages && ui.readerStatus.mode != MANGA_STRIP)
 		{
 			// beside the pan area, as the photo viewer's; the ninth, wide under them: the other view
 			if (i == 8) return {368, 336, 248, 52};
 			return gridCell({368, 80, 120, 56}, 2, 8, 8, i);
 		}
-		int y = (miniUp ? 344 : 396) - 56;
+		int y = (ui.miniUp ? 344 : 396) - 56;
 		// the text reader: four across 554, then Brightness's sun (50, 4 clear of them, ending at 624)
-		if (page == Page::DocText) return i == 4 ? Rect{574, y, 50, 56} : rowCell({16, y, 554, 56}, 4, 6, i);
+		if (ui.page == Page::DocText) return i == 4 ? Rect{574, y, 50, 56} : rowCell({16, y, 554, 56}, 4, 6, i);
 		return rowCell({16, y, 608, 56}, 4, 8, i);
 	}
 
-	Ui::Rect Ui::docPanThumb() const
+	Ui::Rect Ui::Docs::docPanThumb() const
 	{
 		Rect pan = docPanRect();
 		double a = docPan.w > 0 && docPan.h > 0 ? docPan.w / (double)docPan.h : 0.7;
@@ -820,20 +862,20 @@ namespace bp
 		return {pan.x + (pan.w - w) / 2, pan.y + (pan.h - h) / 2, w, h};
 	}
 
-	bool Ui::docPointer(const Pointer& pt, int x, int y, Player& p)
+	bool Ui::Docs::pointer(const Pointer& pt, int x, int y, Player& p)
 	{
 		Uint32 now = SDL_GetTicks();
 		if (docMenu != DOC_MENU_NONE)
 		{
 			// the list follows a finger's drag (as the manga reader's lists); a tap acts on the row as the finger lifts
-			if (pt.kind != Pointer::Down) return mangaListPointer(pt, x, y);
+			if (pt.kind != Pointer::Down) return ui.mangaListPointer(pt, x, y);
 			int n = docMenu == DOC_MENU_MARKS ? (int)docMarksHere().size() + 1
 				: docMenu == DOC_MENU_CONTENTS ? (int)textStatus.contents.size() : (int)docMenuRows().size();
 			int shown = std::max(1, (H - MENU_TOP - 40) / MENU_ROW_H);
 			int r = (y - MENU_TOP) / MENU_ROW_H + docMenuScroll;
 			if (y < 60) { docMenu = DOC_MENU_NONE; return false; }
 			if (y < MENU_TOP || r < 0 || r >= n) r = -1;
-			mangaListBegin(x, y, docMenuScroll, MENU_ROW_H, r,
+			ui.mangaListBegin(x, y, docMenuScroll, MENU_ROW_H, r,
 				[this, n, shown](int want) {
 					docMenuScroll = std::clamp(want, 0, std::max(0, n - shown));
 					// the cursor stays among the rows shown (the drawing keeps it in view, and would pull the list back)
@@ -848,22 +890,22 @@ namespace bp
 				});
 			return false;
 		}
-		if (page == Page::DocPages && mangaPages) return mangaPagesPointer(pt, x, y, p);
+		if (ui.page == Page::DocPages && ui.mangaPages) return ui.mangaPagesPointer(pt, x, y, p);
 		if (findJob) return false;
 		// the find bar over the buttons: Previous, Next, Done
-		if (page == Page::DocText && findOn && !textStatus.book && pt.kind == Pointer::Up)
+		if (ui.page == Page::DocText && findOn && !textStatus.book && pt.kind == Pointer::Up)
 			for (int i = 0; i < 3; i++)
 			{
 				Rect r = docBtn(0);
 				Rect bb{16 + i * 206, r.y, 196, r.h};
 				if (bb.hit(x, y))
 				{
-					if (i < 2) docKey(i == 0 ? Button::L : Button::R, p);
+					if (i < 2) key(i == 0 ? Button::L : Button::R, p);
 					else findOn = false;
 					return false;
 				}
 			}
-		if (page == Page::DocText && textStatus.book)
+		if (ui.page == Page::DocText && textStatus.book)
 		{
 			// the panel is a page: a swipe along the spread turns it (as the manga reader's Book); a tap near the
 			// top or the bottom of the panel turns the way UP or DOWN would, a tap in the middle opens Text options
@@ -889,14 +931,14 @@ namespace bp
 			}
 			return false;
 		}
-		if (pt.kind == Pointer::Down && buttonRect(BACK_ICON).hit(x, y) && !(page == Page::DocPages && readerStatus.fullscreen))
+		if (pt.kind == Pointer::Down && ui.buttonRect(BACK_ICON).hit(x, y) && !(ui.page == Page::DocPages && ui.readerStatus.fullscreen))
 		{
 			docClose(p);
 			return false;
 		}
-		bool text = page == Page::DocText;
-		bool full = !text && readerStatus.fullscreen;
-		bool single = !text && readerStatus.mode != MANGA_STRIP;
+		bool text = ui.page == Page::DocText;
+		bool full = !text && ui.readerStatus.fullscreen;
+		bool single = !text && ui.readerStatus.mode != MANGA_STRIP;
 		int nBtn = text ? 5 : single ? 9 : 4;
 		if (pt.kind == Pointer::Down)
 		{
@@ -913,7 +955,7 @@ namespace bp
 			{
 				// the strip under the finger, as the manga reader's
 				docTouch = true;
-				readerCmds.push_back({ReaderCmd::TouchDown, 0, (int64_t)now});
+				ui.readerCmds.push_back({ReaderCmd::TouchDown, 0, (int64_t)now});
 				return false;
 			}
 			if (text && docPadRect().hit(x, y))
@@ -927,14 +969,14 @@ namespace bp
 				// the bar: the text goes with the finger; the pages (decoded as they come) at the scrub's pace, the
 				// page it's let go on always
 				if (text)
-					slideGrab(SL_DOC, 0, {docBarTrack(), {0, 1, 0}, false, 0, textStatus.fraction}, x, y, p, [this](double f, bool, Player&) {
+					ui.slideGrab(SL_DOC, 0, {docBarTrack(), {0, 1, 0}, false, 0, textStatus.fraction}, x, y, p, [this](double f, bool, Player&) {
 						textCmds.push_back({TextReader::Jump, f, (int64_t)SDL_GetTicks()});
 					});
-				else if (readerStatus.pages > 1)
+				else if (ui.readerStatus.pages > 1)
 				{
-					mangaSliderPage = -1;
-					slideGrab(SL_DOC, 0, {docBarTrack(), {0, (double)(readerStatus.pages - 1), 1}, false, SCRUB_MS, (double)readerStatus.page}, x, y, p,
-						[this](double v, bool, Player&) { mangaSeek((int)v); });
+					ui.mangaSliderPage = -1;
+					ui.slideGrab(SL_DOC, 0, {docBarTrack(), {0, (double)(ui.readerStatus.pages - 1), 1}, false, SCRUB_MS, (double)ui.readerStatus.page}, x, y, p,
+						[this](double v, bool, Player&) { ui.mangaSeek((int)v); });
 				}
 				return false;
 			}
@@ -968,14 +1010,14 @@ namespace bp
 				double dy = pt.y - docTouchY, dx = pt.x - docTouchX;
 				docTouchY = pt.y;
 				docTouchX = pt.x;
-				if (docMoved && (dy != 0 || dx != 0)) readerCmds.push_back({ReaderCmd::Drag, dy, (int64_t)now, dx});
+				if (docMoved && (dy != 0 || dx != 0)) ui.readerCmds.push_back({ReaderCmd::Drag, dy, (int64_t)now, dx});
 			}
 			else if (docPanTouch && docMoved)
 			{
 				// the box goes with the finger over the small page; the top panel shows what's in it
 				Rect tr = docPanThumb();
 				double fx = docPanStartX + (x - docDownX) / (double)tr.w, fy = docPanStartY + (y - docDownY) / (double)tr.h;
-				readerCmds.push_back({ReaderCmd::Pan, fx, (int64_t)now, fy});
+				ui.readerCmds.push_back({ReaderCmd::Pan, fx, (int64_t)now, fy});
 			}
 			return false;
 		}
@@ -996,7 +1038,7 @@ namespace bp
 		if (docTouch)
 		{
 			docTouch = false;
-			readerCmds.push_back({ReaderCmd::Release, 0, (int64_t)now});
+			ui.readerCmds.push_back({ReaderCmd::Release, 0, (int64_t)now});
 			return false;
 		}
 		if (docPanTouch)
@@ -1009,14 +1051,14 @@ namespace bp
 			{
 				// a double-tap: in to 2x there, or (zoomed) back out
 				docTapAt = 0;
-				bool zoomed = readerStatus.zoomPct > 100;
-				mangaZoomTo(zoomed ? 1.0 : 2.0);
-				if (!zoomed) readerCmds.push_back({ReaderCmd::Pan, fx, (int64_t)now, fy});
+				bool zoomed = ui.readerStatus.zoomPct > 100;
+				ui.mangaZoomTo(zoomed ? 1.0 : 2.0);
+				if (!zoomed) ui.readerCmds.push_back({ReaderCmd::Pan, fx, (int64_t)now, fy});
 				return false;
 			}
 			docTapAt = now;
 			// a tap, zoomed in: the view there
-			if (readerStatus.zoomPct > 100) readerCmds.push_back({ReaderCmd::Pan, fx, (int64_t)now, fy});
+			if (ui.readerStatus.zoomPct > 100) ui.readerCmds.push_back({ReaderCmd::Pan, fx, (int64_t)now, fy});
 			return false;
 		}
 		int i = docPressed;
@@ -1027,11 +1069,11 @@ namespace bp
 		{
 			switch (i)
 			{
-			case 0: docKey(Button::Y, p); break;	// Contents
+			case 0: key(Button::Y, p); break;	// Contents
 			case 1: docMarksOpen(); break;	// Bookmarks
-			case 2: docKey(Button::Start, p); break;	// Text options
-			case 3: docKey(Button::Select, p); break;	// Book
-			case 4: openLight(); break;	// Brightness
+			case 2: key(Button::Start, p); break;	// Text options
+			case 3: key(Button::Select, p); break;	// Book
+			case 4: ui.openLight(); break;	// Brightness
 			}
 			return false;
 		}
@@ -1039,30 +1081,36 @@ namespace bp
 		{
 			// (4: the page fit, saying its value; 5: Brightness; 8, under them: Vertical scroll, as X)
 			static const Button KEYS[9] = {Button::L, Button::R, Button::Down, Button::Up, Button::None, Button::None, Button::Y, Button::Start, Button::X};
-			if (i == 5) openLight();
+			if (i == 5) ui.openLight();
 			else if (i == 4)
 			{
 				Settings s = p.settings;
 				s.mangaFit = s.mangaFit == MANGA_FIT_WIDTH ? MANGA_FIT_PAGE : MANGA_FIT_WIDTH;
-				readerCmds.push_back({ReaderCmd::Fit, (double)s.mangaFit, (int64_t)SDL_GetTicks()});
+				ui.readerCmds.push_back({ReaderCmd::Fit, (double)s.mangaFit, (int64_t)SDL_GetTicks()});
 				p.setSettings(s);
 			}
-			else docKey(KEYS[i], p);
+			else key(KEYS[i], p);
 			return false;
 		}
 		switch (i)
 		{
-		case 0: docKey(Button::X, p); break;	// Single page
-		case 1: docKey(Button::Select, p); break;	// Fullscreen
-		case 2: openLight(); break;	// Brightness
-		case 3: docKey(Button::Y, p); break;	// Pages
+		case 0: key(Button::X, p); break;	// Single page
+		case 1: key(Button::Select, p); break;	// Fullscreen
+		case 2: ui.openLight(); break;	// Brightness
+		case 3: key(Button::Y, p); break;	// Pages
 		}
 		return false;
 	}
 
 	// ---- drawing ----
 
-	void Ui::drawDocText(const Player& p)
+	void Ui::Docs::draw(const Player& p)
+	{
+		if (ui.page == Page::DocText) drawDocText(p);
+		else drawDocPages(p);
+	}
+
+	void Ui::Docs::drawDocText(const Player& p)
 	{
 		if (textStatus.book && textStatus.bottom && docMenu == DOC_MENU_NONE)
 		{
@@ -1070,7 +1118,7 @@ namespace bp
 			if (docBookTexGen != textStatus.bottomGen || !docBookTex)
 			{
 				if (docBookTex) SDL_DestroyTexture(docBookTex);
-				docBookTex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, textStatus.bottomW, textStatus.bottomH);
+				docBookTex = SDL_CreateTexture(ui.ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, textStatus.bottomW, textStatus.bottomH);
 				if (docBookTex)
 				{
 					SDL_UpdateTexture(docBookTex, nullptr, textStatus.bottom->data(), textStatus.bottomW * 4);
@@ -1083,7 +1131,7 @@ namespace bp
 			if (old && old.get() != docBookOldSrc)
 			{
 				if (docBookOldTex) SDL_DestroyTexture(docBookOldTex);
-				docBookOldTex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, textStatus.bottomW, textStatus.bottomH);
+				docBookOldTex = SDL_CreateTexture(ui.ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, textStatus.bottomW, textStatus.bottomH);
 				if (docBookOldTex)
 				{
 					SDL_UpdateTexture(docBookOldTex, nullptr, old->data(), textStatus.bottomW * 4);
@@ -1098,7 +1146,7 @@ namespace bp
 				if (!t) return;
 				tintTexture(t, filter, p.settings.readDim);
 				SDL_Rect d{0, 0, pw, (int)std::lround(ph * frac)};
-				SDL_RenderCopy(ren, t, nullptr, &d);
+				SDL_RenderCopy(ui.ren, t, nullptr, &d);
 			};
 			auto ease = [](double t) { return t * t * (3 - 2 * t); };
 			double tp = textStatus.turnDir ? std::clamp((SDL_GetTicks() - textStatus.turnAt) / (double)textStatus.turnMs, 0.0, 1.0) : 1;
@@ -1106,7 +1154,7 @@ namespace bp
 			bool botFolds = !((textStatus.turnDir > 0) == textStatus.rightOnTop);
 			if (textStatus.turnDir && old && docBookOldTex && tp < 1)
 			{
-				SDL_SetRenderDrawColor(ren, 0, 0, 0, 255);
+				SDL_SetRenderDrawColor(ui.ren, 0, 0, 0, 255);
 				if (botFolds)
 				{
 					at(docBookTex, 1);
@@ -1130,9 +1178,9 @@ namespace bp
 				int alpha = since < DOC_NOTICE_MS - 600 ? 255 : (int)(255 * (DOC_NOTICE_MS - since) / 600);
 				std::string text = note ? docNote + (findOn ? "  \xC2\xB7  R next, L back" : "")
 					: std::string(textStatus.noticeDir > 0 ? "Next page" : "Previous page");	// (the page's % is just below it)
-				if (SDL_Surface* sf = TTF_RenderUTF8_Blended(fonts[0], text.c_str(), TEXT))
+				if (SDL_Surface* sf = TTF_RenderUTF8_Blended(ui.fonts[0], text.c_str(), TEXT))
 				{
-					if (SDL_Texture* t = SDL_CreateTextureFromSurface(ren, sf))
+					if (SDL_Texture* t = SDL_CreateTextureFromSurface(ui.ren, sf))
 					{
 						// a dark pill behind it, turned as the text is (its sides swapped on the panel)
 						int tw = sf->w, th = sf->h, padX = (int)std::lround(14 * sx), padY = (int)std::lround(5 * sy);
@@ -1141,13 +1189,13 @@ namespace bp
 						// this panel's left edge for a page turned clockwise, its right edge for one turned the other way
 						int lift = (int)std::lround(pw * 0.06) + bh / 2;
 						int cx = textStatus.book == MANGA_BOOK_RIGHT ? pw - lift : lift, cy = ph / 2;
-						SDL_SetRenderDrawBlendMode(ren, SDL_BLENDMODE_BLEND);
-						SDL_SetRenderDrawColor(ren, BG.r, BG.g, BG.b, (Uint8)(alpha * 220 / 255));
+						SDL_SetRenderDrawBlendMode(ui.ren, SDL_BLENDMODE_BLEND);
+						SDL_SetRenderDrawColor(ui.ren, BG.r, BG.g, BG.b, (Uint8)(alpha * 220 / 255));
 						SDL_Rect pill{cx - bh / 2, cy - bw / 2, bh, bw};
-						SDL_RenderFillRect(ren, &pill);
+						SDL_RenderFillRect(ui.ren, &pill);
 						SDL_SetTextureAlphaMod(t, (Uint8)alpha);
 						SDL_Rect d{cx - tw / 2, cy - th / 2, tw, th};
-						SDL_RenderCopyEx(ren, t, nullptr, &d, textStatus.book == MANGA_BOOK_RIGHT ? 270 : 90, nullptr, SDL_FLIP_NONE);
+						SDL_RenderCopyEx(ui.ren, t, nullptr, &d, textStatus.book == MANGA_BOOK_RIGHT ? 270 : 90, nullptr, SDL_FLIP_NONE);
 						SDL_DestroyTexture(t);
 					}
 					SDL_FreeSurface(sf);
@@ -1164,23 +1212,23 @@ namespace bp
 				int cx = pw / 2, cy = ph / 2;
 				// the box upright is 420 x 150 units: on the panel, its sides swapped
 				int bw = (int)std::lround(420 * sx), bh = (int)std::lround(150 * sy);
-				SDL_SetRenderDrawBlendMode(ren, SDL_BLENDMODE_BLEND);
-				SDL_SetRenderDrawColor(ren, BG.r, BG.g, BG.b, 255);
+				SDL_SetRenderDrawBlendMode(ui.ren, SDL_BLENDMODE_BLEND);
+				SDL_SetRenderDrawColor(ui.ren, BG.r, BG.g, BG.b, 255);
 				SDL_Rect box{cx - bh / 2, cy - bw / 2, bh, bw};
-				SDL_RenderFillRect(ren, &box);
+				SDL_RenderFillRect(ui.ren, &box);
 				// the lines' places as read: above the middle, at it, below it (upright y, in pixels)
 				const int offs[3] = {-44, 2, 40};
 				for (int i = 0; i < 3; i++)
 				{
-					SDL_Surface* sf = TTF_RenderUTF8_Blended(fonts[lines[i].size], lines[i].text.c_str(), lines[i].ink);
+					SDL_Surface* sf = TTF_RenderUTF8_Blended(ui.fonts[lines[i].size], lines[i].text.c_str(), lines[i].ink);
 					if (!sf) continue;
-					if (SDL_Texture* t = SDL_CreateTextureFromSurface(ren, sf))
+					if (SDL_Texture* t = SDL_CreateTextureFromSurface(ui.ren, sf))
 					{
 						// an upright line further down sits further left, turned clockwise (right, the other way)
 						int dy = (int)std::lround(offs[i] * sy), dx = cw ? -dy : dy;
 						int tw = std::min(sf->w, bw - (int)std::lround(24 * sx)), th = sf->h;
 						SDL_Rect d{cx + dx - tw / 2, cy - th / 2, tw, th};
-						SDL_RenderCopyEx(ren, t, nullptr, &d, cw ? 90 : 270, nullptr, SDL_FLIP_NONE);
+						SDL_RenderCopyEx(ui.ren, t, nullptr, &d, cw ? 90 : 270, nullptr, SDL_FLIP_NONE);
 						SDL_DestroyTexture(t);
 					}
 					SDL_FreeSurface(sf);
@@ -1189,29 +1237,29 @@ namespace bp
 			drawFind();
 			return;
 		}
-		drawBackIcon();
+		ui.drawBackIcon();
 		std::string title = !textStatus.title.empty() ? textStatus.title : fileName(docPath);
-		drawTextMid(title, 1, TEXT, 72, 24, 540);
+		ui.drawTextMid(title, 1, TEXT, 72, 24, 540);
 		int pct = (int)std::lround(textStatus.fraction * 100);
 		std::string sub = std::to_string(pct) + "%";
 		if (!textStatus.encoding.empty()) sub += "  \xC2\xB7  " + textStatus.encoding;
-		drawTextMid(sub, 0, DIM, 72, 50, 540);
+		ui.drawTextMid(sub, 0, DIM, 72, 50, 540);
 		{
 			// under a finger: where the finger has it (the text follows at once, its own figure a moment behind)
-			double share = slideShare(SL_DOC, 0, textStatus.fraction);
-			drawSlider(docBarTrack(), share, slideHeld(SL_DOC), std::to_string((int)std::lround(share * 100)) + "%");
+			double share = ui.slideShare(SL_DOC, 0, textStatus.fraction);
+			ui.drawSlider(docBarTrack(), share, ui.slideHeld(SL_DOC), std::to_string((int)std::lround(share * 100)) + "%");
 		}
 		Rect pad = docPadRect();
-		drawBox(pad, SURFACE, R_TILE);
+		ui.drawBox(pad, SURFACE, R_TILE);
 		if (!textStatus.error.empty())
-			drawTextMid(textStatus.error, 1, DANGER, W / 2, pad.y + pad.h / 2, pad.w - 40, 2);
+			ui.drawTextMid(textStatus.error, 1, DANGER, W / 2, pad.y + pad.h / 2, pad.w - 40, 2);
 		else if (!textStatus.open)
-			drawTextMid("Opening" + std::string(SDL_GetTicks() / 400 % 4, '.'), 1, DIM, W / 2, pad.y + pad.h / 2, 0, 2);
+			ui.drawTextMid("Opening" + std::string(SDL_GetTicks() / 400 % 4, '.'), 1, DIM, W / 2, pad.y + pad.h / 2, 0, 2);
 		else
 		{
-			drawTextMid("Drag to scroll", 1, DIM, W / 2, pad.y + pad.h / 2 - 14, 0, 2);
-			drawTextMid("Tap: the upper half back, the lower half on", 0, DIM_ON, W / 2, pad.y + pad.h / 2 + 14, 0, 2);
-			if (textStatus.atEnd) drawTextMid("The end", 0, ACCENT, W / 2, pad.y + pad.h - 20, 0, 2);
+			ui.drawTextMid("Drag to scroll", 1, DIM, W / 2, pad.y + pad.h / 2 - 14, 0, 2);
+			ui.drawTextMid("Tap: the upper half back, the lower half on", 0, DIM_ON, W / 2, pad.y + pad.h / 2 + 14, 0, 2);
+			if (textStatus.atEnd) ui.drawTextMid("The end", 0, ACCENT, W / 2, pad.y + pad.h - 20, 0, 2);
 		}
 		// each with its key under it (as the photo viewer's), so Book is seen to be there
 		struct { const char* label; const char* key; bool off; } btns[5] = {
@@ -1221,86 +1269,86 @@ namespace bp
 		for (int i = 0; i < 5; i++)
 		{
 			Rect b = docBtn(i);
-			drawBox(b, docPressed == i ? PRESSED : BUTTON, R_BUTTON);
+			ui.drawBox(b, docPressed == i ? PRESSED : BUTTON, R_BUTTON);
 			if (i == 4)
 			{
 				// Brightness: its sun, lit with a dot while Extra dim or a filter is on
-				bool tweaked = !lightNote(p).empty();
-				drawGlyphMid(G_SUN, b.x + b.w / 2, b.y + b.h / 2, tweaked ? ACCENT : TEXT);
-				if (tweaked) fillRound({b.x + b.w - 14, b.y + 6, 8, 8}, ACCENT, 4);
+				bool tweaked = !ui.lightNote(p).empty();
+				ui.drawGlyphMid(G_SUN, b.x + b.w / 2, b.y + b.h / 2, tweaked ? ACCENT : TEXT);
+				if (tweaked) ui.fillRound({b.x + b.w - 14, b.y + 6, 8, 8}, ACCENT, 4);
 				continue;
 			}
-			drawKeyedLabel(b, btns[i].label, hints ? btns[i].key : "", btns[i].off, b.w - 2);
+			ui.drawKeyedLabel(b, btns[i].label, hints ? btns[i].key : "", btns[i].off, b.w - 2);
 		}
 		if (findOn)
 		{
 			// Find: its bar over the buttons, the query and how to go on
-			fill({0, docBtn(0).y - 4, W, H - docBtn(0).y + 4}, BG);
+			ui.fill({0, docBtn(0).y - 4, W, H - docBtn(0).y + 4}, BG);
 			const char* labels[3] = {"Previous", "Next", "Done"};
 			const char* keys[3] = {"L", "R", "B"};
 			for (int i = 0; i < 3; i++)
 			{
 				Rect r = docBtn(0);
 				Rect bb = rowCell({16, r.y, 608, r.h}, 3, 10, i);
-				drawBox(bb, BUTTON, R_BUTTON);
-				drawKeyedLabel(bb, labels[i], keys[i]);
+				ui.drawBox(bb, BUTTON, R_BUTTON);
+				ui.drawKeyedLabel(bb, labels[i], keys[i]);
 			}
-			drawTextMid("Find \u201C" + findQuery + "\u201D", 0, ACCENT, W / 2, docBtn(0).y + docBtn(0).h + 22, 560, 2);
+			ui.drawTextMid("Find \u201C" + findQuery + "\u201D", 0, ACCENT, W / 2, docBtn(0).y + docBtn(0).h + 22, 560, 2);
 		}
-		else drawHints({{"UP/DOWN", "Scroll"}, {"L/R", "Page"}, {"L3", "Find"}, {"B", "Close"}});	// (the buttons above say their own keys)
+		else ui.drawHints({{"UP/DOWN", "Scroll"}, {"L/R", "Page"}, {"L3", "Find"}, {"B", "Close"}});	// (the buttons above say their own keys)
 		// Find's word (found, not found), over the scroll area a moment
 		if (!docNote.empty() && SDL_GetTicks() - docNoteAt < 2000)
 		{
 			Rect pad = docPadRect();
-			fillRound({pad.x + 40, pad.y + pad.h - 52, pad.w - 80, 40}, BG, R_CHIP);
-			drawTextMid(docNote, 0, TEXT, W / 2, pad.y + pad.h - 32, pad.w - 100, 2);
+			ui.fillRound({pad.x + 40, pad.y + pad.h - 52, pad.w - 80, 40}, BG, R_CHIP);
+			ui.drawTextMid(docNote, 0, TEXT, W / 2, pad.y + pad.h - 32, pad.w - 100, 2);
 		}
 		if (docMenu != DOC_MENU_NONE) drawDocMenu(p);
 		drawFind();
 	}
 
-	void Ui::drawDocPages(const Player& p)
+	void Ui::Docs::drawDocPages(const Player& p)
 	{
 		int filter = std::clamp(p.settings.pdfFilter, 0, DOC_FILTERS - 1);
-		if (mangaPages)
+		if (ui.mangaPages)
 		{
-			drawMangaPages(p);
+			ui.drawMangaPages(p);
 			return;
 		}
-		if (readerStatus.fullscreen && readerBottom.on)
+		if (ui.readerStatus.fullscreen && ui.readerBottom.on)
 		{
-			drawMangaFull();
+			ui.drawMangaFull();
 			if (SDL_GetTicks() < docFullTagUntil)
 			{
-				fillRound({170, 420, 300, 40}, BG, R_CHIP);
-				drawTextMid("SELECT or B: one screen", 0, TEXT, W / 2, 440, 0, 2);
+				ui.fillRound({170, 420, 300, 40}, BG, R_CHIP);
+				ui.drawTextMid("SELECT or B: one screen", 0, TEXT, W / 2, 440, 0, 2);
 			}
 			if (docMenu != DOC_MENU_NONE) drawDocMenu(p);
 			return;
 		}
-		drawBackIcon();
-		std::string title = mangaReadChapterTitle.empty() ? fileName(docPath) : mangaReadChapterTitle;
-		drawTextMid(title, 1, TEXT, 72, 24, 420);
-		int pages = readerStatus.pages;
+		ui.drawBackIcon();
+		std::string title = ui.mangaReadChapterTitle.empty() ? fileName(docPath) : ui.mangaReadChapterTitle;
+		ui.drawTextMid(title, 1, TEXT, 72, 24, 420);
+		int pages = ui.readerStatus.pages;
 		if (pages > 0)
-			drawTextMid(std::to_string((slideHeld(SL_DOC) ? (int)slide.value : readerStatus.page) + 1) + " / " + std::to_string(pages), 1, TEXT, W - 24, 24, 160, 1);
-		bool single = readerStatus.mode != MANGA_STRIP;
-		if (!readerStatus.error.empty())
+			ui.drawTextMid(std::to_string((ui.slideHeld(SL_DOC) ? (int)ui.slide.value : ui.readerStatus.page) + 1) + " / " + std::to_string(pages), 1, TEXT, W - 24, 24, 160, 1);
+		bool single = ui.readerStatus.mode != MANGA_STRIP;
+		if (!ui.readerStatus.error.empty())
 		{
-			drawTextMid(readerStatus.error, 1, DANGER, W / 2, 200, 560, 2);
-			drawHints({{"B", "Close"}});
+			ui.drawTextMid(ui.readerStatus.error, 1, DANGER, W / 2, 200, 560, 2);
+			ui.drawHints({{"B", "Close"}});
 			return;
 		}
 		if (single)
 		{
 			Rect pan = docPanRect();
-			fill(pan, SCREEN);
+			ui.fill(pan, SCREEN);
 			if (docPan.page >= 0 && docPan.rgba && docPan.w > 0)
 			{
 				if (docPanTexPage != docPan.page || docPanTexSrc != docPan.rgba.get())
 				{
 					if (docPanTex) SDL_DestroyTexture(docPanTex);
-					docPanTex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, docPan.w, docPan.h);
+					docPanTex = SDL_CreateTexture(ui.ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, docPan.w, docPan.h);
 					if (docPanTex)
 					{
 						SDL_UpdateTexture(docPanTex, nullptr, docPan.rgba->data(), docPan.w * 4);
@@ -1314,7 +1362,7 @@ namespace bp
 				{
 					tintTexture(docPanTex, filter, p.settings.readDim);
 					SDL_Rect dst{(int)std::lround(tr.x * sx), (int)std::lround(tr.y * sy), (int)std::lround(tr.w * sx), (int)std::lround(tr.h * sy)};
-					SDL_RenderCopy(ren, docPanTex, nullptr, &dst);
+					SDL_RenderCopy(ui.ren, docPanTex, nullptr, &dst);
 				}
 				// the part on the top panel, boxed (all of it shown: no box)
 				if (docPan.x1 - docPan.x0 < 0.995f || docPan.y1 - docPan.y0 < 0.995f)
@@ -1322,17 +1370,17 @@ namespace bp
 					int bx = tr.x + (int)std::lround(tr.w * docPan.x0), by = tr.y + (int)std::lround(tr.h * docPan.y0);
 					int bw = std::max(4, (int)std::lround(tr.w * (docPan.x1 - docPan.x0)));
 					int bh = std::max(4, (int)std::lround(tr.h * (docPan.y1 - docPan.y0)));
-					fill({bx, by, bw, 2}, ACCENT);
-					fill({bx, by + bh - 2, bw, 2}, ACCENT);
-					fill({bx, by, 2, bh}, ACCENT);
-					fill({bx + bw - 2, by, 2, bh}, ACCENT);
+					ui.fill({bx, by, bw, 2}, ACCENT);
+					ui.fill({bx, by + bh - 2, bw, 2}, ACCENT);
+					ui.fill({bx, by, 2, bh}, ACCENT);
+					ui.fill({bx + bw - 2, by, 2, bh}, ACCENT);
 				}
 			}
-			else drawText(readerStatus.loading || !readerStatus.open ? "Loading" + std::string(SDL_GetTicks() / 400 % 4, '.') : "",
+			else ui.drawText(ui.readerStatus.loading || !ui.readerStatus.open ? "Loading" + std::string(SDL_GetTicks() / 400 % 4, '.') : "",
 				1, DIM, pan.x + pan.w / 2, pan.y + pan.h / 2 - 12, 0, 2);
-			drawText("Zoom " + std::to_string(readerStatus.zoomPct) + "%", 0, TEXT, pan.x, pan.y + pan.h + (miniUp ? 4 : 10), pan.w);
-			drawText(readerStatus.zoomPct > 100 ? "Drag the box \xC2\xB7 double-tap: zoom out" : "Double-tap: zoom in", 0, DIM, pan.x,
-				pan.y + pan.h + (miniUp ? 24 : 36), pan.w);
+			ui.drawText("Zoom " + std::to_string(ui.readerStatus.zoomPct) + "%", 0, TEXT, pan.x, pan.y + pan.h + (ui.miniUp ? 4 : 10), pan.w);
+			ui.drawText(ui.readerStatus.zoomPct > 100 ? "Drag the box \xC2\xB7 double-tap: zoom out" : "Double-tap: zoom in", 0, DIM, pan.x,
+				pan.y + pan.h + (ui.miniUp ? 24 : 36), pan.w);
 			const char* labels[9] = {"Prev", "Next", "Zoom -", "Zoom +", "Page fit", "Brightness", "Pages", "Options", "Vertical scroll"};
 			const char* keys[9] = {"L", "R", "DOWN", "UP", p.settings.mangaFit == MANGA_FIT_WIDTH ? "Width" : "Page", "", "Y",
 				"START", "X"};
@@ -1340,32 +1388,32 @@ namespace bp
 			for (int i = 0; i < 9; i++)
 			{
 				Rect b = docBtn(i);
-				drawBox(b, docPressed == i ? PRESSED : BUTTON, R_BUTTON);
-				bool off = (i == 0 && readerStatus.page <= 0) || (i == 1 && readerStatus.page + 1 >= pages) ||
-					(i == 2 && readerStatus.zoomPct <= 100);
+				ui.drawBox(b, docPressed == i ? PRESSED : BUTTON, R_BUTTON);
+				bool off = (i == 0 && ui.readerStatus.page <= 0) || (i == 1 && ui.readerStatus.page + 1 >= pages) ||
+					(i == 2 && ui.readerStatus.zoomPct <= 100);
 				std::string label = labels[i];
 				if (i == 5)
 				{
 					// Brightness: its sun, the word small under it (the label doesn't fit beside the others')
 					// (while Extra dim or a filter is on: lit, and what's on in place of the word)
-					std::string note = lightNote(p);
-					drawGlyphMid(G_SUN, b.x + b.w / 2, b.y + 20, note.empty() ? TEXT : ACCENT);
-					drawText(note.empty() ? labels[i] : note, 0, note.empty() ? TEXT : ACCENT, b.x + b.w / 2, b.y + 35, b.w - 6, 2);
+					std::string note = ui.lightNote(p);
+					ui.drawGlyphMid(G_SUN, b.x + b.w / 2, b.y + 20, note.empty() ? TEXT : ACCENT);
+					ui.drawText(note.empty() ? labels[i] : note, 0, note.empty() ? TEXT : ACCENT, b.x + b.w / 2, b.y + 35, b.w - 6, 2);
 					continue;
 				}
-				drawKeyedLabel(b, label, hints || i == 4 ? keys[i] : "", off);	// (the fit's says which one is on)
+				ui.drawKeyedLabel(b, label, hints || i == 4 ? keys[i] : "", off);	// (the fit's says which one is on)
 			}
-			drawHints({{"LEFT/RIGHT", "Page"}, {"UP/DOWN", "Zoom"}, {"A", "2x"}, {"B", "Close"}});
+			ui.drawHints({{"LEFT/RIGHT", "Page"}, {"UP/DOWN", "Zoom"}, {"A", "2x"}, {"B", "Close"}});
 		}
 		else
 		{
 			// under a finger: the page the finger is at (the pages themselves come at the reader's pace)
-			drawSlider(docBarTrack(), slideShare(SL_DOC, 0, pages > 1 ? readerStatus.page / (double)(pages - 1) : 0), slideHeld(SL_DOC),
-				slideHeld(SL_DOC) ? "Page " + std::to_string((int)slide.value + 1) + " / " + std::to_string(pages) : "");
+			ui.drawSlider(docBarTrack(), ui.slideShare(SL_DOC, 0, pages > 1 ? ui.readerStatus.page / (double)(pages - 1) : 0), ui.slideHeld(SL_DOC),
+				ui.slideHeld(SL_DOC) ? "Page " + std::to_string((int)ui.slide.value + 1) + " / " + std::to_string(pages) : "");
 			Rect pad = docPadRect();
-			drawBox(pad, SURFACE, R_TILE);
-			if (readerStatus.failedHere) drawTextMid("A page couldn't be shown \xC2\xB7 A: try again", 1, DANGER, W / 2, pad.y + pad.h / 2, 560, 2);
-			else drawTextMid(readerStatus.loading ? "Loading" + std::string(SDL_GetTicks() / 400 % 4, '.') : "Drag here to scroll", 1, DIM, W / 2,
+			ui.drawBox(pad, SURFACE, R_TILE);
+			if (ui.readerStatus.failedHere) ui.drawTextMid("A page couldn't be shown \xC2\xB7 A: try again", 1, DANGER, W / 2, pad.y + pad.h / 2, 560, 2);
+			else ui.drawTextMid(ui.readerStatus.loading ? "Loading" + std::string(SDL_GetTicks() / 400 % 4, '.') : "Drag here to scroll", 1, DIM, W / 2,
 				pad.y + pad.h / 2, 0, 2);
 			// each with its key under it, as the single page's
 			const char* labels[4] = {"Single page", "Fullscreen", "Brightness", "Pages"};
@@ -1374,24 +1422,24 @@ namespace bp
 			for (int i = 0; i < 4; i++)
 			{
 				Rect b = docBtn(i);
-				drawBox(b, docPressed == i ? PRESSED : BUTTON, R_BUTTON);
+				ui.drawBox(b, docPressed == i ? PRESSED : BUTTON, R_BUTTON);
 				// (Brightness: what's on under it while Extra dim or a filter is)
-				std::string key = i == 2 ? lightNote(p) : std::string(hints ? keys[i] : "");
-				drawKeyedLabel(b, labels[i], key);
+				std::string key = i == 2 ? ui.lightNote(p) : std::string(hints ? keys[i] : "");
+				ui.drawKeyedLabel(b, labels[i], key);
 			}
-			drawHints({{"UP/DOWN", "Zoom"}, {"LEFT/RIGHT", "Scroll"}, {"B", "Close"}});
+			ui.drawHints({{"UP/DOWN", "Zoom"}, {"LEFT/RIGHT", "Scroll"}, {"B", "Close"}});
 		}
 		if (docMenu != DOC_MENU_NONE) drawDocMenu(p);
 	}
 
-	std::string Ui::docSignature() const
+	std::string Ui::Docs::signature(const Player&) const
 	{
 		char b[320];
 		snprintf(b, sizeof b, "|doc%d %d,%d,%d %d%d%d%d %d|t%d %d %llu %d|r%d%d %d/%d m%d z%d f%d %d%d|pan%d %.3f,%.3f,%.3f,%.3f %p|%u",
-			(int)page, docMenu, docMenuCursor, docMenuScroll, (int)docTouch, (int)slideHeld(SL_DOC), (int)docPanTouch, docPressed,
+			(int)ui.page, docMenu, docMenuCursor, docMenuScroll, (int)docTouch, (int)ui.slideHeld(SL_DOC), (int)docPanTouch, docPressed,
 			(int)docLive, (int)textStatus.open, (int)std::lround(textStatus.fraction * 1000), (unsigned long long)textStatus.place,
-			(int)textStatus.atEnd, (int)readerStatus.open, (int)readerStatus.loading, readerStatus.page, readerStatus.pages,
-			readerStatus.mode, readerStatus.zoomPct, (int)readerStatus.fullscreen, (int)readerStatus.failedHere, (int)mangaPages,
+			(int)textStatus.atEnd, (int)ui.readerStatus.open, (int)ui.readerStatus.loading, ui.readerStatus.page, ui.readerStatus.pages,
+			ui.readerStatus.mode, ui.readerStatus.zoomPct, (int)ui.readerStatus.fullscreen, (int)ui.readerStatus.failedHere, (int)ui.mangaPages,
 			docPan.page, docPan.x0, docPan.y0, docPan.x1, docPan.y1, (const void*)docPan.rgba.get(),
 			SDL_GetTicks() < docFullTagUntil ? 1u : 0u);
 		std::string s = b;
@@ -1399,10 +1447,21 @@ namespace bp
 		s += "|bk" + std::to_string(textStatus.book) + " " + std::to_string(textStatus.bottomGen) + (SDL_GetTicks() < docBookToastUntil ? "T" : "");
 		// (a turn: a frame each step of it)
 		if (docTurning()) s += "|turn" + std::to_string((SDL_GetTicks() - textStatus.turnAt) / 12) + " " + std::to_string((SDL_GetTicks() - textStatus.noticeAt) / 40);
-		s += textStatus.error + "|" + textStatus.encoding + "|" + textEncoding + "|" + readerStatus.error;
+		s += textStatus.error + "|" + textStatus.encoding + "|" + textEncoding + "|" + ui.readerStatus.error;
 		// (opening: the dots move)
-		if ((page == Page::DocText && !textStatus.open) || (page == Page::DocPages && (readerStatus.loading || !readerStatus.open)))
+		if ((ui.page == Page::DocText && !textStatus.open) || (ui.page == Page::DocPages && (ui.readerStatus.loading || !ui.readerStatus.open)))
 			s += std::to_string(SDL_GetTicks() / 400);
+		// (the pages grid and fullscreen are the manga reader's own drawing: their state as it signs it)
+		if (ui.page == Page::DocPages && ui.mangaPages)
+			s += "|pg" + std::to_string(ui.mangaPagesCursor) + "," + std::to_string(ui.mangaPagesScroll) + " " +
+				std::to_string(ui.mpTex.size()) + "," + std::to_string(ui.readerThumbs.pages.size());
+		if (ui.page == Page::DocPages && ui.readerStatus.fullscreen)
+		{
+			s += "|full" + std::to_string(ui.readerBottom.gen) + " " + std::to_string(ui.mfTex.size()) + " " +
+				std::to_string(ui.mfWaiting) + " " + std::to_string(ui.readerBottom.pages.size()) + (SDL_GetTicks() < ui.mfTagUntil ? "T" : "");
+			for (auto& b : ui.readerBottom.boxes)
+				s += " " + std::to_string(b.page) + ":" + std::to_string((int)std::lround(b.x * 4096)) + "," + std::to_string((int)std::lround(b.y * 4096));
+		}
 		return s;
 	}
 }

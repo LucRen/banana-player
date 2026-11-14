@@ -83,6 +83,7 @@ namespace bp
 		};
 
 		// fontsDir: assets/fonts, the panel's font and the subtitle preview's
+		Ui();
 		bool init(SDL_Window* window, const std::string& fontsDir);
 		~Ui();
 
@@ -97,7 +98,7 @@ namespace bp
 		void tick(Player& p);
 		// something moves by itself (a flick, a playlist's rows scrolling under a dragged one): the loop should come
 		// round often
-		bool animating() const { return docTurning() || loaderShown || playHoldAt != 0 || flickAt != 0 || plDrag.on || slideWaiting() || stripT0 != 0 || likePopAt != 0 || addFlashUntil != 0 || landFlashUntil != 0 || listPulseAt != 0; }
+		bool animating() const { return (area() && area()->animating()) || loaderShown || playHoldAt != 0 || flickAt != 0 || plDrag.on || slideWaiting() || stripT0 != 0 || likePopAt != 0 || addFlashUntil != 0 || landFlashUntil != 0 || listPulseAt != 0; }
 		// the header's playing mark moves (something plays behind the browser, the bottom panel lit): the loop comes
 		// round a few times a second for its frames
 		bool markMoving() const { return markAnim && panel.on(); }
@@ -262,61 +263,12 @@ namespace bp
 			bool failedHere = false;	// a page in view failed (fetch, decode or no GPU memory): Try again shows
 		};
 		ReaderStatus readerStatus;
-		// ---- Files' document viewers (ui_docs.cpp) ----
-		// A TXT or a book of text (EPUB) on main's TextReader: Ui asks (takeTextRead), main opens it, takes textCmds
-		// each pass and tells textStatus back. A PDF or a comic EPUB goes to main's MangaReader as a manga chapter
-		// does (mangaRead), shown by Page::DocPages
-		struct TextReadRequest { std::string path; uint64_t place = 0; };
-		bool takeTextRead(TextReadRequest& out)
-		{
-			if (textRead.path.empty()) return false;
-			out = std::move(textRead);
-			textRead = {};
-			return true;
-		}
-		struct TextCmd { int kind; double v; int64_t ms; };
-		std::vector<TextCmd> textCmds;
-		bool textCloseAsked = false;	// main closes the text viewer
-		bool textEncodingAsked = false;	// main gives the source this code page ("" the detected one)
-		std::string textEncoding;
-		struct TextStatus
-		{
-			bool open = false, atEnd = false;
-			double fraction = 0;
-			uint64_t place = 0;
-			std::string error, encoding, title;
-			std::vector<std::pair<std::string, std::pair<uint64_t, int>>> contents;	// title, (block id, depth)
-			int book = 0;	// Book's hold (0: the scroll)
-			std::string snippet;	// the first words at the place (a new bookmark's label)
-			std::shared_ptr<const std::vector<uint8_t>> bottom;	// Book: the bottom panel's page (RGBA, turned)
-			int bottomW = 0, bottomH = 0;
-			uint64_t bottomGen = 0;
-			// Book's page turn (textreader.h): the bottom's page before it, its way (0: none), its start, and whether
-			// the top panel holds the right-hand page
-			std::shared_ptr<const std::vector<uint8_t>> bottomOld;
-			int turnDir = 0;
-			int64_t turnAt = 0;
-			bool rightOnTop = false;
-			int turnMs = 340;
-			int matchStep = 0;	// Find's step within the block shown: 1 found one, -1 none (the search goes on), 0 none asked
-			int noticeDir = 0;	// the last turn's way, and when: its notice (next page, previous page) fades out
-			int64_t noticeAt = 0;
-		};
-		TextStatus textStatus;
-		// the reading filter for the PDF viewer's pages (DOC_FILTER_*), or -1 while no document of Files is shown
-		int docPagesFilter(const Player& p) const;
-		// Find's query while a match is shown (the text viewer marks it), else ""
-		std::string docHighlight() const;
+		// ---- Files' document viewers: an area (Area, below), all of it in ui_docs.h / ui_docs.cpp ----
+		// (public: main talks to it for the top panel's text viewer and the PDF viewer's pan area)
+		struct Docs;
+		std::unique_ptr<Docs> docs;
 		// a document from Files: opened in its viewer; false when the path isn't one
 		bool openDocument(const std::string& path, Player& p);
-		// the PDF viewer's pan area: the page small, and the part on the top panel (main sets them each pass)
-		struct DocPan
-		{
-			int page = -1, w = 0, h = 0;
-			std::shared_ptr<const std::vector<uint8_t>> rgba;
-			float x0 = 0, y0 = 0, x1 = 1, y1 = 1;	// the view's box in the page, as fractions
-		};
-		DocPan docPan;
 		// fullscreen: what the bottom panel shows of the view (main sets it each pass): each page's box as fractions
 		// of the panel (x, y, w, h; y may run past 0..1), and the pages' pixels (RGBA, straight alpha) for those boxes;
 		// gen changes with the chapter (the bottom panel's textures of the last one go)
@@ -507,6 +459,29 @@ namespace bp
 		bool overlayPointer(const Pointer& pt, int x, int y, Player& p);
 		void drawOverlays(const Player& p);
 		std::string overlaySignature(const Player& p) const;
+		// An area: a part of the app with pages of its own (the document viewers: Docs, ui_docs.h), its state and
+		// its handlers in one struct instead of in Ui (docs/notes/ui-areas.md). While one of its pages is
+		// shown, press, pointer, tick, renderPage, signature and animating ask it, so a feature inside an area is
+		// written in the area's own header and .cpp, and a new area is wired into those six nowhere. One is written
+		// as a struct nested in Ui (declared in ui.h by name only, defined in its own header), which lets it use
+		// Ui's drawing and state through `ui`; the Player comes with each call, as for every Ui method.
+		struct Area
+		{
+			Ui& ui;
+			explicit Area(Ui& u) : ui(u) {}
+			virtual ~Area() = default;
+			virtual bool has(Page pg) const = 0;	// the page is one of its own
+			// as Ui::press and Ui::pointer (x, y in the panel's 640x480 units): true leaves the player
+			virtual bool key(Button b, Player& p) = 0;
+			virtual bool pointer(const Pointer& pt, int x, int y, Player& p) = 0;
+			virtual void tick(Player&) {}	// each turn of the loop while its page shows
+			virtual void draw(const Player& p) = 0;
+			// everything draw() shows that Settings doesn't hold: the panel is drawn again only when this changes
+			virtual std::string signature(const Player& p) const = 0;
+			virtual bool animating() const { return false; }	// something of its moves by itself (Ui::animating)
+		};
+		std::vector<Area*> areas;	// (each owned by its own member, `docs`; listed in Ui's constructor, ui.cpp)
+		Area* area() const;	// the one whose page is shown (null: a page that is still Ui's own)
 		struct Row { int64_t id; std::string label; bool selected; std::string note = ""; };
 
 		std::vector<Row> rows(const Player& p) const;
@@ -713,85 +688,6 @@ namespace bp
 		void fileRenameDone(Player& p);
 		Rect clipBtn(int i) const { return {i ? 328 : 24, 428, 288, 44}; }
 		Rect fileJobCancelRect() const { return {200, 300, 240, 52}; }
-		// ---- the document viewers' own (ui_docs.cpp) ----
-		TextReadRequest textRead;
-		std::string docPath;	// the document shown
-		Page docFrom = Page::Browse;	// where B goes back to
-		std::unique_ptr<ResumeStore> docPlaces;	// each document's place (a TXT's byte, a book's block, a PDF's page)
-		bool docPlacesDirty = false;
-		Uint32 docSavedAt = 0;
-		bool docLive = false;	// main has opened it (a close after that is the viewer closing)
-		void docPlacesLoad();
-		void docPlacesSave(bool now);
-		void docRemember();
-		void docClose(Player& p);
-		bool docKey(Button b, Player& p);
-		bool docPointer(const Pointer& pt, int x, int y, Player& p);
-		void docTick(Player& p);
-		void drawDocText(const Player& p);
-		void drawDocPages(const Player& p);
-		std::string docSignature() const;
-		// Find (TXT, EPUB): the query typed, searched on a thread of its own (on its own copy of the file), the place
-		// jumped to; then R / L the next / previous match while the bar shows, B leaves it
-		struct FindJob;
-		std::shared_ptr<FindJob> findJob;
-		std::string findQuery;
-		bool findOn = false, findSubmit = false;
-		int findStepWay = 0;	// a step asked of the block shown (+1 / -1): none there, the search goes on that way
-		std::string docNote;	// a word over the text a moment (found, not found): Book's turned as its pages
-		Uint32 docNoteAt = 0;
-		void findStart(bool back);
-		void findTick();
-		static void runFind(FindJob* j);
-		std::string findSignature() const;
-		void drawFind();
-		// the menus: the text viewer's Text options and Contents, the PDF viewer's options
-		enum { DOC_MENU_NONE, DOC_MENU_OPTIONS, DOC_MENU_CONTENTS, DOC_MENU_MARKS };
-		// bookmarks (a TXT's or a book's): each document's, kept in doc-bookmarks.conf (path, place, share, label)
-		struct DocMark { std::string path; uint64_t id = 0; double frac = 0; std::string label; };
-		std::vector<DocMark> docMarks;	// every document's
-		bool docMarksLoaded = false, docMarkArmed = false;
-		void docMarksLoad();
-		void docMarksSave();
-		std::vector<int> docMarksHere() const;	// this document's, in reading order (indexes into docMarks)
-		void docMarksOpen();
-		int docMenu = DOC_MENU_NONE, docMenuCursor = 0, docMenuScroll = 0;
-		std::vector<int> docMenuRows() const;
-		void docMenuStep(int dir, Player& p);
-		void docMenuAct(Player& p);
-		void drawDocMenu(const Player& p);
-		// the finger: on the text's scroll pad, the progress bar, the pan area, a button
-		bool docTouch = false, docPanTouch = false, docMoved = false;
-		int docDownX = 0, docDownY = 0, docLastY = 0, docPressed = -1;
-		Uint32 docLastAt = 0, docTapAt = 0;
-		double docVel = 0, docPanStartX = 0, docPanStartY = 0;
-		float docTouchY = 0, docTouchX = 0;
-		Uint32 docFullTagUntil = 0;
-		SDL_Texture* docPanTex = nullptr;
-		SDL_Texture* docBookTex = nullptr;	// Book: the bottom panel's page
-		SDL_Texture* docBookOldTex = nullptr;	// and the one before a turn, folding away (or opened over)
-		const void* docBookOldSrc = nullptr;
-		static constexpr int DOC_NOTICE_MS = 1800;	// a turn's notice: shown, then fading out over its last 600 ms
-		bool docTurning() const
-		{
-			int64_t now = SDL_GetTicks();
-			return page == Page::DocText && ((textStatus.turnDir && now - textStatus.turnAt < textStatus.turnMs) ||
-				(textStatus.noticeDir && now - textStatus.noticeAt < DOC_NOTICE_MS));
-		}
-		uint64_t docBookTexGen = 0;
-		Uint32 docBookToastUntil = 0;
-		int docBookHoldLast = 0;	// the way Book was last held (the View row turns it on so again)
-		void docBookTurn(int dpadDy, Player& p);
-		int docPanTexPage = -1;
-		const void* docPanTexSrc = nullptr;
-		Rect docBarRect() const;
-		Rect docBarTrack() const { Rect b = docBarRect(); return {b.x, b.y + 10, b.w, 10}; }
-		// where a finger takes the bar: from under the header's lines down to the drag area
-		Rect docBarHit() const { return {16, 60, W - 32, 44}; }
-		Rect docPadRect() const;
-		Rect docPanRect() const { return {16, 80, PAN_W, PAN_H}; }
-		Rect docBtn(int i) const;
-		Rect docPanThumb() const;
 		Playlist plCur;
 		bool plLoaded = false;	// plCur read (false: the file couldn't be)
 		PlayRequest playRequest;

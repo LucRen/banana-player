@@ -16,6 +16,7 @@
 #include <qrcodegen.hpp>
 #endif
 #include "ui_internal.h"
+#include "ui_docs.h"
 
 namespace bp
 {
@@ -263,11 +264,7 @@ namespace bp
 			kbOpen = false;
 			kbPressed = -1;
 			std::string q = trimmed(kbEdit.text);
-			if (keep && !q.empty())
-			{
-				findQuery = q;
-				findStart(false);
-			}
+			if (keep && !q.empty()) docs->findTyped(q);
 			return;
 		}
 		if (kbField == FILE_NAME)

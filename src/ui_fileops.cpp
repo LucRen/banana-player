@@ -3,6 +3,7 @@
 // or the Ui; the Ui reads its progress each pass), and the panel shows it, with Cancel, until it ends. The copying
 // itself is treecopy.h's: measured first, written out of sight, put in place last, so nothing half-copied is left.
 #include "ui_internal.h"
+#include "ui_docs.h"
 #include "treecopy.h"
 #include "pagebook.h"
 #include "netpath.h"
@@ -712,17 +713,7 @@ namespace bp
 			}
 		}
 		// documents: their places and bookmarks
-		docPlacesLoad();
-		if (docPlaces->moved(from, to)) { docPlacesDirty = true; docPlacesSave(true); }
-		docMarksLoad();
-		bool marks = false;
-		for (auto& m : docMarks)
-		{
-			std::string n;
-			if (movedPath(m.path, from, to, n)) { m.path = n; marks = true; }
-		}
-		if (marks) docMarksSave();
-		if (!docPath.empty()) { std::string n; if (movedPath(docPath, from, to, n)) docPath = n; }
+		docs->pathMoved(from, to);
 		// the manga reader's series of the card ("local:<folder or file>") and their chapters' places
 		if (!mangaStore)
 		{

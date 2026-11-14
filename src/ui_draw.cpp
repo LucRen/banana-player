@@ -464,8 +464,7 @@ namespace bp
 		else if (page == Page::Manga) drawManga(p);
 		else if (page == Page::MangaSeries) drawMangaSeries(p);
 		else if (page == Page::MangaRead) drawMangaRead(p);
-		else if (page == Page::DocText) drawDocText(p);
-		else if (page == Page::DocPages) drawDocPages(p);
+		else if (Area* a = area()) a->draw(p);
 		else if (page == Page::MangaSettings) drawMangaSettings(p);
 		else if (page == Page::MangaSources) drawMangaSourcesPage(p);
 		else if (page != Page::Main) drawTracks(p);

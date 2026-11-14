@@ -21,6 +21,7 @@
 #include "readerfetch.h"
 #include "manganet.h"
 #include "ui.h"
+#include "ui_docs.h"
 #include "ui_glyphs.h"
 #include "session_host.h"
 #include "updater.h"
@@ -1661,8 +1662,9 @@ int main(int argc, char** argv)
 				ui.readerCmds.clear();
 				// Files' text viewer: a document asked for, the bottom panel's commands, where it is told back
 				{
-					Ui::TextReadRequest tq;
-					if (ui.takeTextRead(tq))
+					Ui::Docs& docs = *ui.docs;
+					Ui::Docs::TextReadRequest tq;
+					if (docs.takeTextRead(tq))
 					{
 						SDL_GL_MakeCurrent(top, gl);
 #ifdef BP_GLES
@@ -1672,33 +1674,33 @@ int main(int argc, char** argv)
 #endif
 						int w, h;
 						SDL_GL_GetDrawableSize(top, &w, &h);
-						std::string err, title = ui.textStatus.title;
+						std::string err, title = docs.textStatus.title;
 						bool epub = tq.path.size() > 5 && strcasecmp(tq.path.c_str() + tq.path.size() - 5, ".epub") == 0;
 						auto src = !textReady ? nullptr : epub ? openEpubText(tq.path, err) : openTextFile(tq.path, err);
-						ui.textStatus = {};
-						ui.textStatus.title = title;
-						ui.textEncoding.clear();
-						if (!textReady) ui.textStatus.error = "The text viewer couldn't start";
-						else if (!src) ui.textStatus.error = err;
+						docs.textStatus = {};
+						docs.textStatus.title = title;
+						docs.textEncoding.clear();
+						if (!textReady) docs.textStatus.error = "The text viewer couldn't start";
+						else if (!src) docs.textStatus.error = err;
 						else if (textReader.setBook(player.settings.txtBook), false) {}
 						else if (Uint32 t0 = SDL_GetTicks(); !textReader.open(std::move(src), tq.place, w, h, textStyle()) ||
 							(fprintf(stderr, "text: open took %u ms\n", SDL_GetTicks() - t0), false))
-							ui.textStatus.error = "The text viewer couldn't open it";
+							docs.textStatus.error = "The text viewer couldn't open it";
 						else
 						{
 							// (the contents once: an EPUB's is read from its navigation document)
-							for (auto& c : textReader.contents()) ui.textStatus.contents.push_back({c.title, {c.id, c.depth}});
-							if (!textReader.title().empty()) ui.textStatus.title = textReader.title();
+							for (auto& c : textReader.contents()) docs.textStatus.contents.push_back({c.title, {c.id, c.depth}});
+							if (!textReader.title().empty()) docs.textStatus.title = textReader.title();
 							fprintf(stderr, "text: opened %s (%s), %zu in the contents\n", tq.path.c_str(),
-								textReader.encoding().empty() ? "book" : textReader.encoding().c_str(), ui.textStatus.contents.size());
+								textReader.encoding().empty() ? "book" : textReader.encoding().c_str(), docs.textStatus.contents.size());
 						}
 					}
-					if (ui.textCloseAsked)
+					if (docs.textCloseAsked)
 					{
-						ui.textCloseAsked = false;
+						docs.textCloseAsked = false;
 						SDL_GL_MakeCurrent(top, gl);	// (its textures are freed in this context)
 						textReader.close();
-						ui.textStatus = {};
+						docs.textStatus = {};
 						renderPending = true;	// (the top panel shows what plays, or the icon, again)
 						topDark = false;
 					}
@@ -1707,47 +1709,47 @@ int main(int argc, char** argv)
 						textReader.setStyle(textStyle());
 						textReader.setBook(player.settings.txtBook);
 						textReader.setTurnFold(player.settings.txtTurn == 0);
-						textReader.setHighlight(ui.docHighlight());
-						if (ui.textEncodingAsked)
+						textReader.setHighlight(docs.docHighlight());
+						if (docs.textEncodingAsked)
 						{
-							ui.textEncodingAsked = false;
-							textReader.setEncoding(ui.textEncoding);
+							docs.textEncodingAsked = false;
+							textReader.setEncoding(docs.textEncoding);
 						}
 						int w, h;
 						SDL_GL_GetDrawableSize(top, &w, &h);
 						// (a finger's moves come as shares of the panel: the top's pixels here)
-						for (auto& c : ui.textCmds)
+						for (auto& c : docs.textCmds)
 						{
 							Uint32 t0 = SDL_GetTicks();
 							textReader.command(c.kind, c.kind == TextReader::Scroll || c.kind == TextReader::Fling ? c.v * h : c.v, c.ms);
 							// (a jump's cost: the text found around its place, nothing else)
-							if (c.kind == TextReader::MatchStep) ui.textStatus.matchStep = textReader.matchStepped() ? 1 : -1;
+							if (c.kind == TextReader::MatchStep) docs.textStatus.matchStep = textReader.matchStepped() ? 1 : -1;
 							if (c.kind == TextReader::Jump || c.kind == TextReader::JumpTo || c.kind == TextReader::JumpToLast)
 								fprintf(stderr, "text: jump to %.1f%% in %u ms\n", textReader.fraction() * 100, SDL_GetTicks() - t0);
 						}
-						ui.textStatus.open = true;
-						ui.textStatus.fraction = textReader.fraction();
-						ui.textStatus.place = textReader.place();
-						ui.textStatus.atEnd = textReader.atEnd();
-						ui.textStatus.encoding = textReader.encoding();
-						ui.textStatus.snippet = textReader.snippet();
+						docs.textStatus.open = true;
+						docs.textStatus.fraction = textReader.fraction();
+						docs.textStatus.place = textReader.place();
+						docs.textStatus.atEnd = textReader.atEnd();
+						docs.textStatus.encoding = textReader.encoding();
+						docs.textStatus.snippet = textReader.snippet();
 						// Book: the bottom panel's page
-						ui.textStatus.book = textReader.book();
-						ui.textStatus.turnDir = textReader.turnDir();
-						ui.textStatus.turnAt = textReader.turnAt();
-						ui.textStatus.rightOnTop = textReader.rightOnTop();
-						ui.textStatus.turnMs = TextReader::turnMs();
-						ui.textStatus.noticeDir = textReader.lastTurnDir();
-						ui.textStatus.noticeAt = textReader.lastTurnAt();
-						ui.textStatus.bottomOld = textReader.bottomBefore();
-						if (textReader.bottomGen() != ui.textStatus.bottomGen)
+						docs.textStatus.book = textReader.book();
+						docs.textStatus.turnDir = textReader.turnDir();
+						docs.textStatus.turnAt = textReader.turnAt();
+						docs.textStatus.rightOnTop = textReader.rightOnTop();
+						docs.textStatus.turnMs = TextReader::turnMs();
+						docs.textStatus.noticeDir = textReader.lastTurnDir();
+						docs.textStatus.noticeAt = textReader.lastTurnAt();
+						docs.textStatus.bottomOld = textReader.bottomBefore();
+						if (textReader.bottomGen() != docs.textStatus.bottomGen)
 						{
-							ui.textStatus.bottomGen = textReader.bottomGen();
-							ui.textStatus.bottom = textReader.bottomPage(ui.textStatus.bottomW, ui.textStatus.bottomH);
+							docs.textStatus.bottomGen = textReader.bottomGen();
+							docs.textStatus.bottom = textReader.bottomPage(docs.textStatus.bottomW, docs.textStatus.bottomH);
 						}
-						if (!textReader.error().empty()) ui.textStatus.error = textReader.error();
+						if (!textReader.error().empty()) docs.textStatus.error = textReader.error();
 					}
-					ui.textCmds.clear();
+					docs.textCmds.clear();
 				}
 				// a song's visualizer rests while the pages cover the top panel (nobody sees it; its frames cost CPU)
 				player.setTopCovered(readerOnTop());
@@ -1763,12 +1765,12 @@ int main(int argc, char** argv)
 					reader.setPreload(player.settings.mangaPreload);
 					// a document of Files: its reading filter, and its pan area's page and box
 					{
-						int f = ui.docPagesFilter(player);
+						int f = ui.docs->docPagesFilter(player);
 						// (the Manga reader's own filter; either's Extra dim)
 						float r, g, b;
 						docFilterTint(f >= 0 ? f : player.settings.mangaFilter, r, g, b, player.settings.readDim);
 						reader.setTint(r, g, b);
-						Ui::DocPan dp;
+						Ui::Docs::DocPan dp;
 						if (f >= 0 && reader.panBox(dp.page, dp.x0, dp.y0, dp.x1, dp.y1))
 						{
 							int pw = 0, ph = 0;
@@ -1776,7 +1778,7 @@ int main(int argc, char** argv)
 							dp.w = pw;
 							dp.h = ph;
 						}
-						ui.docPan = std::move(dp);
+						ui.docs->docPan = std::move(dp);
 					}
 					ui.readerStatus.open = true;
 					ui.readerStatus.loading = reader.loading();

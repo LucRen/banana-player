@@ -17,6 +17,7 @@
 #include <qrcodegen.hpp>
 #endif
 #include "ui_internal.h"
+#include "ui_docs.h"
 #include "pagebook.h"
 #include <strings.h>
 
@@ -49,8 +50,7 @@ namespace bp
 				// a document: the page it's at (a PDF, a comic) or how far through (a TXT, a book), from its own places
 				bool epub = path.size() > 5 && strcasecmp(path.c_str() + path.size() - 5, ".epub") == 0;
 				it.kind = isComicName(path) ? &G_COMIC : epub ? &G_EPUB : isPdfName(path) ? &G_PDF : &G_PAGE;
-				docPlacesLoad();
-				const ResumeEntry* d = docPlaces->find(path);
+				const ResumeEntry* d = docs->placeOf(path);
 				// a PDF's or a comic's place is a page of so many; a text's, a share of it (kept before the kind was: a
 				// share is at most 1, a page count at least 1)
 				bool pages = d && (d->aid == 2 || (d->aid != 1 && d->duration > 1));

@@ -16,6 +16,7 @@
 #include <qrcodegen.hpp>
 #endif
 #include "ui_internal.h"
+#include "ui_docs.h"
 #include "pagebook.h"
 #include "durworker.h"
 
@@ -835,11 +836,7 @@ namespace bp
 				// a document: its place forgotten, then opened
 				if (isDocumentName(path) || isComicName(path))
 				{
-					docPlacesLoad();
-					ResumeEntry e;
-					e.path = path;
-					docPlaces->put(e);
-					docPlacesDirty = true;
+					docs->forgetPlace(path);
 					openFile(path, p);
 					break;
 				}

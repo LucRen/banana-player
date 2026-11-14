@@ -14,6 +14,7 @@
 #include "playlists.h"
 #include "photo.h"
 #include "ui.h"
+#include "ui_docs.h"
 #include "webstate.h"
 #include <httplib.h>
 #include <algorithm>
@@ -114,8 +115,7 @@ namespace bp
 		static DocPlace docPlace(Ui& u, const std::string& path)
 		{
 			DocPlace d;
-			u.docPlacesLoad();
-			const ResumeEntry* e = u.docPlaces->find(path);
+			const ResumeEntry* e = u.docs->placeOf(path);
 			d.paged = e && (e->aid == 2 || (e->aid != 1 && e->duration > 1));
 			if (!e) return d;
 			d.started = e->position > 0;
