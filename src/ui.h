@@ -475,6 +475,37 @@ namespace bp
 		enum class Page { Main, Tracks, Chapters, Settings, Browse, Info, About, Exit, Sound, Web, Playing, UpNext, Manga,
 			Extensions, MangaSeries, MangaRead, MangaSettings, MangaSources, DocText, DocPages };
 		struct Rect { int x, y, w, h; bool hit(int px, int py) const { return px >= x && py >= y && px < x + w && py < y + h; } };
+		// An overlay: a dialog or a sheet over the page (ui_overlay.cpp; docs/notes/overlay-stack.md). While it is on
+		// the stack it gets the keys and the touches (the topmost one only: it is modal), is drawn over the page (all
+		// of them, the oldest first) and has its state in signature(): press, pointer, renderPage and signature ask
+		// the stack, so a new dialog is wired in nowhere else. One is written as a struct nested in Ui (declared
+		// here, defined in its own .cpp), which lets it use Ui's drawing and state through `ui`.
+		struct Overlay
+		{
+			Ui& ui;
+			bool done = false;	// closed: taken off the stack once the call that closed it is over
+			explicit Overlay(Ui& u) : ui(u) {}
+			virtual ~Overlay() = default;
+			// what it is ("light", "alert"): one of a kind is open at a time, and signature() says which
+			virtual const char* name() const = 0;
+			// as Ui::press and Ui::pointer (x, y in the panel's 640x480 units): true leaves the player
+			virtual bool key(Button b, Player& p) = 0;
+			virtual bool pointer(const Pointer& pt, int x, int y, Player& p) = 0;
+			virtual void draw(const Player& p) = 0;
+			// everything draw() shows that Settings doesn't hold (the cursor, a level read from elsewhere): the
+			// panel is drawn again only when this changes
+			virtual std::string signature(const Player& p) const = 0;
+			void close() { done = true; }
+		};
+		std::vector<std::unique_ptr<Overlay>> overlays;	// the stack: the last is on top
+		void pushOverlay(std::unique_ptr<Overlay> o);
+		Overlay* topOverlay() const;	// (null: none open)
+		Overlay* findOverlay(const char* name) const;
+		void dropClosedOverlays();
+		bool overlayKey(Button b, Player& p);
+		bool overlayPointer(const Pointer& pt, int x, int y, Player& p);
+		void drawOverlays(const Player& p);
+		std::string overlaySignature(const Player& p) const;
 		struct Row { int64_t id; std::string label; bool selected; std::string note = ""; };
 
 		std::vector<Row> rows(const Player& p) const;
@@ -562,22 +593,10 @@ namespace bp
 		// entered again (each entry lists it newest first)
 		bool recentKeepOrder = false;
 		// the readers' Brightness sheet (ui_light.cpp): the screens' backlight, Extra dim, the reader's filter
-		enum { LR_SCREENS, LR_TOP, LR_BOTTOM, LR_SAME, LR_DIM, LR_FILTER };
-		bool lightOpen = false;
-		int lightCursor = 0, lightDrag = -1;
-		std::vector<int> lightRows() const;
-		int& lightFilter(Settings& s) const;
+		// (an overlay: LightSheet, pushed by openLight)
+		struct LightSheet;
 		void openLight();
-		Rect lightBox() const;
-		Rect lightRow(int i) const;
-		Rect lightTrack(int i) const;
-		Rect lightChip(int i, int k) const;
-		void lightSet(int row, int value, Player& p);
-		int lightValue(int row, const Player& p) const;
-		bool lightKey(Button b, Player& p);
-		bool lightPointer(const Pointer& pt, int x, int y, Player& p);
-		void drawLight(const Player& p);
-		void lightSame(Player& p);
+		int& lightFilter(Settings& s) const;	// the reader's own filter: the text viewer's, the PDF/comic viewer's, Manga's
 		// what the reader's Brightness button says while Extra dim or a filter is on ("Warm · 30%"); empty: neither
 		std::string lightNote(const Player& p) const;
 		int readFilterNow = 0, readDimNow = 0;	// (Ui::draw: the reading filter and Extra dim as the pages are drawn)
@@ -1602,11 +1621,8 @@ namespace bp
 		std::string mangaErrFor[2], mangaErrText;
 		// A message that needs reading (what can't be done, what went wrong): a dialog on this panel with OK, A or B
 		// or a tap closes it. Short confirmations ("Copied", "Speed 1.5x") stay the top screen's notice (Player::osd)
-		bool alertOpen = false;
-		std::string alertTitle, alertText;
-		Rect alertBox() const;
-		Rect alertOk() const;
-		void drawAlert();
+		// (an overlay: AlertBox in ui_overlay.cpp; a second message takes the first one's place)
+		struct AlertBox;
 	public:
 		void alert(const std::string& title, const std::string& text = "");
 	private:

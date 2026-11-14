@@ -60,7 +60,8 @@ tools/make-sprite.py                                 # web/sprite.svg from the G
   per-frame conversions; time new graphs. A `lut`/`lut2` on 8-bit inputs is written `bplut=`/`bplut2=` (its
   expression cached as a quick lookup: `src/vizcache.h`); 16-bit ones stay plain.
   EQ/effect is one `af` after the graph (`syncEq`).
-- **Ui:** redraws only when `signature()` changes (new drawing state goes in it); 640×480 units; colours/radii from
+- **Ui:** redraws only when `signature()` changes (new drawing state goes in it); a new dialog or sheet is a
+  `Ui::Overlay` (`ui_overlay.cpp`, docs/notes/overlay-stack.md), not a flag checked in `press`/`pointer`/`draw`; 640×480 units; colours/radii from
   `theme.h` via `fillRound`/`drawBox`; path checks via `pseudoDir()`.
 - **Settings:** a new one goes in `Settings` + the `REMEMBER` table, kept in step with `ui_internal.h` and the row ids.
 - **Threads:** background threads never touch `Player`/`Ui`; they push SDL user events. Never block on a server in a
