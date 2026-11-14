@@ -1858,8 +1858,7 @@ namespace bp
 		void drawMangaRetry(bool full);
 		Rect mangaAreaRect() const { return {16, 70, 608, miniUp ? 222 : 260}; }	// (222: the page line below keeps 8 clear of it)
 		Rect mangaSliderRect() const { return {40, miniUp ? 330 : 352, 560, 22}; }
-		// the chapter row: three buttons of one size, equal margins and gaps across the panel's 608 (16, 208 wide
-		// pieces, 16 apart: the last one ends at 624, 16 from the right edge)
+		// the chapter row: four buttons of one size across the panel's 608 (146 wide, 8 apart: 16 to 624)
 		// (52 tall: room for the key under the label, Button hotkeys on)
 		Rect mangaChapterCell(int i) const { return rowCell({16, miniUp ? 364 : 396, 608, 52}, 4, 8, i); }	// four of 146
 		Rect mangaPrevRect() const { return mangaChapterCell(0); }
