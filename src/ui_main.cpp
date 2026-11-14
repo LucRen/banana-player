@@ -245,7 +245,7 @@ namespace bp
 		if (id == EQ_PREV) return {160, 70, 56, 52};
 		if (id == EQ_NEXT) return {568, 70, 56, 52};
 		if (id == EQ_NAME_ZONE) return {216, 70, 352, 52};
-		if (id == EQ_RESET || id == EQ_SAVE || id == EQ_OPTIONS) return {16 + (id - EQ_RESET) * 206, miniUp ? 386 : 400, 196, 32};
+		if (id == EQ_RESET || id == EQ_SAVE || id == EQ_OPTIONS) return rowCell({16, miniUp ? 386 : 400, 608, 32}, 3, 10, id - EQ_RESET);
 		if (id >= FX_ROW && id < FX_ROW + SOUNDFX_COUNT) return {16, ROW_Y + (id - FX_ROW) * ROW_H, 608, ROW_H - 4};
 		// the select mode's bar: three buttons (Edit, Add), two (Pick, Move)
 		if (id == SEL_ALL) return {24, 428, 184, 44};
@@ -342,9 +342,7 @@ namespace bp
 		{
 			Rect b = photoBtn(i, p);
 			drawBox(b, pressedBtn == PHOTO_BTN + i ? PRESSED : BUTTON, R_BUTTON);
-			bool hint = hints && *btns[i].hint;
-			drawText(btns[i].label, 1, btns[i].off ? DIM : TEXT, b.x + b.w / 2, b.y + (hint ? 5 : 15), b.w - 6, 2);
-			if (hint) drawText(btns[i].hint, 0, btns[i].off ? DIM : ACCENT, b.x + b.w / 2, b.y + 33, b.w - 6, 2);
+			drawKeyedLabel(b, btns[i].label, hints ? btns[i].hint : "", btns[i].off);
 		}
 		if (p.count() > 1)
 		{

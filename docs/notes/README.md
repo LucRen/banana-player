@@ -22,3 +22,4 @@ Write the way the rest of the repo does: plain and precise, with the why. Say wh
 - [2026-11-09 iOS Safari history](2026-11-09-ios-safari-history.md): the web player's chevron leaving the page on iPhone.
 - [2026-11-09 crash log](2026-11-09-crash-log.md): why `crash.log` exists and how it is bounded.
 - [2026-11-10 Photos over media](2026-11-10-photos-over-media.md): photos in their own mpv, what plays goes on under them (a video decoding on, unseen).
+- [2026-11-14 button rows](button-rows.md): one helper for rows of buttons on the bottom panel (rowCell, gridCell, drawKeyedLabel).

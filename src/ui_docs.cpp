@@ -799,11 +799,12 @@ namespace bp
 		{
 			// beside the pan area, as the photo viewer's; the ninth, wide under them: the other view
 			if (i == 8) return {368, 336, 248, 52};
-			return {368 + i % 2 * 128, 80 + i / 2 * 64, 120, 56};
+			return gridCell({368, 80, 120, 56}, 2, 8, 8, i);
 		}
 		int y = (miniUp ? 344 : 396) - 56;
-		if (page == Page::DocText) return i == 4 ? Rect{574, y, 50, 56} : Rect{16 + i * 140, y, 134, 56};	// four, then Brightness's sun
-		return {16 + i * 154, y, 146, 56};
+		// the text reader: four across 554, then Brightness's sun (50, 4 clear of them, ending at 624)
+		if (page == Page::DocText) return i == 4 ? Rect{574, y, 50, 56} : rowCell({16, y, 554, 56}, 4, 6, i);
+		return rowCell({16, y, 608, 56}, 4, 8, i);
 	}
 
 	Ui::Rect Ui::docPanThumb() const
@@ -1228,9 +1229,7 @@ namespace bp
 				if (tweaked) fillRound({b.x + b.w - 14, b.y + 6, 8, 8}, ACCENT, 4);
 				continue;
 			}
-			bool hint = hints && *btns[i].key;
-			drawText(btns[i].label, 1, btns[i].off ? DIM : TEXT, b.x + b.w / 2, b.y + (hint ? 5 : 15), b.w - 2, 2);
-			if (hint) drawText(btns[i].key, 0, btns[i].off ? DIM : ACCENT, b.x + b.w / 2, b.y + 33, b.w - 6, 2);
+			drawKeyedLabel(b, btns[i].label, hints ? btns[i].key : "", btns[i].off, b.w - 2);
 		}
 		if (findOn)
 		{
@@ -1241,10 +1240,9 @@ namespace bp
 			for (int i = 0; i < 3; i++)
 			{
 				Rect r = docBtn(0);
-				Rect bb{16 + i * 206, r.y, 196, r.h};
+				Rect bb = rowCell({16, r.y, 608, r.h}, 3, 10, i);
 				drawBox(bb, BUTTON, R_BUTTON);
-				drawText(labels[i], 1, TEXT, bb.x + bb.w / 2, bb.y + 5, bb.w - 6, 2);
-				drawText(keys[i], 0, ACCENT, bb.x + bb.w / 2, bb.y + 33, bb.w - 6, 2);
+				drawKeyedLabel(bb, labels[i], keys[i]);
 			}
 			drawTextMid("Find \u201C" + findQuery + "\u201D", 0, ACCENT, W / 2, docBtn(0).y + docBtn(0).h + 22, 560, 2);
 		}
@@ -1354,9 +1352,7 @@ namespace bp
 					drawText(note.empty() ? labels[i] : note, 0, note.empty() ? TEXT : ACCENT, b.x + b.w / 2, b.y + 35, b.w - 6, 2);
 					continue;
 				}
-				bool hint = (hints && *keys[i]) || i == 4;	// (the fit's says which one is on)
-				drawText(label, 1, off ? DIM : TEXT, b.x + b.w / 2, b.y + (hint ? 5 : 15), b.w - 6, 2);
-				if (hint) drawText(keys[i], 0, off ? DIM : ACCENT, b.x + b.w / 2, b.y + 33, b.w - 6, 2);
+				drawKeyedLabel(b, label, hints || i == 4 ? keys[i] : "", off);	// (the fit's says which one is on)
 			}
 			drawHints({{"LEFT/RIGHT", "Page"}, {"UP/DOWN", "Zoom"}, {"A", "2x"}, {"B", "Close"}});
 		}
@@ -1381,9 +1377,7 @@ namespace bp
 				drawBox(b, docPressed == i ? PRESSED : BUTTON, R_BUTTON);
 				// (Brightness: what's on under it while Extra dim or a filter is)
 				std::string key = i == 2 ? lightNote(p) : std::string(hints ? keys[i] : "");
-				bool hint = !key.empty();
-				drawText(labels[i], 1, TEXT, b.x + b.w / 2, b.y + (hint ? 5 : 15), b.w - 6, 2);
-				if (hint) drawText(key, 0, ACCENT, b.x + b.w / 2, b.y + 33, b.w - 6, 2);
+				drawKeyedLabel(b, labels[i], key);
 			}
 			drawHints({{"UP/DOWN", "Zoom"}, {"LEFT/RIGHT", "Scroll"}, {"B", "Close"}});
 		}

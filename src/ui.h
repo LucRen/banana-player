@@ -1230,7 +1230,7 @@ namespace bp
 		Rect panRect(const Player& p) const { return {p.settings.panRight ? 288 : 16, 80, PAN_W, PAN_H}; }
 		Rect photoBtn(int i, const Player& p) const
 		{
-			return {(p.settings.panRight ? 16 : 368) + i % 2 * 128, 80 + i / 2 * 64, 120, 56};
+			return gridCell({p.settings.panRight ? 16 : 368, 80, 120, 56}, 2, 8, 8, i);
 		}
 		Rect thumbRect(const Player& p) const;	// the photo, as shown, fitted in the pan area
 		bool panTouch = false, panMoved = false;
@@ -1268,6 +1268,22 @@ namespace bp
 			const std::string& note = "", SDL_Color noteInk = {0, 0, 0, 0});
 		std::vector<std::string> wrapText(const std::string& text, int size, int maxW, int maxLines) const;
 		// a button's face: a glyph and a label side by side, the hardware button's name under them (key: none)
+		// Rows and grids of buttons: one function per row gives the rect, and drawing and touch both ask it.
+		// rowCell: the i-th of n equal cells across `area`, `gap` apart (the sizes divide exactly in every row that
+		// uses it: a remainder would be dropped at the right).
+		static Rect rowCell(Rect area, int n, int gap, int i)
+		{
+			int w = (area.w - (n - 1) * gap) / n;
+			return {area.x + i * (w + gap), area.y, w, area.h};
+		}
+		// gridCell: the i-th of a grid of `cols` columns, row by row, every cell the size of `first`
+		static Rect gridCell(Rect first, int cols, int gapX, int gapY, int i)
+		{
+			return {first.x + i % cols * (first.w + gapX), first.y + i / cols * (first.h + gapY), first.w, first.h};
+		}
+		// a button's label, with its key under it when there is one (the label moves up to make room); the label
+		// and key fit labelW/keyW units wide (0: the button less 6)
+		void drawKeyedLabel(Rect b, const std::string& label, const std::string& key, bool off = false, int labelW = 0, int keyW = 0);
 		void drawButton(Rect b, const Glyph* g, const std::string& label, const char* key, bool off, int size, bool lit = false);	// lit: the glyph and label in yellow (on, as the heart once liked)
 		static constexpr int STATUS_Y = 100, LINE1_Y = 378, LINE2_Y = 403;	// the player's status line, its two track lines
 		// the Network tab with no connections: its page offers Add connection; Playlists with none, New playlist
@@ -1845,10 +1861,11 @@ namespace bp
 		// the chapter row: three buttons of one size, equal margins and gaps across the panel's 608 (16, 208 wide
 		// pieces, 16 apart: the last one ends at 624, 16 from the right edge)
 		// (52 tall: room for the key under the label, Button hotkeys on)
-		Rect mangaPrevRect() const { return {16, miniUp ? 364 : 396, 146, 52}; }
-		Rect mangaFullRect() const { return {170, miniUp ? 364 : 396, 146, 52}; }	// the Fullscreen button: what SELECT does
-		Rect mangaLightRect() const { return {324, miniUp ? 364 : 396, 146, 52}; }	// the Brightness sheet
-		Rect mangaNextRect() const { return {478, miniUp ? 364 : 396, 146, 52}; }
+		Rect mangaChapterCell(int i) const { return rowCell({16, miniUp ? 364 : 396, 608, 52}, 4, 8, i); }	// four of 146
+		Rect mangaPrevRect() const { return mangaChapterCell(0); }
+		Rect mangaFullRect() const { return mangaChapterCell(1); }	// the Fullscreen button: what SELECT does
+		Rect mangaLightRect() const { return mangaChapterCell(2); }	// the Brightness sheet
+		Rect mangaNextRect() const { return mangaChapterCell(3); }
 		static constexpr int MG_SER_ROWS = 5, MG_SER_TOP = 140;	// Page::MangaSeries' chapter rows
 		static constexpr int MG_ROW_TOP = 102, MG_ROWS = 6;
 		// History's rows hold two lines (series, then chapter and page): taller, so fewer
