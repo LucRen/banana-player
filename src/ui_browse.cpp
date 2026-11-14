@@ -196,8 +196,9 @@ namespace bp
 	void Ui::dropTouch()
 	{
 		// a finger still down on what's gone presses nothing on what comes (as it lifts); none down: nothing to drop
-		if (panTouch || listTouch || dragging || pressedBtn >= 0 || homeTouch) swallowTouch = true;
-		panTouch = panMoved = listTouch = dragging = homeTouch = false;
+		if (panTouch || listTouch || slide.on || pressedBtn >= 0 || homeTouch) swallowTouch = true;
+		panTouch = panMoved = listTouch = homeTouch = false;
+		slideDrop();
 		pressedBtn = homePress = -1;
 		flickAt = tapAt = holdAt = homeHoldAt = 0;
 	}

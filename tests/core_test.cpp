@@ -1,4 +1,5 @@
 // The parts without a window: aspect modes, track labels, mpv's track-list, times.
+#include "slider.h"
 #include "aspect.h"
 #include "battery.h"
 #include "comicinfo.h"
@@ -10131,8 +10132,101 @@ static void testImageSize()
 	CHECK_EQ(imageSizeFile("/nonexistent/x.jpg", w, h), false);
 }
 
+// slider.h: a finger's place to a value (clamped, snapped, upright), the value's share, the pace of a costly target
+static void testSlider()
+{
+	using namespace bp;
+	// a plain 0..1 bar, 592 wide from 24 (the seek bar): the ends, the middle, past either end
+	SliderRange unit{0, 1, 0};
+	CHECK_EQ(sliderValueAt(24, 24, 592, unit), 0.0);
+	CHECK_EQ(sliderValueAt(24 + 592, 24, 592, unit), 1.0);
+	CHECK_EQ(sliderValueAt(24 + 296, 24, 592, unit), 0.5);
+	CHECK_EQ(sliderValueAt(-500, 24, 592, unit), 0.0);
+	CHECK_EQ(sliderValueAt(5000, 24, 592, unit), 1.0);
+	CHECK_EQ(sliderValueAt(100, 24, 0, unit), 0.0);	// no track: no division
+	// brightness in tenths, 10..100 over 100 units: snapped to the nearest ten, never under 10 or over 100
+	SliderRange light{10, 100, 10};
+	CHECK_EQ(sliderValueAt(0, 0, 100, light), 10.0);
+	CHECK_EQ(sliderValueAt(100, 0, 100, light), 100.0);
+	CHECK_EQ(sliderValueAt(50, 0, 100, light), 60.0);	// 55 -> 60 (halves round up)
+	CHECK_EQ(sliderValueAt(48, 0, 100, light), 50.0);	// 53.2 -> 50
+	CHECK_EQ(sliderValueAt(-9, 0, 100, light), 10.0);
+	CHECK_EQ(sliderValueAt(900, 0, 100, light), 100.0);
+	// the volume in fives over the quick settings' 164
+	SliderRange vol{0, 100, 5};
+	CHECK_EQ(sliderValueAt(82, 0, 164, vol), 50.0);
+	CHECK_EQ(sliderValueAt(4, 0, 164, vol), 0.0);	// 2.4 -> 0
+	CHECK_EQ(sliderValueAt(5, 0, 164, vol), 5.0);	// 3.05 -> 5
+	// pages: 0..9 in ones (a 10-page chapter over 560)
+	SliderRange pages{0, 9, 1};
+	CHECK_EQ(sliderValueAt(0, 0, 560, pages), 0.0);
+	CHECK_EQ(sliderValueAt(560, 0, 560, pages), 9.0);
+	CHECK_EQ(sliderValueAt(280, 0, 560, pages), 5.0);	// 4.5 -> 5
+	CHECK_EQ(sliderValueAt(30, 0, 560, pages), 0.0);
+	CHECK_EQ(sliderValueAt(32, 0, 560, pages), 1.0);
+	// steps that don't land on the top: the top is still reached, nothing past it
+	SliderRange odd{0, 95, 10};
+	CHECK_EQ(sliderValueAt(100, 0, 100, odd), 95.0);
+	CHECK_EQ(sliderValueAt(92, 0, 100, odd), 90.0);
+	CHECK_EQ(sliderSnap(1234, odd), 95.0);
+	CHECK_EQ(sliderSnap(-3, odd), 0.0);
+	// upright (an EQ band, 168..360 is +12..-12 dB): the top is the most, in whole dB, as round((264 - y) / 8)
+	SliderRange db{-12, 12, 1};
+	CHECK_EQ(sliderValueAt(168, 168, 192, db, true), 12.0);
+	CHECK_EQ(sliderValueAt(360, 168, 192, db, true), -12.0);
+	CHECK_EQ(sliderValueAt(264, 168, 192, db, true), 0.0);
+	CHECK_EQ(sliderValueAt(240, 168, 192, db, true), 3.0);
+	CHECK_EQ(sliderValueAt(100, 168, 192, db, true), 12.0);
+	CHECK_EQ(sliderValueAt(470, 168, 192, db, true), -12.0);
+	for (int y = 168; y <= 360; y++)
+		if ((264 - y) % 8 != 4 && (264 - y) % 8 != -4)	// (but the exact halves, which round either way)
+			CHECK_EQ(sliderValueAt(y, 168, 192, db, true), std::round((264 - y) / 8.0) + 0.0);
+	// a held slider and its finger: within the slack nothing moves (a tap, a lift's shift); past it, it follows
+	CHECK_EQ(sliderFollow(100, 100, 6), 100);
+	CHECK_EQ(sliderFollow(100, 106, 6), 100);
+	CHECK_EQ(sliderFollow(100, 94, 6), 100);
+	CHECK_EQ(sliderFollow(100, 107, 6), 101);
+	CHECK_EQ(sliderFollow(100, 300, 6), 294);
+	CHECK_EQ(sliderFollow(100, 20, 6), 26);
+	{
+		// a drag to the right, then the fingertip rolls back 4 as it lifts: where the drag left it
+		int at = 100;
+		for (int f = 100; f <= 300; f += 7) at = sliderFollow(at, f, 6);
+		int left = at;
+		for (int f : {294, 292, 291}) at = sliderFollow(at, f, 6);	// (the drag ended with the finger at 296)
+		CHECK_EQ(at, left);
+	}
+	// the share of the track a value is drawn at
+	CHECK_EQ(sliderShare(55, light), 0.5);
+	CHECK_EQ(sliderShare(10, light), 0.0);
+	CHECK_EQ(sliderShare(500, light), 1.0);
+	CHECK_EQ(sliderShare(3, SliderRange{4, 4, 0}), 0.0);
+	// the pace: a cheap target hears each change once; a costly one nothing before its interval, then one per
+	// interval, never the same value twice
+	SliderPace each;
+	each.start(1000, 0);
+	CHECK_EQ(each.due(0.3, 1000), true);
+	CHECK_EQ(each.due(0.3, 1001), false);
+	CHECK_EQ(each.due(0.4, 1001), true);
+	SliderPace paced;
+	paced.start(1000, 100);
+	CHECK_EQ(paced.due(0.3, 1000), false);	// a tap: only its lift is told
+	CHECK_EQ(paced.due(0.3, 1099), false);
+	CHECK_EQ(paced.due(0.3, 1100), true);
+	CHECK_EQ(paced.due(0.5, 1150), false);
+	CHECK_EQ(paced.due(0.5, 1200), true);
+	CHECK_EQ(paced.due(0.5, 1400), false);	// heard already
+	int sent = 0;
+	paced.start(5000, 100);
+	for (uint32_t t = 5000; t < 6000; t += 8)	// a finger moving every 8 ms for a second
+		sent += paced.due(t / 1000.0, t);
+	CHECK_EQ(sent <= 10, true);
+	CHECK_EQ(sent >= 8, true);
+}
+
 int main()
 {
+	testSlider();
 	testImageSize();
 	testVizCache();
 	testPicSubs();

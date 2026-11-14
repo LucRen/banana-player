@@ -138,7 +138,7 @@ static void usage()
 		"  -v                    mpv's verbose log\n"
 		"  --press LIST          test run: once the file is open, do these 0.8 s apart and print the state after\n"
 		"                        each, then quit: buttons (A,B,X,Y,L,R,L2,R2,Up,Down,Left,Right,Start,Select), taps\n"
-		"                        (tap:X:Y, dtap:X:Y a double-tap) and drags (drag:X1:Y1:X2:Y2) on the bottom panel's 640x480, and info\n"
+		"                        (tap:X:Y, dtap:X:Y a double-tap), drags (drag:X1:Y1:X2:Y2; down:X:Y, move:X:Y, up:X:Y a finger kept down) on the bottom panel's 640x480, and info\n"
 		"                        (prints the Media info page), hold:X:Y (a finger held 1.1 s), prop:NAME\n"
 		"                        (prints one of mpv's properties), BUTTON*N (N presses 80 ms apart),\n"
 		"                        BUTTON~MS (held MS ms, then let go)\n"
@@ -235,6 +235,9 @@ int main(int argc, char** argv)
 					(sscanf(step.c_str(), "tap:%f:%f%n", &v[0], &v[1], &n) == 2 && n == (int)step.size()) ||
 					(sscanf(step.c_str(), "dtap:%f:%f%n", &v[0], &v[1], &n) == 2 && n == (int)step.size()) ||
 					(sscanf(step.c_str(), "hold:%f:%f%n", &v[0], &v[1], &n) == 2 && n == (int)step.size()) ||
+					(sscanf(step.c_str(), "down:%f:%f%n", &v[0], &v[1], &n) == 2 && n == (int)step.size()) ||
+					(sscanf(step.c_str(), "move:%f:%f%n", &v[0], &v[1], &n) == 2 && n == (int)step.size()) ||
+					(sscanf(step.c_str(), "up:%f:%f%n", &v[0], &v[1], &n) == 2 && n == (int)step.size()) ||
 					(sscanf(step.c_str(), "drag:%f:%f:%f:%f%n", &v[0], &v[1], &v[2], &v[3], &n) == 4 && n == (int)step.size());
 				if (!ok) { fprintf(stderr, "unknown step: %s\n", step.c_str()); return 2; }
 				steps.push_back(step);
@@ -1292,6 +1295,10 @@ int main(int argc, char** argv)
 								at(Pointer::Up, v[0], v[1]);
 							}
 						}
+						// a finger that stays down from one step to the next (a held slider's look): down, moves, up
+						else if (sscanf(step.c_str(), "down:%f:%f", &v[0], &v[1]) == 2) at(Pointer::Down, v[0], v[1]);
+						else if (sscanf(step.c_str(), "move:%f:%f", &v[0], &v[1]) == 2) at(Pointer::Move, v[0], v[1]);
+						else if (sscanf(step.c_str(), "up:%f:%f", &v[0], &v[1]) == 2) at(Pointer::Up, v[0], v[1]);
 						else if (sscanf(step.c_str(), "tap:%f:%f", &v[0], &v[1]) == 2)
 						{
 							at(Pointer::Down, v[0], v[1]);

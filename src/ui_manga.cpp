@@ -85,7 +85,7 @@ namespace bp
 		mangaClearAt = 0;
 		mlocSheet = MLS_NONE;
 		mangaPressed = -1;
-		mangaTouch = mangaSlider = false;
+		mangaTouch = false;
 		mangaSliderPage = -1;
 		mangaCtrlUntil = mangaToastUntil = 0;
 		mangaTap = false;
@@ -451,6 +451,30 @@ namespace bp
 		if (page == mangaSliderPage) return;
 		mangaSliderPage = page;
 		readerCmds.push_back({ReaderCmd::Seek, (double)page, (int64_t)SDL_GetTicks()});
+	}
+
+	void Ui::mangaSlide(int x, int y, Player& p)
+	{
+		// the page slider under a finger: the page at the finger, the reader told at the scrub's pace (a page is a
+		// decode, a fetch for a source's) and of the page it's let go on always. In fullscreen it is the controls
+		// sheet's: the sheet stays up while it's held, and 4 s more from the last move
+		if (readerStatus.pages <= 1) return;
+		mangaSliderPage = -1;
+		slideGrab(SL_MANGA, 0, {mangaSliderTrack(), {0, (double)(readerStatus.pages - 1), 1}, false, SCRUB_MS}, x, y, p,
+			[this](double v, bool, Player&) {
+				if (readerStatus.fullscreen) mangaCtrlUntil = SDL_GetTicks() + MG_CTRL_MS;
+				mangaSeek((int)v);
+			});
+	}
+
+	void Ui::drawMangaSlider()
+	{
+		// the ACCENT fill to the page, its knob; under a finger, the page the finger is at (the pages themselves
+		// come at the reader's pace), grown, its number over it
+		int pages = readerStatus.pages;
+		bool held = slideHeld(SL_MANGA);
+		drawSlider(mangaSliderTrack(), slideShare(SL_MANGA, 0, pages > 1 ? readerStatus.page / (double)(pages - 1) : 0), held,
+			held ? "Page " + std::to_string((int)slide.value + 1) + " / " + std::to_string(pages) : "");
 	}
 
 	void Ui::mangaSeriesChoose(int i, Player& p)
@@ -827,32 +851,10 @@ namespace bp
 				return false;
 			}
 			bool full = readerStatus.fullscreen;
-			// the slider's page for the finger's x (the reading page's and, in fullscreen, the sheet's)
-			auto seekHere = [&]() {
-				if (readerStatus.pages > 1)
-				{
-					Rect tr = mangaSliderRect();
-					mangaSeek((int)std::lround(std::clamp((x - tr.x) / (double)tr.w, 0.0, 1.0) * (readerStatus.pages - 1)));
-				}
-			};
-			// the slider landed on: nothing moves yet (a tap seeks as it lifts, a drag from the page it's on)
-			int heldPage = mangaSliderPage >= 0 ? mangaSliderPage : readerStatus.page;
-			auto slideStart = [&]() {
-				mangaSlider = true;
-				mgSlideX0 = x;
-				mgSlideFrom = std::max(0, heldPage);
-				mgSlideMoved = false;
-			};
-			auto slideMove = [&]() {
-				if (!mgSlideMoved && std::abs(x - mgSlideX0) >= DRAG_SLOP) mgSlideMoved = true;
-				if (!mgSlideMoved || readerStatus.pages <= 1) return;
-				Rect tr = mangaSliderRect();
-				mangaSeek((int)std::lround(mgSlideFrom + (x - mgSlideX0) / (double)tr.w * (readerStatus.pages - 1)));
-			};
 			if (pt.kind == Pointer::Down)
 			{
 				mangaPressed = -1;
-				mangaTouch = mangaSlider = false;
+				mangaTouch = false;
 				mangaSliderPage = -1;
 				mangaTap = false;
 				mangaTapDismiss = false;
@@ -871,7 +873,7 @@ namespace bp
 					if (mangaSheetRect().hit(x, y))
 					{
 						mangaCtrlUntil = now + MG_CTRL_MS;
-						if (mangaSliderRect().hit(x, y)) slideStart();
+						if (mangaSliderHit().hit(x, y)) mangaSlide(x, y, p);
 						else
 							for (int i = 0; i < 4; i++)
 								if (mangaCtrlBtnRect(i).hit(x, y)) mangaCtrlPressed = i;
@@ -899,9 +901,9 @@ namespace bp
 					readerCmds.push_back({ReaderCmd::TouchDown, 0, (int64_t)now});
 					return false;
 				}
-				if (mangaSliderRect().hit(x, y))
+				if (mangaSliderHit().hit(x, y))
 				{
-					slideStart();
+					mangaSlide(x, y, p);
 					return false;
 				}
 				int ci = mangaReadChapterIndex();
@@ -929,11 +931,6 @@ namespace bp
 					}
 					// (both: the strip goes by dy, the paged modes by dx)
 					if (!mangaTap && (dy != 0 || dx != 0)) readerCmds.push_back({ReaderCmd::Drag, dy, (int64_t)now, dx});
-				}
-				else if (mangaSlider)
-				{
-					if (full) mangaCtrlUntil = now + MG_CTRL_MS;
-					slideMove();
 				}
 				return false;
 			}
@@ -981,14 +978,6 @@ namespace bp
 				}
 				mangaTap = false;
 				mangaTapDismiss = false;
-				return false;
-			}
-			if (mangaSlider)
-			{
-				mangaSlider = false;
-				if (mgSlideMoved) slideMove();
-				else seekHere();
-				if (full) mangaCtrlUntil = now + MG_CTRL_MS;
 				return false;
 			}
 			if (mangaPressed >= 0)
@@ -2020,16 +2009,13 @@ namespace bp
 			drawTextMid(readerStatus.error, 1, DANGER, W / 2, miniUp ? 310 : 340, 560, 2);
 		else
 		{
-			drawTextMid(pages > 0 ? "Page " + std::to_string(readerStatus.page + 1) + " / " + std::to_string(pages) : "Page",
+			drawTextMid(pages > 0 ? "Page " + std::to_string((slideHeld(SL_MANGA) ? (int)slide.value : readerStatus.page) + 1) + " / " + std::to_string(pages) : "Page",
 				1, TEXT, W / 2, miniUp ? 310 : 340, 380, 2);
 			if (readerStatus.loading)
 				drawTextMid("Loading" + std::string(SDL_GetTicks() / 400 % 4, '.'), 0, DIM, W / 2 + 150, miniUp ? 312 : 342, 0, 2);
 		}
-		// the slider: the ACCENT fill to the page, its knob; a Drag there is a Seek
-		Rect tr = mangaSliderRect(), bar{tr.x, tr.y + 8, tr.w, 10};
-		int w = pages > 1 ? (int)std::lround(bar.w * (readerStatus.page / (double)(pages - 1))) : 0;
-		drawLevel(bar, w, TRACK, ACCENT);
-		fillRound({bar.x + w - 5, bar.y - 4, 10, 18}, KNOB, R_KNOB);
+		// the slider: the ACCENT fill to the page, its knob; a finger there is a Seek (mangaSlide)
+		drawMangaSlider();
 		// its chapters' ends, and where it goes next
 		int ci = mangaReadChapterIndex();
 		bool prev = ci > 0, next = ci >= 0 && ci + 1 < mangaReadChapterTotal();
@@ -2569,13 +2555,10 @@ namespace bp
 		fillRound(sheet, SURFACE, R_DIALOG, ROUND_TL | ROUND_TR);
 		drawTextMid(mangaTitle(mangaReadSeriesId), 0, DIM, 20, 318, 380);
 		int pages = readerStatus.pages;
-		drawTextMid(pages > 0 ? "Page " + std::to_string(readerStatus.page + 1) + " of " + std::to_string(pages) : "Page", 0, TEXT,
+		drawTextMid(pages > 0 ? "Page " + std::to_string((slideHeld(SL_MANGA) ? (int)slide.value : readerStatus.page) + 1) + " of " + std::to_string(pages) : "Page", 0, TEXT,
 			W - 20, 318, 220, 1);
-		// the slider as the reading page draws it: a drag here is a Seek
-		Rect tr = mangaSliderRect(), bar{tr.x, tr.y + 8, tr.w, 10};
-		int w = pages > 1 ? (int)std::lround(bar.w * (readerStatus.page / (double)(pages - 1))) : 0;
-		drawLevel(bar, w, TRACK, ACCENT);
-		fillRound({bar.x + w - 5, bar.y - 4, 10, 18}, KNOB, R_KNOB);
+		// the slider as the reading page draws it: a finger here is a Seek
+		drawMangaSlider();
 		static const char* LABELS[4] = {"< Chapter", "Chapter >", "Leave fullscreen", "Close"};
 		static const char* KEYS[4] = {"L2", "R2", "SELECT", "B"};
 		for (int i = 0; i < 4; i++)

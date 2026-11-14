@@ -219,6 +219,7 @@ Ui (class declared in `src/ui.h`; file-static names shared by the files are in `
 | `ui.cpp` | init/destructor, `press`, `pointer`, `act`, `tick`, `signature` (dispatch and the redraw rule) |
 | `ui_draw.cpp` | text (`runs`, `drawText`), `fill`/`fillRound`/`drawBox`/`drawLevel`, `draw`/`renderPage`, header, battery, clock, hints, glyph drawing, `drawButton`, `wrapText`, `capture` |
 | `ui_overlay.cpp` | the overlay stack (`Ui::Overlay`: a dialog or sheet as one nested struct that gets the keys, the touches, its drawing and its part of `signature()` from the stack; docs/notes/overlay-stack.md) and the message dialog (`alert`). `ui_light.cpp`: the readers' Brightness sheet, an overlay |
+| `ui_slider.cpp` | the sliders (`slideGrab`, `slideFollow`, `drawSlider`; the arithmetic in `slider.h`, bpcore's side): every bar a finger moves is grabbed through it and kept until the finger lifts (docs/notes/sliders.md) |
 | `ui_menus.cpp` | rows/`choose`, START menu tabs, Tracks/Chapters pages (`openTracks`, `drawChapters`), Up next (`openUpNext`, `drawUpNext`), quick settings (F), update popup, the browse Options menu's drawing, Exit/About/Info, Like, Playing tab, `volumeLevel` |
 | `ui_browse.cpp` | the file list: `enterFolder`, `netListed`, sections/tabs, Options menu items (`openBrowseMenu`, `chooseBrowseMenu`), `drawTracks` (the list), `folderChanged` |
 | `ui_forms.cpp` | connection form, found servers, the on-screen keyboard |

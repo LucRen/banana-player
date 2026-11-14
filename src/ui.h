@@ -9,6 +9,7 @@
 #include "updater.h"
 #include "backlight.h"
 #include "volume.h"
+#include "slider.h"
 #include "netstore.h"
 #include "networker.h"
 #include <SDL.h>
@@ -96,7 +97,7 @@ namespace bp
 		void tick(Player& p);
 		// something moves by itself (a flick, a playlist's rows scrolling under a dragged one): the loop should come
 		// round often
-		bool animating() const { return docTurning() || loaderShown || playHoldAt != 0 || flickAt != 0 || plDrag.on || stripT0 != 0 || likePopAt != 0 || addFlashUntil != 0 || landFlashUntil != 0 || listPulseAt != 0; }
+		bool animating() const { return docTurning() || loaderShown || playHoldAt != 0 || flickAt != 0 || plDrag.on || slideWaiting() || stripT0 != 0 || likePopAt != 0 || addFlashUntil != 0 || landFlashUntil != 0 || listPulseAt != 0; }
 		// the header's playing mark moves (something plays behind the browser, the bottom panel lit): the loop comes
 		// round a few times a second for its frames
 		bool markMoving() const { return markAnim && panel.on(); }
@@ -760,7 +761,7 @@ namespace bp
 		void docMenuAct(Player& p);
 		void drawDocMenu(const Player& p);
 		// the finger: on the text's scroll pad, the progress bar, the pan area, a button
-		bool docTouch = false, docBar = false, docPanTouch = false, docMoved = false;
+		bool docTouch = false, docPanTouch = false, docMoved = false;
 		int docDownX = 0, docDownY = 0, docLastY = 0, docPressed = -1;
 		Uint32 docLastAt = 0, docTapAt = 0;
 		double docVel = 0, docPanStartX = 0, docPanStartY = 0;
@@ -784,6 +785,9 @@ namespace bp
 		int docPanTexPage = -1;
 		const void* docPanTexSrc = nullptr;
 		Rect docBarRect() const;
+		Rect docBarTrack() const { Rect b = docBarRect(); return {b.x, b.y + 10, b.w, 10}; }
+		// where a finger takes the bar: from under the header's lines down to the drag area
+		Rect docBarHit() const { return {16, 60, W - 32, 44}; }
 		Rect docPadRect() const;
 		Rect docPanRect() const { return {16, 80, PAN_W, PAN_H}; }
 		Rect docBtn(int i) const;
@@ -1180,8 +1184,7 @@ namespace bp
 		Rect soundTabRect(int t) const { return {t == SOUND_EQ ? 72 : 248, 10, 168, 44}; }
 		// the equalizer: the band the cursor (or a finger) is on; a finger on a column sets its gain, a double-tap 0 dB
 		int eqBand = 0;
-		bool eqTouch = false, eqMoved = false;
-		int eqDownY = 0, eqTapBand = -1;
+		int eqTapBand = -1;
 		Uint32 eqTapAt = 0;
 		void eqSetBand(int band, double gain, Player& p);	// an edit: Custom from the first one
 		void eqPick(const std::string& name, Player& p);	// a preset (CUSTOM_NAME: Custom back)
@@ -1352,14 +1355,55 @@ namespace bp
 
 		Page page = Page::Main;
 		int cursor = 0, scroll = 0;
-		bool dragging = false;
-		double dragFraction = 0, scrubbed = -1;
-		Uint32 scrubAt = 0;
-		// the bar's drag is relative (as a touch bar's slider): it moves the place from where it was by how far the
-		// finger goes, wherever it landed; a tap that doesn't move goes to the tapped place
-		int dragX0 = 0;
-		double dragFrom = 0;
-		bool dragMoved = false;
+		// ---- sliders (ui_slider.cpp, slider.h; docs/notes/sliders.md) ----
+		// Every bar a finger moves is one of these: a touch in its hit area grabs it (slideGrab) and the value jumps
+		// to the finger; pointer() then gives every move and the lift to it, wherever the finger goes, until it
+		// lifts. `set` hears the value while held (each change; one per everyMs at most when that's given: a seek, a
+		// page) and once more with last = true as the finger lifts. A key pressed meanwhile ends it as a lift does.
+		enum { SL_SEEK = 1, SL_QUICK, SL_DOC, SL_MANGA, SL_EQ, SL_LIGHT };
+		struct SlideSpec
+		{
+			Rect track;	// the finger's place is read along this (its width; its height when upright)
+			SliderRange range;
+			bool upright = false;
+			Uint32 everyMs = 0;	// a costly target: told this often at most while held (0: every change)
+		};
+		using SlideSet = std::function<void(double v, bool last, Player& p)>;
+		struct Slide
+		{
+			bool on = false, moved = false;	// held; the finger has travelled along the track (not a tap)
+			int id = 0, sub = 0;	// which slider (SL_*), and which of its kind (a row, a band)
+			SlideSpec spec;
+			SlideSet set;
+			double value = 0;	// where the finger has it
+			int at0 = 0, at = 0;	// along the track: where the finger landed; where the slider is (sliderFollow)
+			Page page = Page::Main;	// the page and the overlay it was grabbed on: gone, the slider is let go (slideStale)
+			const Overlay* owner = nullptr;
+			SliderPace pace;
+		} slide;
+		void slideGrab(int id, int sub, const SlideSpec& spec, int x, int y, Player& p, SlideSet set, const Overlay* owner = nullptr);
+		bool slideHeld(int id) const { return slide.on && slide.id == id; }
+		bool slideHeld(int id, int sub) const { return slide.on && slide.id == id && slide.sub == sub; }
+		bool slideFollow(const Pointer& pt, int x, int y, Player& p);	// pointer(): a move or the lift while one is held
+		void slideLive(Player& p);	// the value to the target, if it's due (tick() too: a finger at rest)
+		bool slideWaiting() const;
+		bool slideStale() const;
+		void slideEnd(Player& p);	// let go, the last value given
+		void slideDrop();	// let go, nothing given
+		// How a slider looks, the same for all (docs/notes/sliders.md): at rest the track, the accent to `share`
+		// (0..1) of it and the knob there; held, the knob grown (drawSlideKnob) so the finger knows it has it, and the
+		// value said where the finger doesn't hide it: a tag over the knob (drawSlideTag), unless the row says the
+		// value itself above or beside the bar (then that is lit instead). Lifted, the resting look again.
+		void drawSlider(Rect track, double share, bool held = false, const std::string& tag = "");
+		void drawSlideKnob(Rect knob);	// a resting knob's box, drawn as held: 3 bigger all round, a dark rim
+		void drawSlideTag(Rect track, double share, const std::string& text);
+		// the share a slider is drawn at: where the finger has it while held, else `rest` (what its target says)
+		double slideShare(int id, int sub, double rest) const
+		{
+			return slideHeld(id, sub) ? sliderShare(slide.value, slide.spec.range) : rest;
+		}
+		// the finger may shift this far along the track without moving the slider (landing, lifting)
+		static constexpr int SLIDE_SLACK = 6;
 		// let go, the bar stays where the finger left it until playback gets there (the exact seek takes a moment, a buffering one longer;
 		// and until then the position is still the old one: the bar flicked back and forth); -1 none
 		double seekHeld = -1;
@@ -1413,15 +1457,15 @@ namespace bp
 		bool sameBrightness = true;	// the setting's, kept here for settingRows (no Player there)
 		Volume volume;
 		int volumePct = -1;	// as read when the quick settings opened, then as set there
-		bool quickOpen = false, quickDrag = false;
-		int quickCursor = 0, quickDragRow = -1;
+		bool quickOpen = false;
+		int quickCursor = 0;
 		enum QuickRow { Q_VOLUME, Q_BRIGHT, Q_BOTTOM, Q_SAME, Q_WEB, Q_INCOGNITO, Q_QUIT };
 		int quickSub = 0;	// Web dashboard's row: 0 its switch, 1 New PIN (LEFT/RIGHT)
 		std::vector<int> quickRows() const;
 		bool quickKey(Button b, Player& p);
 		bool quickPointer(const Pointer& pt, int x, int y, Player& p);
 		void quickAdjust(int row, int dir, Player& p);
-		void quickSetAt(int row, int x, Player& p);	// a finger on the row's bar
+		void quickSlide(int row, int x, int y, Player& p);	// a finger on the row's bar: grabbed
 		void quickChoose(int row, Player& p);
 		void drawQuick(const Player& p);
 		// rows 62 apart, closer (56) when that many don't fit above the footer
@@ -1655,7 +1699,7 @@ namespace bp
 		int mangaProgPage = -1, mangaProgPages = -1;
 		float mangaProgWithin = 0;	// the place inside that page last kept (Vertical scroll)
 		Uint32 mangaProgAt = 0;
-		bool mangaTouch = false, mangaSlider = false;
+		bool mangaTouch = false;
 		double mangaTouchY = 0, mangaTouchX = 0;
 		// fullscreen reading: the pages' textures on this panel (a page in slices of at most 2048 rows), the chapter
 		// they belong to, how many still wait to be made, when the page tag fades
@@ -1676,11 +1720,6 @@ namespace bp
 		bool mangaBookKey(Button b, Player& p);	// the reader's keys while in Book
 		void mangaCycleMode(Player& p);	// X while reading
 		int mangaSliderPage = -1;
-		// the page slider's drag is relative, as the progress bar's: from the page it was on by the finger's travel
-		// (the slider's width is the chapter); a tap that doesn't move goes to the tapped page
-		int mgSlideX0 = 0;
-		double mgSlideFrom = 0;
-		bool mgSlideMoved = false;
 		// fullscreen's controls over the pages: a tap shows them 4 s (a drag or the 4 s hides them), and the finger that
 		// may still be a tap; the sheet's button under it (and its slider, which is the reading page's)
 		Uint32 mangaCtrlUntil = 0;	// when they hide (0: hidden)
@@ -1858,6 +1897,12 @@ namespace bp
 		void drawMangaRetry(bool full);
 		Rect mangaAreaRect() const { return {16, 70, 608, miniUp ? 222 : 260}; }	// (222: the page line below keeps 8 clear of it)
 		Rect mangaSliderRect() const { return {40, miniUp ? 330 : 352, 560, 22}; }
+		Rect mangaSliderTrack() const { Rect r = mangaSliderRect(); return {r.x, r.y + 8, r.w, 10}; }
+		// where a finger takes it: the panel's width, from the page line's foot to the chapter row (8 more than the
+		// slider's own 22 above; below, what the row leaves)
+		Rect mangaSliderHit() const { Rect r = mangaSliderRect(); return {16, r.y - 4, 608, r.h + 14}; }
+		void mangaSlide(int x, int y, Player& p);	// the slider grabbed (the reading page's, fullscreen's sheet's)
+		void drawMangaSlider();
 		// the chapter row: four buttons of one size across the panel's 608 (146 wide, 8 apart: 16 to 624)
 		// (52 tall: room for the key under the label, Button hotkeys on)
 		Rect mangaChapterCell(int i) const { return rowCell({16, miniUp ? 364 : 396, 608, 52}, 4, 8, i); }	// four of 146

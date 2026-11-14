@@ -236,8 +236,14 @@ Like a song or a video to keep it in **Liked**, a playlist of its own. Photos an
 | **Menu/Function** (F) | Quick settings: volume, brightness, Same brightness for both screens, Web dashboard, incognito mode, Quit |
 
 **By touch:**
-- **Progress bar:** tap it to jump there. Drag along it to scrub: it moves from where it was by how far your finger
-  goes (wherever you touched it, nothing jumps), and the picture follows.
+- **Progress bar:** touch it (or just above or below it) and it jumps to your finger; keep the finger down and it
+  follows, the picture with it, until you lift, even if the finger drifts off the bar. While you hold it the knob
+  grows and the time shows over it (and the chapter's name under the bar). A tap goes to the tapped place.
+- **Every slider works this way** (this bar, the quick settings' Volume and Brightness, the readers' bars and page
+  sliders, the Brightness sheet's bars, the equalizer's bands, which go up and down): a touch anywhere in its row
+  takes it, the value jumps to the finger and follows it until the finger lifts, nothing else under the finger
+  reacts meanwhile, and the small shift of a fingertip as it lifts changes nothing. The held one shows it: a bigger
+  knob, and its value where the finger doesn't hide it.
 - **Buttons:** they act when you lift your finger, so slide off one to cancel.
 - **Audio and subtitles:** on a video, tap the audio or subtitle line under the buttons for that tab of Tracks.
 - **Sound:** on a song, tap the line under the buttons (it shows the preset and effect) to open the Sound page.
@@ -477,7 +483,7 @@ buttons) and a **Brightness & filter** row in its options. The sheet it opens, o
   on both screens. Kept for every reader.
 - **Filter** (Off, Warm, Warmer, Dim): a warm, yellowish light is easier on the eyes at night. Each reader keeps its own.
 
-**UP/DOWN** choose, **LEFT/RIGHT** change, a finger drags a bar or taps a filter; **B** (or a tap outside) closes it.
+**UP/DOWN** choose, **LEFT/RIGHT** change, a finger on a bar's row takes the bar (it follows the finger until it lifts) or taps a filter; **B** (or a tap outside) closes it.
 While Extra dim or a filter is on, the Brightness button says so: lit in yellow with what's on (**Warm · −30%**; the
 text viewer's sun gets a dot).
 
@@ -1222,7 +1228,7 @@ on the card, not in the player's folder.
 
 Press the **Menu/Function** button (F), anywhere, for a panel on the bottom screen:
 
-- **Volume** and **Brightness**: drag along the bar, tap **−** / **+**, or use **LEFT / RIGHT**. They change the same
+- **Volume** and **Brightness**: touch the bar (anywhere in its row between **−** and **+**) and slide, tap **−** / **+**, or use **LEFT / RIGHT**. They change the same
   levels as BananaOS's own settings and its volume and brightness keys, and they're kept after a restart.
 - **Same brightness for both screens** (a tick box): on, one Brightness bar sets both screens; off, **Top** and
   **Bottom** each get their own.

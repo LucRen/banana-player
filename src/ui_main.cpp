@@ -425,8 +425,8 @@ namespace bp
 
 			// (while dragged, and just after until playback catches up: where the finger is or left it)
 			double pos = shownPosition(p);
-			bool held = dragging || seekHeld >= 0;
-			double heldFrac = dragging ? dragFraction : seekHeld;
+			bool dragging = slideHeld(SL_SEEK), held = dragging || seekHeld >= 0;
+			double heldFrac = dragging ? slide.value : seekHeld;
 			double frac = held ? heldFrac : p.duration > 0 && pos >= 0 ? std::clamp(pos / p.duration, 0.0, 1.0) : 0;
 			drawLevel(BAR, (int)(BAR.w * frac), TRACK);
 			// where each chapter starts: a notch through the bar (none too close to the last, none at all past 100:
@@ -443,7 +443,14 @@ namespace bp
 					last = x;
 				}
 			}
-			fillRound({BAR.x + (int)(BAR.w * frac) - 4, BAR.y - 6, 8, BAR.h + 12}, KNOB, R_KNOB);
+			Rect knob{BAR.x + (int)(BAR.w * frac) - 4, BAR.y - 6, 8, BAR.h + 12};
+			if (dragging)
+			{
+				// under a finger: the knob grown, the time there over it (the chapter's name goes under the bar)
+				drawSlideKnob(knob);
+				drawSlideTag(BAR, frac, formatTime(frac * p.duration) + " / " + formatTime(p.duration));
+			}
+			else fillRound(knob, KNOB, R_KNOB);
 			drawText(formatTime(held ? heldFrac * p.duration : pos), 1, TEXT, BAR.x, BAR.y + 32);
 			drawText(formatTime(p.duration), 1, DIM, BAR.x + BAR.w, BAR.y + 32, 0, 1);
 			// how long is left, at the speed it plays (half at 2x)
@@ -452,7 +459,7 @@ namespace bp
 			int under = -1;
 			if (dragging && p.duration > 0)
 				for (int i = 0; i < (int)p.chapters.size(); i++)
-					if (p.chapters[i].time <= dragFraction * p.duration) under = i;
+					if (p.chapters[i].time <= slide.value * p.duration) under = i;
 			if (under >= 0)
 				drawText(std::to_string(under + 1) + " \xC2\xB7 " + chapterLabel(p.chapters[under], under + 1), 0, TEXT,
 					BAR.x + BAR.w / 2, BAR.y + 36, 300, 2);

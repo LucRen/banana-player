@@ -301,13 +301,13 @@ namespace bp
 	void Ui::toggleQuick(Player& p)
 	{
 		quickOpen = !quickOpen;
+		slideDrop();	// (a bar of these, or of the page under them, still under a finger)
 		if (!quickOpen) return;
 		if (!panel.on()) panel.set(true);	// the bottom panel back, to see them
 		sameBrightness = p.settings.sameBrightness;
 		volumePct = volume.get();
 		quickCursor = 0;
 		quickSub = 0;
-		quickDrag = false;
 		pressedBtn = -1;
 	}
 
@@ -333,24 +333,25 @@ namespace bp
 		}
 	}
 
-	void Ui::quickSetAt(int row, int x, Player& p)
+	void Ui::quickSlide(int row, int x, int y, Player& p)
 	{
-		Rect bar = quickBar(row);
-		double f = std::clamp((x - bar.x) / (double)bar.w, 0.0, 1.0);
-		if (rowsIndexOf(quickRows(), Q_VOLUME) == row && volumePct >= 0)
+		// the row's bar under a finger: the volume in fives, a screen's brightness in tenths (never under 10%)
+		int which = quickRows()[row];
+		if (which == Q_VOLUME)
 		{
-			int v = (int)std::lround(f * 20) * 5;
-			if (v != volumePct)
-			{
-				volumePct = v;
-				volume.set(v);
-			}
+			if (volumePct < 0) return;
+			slideGrab(SL_QUICK, row, {quickBar(row), {0, 100, 5}}, x, y, p, [this](double v, bool, Player&) {
+				if ((int)v == volumePct) return;
+				volumePct = (int)v;
+				volume.set(volumePct);
+			});
 			return;
 		}
-		int which = quickRows()[row];
 		Backlight::Panel panelOf = which == Q_BOTTOM ? Backlight::BOTTOM : Backlight::TOP;
-		int pm = std::clamp((int)std::lround(f * 10) * 100, 100, 1000);
-		if (pm != backlight.permille(panelOf)) setBrightness(panelOf, pm, p);
+		slideGrab(SL_QUICK, row, {quickBar(row), {0, 1000, 100}}, x, y, p, [this, panelOf](double v, bool, Player& p) {
+			int pm = std::max(100, (int)v);
+			if (pm != backlight.permille(panelOf)) setBrightness(panelOf, pm, p);
+		});
 	}
 
 	void Ui::quickChoose(int row, Player& p)
@@ -422,19 +423,11 @@ namespace bp
 				else if (rows[i] == Q_WEB && p.settings.webDashboard && quickPinBtn(i).hit(x, y)) pressedBtn = 303 + i * 4;
 				else if (barRow(i) && Rect{quickBar(i).x - 6, quickRowRect(i).y, quickBar(i).w + 12, 54}.hit(x, y))
 				{
-					// the bar, as the progress bar: at once, and while the finger drags
-					quickDrag = true;
-					quickDragRow = i;
-					quickSetAt(i, x, p);
+					// the bar (anywhere in the row between its two buttons): to the finger at once, and with it
+					quickSlide(i, x, y, p);
 				}
 				else if (!barRow(i)) pressedBtn = 302 + i * 4;
 			}
-			return false;
-		}
-		if (quickDrag)
-		{
-			quickSetAt(quickDragRow, x, p);
-			if (pt.kind == Pointer::Up) quickDrag = false;
 			return false;
 		}
 		if (pt.kind == Pointer::Up && pressedBtn >= 300)
@@ -532,7 +525,9 @@ namespace bp
 			SDL_Color ink = at ? ACCENT : TEXT;
 			drawGlyphMid(row == Q_VOLUME ? G_SPEAKER : G_SUN, r.x + 25, mid, ink);
 			drawTextMid(label, 1, ink, r.x + 46, mid, 146);
-			drawTextMid(pct < 0 ? "-" : std::to_string(pct) + "%", 0, at ? DIM_ON : DIM, quickMinus(i).x - 6, mid, 0, 1);
+			// (the bar under a finger: its value, left of the bar, lit; a knob where the fill ends, as a held one's)
+			bool held = slideHeld(SL_QUICK, i);
+			drawTextMid(pct < 0 ? "-" : std::to_string(pct) + "%", 0, held ? ACCENT : at ? DIM_ON : DIM, quickMinus(i).x - 6, mid, 0, 1);
 			for (int k = 0; k < 2; k++)
 			{
 				Rect bt = k ? quickPlus(i) : quickMinus(i);
@@ -540,7 +535,9 @@ namespace bp
 				drawGlyphMid(k ? G_PLUS : G_MINUS, bt.x + bt.w / 2, bt.y + bt.h / 2, TEXT);
 			}
 			Rect bar = quickBar(i);
-			drawLevel(bar, pct > 0 ? bar.w * std::min(pct, 100) / 100 : 0, at ? BG : TRACK);
+			int fillW = pct > 0 ? bar.w * std::min(pct, 100) / 100 : 0;
+			drawLevel(bar, fillW, at ? BG : TRACK);
+			if (held) drawSlideKnob({bar.x + fillW - 5, bar.y - 1, 10, bar.h + 2});
 		}
 		if (p.settings.buttonHotkeys) drawHints({{"UP/DOWN", "Choose"}, {"LEFT/RIGHT", "Change"}, {"F/B", "Close"}});
 		else drawFooterText("Tap outside to close", DIM);

@@ -92,6 +92,8 @@ namespace bp
 
 	bool Ui::press(Button b, Player& p)
 	{
+		// a key while a finger holds a slider: the slider is let go where it is (the key may close what it's on)
+		slideEnd(p);
 		// an overlay (the readers' Brightness sheet, a message's dialog) takes the keys while it shows
 		if (topOverlay()) return overlayKey(b, p);
 		// the browser-check dialog takes the keys while it shows: A or B closes it
@@ -494,9 +496,11 @@ namespace bp
 		// the Display popup's arrows have rested on a style: it's applied now (displayKey)
 		if (displayPending >= 0 && SDL_GetTicks() - displayPendingAt >= DISPLAY_SETTLE_MS) displayApplyPending(p);
 		// the bar held at a released drag: let go once playback is there, or after 6 s whatever happens (a network file buffers a while)
-		if (seekHeld >= 0 && !dragging &&
+		if (seekHeld >= 0 && !slideHeld(SL_SEEK) &&
 			(p.duration <= 0 || std::fabs(shownPosition(p) - seekHeld * p.duration) < 1.0 || SDL_GetTicks() - seekHeldAt > 6000))
 			seekHeld = -1;
+		// a held slider whose target is told at a pace: a finger resting on a new value, sent when it's due
+		slideLive(p);
 		mangaVideoGuard(p);
 		if (page == Page::DocText || page == Page::DocPages) docTick(p);
 		fileJobTick(p);
@@ -585,7 +589,7 @@ namespace bp
 		int offSecs = screenOffSeconds(p.playingAudio() ? p.settings.screenOffAfter : p.settings.screenOffVideo);
 		bool viewing = p.playingPhoto() || readerStatus.open;
 		if (offSecs > 0 && panel.on() && p.playing() && !viewing && !p.paused && !p.loading() && p.error.empty() &&
-			!kbOpen && !quickOpen && !popupShown(p) && !dragging && SDL_GetTicks() - webInputAt >= (Uint32)offSecs * 1000)
+			!kbOpen && !quickOpen && !popupShown(p) && !slide.on && SDL_GetTicks() - webInputAt >= (Uint32)offSecs * 1000)
 			panel.set(false);
 		if (page == Page::Web)
 		{
@@ -729,6 +733,13 @@ namespace bp
 		webInputAt = SDL_GetTicks();
 		// a list's finger whose lift never came (a dialog took it): a new touch starts afresh
 		if (pt.kind == Pointer::Down) mlist = MangaListDrag();
+		// a slider under the finger: it keeps the finger until it lifts, whatever it passes over (a new touch with
+		// one still held: its lift was lost, it's let go where it was)
+		if (slide.on)
+		{
+			if (pt.kind != Pointer::Down) return slideFollow(pt, x, y, p);
+			slideEnd(p);
+		}
 		if (topOverlay()) return overlayPointer(pt, x, y, p);
 		if (mangaErrOpen)
 		{
@@ -780,8 +791,6 @@ namespace bp
 			if (pt.kind == Pointer::Up) swallowTouch = false;
 			return false;
 		}
-		auto barFraction = [&] { return std::clamp((x - BAR.x) / (double)BAR.w, 0.0, 1.0); };
-
 		if (quickOpen) return quickPointer(pt, x, y, p);
 		// Add to... over what plays (or the Playing tab) as over the browser
 		if (pickerOpen) return pickerPointer(pt, x, y, p);
@@ -873,31 +882,6 @@ namespace bp
 		{
 			plDrag.y = std::clamp(y, 0, H - 1);
 			if (pt.kind == Pointer::Up) dragEnd(p);
-			return false;
-		}
-		if (dragging)
-		{
-			// past a few pixels it's a drag: from the place it was by the finger's travel (the bar's width is the
-			// whole film), so landing anywhere on the bar never jumps
-			if (!dragMoved && std::abs(x - dragX0) >= DRAG_SLOP) dragMoved = true;
-			if (dragMoved) dragFraction = std::clamp(dragFrom + (x - dragX0) / (double)BAR.w, 0.0, 1.0);
-			if (pt.kind == Pointer::Up)
-			{
-				// a tap goes where it touched; a drag to its last place, to the frame
-				dragging = false;
-				if (!dragMoved) dragFraction = barFraction();
-				p.seekFraction(dragFraction);
-				noteSeek(p, dragFraction * p.duration);
-				seekHeld = dragFraction;
-				seekHeldAt = SDL_GetTicks();
-			}
-			else if (dragMoved && SDL_GetTicks() - scrubAt >= SCRUB_MS && std::fabs(dragFraction - scrubbed) > 0.0005)
-			{
-				// the picture follows the finger: keyframes only, and no more often than the decoder keeps up with
-				scrubAt = SDL_GetTicks();
-				scrubbed = dragFraction;
-				p.scrub(dragFraction);
-			}
 			return false;
 		}
 		if (panTouch) return photoPointer(pt, x, y, p);
@@ -1146,16 +1130,22 @@ namespace bp
 		// the bar is easier to hit with some room around it
 		if (Rect{BAR.x - 8, BAR.y - 20, BAR.w + 16, BAR.h + 40}.hit(x, y) && p.duration > 0)
 		{
-			// the bar holds its place as the finger lands: a drag moves it from there (relative, as a touch bar's
-			// slider), the picture following; a tap goes to the tapped place as the finger lifts
-			double pos = shownPosition(p);
-			dragging = true;
-			dragMoved = false;
-			dragX0 = x;
-			// (a drag let go a moment ago whose seek hasn't landed: from where it left the bar, not the old place)
-			dragFrom = dragFraction = scrubbed = seekHeld >= 0 ? seekHeld
-				: p.duration > 0 && pos >= 0 ? std::clamp(pos / p.duration, 0.0, 1.0) : 0;
-			scrubAt = SDL_GetTicks();
+			// the bar goes to the finger and follows it (drawMain shows slide.value while it's held). The picture
+			// follows too, keyframes only and no more often than the decoder keeps up with (SCRUB_MS); lifted, the
+			// exact seek to where it was left, and the bar held there until playback arrives (seekHeld)
+			slideGrab(SL_SEEK, 0, {BAR, {0, 1, 0}, false, SCRUB_MS}, x, y, p, [this, scrubs = 0](double f, bool last, Player& p) mutable {
+				if (!last)
+				{
+					scrubs++;
+					p.scrub(f);
+					return;
+				}
+				fprintf(stderr, "seek bar: let go at %.4f after %d scrubs\n", f, scrubs);
+				p.seekFraction(f);
+				noteSeek(p, f * p.duration);
+				seekHeld = f;
+				seekHeldAt = SDL_GetTicks();
+			});
 			return false;
 		}
 		for (int id : {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, QUIT_BTN, SCREEN_BTN, INFO_BTN, LOCK_BTN})
@@ -1176,9 +1166,11 @@ namespace bp
 		char buf[256];
 		snprintf(buf, sizeof buf, "%d %d %d %d %ld %ld %d %d %lld %lld %zu %d %d %.2f %d %d %d %d|", (int)page, cursor, scroll,
 			p.paused + setGroup * 2 + 2, (long)std::floor(shownPosition(p)) * 2 + (predicting(p) && pagePlaying()), (long)p.duration, (int)p.aspect, p.loaded, a ? (long long)a->id : 0LL,
-			s ? (long long)s->id : 0LL, p.tracks.size(), dragging + 2 * (seekHeld >= 0), (int)(dragFraction * 1000), p.speed,
+			s ? (long long)s->id : 0LL, p.tracks.size(), slideHeld(SL_SEEK) + 2 * (seekHeld >= 0), slideHeld(SL_SEEK) ? (int)(slide.value * 1000) : 0, p.speed,
 			p.index(), p.count(), pressedBtn + touchLocked * 100 + (lockHoldAt != 0) * 1000, listTouch * 1000 + browseVersion + (clearArmed != 0) * 100000 + (int)p.history().items().size() * 1000000);
 		std::string photo = "|tab" + std::to_string(browseTab) + (netLoading ? "L" : "");
+		// a slider under a finger: which, and where the finger has it (what draws differently while held reads these)
+		if (slide.on) photo += "|sl" + std::to_string(slide.id) + "." + std::to_string(slide.sub) + ":" + std::to_string(slide.value);
 		if (touchLocked && lockHoldAt) photo += "|hold" + std::to_string((SDL_GetTicks() - lockHoldAt) / 100);
 		if (playHoldAt) photo += "|phold" + std::to_string((SDL_GetTicks() - playHoldAt) / 50);
 		if (pageDrives(p)) photo += pagePlaying() ? "|pageplay" : "|pagepause";
@@ -1212,7 +1204,7 @@ namespace bp
 		{
 			char sb[160];
 			snprintf(sb, sizeof sb, "|snd%d %d %d %d %d %d %d %d %d %d %d", soundTab, fxCursor, eqBand, eqDialog, eqDlgCursor, eqListScroll,
-				displayShown(p) ? displayRow * 100 + displayPending + 1 : -1, p.eqPresetSerial(), p.playingAudio(), stashOn, eqTouch);
+				displayShown(p) ? displayRow * 100 + displayPending + 1 : -1, p.eqPresetSerial(), p.playingAudio(), stashOn, (int)slideHeld(SL_EQ));
 			photo += sb;
 		}
 		// the dots of "Loading..." go round
@@ -1338,7 +1330,7 @@ namespace bp
 				char rb[160];
 				snprintf(rb, sizeof rb, "|rs%d%d%d%d %d %d %d%d%d z%d %d%d%d r%d", (int)readerStatus.open, (int)readerStatus.loading,
 					(int)readerStatus.atEnd, (int)mangaReadLive, readerStatus.page, readerStatus.pages, (int)mangaDirty,
-					(int)mangaTouch, (int)mangaSlider, readerStatus.zoomPct, (int)mangaMenu, mangaMenuCursor,
+					(int)mangaTouch, (int)slideHeld(SL_MANGA), readerStatus.zoomPct, (int)mangaMenu, mangaMenuCursor,
 					(int)mangaPages, readerStatus.rotation);
 				photo += std::string(rb) + readerStatus.error + "|" + mangaReadChapterId + "|m" + std::to_string(readerStatus.mode) +
 					"|w" + std::to_string((int)readerStatus.failedHere) + std::to_string((int)mangaReadWaiting) + std::to_string((int)mangaSrcLoading) + mangaSrcError;

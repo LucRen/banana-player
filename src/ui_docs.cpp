@@ -99,7 +99,7 @@ namespace bp
 		docLive = false;
 		docMenu = DOC_MENU_NONE;
 		docPressed = -1;
-		docTouch = docBar = docPanTouch = false;
+		docTouch = docPanTouch = false;
 		std::string name = fileName(path);
 		fprintf(stderr, "docs: open %s (%s)\n", name.c_str(), pictures ? "pages" : "text");
 		p.addRecent(path);
@@ -922,10 +922,21 @@ namespace bp
 				textCmds.push_back({TextReader::Hold, 0, (int64_t)now});
 				return false;
 			}
-			if ((text || !single) && docBarRect().hit(x, y))
+			if ((text || !single) && docBarHit().hit(x, y))
 			{
-				docBar = true;
-				return docPointer({Pointer::Move, pt.x, pt.y}, x, y, p);
+				// the bar: the text goes with the finger; the pages (decoded as they come) at the scrub's pace, the
+				// page it's let go on always
+				if (text)
+					slideGrab(SL_DOC, 0, {docBarTrack(), {0, 1, 0}}, x, y, p, [this](double f, bool, Player&) {
+						textCmds.push_back({TextReader::Jump, f, (int64_t)SDL_GetTicks()});
+					});
+				else if (readerStatus.pages > 1)
+				{
+					mangaSliderPage = -1;
+					slideGrab(SL_DOC, 0, {docBarTrack(), {0, (double)(readerStatus.pages - 1), 1}, false, SCRUB_MS}, x, y, p,
+						[this](double v, bool, Player&) { mangaSeek((int)v); });
+				}
+				return false;
 			}
 			if (single && docPanThumb().hit(x, y) && docPan.page >= 0)
 			{
@@ -959,13 +970,6 @@ namespace bp
 				docTouchX = pt.x;
 				if (docMoved && (dy != 0 || dx != 0)) readerCmds.push_back({ReaderCmd::Drag, dy, (int64_t)now, dx});
 			}
-			else if (docBar)
-			{
-				Rect r = docBarRect();
-				double f = std::clamp((x - r.x) / (double)r.w, 0.0, 1.0);
-				if (text) textCmds.push_back({TextReader::Jump, f, (int64_t)now});
-				else if (readerStatus.pages > 1) mangaSeek((int)std::lround(f * (readerStatus.pages - 1)));
-			}
 			else if (docPanTouch && docMoved)
 			{
 				// the box goes with the finger over the small page; the top panel shows what's in it
@@ -993,11 +997,6 @@ namespace bp
 		{
 			docTouch = false;
 			readerCmds.push_back({ReaderCmd::Release, 0, (int64_t)now});
-			return false;
-		}
-		if (docBar)
-		{
-			docBar = false;
 			return false;
 		}
 		if (docPanTouch)
@@ -1197,9 +1196,11 @@ namespace bp
 		std::string sub = std::to_string(pct) + "%";
 		if (!textStatus.encoding.empty()) sub += "  \xC2\xB7  " + textStatus.encoding;
 		drawTextMid(sub, 0, DIM, 72, 50, 540);
-		Rect bar = docBarRect(), track{bar.x, bar.y + 10, bar.w, 10};
-		drawLevel(track, (int)std::lround(track.w * textStatus.fraction), TRACK, ACCENT);
-		fillRound({track.x + (int)std::lround(track.w * textStatus.fraction) - 5, track.y - 4, 10, 18}, KNOB, R_KNOB);
+		{
+			// under a finger: where the finger has it (the text follows at once, its own figure a moment behind)
+			double share = slideShare(SL_DOC, 0, textStatus.fraction);
+			drawSlider(docBarTrack(), share, slideHeld(SL_DOC), std::to_string((int)std::lround(share * 100)) + "%");
+		}
 		Rect pad = docPadRect();
 		drawBox(pad, SURFACE, R_TILE);
 		if (!textStatus.error.empty())
@@ -1282,7 +1283,7 @@ namespace bp
 		drawTextMid(title, 1, TEXT, 72, 24, 420);
 		int pages = readerStatus.pages;
 		if (pages > 0)
-			drawTextMid(std::to_string(readerStatus.page + 1) + " / " + std::to_string(pages), 1, TEXT, W - 24, 24, 160, 1);
+			drawTextMid(std::to_string((slideHeld(SL_DOC) ? (int)slide.value : readerStatus.page) + 1) + " / " + std::to_string(pages), 1, TEXT, W - 24, 24, 160, 1);
 		bool single = readerStatus.mode != MANGA_STRIP;
 		if (!readerStatus.error.empty())
 		{
@@ -1358,10 +1359,9 @@ namespace bp
 		}
 		else
 		{
-			Rect bar = docBarRect(), track{bar.x, bar.y + 10, bar.w, 10};
-			int w = pages > 1 ? (int)std::lround(track.w * (readerStatus.page / (double)(pages - 1))) : 0;
-			drawLevel(track, w, TRACK, ACCENT);
-			fillRound({track.x + w - 5, track.y - 4, 10, 18}, KNOB, R_KNOB);
+			// under a finger: the page the finger is at (the pages themselves come at the reader's pace)
+			drawSlider(docBarTrack(), slideShare(SL_DOC, 0, pages > 1 ? readerStatus.page / (double)(pages - 1) : 0), slideHeld(SL_DOC),
+				slideHeld(SL_DOC) ? "Page " + std::to_string((int)slide.value + 1) + " / " + std::to_string(pages) : "");
 			Rect pad = docPadRect();
 			drawBox(pad, SURFACE, R_TILE);
 			if (readerStatus.failedHere) drawTextMid("A page couldn't be shown \xC2\xB7 A: try again", 1, DANGER, W / 2, pad.y + pad.h / 2, 560, 2);
@@ -1388,7 +1388,7 @@ namespace bp
 	{
 		char b[320];
 		snprintf(b, sizeof b, "|doc%d %d,%d,%d %d%d%d%d %d|t%d %d %llu %d|r%d%d %d/%d m%d z%d f%d %d%d|pan%d %.3f,%.3f,%.3f,%.3f %p|%u",
-			(int)page, docMenu, docMenuCursor, docMenuScroll, (int)docTouch, (int)docBar, (int)docPanTouch, docPressed,
+			(int)page, docMenu, docMenuCursor, docMenuScroll, (int)docTouch, (int)slideHeld(SL_DOC), (int)docPanTouch, docPressed,
 			(int)docLive, (int)textStatus.open, (int)std::lround(textStatus.fraction * 1000), (unsigned long long)textStatus.place,
 			(int)textStatus.atEnd, (int)readerStatus.open, (int)readerStatus.loading, readerStatus.page, readerStatus.pages,
 			readerStatus.mode, readerStatus.zoomPct, (int)readerStatus.fullscreen, (int)readerStatus.failedHere, (int)mangaPages,

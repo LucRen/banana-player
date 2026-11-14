@@ -38,7 +38,7 @@ namespace bp
 
 	struct Ui::LightSheet : Ui::Overlay
 	{
-		int cursor = 0, drag = -1;	// the row the keys are on; the bar a finger is dragging (-1: none)
+		int cursor = 0;	// the row the keys are on
 
 		explicit LightSheet(Ui& u) : Overlay(u) {}
 		const char* name() const override { return "light"; }
@@ -163,11 +163,10 @@ namespace bp
 		bool pointer(const Pointer& pt, int x, int y, Player& p) override
 		{
 			auto rs = rows();
-			if (pt.kind == Pointer::Up) { int was = drag; drag = -1; if (was >= 0) return false; }
-			// a tap outside: closed
+			// a tap outside: closed (a bar's finger lifting out there never comes here: the slider has it)
 			if (!box().hit(x, y))
 			{
-				if (pt.kind == Pointer::Up && drag < 0) close();
+				if (pt.kind == Pointer::Up) close();
 				return false;
 			}
 			for (int i = 0; i < (int)rs.size(); i++)
@@ -184,16 +183,15 @@ namespace bp
 					if (pt.kind == Pointer::Up && rowRect(i).hit(x, y)) { same(p); return false; }
 					continue;
 				}
-				// a bar: a touch or a drag along it sets it (the drag kept to its row once begun)
-				Rect r = rowRect(i), tr = track(i);
-				bool inRow = r.hit(x, y);
-				if (pt.kind == Pointer::Down && inRow) drag = i;
-				if ((pt.kind == Pointer::Down || pt.kind == Pointer::Move) && drag == i)
+				// a bar: a touch anywhere in its row takes it, in tenths (the screens 10-100%, Extra dim 0-80%)
+				if (pt.kind == Pointer::Down && rowRect(i).hit(x, y))
 				{
 					cursor = i;
-					double f = std::clamp((x - tr.x) / (double)tr.w, 0.0, 1.0);
-					int v = row == LR_DIM ? (int)std::lround(f * 8) * 10 : 10 + (int)std::lround(f * 9) * 10;
-					if (v != value(row, p)) set(row, v, p);
+					SliderRange range = row == LR_DIM ? SliderRange{0, 80, 10} : SliderRange{10, 100, 10};
+					ui.slideGrab(SL_LIGHT, i, {track(i), range}, x, y, p, [this, row](double v, bool, Player& p) {
+						if ((int)v != value(row, p)) set(row, (int)v, p);
+					}, this);
+					return false;
 				}
 			}
 			return false;
@@ -237,12 +235,10 @@ namespace bp
 				}
 				// the value on the right; Extra dim says what it is for when it's off
 				std::string val = row == LR_DIM ? (v ? std::to_string(v) + "% darker" : "Off  \xC2\xB7  for darker than the lowest") : std::to_string(v) + "%";
-				ui.drawTextMid(val, 0, row == LR_DIM && v ? ACCENT : DIM_ON, r.x + r.w - 16, r.y + 20, 0, 1);
-				Rect tr = track(i);
-				double f = row == LR_DIM ? lightShare(v, 0, 80) : lightShare(v, 10, 100);
-				int w = (int)std::lround(tr.w * f);
-				ui.drawLevel(tr, w, TRACK, ACCENT);
-				ui.fillRound({tr.x + w - 5, tr.y - 4, 10, 20}, KNOB, R_KNOB);
+				// (a bar under a finger: its value, over the bar on the right, lit; the knob grown)
+				bool held = ui.slideHeld(SL_LIGHT, i);
+				ui.drawTextMid(val, 0, held || (row == LR_DIM && v) ? ACCENT : DIM_ON, r.x + r.w - 16, r.y + 20, 0, 1);
+				ui.drawSlider(track(i), row == LR_DIM ? lightShare(v, 0, 80) : lightShare(v, 10, 100), held);
 			}
 			ui.drawHints({{"UP/DOWN", "Choose"}, {"LEFT/RIGHT", "Change"}, {"B", "Close"}});
 		}

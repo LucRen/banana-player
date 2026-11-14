@@ -7,6 +7,7 @@ Write the way the rest of the repo does: plain and precise, with the why. Say wh
 
 ## Index
 
+- [2026-11-15 sliders](sliders.md): one slider for every bar a finger moves (`Ui::slideGrab`, `slider.h`): grabbed anywhere in its row, absolute, kept until the lift, paced for costly targets; how a held one looks; how to add one.
 - [2026-11-14 overlay stack](overlay-stack.md): dialogs and sheets as `Ui::Overlay` (keys, touches, drawing and the signature from one stack); the Brightness sheet and the message dialog moved; how the others would.
 - [2026-11-13 visualizer lut cache](2026-11-13-viz-lut-cache.md): style changes slow on the handheld (lut2/lut configure); expressions cached as exact lookups; the remap form ruled out for its per-frame cost; the frame-rate setting.
 - [2026-11-11 reader memory](2026-11-11-reader-memory.md): the player and the manga reader, back and forth: no leak; glibc kept the freed pages (mmap threshold pinned); the engine restarted every five minutes inside Manga.

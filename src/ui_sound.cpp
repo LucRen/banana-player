@@ -177,7 +177,7 @@ namespace bp
 		styleFromSubs = false;
 		page = Page::Sound;
 		eqDialog = EQD_NONE;
-		eqTouch = eqListTouch = false;
+		eqListTouch = false;
 		pressedBtn = -1;
 		fxCursor = std::clamp((int)p.settings.soundFx, 0, SOUNDFX_COUNT - 1);
 	}
@@ -187,7 +187,6 @@ namespace bp
 		// the curve as it stands made what mpv keeps, and written
 		p.commitEq();
 		eqDialog = EQD_NONE;
-		eqTouch = false;
 		if (!soundFromSettings)
 		{
 			page = home(p);
@@ -587,7 +586,6 @@ namespace bp
 
 	bool Ui::soundPointer(const Pointer& pt, int x, int y, Player& p)
 	{
-		Uint32 now = SDL_GetTicks();
 		auto offBox = [&](Rect box) {
 			// a finger outside a dialog closes it (and its lift presses nothing)
 			if (box.hit(x, y)) return false;
@@ -669,31 +667,6 @@ namespace bp
 			}
 			return false;
 		}
-		if (eqTouch)
-		{
-			// a finger on a band: the gain follows it
-			if (pt.kind == Pointer::Move)
-			{
-				if (std::abs(y - eqDownY) > 8) eqMoved = true;
-				eqSetBand(eqBand, std::round((264 - y) / 8.0), p);
-			}
-			else if (pt.kind == Pointer::Up)
-			{
-				eqTouch = false;
-				// two taps on it, no drag: back to 0 dB
-				if (!eqMoved && eqTapAt && now - eqTapAt < 350 && eqTapBand == eqBand)
-				{
-					eqSetBand(eqBand, 0, p);
-					eqTapAt = 0;
-				}
-				else
-				{
-					eqTapAt = eqMoved ? 0 : now;
-					eqTapBand = eqBand;
-				}
-			}
-			return false;
-		}
 		if (pressedBtn >= 0)
 		{
 			// a button acts as the finger lifts on it
@@ -740,10 +713,22 @@ namespace bp
 				if (x < cx - 28 || x >= cx + 28) continue;
 				if (eqTapBand != i) eqTapAt = 0;
 				eqBand = i;
-				eqTouch = true;
-				eqMoved = false;
-				eqDownY = y;
-				eqSetBand(i, std::round((264 - y) / 8.0), p);
+				// its gain where the finger is, in whole dB (the scale's 168 … 360 is +12 … −12), and with it
+				slideGrab(SL_EQ, i, {{cx - 2, 168, 4, 192}, {-12, 12, 1}, true}, x, y, p, [this, i](double g, bool last, Player& p) {
+					Uint32 now = SDL_GetTicks();
+					if (!last) { eqSetBand(i, g, p); return; }
+					// two taps on it, no drag: back to 0 dB
+					if (!slide.moved && eqTapAt && now - eqTapAt < 350 && eqTapBand == i)
+					{
+						eqSetBand(i, 0, p);
+						eqTapAt = 0;
+						return;
+					}
+					eqSetBand(i, g, p);
+					eqTapAt = slide.moved ? 0 : now;
+					eqTapBand = i;
+				});
+				return false;
 			}
 		return false;
 	}
@@ -835,7 +820,13 @@ namespace bp
 			SDL_Color bar = !on ? DIM : focus ? ACCENT : PRESSED;
 			if (ky < 264) fill({cx - 4, ky, 8, 264 - ky}, bar);
 			else if (ky > 264) fill({cx - 4, 264, 8, ky - 264}, bar);
-			fillRound({cx - 16, ky - 6, 32, 12}, !on ? DIM : focus ? ACCENT : KNOB, R_KNOB);
+			if (slideHeld(SL_EQ, i))
+			{
+				// under a finger: the knob grown, as every held slider's (its gain is lit over the column already)
+				fillRound({cx - 21, ky - 11, 42, 22}, BG, R_KNOB + 3);
+				fillRound({cx - 19, ky - 9, 38, 18}, ACCENT, R_KNOB + 2);
+			}
+			else fillRound({cx - 16, ky - 6, 32, 12}, !on ? DIM : focus ? ACCENT : KNOB, R_KNOB);
 			fill({cx - 10, ky - 1, 20, 2}, BG);
 			drawTextMid(gainText(g), 0, focus ? ACCENT : std::fabs(g) >= 0.05 ? TEXT : DIM, cx, 148, 0, 2);
 			drawTextMid(FREQS[i], 0, focus ? ACCENT : DIM, cx, miniUp ? 374 : 382, 0, 2);
