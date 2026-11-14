@@ -33,7 +33,12 @@ void drawSlideKnob(Rect restingKnob);  void drawSlideTag(Rect track, double shar
 What it does, the same for all:
 
 - **Grab.** The page's (or the overlay's) own `Pointer::Down` code hit-tests the slider's *hit area* (the row, not
-  the thin track) and calls `slideGrab`. The value jumps to the finger at once.
+  the thin track) and calls `slideGrab` with the slider's current value (`SlideSpec::now`). A touch alone changes
+  nothing and shows nothing (`slideHeld` is false until the finger slides).
+- **Trackpad-style (the owner's call, 2026-11-15).** Past `DRAG_SLOP` of travel the value moves on from `now` by the
+  finger's travel along the track (`sliderMoveBy`: the whole track is the whole range), so the knob needn't be under
+  the finger. A tap, lifted without sliding, puts the value where the finger was. (The first version jumped to the
+  finger on touch: on the handheld that read as "it can't be scrubbed".)
 - **Kept until the lift.** `Ui::pointer` gives every move and the lift to `slideFollow` before anything else (before
   the overlays too), so the finger may drift off the row, over buttons, out of a sheet: only the slider follows, along
   its track's axis. Past an end of the track: that end's value.

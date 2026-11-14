@@ -236,14 +236,15 @@ Like a song or a video to keep it in **Liked**, a playlist of its own. Photos an
 | **Menu/Function** (F) | Quick settings: volume, brightness, Same brightness for both screens, Web dashboard, incognito mode, Quit |
 
 **By touch:**
-- **Progress bar:** touch it (or just above or below it) and it jumps to your finger; keep the finger down and it
-  follows, the picture with it, until you lift, even if the finger drifts off the bar. While you hold it the knob
-  grows and the time shows over it (and the chapter's name under the bar). A tap goes to the tapped place.
+- **Progress bar:** scrub it as on a trackpad: slide a finger along it (or just above or below it), from anywhere,
+  and the place moves on from where it was by how far the finger travels, the picture with it, until you lift, even
+  if the finger drifts off the bar. A tap jumps to the tapped place as you lift; a touch alone changes nothing. While
+  you slide, the knob grows and the time shows over it (and the chapter's name under the bar).
 - **Every slider works this way** (this bar, the quick settings' Volume and Brightness, the readers' bars and page
-  sliders, the Brightness sheet's bars, the equalizer's bands, which go up and down): a touch anywhere in its row
-  takes it, the value jumps to the finger and follows it until the finger lifts, nothing else under the finger
-  reacts meanwhile, and the small shift of a fingertip as it lifts changes nothing. The held one shows it: a bigger
-  knob, and its value where the finger doesn't hide it.
+  sliders, the Brightness sheet's bars, the equalizer's bands, which go up and down): slide anywhere in its row to
+  move it on from where it is, tap to jump; nothing else under the finger reacts meanwhile, and the small shift of a
+  fingertip as it lifts changes nothing. While you slide it shows a bigger knob, and its value where the finger
+  doesn't hide it.
 - **Buttons:** they act when you lift your finger, so slide off one to cancel.
 - **Audio and subtitles:** on a video, tap the audio or subtitle line under the buttons for that tab of Tracks.
 - **Sound:** on a song, tap the line under the buttons (it shows the preset and effect) to open the Sound page.
