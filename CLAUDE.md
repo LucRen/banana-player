@@ -4,11 +4,14 @@ Banana Player: a video and music player for BananaOS (github.com/JorreFog/Banana
 Plus (RK3568, aarch64, two 4:3 panels, the bottom one touch). C++17, libmpv, SDL2, SDL2_ttf, zlib; a web dashboard
 served by the handheld (`src/web/` + `web/`).
 
-**Read before you touch a part** (this file is the map and the one-line rules; the long form is elsewhere):
-`docs/architecture.md` (how each part works, and the rules in full), `docs/design/session.md` (playback state),
-`docs/bananaos.md` (OS constraints this repo can't show), `docs/workflow.md` (harness, tests, bundle, releases),
-`FEATURES.md` (every feature, control and setting: a new one goes there), `DEVELOPMENT.md` (detail, roadmap),
-`docs/notes/` (investigations: an agent finishing one adds a note).
+**Read only what your part needs** (this file is the map and the one-line rules; the long form is elsewhere). Don't
+read these whole: grep them for the part you touch and read that section. `docs/architecture.md` (how each part works,
+the rules in full), `docs/design/session.md` (playback state: read it before touching Session), `docs/bananaos.md` (OS
+constraints this repo can't show), `docs/workflow.md` (harness, tests, bundle, releases), `FEATURES.md` (every
+feature, control and setting: grep for yours; a new one gets its entry), `DEVELOPMENT.md` (detail, roadmap),
+`docs/notes/` (one note per investigation: read the one your brief names; an agent finishing one adds a note).
+`src/ui.h` is large: grep it, and work in the area's own header where there is one (`ui_docs.h`, `ui_sound.h`,
+`ui_web.h`).
 
 ## Commands
 
