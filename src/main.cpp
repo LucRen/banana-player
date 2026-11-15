@@ -930,6 +930,9 @@ int main(int argc, char** argv)
 						renderPending = true;
 						fprintf(stderr, "level: volume %d (the player's gain over the handheld's 100%%)\n", to);
 					}
+					// a press the player doesn't take (Down at 100: the handheld's own volume goes to 95) ends the
+					// override at once: still up from the press that brought 110 to 100, it showed bananad's 95 as 100
+					else volumeOverrideUntil = 0;
 				}
 				// F + any other button: no quick settings as F lets go (the button does what it does)
 				if (e.type == SDL_CONTROLLERBUTTONDOWN && fHeld && e.cbutton.button != SDL_CONTROLLER_BUTTON_GUIDE) fCombo = true;
