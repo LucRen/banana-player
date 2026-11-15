@@ -258,6 +258,7 @@ namespace bp
 		Uint32 mangaCtrlUntil = 0;	// when they hide (0: hidden)
 		bool mangaTap = false;
 		int mangaTapX = 0, mangaTapY = 0;
+		int mangaTouchMoves = 0, mangaTouchFar = 0;	// this touch's move events, and the furthest (units) from its down (the log line)
 		Uint32 mangaTapAt = 0;
 		// the finger came down outside the bar while it showed: lifted as a tap, it puts the bar away and does
 		// nothing else; moved, it drags the page and hides the bar as any drag does

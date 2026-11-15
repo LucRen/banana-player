@@ -885,6 +885,7 @@ namespace bp
 					mangaTapX = x;
 					mangaTapY = y;
 					mangaTapAt = now;
+					mangaTouchMoves = mangaTouchFar = 0;
 					ui.pageReader->readerCmds.push_back({PageReader::ReaderCmd::TouchDown, 0, (int64_t)now});
 					return false;
 				}
@@ -904,18 +905,23 @@ namespace bp
 			{
 				if (mangaTouch)
 				{
-					// the finger's own y is already 0..1: its step goes as it is
-					double dy = pt.y - mangaTouchY, dx = pt.x - mangaTouchX;
-					mangaTouchY = pt.y;
-					mangaTouchX = pt.x;
-					// fullscreen: a finger within 12 units may still be a tap, and a tap doesn't scroll; past them it
-					// is a drag, and the controls over the pages go at once
+					// a finger within 12 units may still be a tap, and a tap doesn't scroll; past them it is a drag,
+					// and the controls over the pages go at once
+					mangaTouchMoves++;
+					mangaTouchFar = std::max(mangaTouchFar, std::max(std::abs(x - mangaTapX), std::abs(y - mangaTapY)));
 					if (mangaTap && (std::abs(x - mangaTapX) > MG_TAP_UNITS || std::abs(y - mangaTapY) > MG_TAP_UNITS))
 					{
 						mangaTap = false;
 						mangaTapDismiss = false;
 						mangaCtrlUntil = 0;
 					}
+					// still a maybe-tap: the touch point stays where the finger went down, so the first drag step
+					// carries the whole way since (a short swipe on a zoomed page moves it its full length, #11)
+					if (mangaTap) return false;
+					// the finger's own y is already 0..1: its step goes as it is
+					double dy = pt.y - mangaTouchY, dx = pt.x - mangaTouchX;
+					mangaTouchY = pt.y;
+					mangaTouchX = pt.x;
 					// (both: the strip goes by dy, the paged modes by dx)
 					if (!mangaTap && (dy != 0 || dx != 0)) ui.pageReader->readerCmds.push_back({PageReader::ReaderCmd::Drag, dy, (int64_t)now, dx});
 				}
@@ -937,32 +943,57 @@ namespace bp
 			if (mangaTouch)
 			{
 				mangaTouch = false;
+				// a quick flick can lift past the slop with no move event beyond it in between (#11): the lift's own
+				// place decides too, and such a lift is a drag
+				if (mangaTap && (std::abs(x - mangaTapX) > MG_TAP_UNITS || std::abs(y - mangaTapY) > MG_TAP_UNITS))
+				{
+					mangaTap = false;
+					mangaTapDismiss = false;
+					mangaCtrlUntil = 0;
+				}
+				// a drag: the way from its last move to the lift is sent too, or a short swipe whose lift lands past
+				// its last move stops short of the finger (#11)
+				if (!mangaTap)
+				{
+					double dy = pt.y - mangaTouchY, dx = pt.x - mangaTouchX;
+					if (dy != 0 || dx != 0) ui.pageReader->readerCmds.push_back({PageReader::ReaderCmd::Drag, dy, (int64_t)now, dx});
+				}
 				ui.pageReader->readerCmds.push_back({PageReader::ReaderCmd::Release, 0, (int64_t)now});
+				const char* verdict = !mangaTap ? "swipe" : now - mangaTapAt > MG_TAP_MS ? "held (no tap)" : "tap";
 				// a tap (no drag, soon enough and close by): a second one soon is a double-tap, which zooms to 200 %
 				// at the tapped point / back to the fit (as A does, but at the finger); alone, fullscreen's controls show
 				if (mangaTap && now - mangaTapAt <= MG_TAP_MS)
 				{
+					// the double-tap is asked first: in fullscreen the first tap raised the bar, so the second one
+					// is "outside the bar" too, and taken for the bar's dismissal it could never zoom
+					if (now - mangaLastTapAt <= 300 && std::abs(mangaTapX - mangaLastTapX) <= 20 &&
+						std::abs(mangaTapY - mangaLastTapY) <= 20)
+					{
+						double z = ui.pageReader->mangaZoomAsked >= 200 ? 1.0 : 2.0;
+						ui.pageReader->readerCmds.push_back({PageReader::ReaderCmd::ZoomPoint, z, (int64_t)now,
+							mangaTapX / (double)Ui::W, mangaTapY / (double)Ui::H});
+						mangaLastTapAt = 0;
+						mangaCtrlUntil = 0;	// the bar its first tap raised goes with the zoom
+						verdict = "double-tap";
+					}
 					// the bar was up and this tap was outside it: it goes, and the tap does nothing else
-					if (mangaTapDismiss) mangaCtrlUntil = 0;
+					else if (mangaTapDismiss)
+					{
+						mangaCtrlUntil = 0;
+						verdict = "tap (closed the bar)";
+					}
 					else
 					{
-						if (now - mangaLastTapAt <= 300 && std::abs(mangaTapX - mangaLastTapX) <= 20 &&
-							std::abs(mangaTapY - mangaLastTapY) <= 20)
-						{
-							double z = ui.pageReader->mangaZoomAsked >= 200 ? 1.0 : 2.0;
-							ui.pageReader->readerCmds.push_back({PageReader::ReaderCmd::ZoomPoint, z, (int64_t)now,
-								mangaTapX / (double)Ui::W, mangaTapY / (double)Ui::H});
-							mangaLastTapAt = 0;
-						}
-						else
-						{
-							mangaLastTapAt = now;
-							mangaLastTapX = mangaTapX;
-							mangaLastTapY = mangaTapY;
-						}
+						mangaLastTapAt = now;
+						mangaLastTapX = mangaTapX;
+						mangaLastTapY = mangaTapY;
 						if (full) mangaCtrlUntil = now + MG_CTRL_MS;
 					}
 				}
+				// one line a touch, to tell on the handheld whether a lift lands past the slop with no move beyond
+				// it in between (#11)
+				fprintf(stderr, "reader touch: down %d,%d lift %d,%d moves %d (furthest %d units) %u ms -> %s\n",
+					mangaTapX, mangaTapY, x, y, mangaTouchMoves, mangaTouchFar, (unsigned)(now - mangaTapAt), verdict);
 				mangaTap = false;
 				mangaTapDismiss = false;
 				return false;
