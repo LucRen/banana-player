@@ -19,6 +19,7 @@
 #include "ui_internal.h"
 #include "ui_docs.h"
 #include "ui_sound.h"
+#include "ui_web.h"
 #include "durworker.h"
 
 namespace bp
@@ -83,6 +84,8 @@ namespace bp
 		areas.push_back(docs.get());
 		sound = std::make_unique<Sound>(*this);
 		areas.push_back(sound.get());
+		webPage = std::make_unique<Web>(*this);
+		areas.push_back(webPage.get());
 	}
 
 	Ui::Area* Ui::area() const
@@ -249,7 +252,6 @@ namespace bp
 		if (clipKey(b, p)) return false;
 		// an area's page (Files' document viewers): its own keys
 		if (Area* a = area()) return a->key(b, p);
-		if (page == Page::Web) return webKey(b, p);
 		if (page == Page::Playing) return playingKey(b, p);
 		// Manage extensions and the manga reader's pages: their own keys (the sheet over the first)
 		if (page == Page::Extensions || page == Page::Manga) return extKey(b, p);
@@ -608,13 +610,6 @@ namespace bp
 		if (offSecs > 0 && panel.on() && p.playing() && !viewing && !p.paused && !p.loading() && p.error.empty() &&
 			!kbOpen && !quickOpen && !popupShown(p) && !slide.on && SDL_GetTicks() - webInputAt >= (Uint32)offSecs * 1000)
 			panel.set(false);
-		if (page == Page::Web)
-		{
-			// the address can change (another Wi-Fi), and the page is left up: read again every 10 s; and, as the
-			// photo of a QR code needs no screen after, the bottom panel dark after 90 s without a touch or a button
-			if (SDL_GetTicks() - webIpAt >= 10000) readWebIp();
-			if (panel.on() && webView(p) == WEB_ON_VIEW && SDL_GetTicks() - webInputAt >= 90000) panel.set(false);
-		}
 		// a dragged row near the list's top or bottom: the list scrolls under it, a row each 150 ms
 		if (plDrag.on && page == Page::Browse && isPlDir(browseDir) && SDL_GetTicks() - plDrag.scrollAt >= 150)
 		{
@@ -849,7 +844,6 @@ namespace bp
 			return false;
 		}
 		if (Area* a = area(); a && a->pointerFirst()) return a->pointer(pt, x, y, p);
-		if (page == Page::Web) return webPointer(pt, x, y, p);
 		// locked, over a video: Screen off goes through; a hold on the lock (draw() times it) releases it; nothing else
 		if (touchLocked && p.playing() && !p.playingPhoto() && page == Page::Main && pressedBtn != SCREEN_BTN)
 		{

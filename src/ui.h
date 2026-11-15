@@ -1362,29 +1362,21 @@ namespace bp
 		static constexpr int SET_ARROW_X = 372;	// a settings row's left arrow: a tap left of the value's middle steps back
 
 		// ---- the web dashboard ----
-		// Page::Web: where it was opened from (B goes back there)
-		struct WebBack { Page page = Page::Browse; bool inMenu = false; int menuTab = 0, setGroup = -1, cursor = 0, scroll = 0; } webBack;
-		void openWeb();
-		void closeWeb();
-		bool webKey(Button b, Player& p);
-		bool webPointer(const Pointer& pt, int x, int y, Player& p);
-		void drawWeb(const Player& p);
+		// Page::Web is an area (Area), ui_web.h / ui_web.cpp; what every page shows of it (the header's globe, the quick
+		// settings' row, the switch, the address and the PIN) stays Ui's, below
+		struct Web;
+		std::unique_ptr<Web> webPage;
+		void openWeb();	// the page, from Home's menu, a settings group, the globe, the quick settings
 		// its states as the page shows them
 		enum WebView { WEB_OFF_VIEW, WEB_ON_VIEW, WEB_NOWIFI_VIEW, WEB_FAILED_VIEW };
 		int webView(const Player& p) const;
 		void webTurn(bool on, Player& p);	// the switch: kept in the settings, the server started or stopped
-		void webNewPin(Player& p);			// New PIN: pressed twice (2 s apart at most)
-		void webPrimary(Player& p);			// the empty page's button: Turn on, Try again
 		int webClients() const;
 		std::string webPin() const;
 		std::string webAddress() const;	// "192.168.1.23:8080" ("" no Wi-Fi, or not running)
 		std::string webIp;				// the device's address, read when the page opens and every 10 s while it shows
 		Uint32 webIpAt = 0, webInputAt = 0, pinArmed = 0;
 		void readWebIp();
-		// the QR code of the page's URL, made again when the URL changes: its modules, a row at a time
-		std::string qrText;
-		std::vector<unsigned char> qrMods;
-		int qrSize = 0;
 		TTF_Font* pinFont = nullptr;	// Pixelify Sans at 56: the PIN's characters
 		// the header's indicator (left of the battery), as last drawn: a tap opens the page
 		Rect webInd{0, 0, 0, 0};

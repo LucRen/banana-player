@@ -453,7 +453,6 @@ namespace bp
 		markAnim = false;
 		loaderShown = false;
 		if (page == Page::Info || page == Page::About) drawInfo(p);
-		else if (page == Page::Web) drawWeb(p);
 		else if (page == Page::Exit) drawExit(p);
 		else if (page == Page::Settings) drawSettings(p);
 		else if (page == Page::Chapters) drawChapters(p);
