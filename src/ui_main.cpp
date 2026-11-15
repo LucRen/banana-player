@@ -624,7 +624,8 @@ namespace bp
 			if (!video)
 			{
 				// a song's line opens Sound: on its right what it's set to ("Rock", "Rock · Hall", "EQ off · Hall",
-				// "EQ off"), the effect drawn first and the preset cut to what's left of 180
+				// "EQ off"), the effect drawn first and the preset cut to what's left of 180. What changes the sound is
+				// yellow (the mark too), as a changed speed's key is, so an EQ or effect left on can't go unnoticed
 				const Settings& st = p.settings;
 				bool fx = st.soundFx != SoundFx::None;
 				auto w = [&](const std::string& t, int maxW) { return std::min(maxW, (int)std::lround(textWidth(t, 0) / sx)); };
@@ -639,7 +640,7 @@ namespace bp
 					if (fx)
 					{
 						std::string tail = std::string(st.eqOn ? " \xC2\xB7 " : "") + FX_SHORT[(int)st.soundFx];
-						drawTextMid(tail, 0, TEXT, x, LINE1_Y, 0, 1);
+						drawTextMid(tail, 0, ACCENT, x, LINE1_Y, 0, 1);
 						x -= w(tail, 180);
 					}
 					if (!st.eqOn)
@@ -651,11 +652,11 @@ namespace bp
 					{
 						std::string preset = st.eqPreset.empty() ? CUSTOM_NAME : st.eqPreset;
 						int room = std::max(40, 180 - (592 - x));
-						drawTextMid(preset, 0, TEXT, x, LINE1_Y, room, 1);
+						drawTextMid(preset, 0, ACCENT, x, LINE1_Y, room, 1);
 						x -= w(preset, room);
 					}
 				}
-				drawGlyphMid(G_EQ, x - 8 - glyphW(G_EQ) / 2, LINE1_Y, DIM);
+				drawGlyphMid(G_EQ, x - 8 - glyphW(G_EQ) / 2, LINE1_Y, st.eqOn || fx ? ACCENT : DIM);
 				trackW = x - 8 - glyphW(G_EQ) - 12 - 52;
 			}
 			drawGlyphMid(G_SPEAKER, 33, LINE1_Y, DIM);
