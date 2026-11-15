@@ -508,6 +508,10 @@ namespace bp
 			}
 			e->isInstalled = true;
 			e->hasUpdate = false;
+			// the extension's own sources too: a list fetched before the install says "none, known" for it, and
+			// installed with none reads as Can't load until the list is fetched again
+			e->sources = list;
+			e->sourcesKnown = true;
 			addSources(list, p.pkg);
 			addEvent(p.kind == Kind::Install ? Event::Installed : Event::Updated, "", p.pkg, extensionName(p.pkg));
 			break;

@@ -9984,10 +9984,28 @@ static void testMangaJava()
 	CHECK_EQ(m.source("java:1998944621602463790")->title(), std::string("MANGA Plus by SHUEISHA (EN)"));
 	CHECK_EQ(m.extension(pkg) != nullptr, true);
 	CHECK_EQ(m.extension(pkg)->isInstalled, true);
+	CHECK_EQ(m.extension(pkg)->sourcesKnown && m.extension(pkg)->sources.size() == 9, true);
 	{
 		auto ev = m.takeEvents();
 		CHECK_EQ(ev.size(), (size_t)1);
 		CHECK_EQ(ev[0].kind == MangaJava::Event::Installed, true);
+	}
+	{
+		// installed from a list fetched before: that list said "no sources, known" for it, and installed with none
+		// is Can't load. The install's answer must bring its sources onto the listed extension (seen on the handheld)
+		MangaJava m3;
+		uint64_t l3 = 0;
+		m3.setSubmit([&](const std::string&) { return ++l3; });
+		CHECK_EQ(m3.load(std::string(dir) + "/m3"), true);
+		m3.refreshExtensions();
+		CHECK_EQ(m3.onAnswer(l3, "{\"data\":{\"fetchExtensions\":{\"extensions\":[{\"pkgName\":\"" + pkg +
+			"\",\"name\":\"MANGA Plus\",\"lang\":\"all\",\"versionName\":\"1.4\",\"versionCode\":1,\"isNsfw\":false,"
+			"\"isInstalled\":false,\"hasUpdate\":false,\"isObsolete\":false,\"iconUrl\":\"\",\"source\":{\"nodes\":[]}}]}}}", ""), true);
+		CHECK_EQ(m3.extension(pkg) != nullptr && m3.extension(pkg)->sourcesKnown && m3.extension(pkg)->sources.empty(), true);
+		CHECK_EQ(m3.install(pkg, error), true);
+		CHECK_EQ(m3.onAnswer(l3, read(F + "install.json"), ""), true);
+		const SuwayomiExt* x = m3.extension(pkg);
+		CHECK_EQ(x != nullptr && x->isInstalled && x->sourcesKnown && x->sources.size() == 9, true);	// not Can't load
 	}
 
 	// save and load: the store's name and the sources stay (the extensions list itself is asked again)
