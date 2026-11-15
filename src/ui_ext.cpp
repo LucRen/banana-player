@@ -2,16 +2,17 @@
 #include "manganet.h"
 #include "pagedecode.h"
 #include "ui_internal.h"
+#include "ui_manga.h"
 
 namespace bp
 {
 	// ---- the Extensions drawer, Manage extensions and the manga reader's page ----
 
-	void Ui::openManga(Player& p)
+	void Ui::Manga::openManga(Player& p)
 	{
-		page = Page::Manga;
-		cursor = scroll = 0;
-		extPressed = pressedBtn = -1;
+		ui.page = Page::Manga;
+		ui.cursor = ui.scroll = 0;
+		extPressed = ui.pressedBtn = -1;
 		mangaOpen(p);	// the store loaded, the card scanned, on Library
 		// most sources need the manga engine: offered at each entry while it isn't on the card (Not now is for this
 		// time only). A failed download with nothing kept counts as not there
@@ -29,25 +30,25 @@ namespace bp
 		}
 	}
 
-	void Ui::openExtensions()
+	void Ui::Manga::openExtensions()
 	{
-		page = Page::Extensions;
-		cursor = scroll = 0;
-		extPressed = pressedBtn = -1;
+		ui.page = Page::Extensions;
+		ui.cursor = ui.scroll = 0;
+		extPressed = ui.pressedBtn = -1;
 	}
 
-	void Ui::openExtensionsDrawer(Player& p)
+	void Ui::Manga::openExtensionsDrawer(Player& p)
 	{
 		extSheet = false;
-		page = Page::Browse;
-		inMenu = false;
-		setSection(TAB_EXT);
-		enterFolder(EXTDIR, p);
-		cursor = scroll = 0;
-		extPressed = pressedBtn = -1;
+		ui.page = Page::Browse;
+		ui.inMenu = false;
+		ui.setSection(TAB_EXT);
+		ui.enterFolder(EXTDIR, p);
+		ui.cursor = ui.scroll = 0;
+		extPressed = ui.pressedBtn = -1;
 	}
 
-	void Ui::extToggleManga(Player& p)
+	void Ui::Manga::extToggleManga(Player& p)
 	{
 		Settings s = p.settings;
 		s.mangaOn = !s.mangaOn;
@@ -55,22 +56,22 @@ namespace bp
 		bool first = s.mangaOn && !s.mangaIntroShown;
 		if (first) s.mangaIntroShown = true;
 		p.setSettings(s);
-		mangaOn = s.mangaOn;
+		ui.mangaOn = s.mangaOn;
 		if (!s.mangaOn) { extSheet = false; return; }
 		if (!first) return;
 		extSheet = true;
 		extSheetCursor = 0;
-		page = Page::Extensions;
-		cursor = scroll = 0;
+		ui.page = Page::Extensions;
+		ui.cursor = ui.scroll = 0;
 	}
 
-	void Ui::extSheetChoose(int i, Player& p)
+	void Ui::Manga::extSheetChoose(int i, Player& p)
 	{
 		extSheet = false;
 		if (i == 0) openManga(p);
 	}
 
-	bool Ui::extDrawerKey(Button b, Player& p)
+	bool Ui::Manga::extDrawerKey(Button b, Player& p)
 	{
 		if (b == Button::Start) { openExtensions(); return true; }
 		if (b != Button::A) return false;
@@ -80,9 +81,9 @@ namespace bp
 		return true;
 	}
 
-	bool Ui::extKey(Button b, Player& p)
+	bool Ui::Manga::extKey(Button b, Player& p)
 	{
-		if (extSheet && page == Page::Extensions)
+		if (extSheet && ui.page == Page::Extensions)
 		{
 			if (b == Button::Left) extSheetCursor = 0;
 			else if (b == Button::Right) extSheetCursor = 1;
@@ -91,32 +92,32 @@ namespace bp
 			return false;
 		}
 		// the reader is an app of its own: B at its top goes back to the drawer
-		if (page == Page::Manga) return mangaKey(b, p);
+		if (ui.page == Page::Manga) return mangaKey(b, p);
 		// (the mini bar shown here says SELECT goes to what plays)
-		if (b == Button::Select && nowPlayable(p)) { goNowPlaying(p); return false; }
+		if (b == Button::Select && ui.nowPlayable(p)) { ui.goNowPlaying(p); return false; }
 		switch (b)
 		{
 		case Button::A: extToggleManga(p); break;
-		case Button::Start: openMainMenu(p, playingTabShown(p) ? TAB_PLAYING : TAB_SETTINGS); break;
+		case Button::Start: ui.openMainMenu(p, ui.playingTabShown(p) ? TAB_PLAYING : TAB_SETTINGS); break;
 		case Button::B: openExtensionsDrawer(p); break;
 		default: break;
 		}
 		return false;
 	}
 
-	bool Ui::extPointer(const Pointer& pt, int x, int y, Player& p)
+	bool Ui::Manga::extPointer(const Pointer& pt, int x, int y, Player& p)
 	{
 		if (pt.kind == Pointer::Down)
 		{
 			extPressed = -1;
-			if (extSheet && page == Page::Extensions)
+			if (extSheet && ui.page == Page::Extensions)
 			{
 				for (int i = 0; i < 2; i++)
 					if (extSheetBtn(i).hit(x, y)) extPressed = EXT_OPEN + i;
 				return false;
 			}
-			if (page == Page::Manga) return mangaPointer(pt, x, y, p);
-			if (page == Page::Browse)
+			if (ui.page == Page::Manga) return mangaPointer(pt, x, y, p);
+			if (ui.page == Page::Browse)
 			{
 				if (!p.settings.mangaOn) { if (extManageRect().hit(x, y)) extPressed = EXT_MANAGE; return false; }
 				for (int i = 0; i < EXT_DRAWER_TILES; i++)
@@ -136,13 +137,13 @@ namespace bp
 		return r.hit(x, y) && extAct(id, p);
 	}
 
-	void Ui::openExtSettings()
+	void Ui::Manga::openExtSettings()
 	{
 		// the manga reader's own page (not Banana Player's Settings): B comes back here, as it was
 		openMangaSettings();
 	}
 
-	bool Ui::extAct(int id, Player& p)
+	bool Ui::Manga::extAct(int id, Player& p)
 	{
 		if (id == EXT_OPEN || id == EXT_DONE) { extSheetChoose(id - EXT_OPEN, p); return false; }
 		if (id == EXT_TILE) openManga(p);
@@ -152,99 +153,99 @@ namespace bp
 		return false;
 	}
 
-	void Ui::drawExtensionsDrawer(const Player& p)
+	void Ui::Manga::drawExtensionsDrawer(const Player& p)
 	{
 		// the section header (its markers, "<") is drawn before this: the drawer is the section's top
 		if (!p.settings.mangaOn)
 		{
 			// none on: what extensions are, and the way to turn one on
-			drawGlyphMid(G_BLOCKS, W / 2, 160, DIM, 6);
-			drawTextMid("No extensions are on", 1, TEXT, W / 2, 206, 560, 2);
-			drawTextMid("Extensions add to Banana Player, like a manga reader.", 0, DIM, W / 2, 244, 560, 2);
-			drawTextMid("Nothing of one shows or runs until you turn it on.", 0, DIM, W / 2, 264, 560, 2);
+			ui.drawGlyphMid(G_BLOCKS, W / 2, 160, DIM, 6);
+			ui.drawTextMid("No extensions are on", 1, TEXT, W / 2, 206, 560, 2);
+			ui.drawTextMid("Extensions add to Banana Player, like a manga reader.", 0, DIM, W / 2, 244, 560, 2);
+			ui.drawTextMid("Nothing of one shows or runs until you turn it on.", 0, DIM, W / 2, 264, 560, 2);
 			Rect b = extManageRect();
-			drawBox(b, extPressed == EXT_MANAGE ? PRESSED : BUTTON, R_BUTTON, true);
-			drawTextMid("Manage extensions", 1, ACCENT, b.x + b.w / 2, b.y + b.h / 2, b.w - 16, 2);
-			drawHints({{"START", "Manage extensions"}, {"B", "Home"}, {"L/R", "Sections"}});
+			ui.drawBox(b, extPressed == EXT_MANAGE ? PRESSED : BUTTON, R_BUTTON, true);
+			ui.drawTextMid("Manage extensions", 1, ACCENT, b.x + b.w / 2, b.y + b.h / 2, b.w - 16, 2);
+			ui.drawHints({{"START", "Manage extensions"}, {"B", "Home"}, {"L/R", "Sections"}});
 			return;
 		}
 		// what's on: one tile each, its book, its name and what it does
-		drawTextMid(std::to_string(EXT_DRAWER_TILES) + " on", 0, DIM, 16, 64);
+		ui.drawTextMid(std::to_string(EXT_DRAWER_TILES) + " on", 0, DIM, 16, 64);
 		for (int i = 0; i < EXT_DRAWER_TILES; i++)
 		{
 			Rect t = extTileRect(i);
 			bool at = extCursor == i;
-			drawBox(t, extPressed == EXT_TILE ? PRESSED : at ? BUTTON : SURFACE, R_TILE, at);
+			ui.drawBox(t, extPressed == EXT_TILE ? PRESSED : at ? BUTTON : SURFACE, R_TILE, at);
 			// (the name at the small size, as the mock has it: the large one doesn't fit a tile)
 			drawMangaIcon({t.x + t.w / 2 - 38, 102, 76, 76});
-			drawTextMid("Manga reader", 0, at ? ACCENT : TEXT, t.x + t.w / 2, 196, t.w - 16, 2);
-			drawTextMid("Comics and manga", 0, at ? DIM_ON : DIM, t.x + t.w / 2, 218, t.w - 16, 2);
+			ui.drawTextMid("Manga reader", 0, at ? ACCENT : TEXT, t.x + t.w / 2, 196, t.w - 16, 2);
+			ui.drawTextMid("Comics and manga", 0, at ? DIM_ON : DIM, t.x + t.w / 2, 218, t.w - 16, 2);
 		}
-		drawTextMid("Turn more on in Manage extensions (START).", 0, DIM, W / 2, 270, 560, 2);
-		drawHints({{"A", "Open"}, {"START", "Manage extensions"}, {"B", "Home"}, {"L/R", "Sections"}});
+		ui.drawTextMid("Turn more on in Manage extensions (START).", 0, DIM, W / 2, 270, 560, 2);
+		ui.drawHints({{"A", "Open"}, {"START", "Manage extensions"}, {"B", "Home"}, {"L/R", "Sections"}});
 	}
 
-	void Ui::drawExtensions(const Player& p)
+	void Ui::Manga::drawExtensions(const Player& p)
 	{
-		drawHeader("Manage extensions", p);
-		drawTextMid(std::to_string(EXT_DRAWER_TILES) + " extension", 0, DIM, 16, 64);
+		ui.drawHeader("Manage extensions", p);
+		ui.drawTextMid(std::to_string(EXT_DRAWER_TILES) + " extension", 0, DIM, 16, 64);
 		// the extension's row: its mark, its name and what it does, its switch, its settings
 		Rect row = extRowRect();
-		drawFocus(row);
+		ui.drawFocus(row);
 		drawMangaIcon({30, 100, 46, 46});
-		drawTextMid("Manga reader", 1, ACCENT, 92, 110, 360);
-		drawTextMid("Comics and manga from files and servers", 0, DIM, 92, 136, 360);
+		ui.drawTextMid("Manga reader", 1, ACCENT, 92, 110, 360);
+		ui.drawTextMid("Comics and manga from files and servers", 0, DIM, 92, 136, 360);
 		bool on = p.settings.mangaOn;
 		Rect chip = extChipRect();
-		fillRound(chip, on ? ACCENT : BUTTON, R_CHIP);
-		drawTextMid(on ? "On" : "Off", 0, on ? ON_ACCENT : TEXT, chip.x + chip.w / 2, chip.y + chip.h / 2, chip.w - 8, 2);
+		ui.fillRound(chip, on ? ACCENT : BUTTON, R_CHIP);
+		ui.drawTextMid(on ? "On" : "Off", 0, on ? ON_ACCENT : TEXT, chip.x + chip.w / 2, chip.y + chip.h / 2, chip.w - 8, 2);
 		// (on and off only: the extension's settings are its own, START inside it)
-		drawTextMid("More extensions come with later versions.", 0, DIM, W / 2, 190, 560, 2);
+		ui.drawTextMid("More extensions come with later versions.", 0, DIM, W / 2, 190, 560, 2);
 		if (extSheet)
 		{
 			drawExtSheet(p);
 			return;
 		}
-		drawHints({{"A", "On / Off"}, {"B", "Back"}});
+		ui.drawHints({{"A", "On / Off"}, {"B", "Back"}});
 	}
 
-	void Ui::drawExtSheet(const Player& p)
+	void Ui::Manga::drawExtSheet(const Player& p)
 	{
 		(void)p;
 		// over the page, dimmed: the note about repositories, once, the first time the reader is turned on
-		fill({0, 0, W, H}, {0, 0, 0, 170});
-		drawBox(extSheetBox(), SURFACE, R_DIALOG);
+		ui.fill({0, 0, W, H}, {0, 0, 0, 170});
+		ui.drawBox(extSheetBox(), SURFACE, R_DIALOG);
 		drawMangaIcon({88, 108, 40, 40});
-		drawTextMid("Manga reader is on", 1, TEXT, 136, 128, 420);
-		drawTextMid("It reads from your files and servers, and from", 0, TEXT, 92, 174, 456);
-		drawTextMid("sources in repositories you add.", 0, TEXT, 92, 196, 456);
-		drawTextMid("Repositories are added by you. Banana Player", 0, DIM, 92, 232, 456);
-		drawTextMid("doesn\xE2\x80\x99t provide or check their content.", 0, DIM, 92, 254, 456);
+		ui.drawTextMid("Manga reader is on", 1, TEXT, 136, 128, 420);
+		ui.drawTextMid("It reads from your files and servers, and from", 0, TEXT, 92, 174, 456);
+		ui.drawTextMid("sources in repositories you add.", 0, TEXT, 92, 196, 456);
+		ui.drawTextMid("Repositories are added by you. Banana Player", 0, DIM, 92, 232, 456);
+		ui.drawTextMid("doesn\xE2\x80\x99t provide or check their content.", 0, DIM, 92, 254, 456);
 		for (int i = 0; i < 2; i++)
 		{
 			Rect b = extSheetBtn(i);
 			bool at = extSheetCursor == i;
-			drawBox(b, extPressed == EXT_OPEN + i ? PRESSED : at ? ACCENT : BUTTON, R_BUTTON, at);
-			drawTextMid(i ? "Done" : "Open Manga", 1, at ? ON_ACCENT : TEXT, b.x + b.w / 2, b.y + b.h / 2, b.w - 16, 2);
+			ui.drawBox(b, extPressed == EXT_OPEN + i ? PRESSED : at ? ACCENT : BUTTON, R_BUTTON, at);
+			ui.drawTextMid(i ? "Done" : "Open Manga", 1, at ? ON_ACCENT : TEXT, b.x + b.w / 2, b.y + b.h / 2, b.w - 16, 2);
 		}
-		drawHints({{"A", "Choose"}, {"LEFT/RIGHT", "Move"}, {"B", "Done"}});
+		ui.drawHints({{"A", "Choose"}, {"LEFT/RIGHT", "Move"}, {"B", "Done"}});
 	}
 
-	void Ui::drawMangaIcon(Rect r)
+	void Ui::Manga::drawMangaIcon(Rect r)
 	{
 		// the manga reader's picture (assets/icons/manga.png beside the fonts), decoded at the size it's drawn (smooth,
 		// as drawn; again when a place of another size asks)
-		SDL_Rect d = devRect(r);
+		SDL_Rect d = ui.devRect(r);
 		int s = std::min(d.w, d.h);
 		if (s != mangaIconPx)
 		{
 			if (mangaIconTex) SDL_DestroyTexture(mangaIconTex);
 			mangaIconTex = nullptr;
 			mangaIconPx = s;
-			PageImage img = decodePageFile(fontsDir + "/../icons/manga.png", s);
+			PageImage img = decodePageFile(ui.fontsDir + "/../icons/manga.png", s);
 			if (img.ok())
 			{
-				mangaIconTex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, img.w, img.h);
+				mangaIconTex = SDL_CreateTexture(ui.ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, img.w, img.h);
 				if (mangaIconTex)
 				{
 					SDL_UpdateTexture(mangaIconTex, nullptr, img.rgba.data(), img.w * 4);
@@ -253,7 +254,7 @@ namespace bp
 			}
 		}
 		SDL_Rect c{d.x + (d.w - s) / 2, d.y + (d.h - s) / 2, s, s};
-		if (mangaIconTex) SDL_RenderCopy(ren, mangaIconTex, nullptr, &c);
-		else drawGlyphMid(G_BOOK, r.x + r.w / 2, r.y + r.h / 2, ACCENT, 3);	// (no picture: the book, as before)
+		if (mangaIconTex) SDL_RenderCopy(ui.ren, mangaIconTex, nullptr, &c);
+		else ui.drawGlyphMid(G_BOOK, r.x + r.w / 2, r.y + r.h / 2, ACCENT, 3);	// (no picture: the book, as before)
 	}
 }

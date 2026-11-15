@@ -18,6 +18,7 @@
 #include "ui_internal.h"
 #include "ui_sound.h"
 #include "ui_docs.h"
+#include "ui_manga.h"
 
 namespace bp
 {
@@ -286,7 +287,7 @@ namespace bp
 			// Done runs the source's search at once; B (a cancelled one) keeps the query that was there
 			kbOpen = false;
 			kbPressed = -1;
-			if (keep) mangaSourceSearch(kbEdit.text);
+			if (keep) manga->mangaSourceSearch(kbEdit.text);
 			else browseVersion++;
 			return;
 		}
@@ -295,7 +296,7 @@ namespace bp
 			// Done writes the text filter and the sheet is under it again; B keeps the value that was there
 			kbOpen = false;
 			kbPressed = -1;
-			if (keep) mangaFilterTextTyped(kbEdit.text);
+			if (keep) manga->mangaFilterTextTyped(kbEdit.text);
 			else browseVersion++;
 			return;
 		}
@@ -321,12 +322,12 @@ namespace bp
 		case FORM_USER: form.user = trimmed(t); break;
 		case FORM_PASS: formPassword = t; formPasswordTyped = true; break;	// (spaces kept: they can be a password's)
 		// the Sources page's repository URL: added by the next tick, which has the Player for the answer's toast
-		case SRC_URL_FIELD: mangaSourcesUrlTyped(trimmed(t)); return;
+		case SRC_URL_FIELD: manga->mangaSourcesUrlTyped(trimmed(t)); return;
 		// a saved server's form (ui_manga_servers.cpp): the page's own, never a plain password kept anywhere else
 		case MGSRV_NAME_FIELD:
 		case MGSRV_URL_FIELD:
 		case MGSRV_USER_FIELD:
-		case MGSRV_PASS_FIELD: mangaServerFieldTyped(kbField, t); return;
+		case MGSRV_PASS_FIELD: manga->mangaServerFieldTyped(kbField, t); return;
 		default: break;
 		}
 		formNote.clear();

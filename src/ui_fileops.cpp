@@ -4,6 +4,7 @@
 // itself is treecopy.h's: measured first, written out of sight, put in place last, so nothing half-copied is left.
 #include "ui_internal.h"
 #include "ui_docs.h"
+#include "ui_manga.h"
 #include "treecopy.h"
 #include "pagebook.h"
 #include "netpath.h"
@@ -715,27 +716,27 @@ namespace bp
 		// documents: their places and bookmarks
 		docs->pathMoved(from, to);
 		// the manga reader's series of the card ("local:<folder or file>") and their chapters' places
-		if (!mangaStore)
+		if (!manga->mangaStore)
 		{
-			mangaStore = std::make_unique<MangaStore>();
-			mangaStore->load(stateDirPath);
+			manga->mangaStore = std::make_unique<MangaStore>();
+			manga->mangaStore->load(stateDirPath);
 		}
-		for (const std::string& id : mangaStore->seriesIds())
+		for (const std::string& id : manga->mangaStore->seriesIds())
 		{
 			std::string n;
 			if (id.rfind("local:", 0) != 0 || !movedPath(id.substr(6), from, to, n)) continue;
 			std::unordered_map<std::string, std::string> chapters;
-			for (const ChapterProgress& c : mangaStore->progressOf(id))
+			for (const ChapterProgress& c : manga->mangaStore->progressOf(id))
 			{
 				std::string cn;
 				if (movedPath(c.chapterId, from, to, cn)) chapters[c.chapterId] = cn;
 			}
-			mangaStore->moveSeries(id, "local:" + n);
-			if (!chapters.empty()) mangaStore->moveChapters(chapters);
+			manga->mangaStore->moveSeries(id, "local:" + n);
+			if (!chapters.empty()) manga->mangaStore->moveChapters(chapters);
 			moved++;
 		}
-		mangaCacheValid = false;
-		mangaSave();
+		manga->mangaCacheValid = false;
+		manga->mangaSave();
 		fprintf(stderr, "files: %s moved to %s: its places, playlists and series follow (%d stores)\n", from.c_str(), to.c_str(), moved);
 		// Home's Recent shows the new names
 		if (browseDir == HOMEDIR || browseDir == RECENT) recentEdited(p);

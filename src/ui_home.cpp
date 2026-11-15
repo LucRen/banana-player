@@ -20,6 +20,7 @@
 #include "ui_sound.h"
 #include "ui_docs.h"
 #include "ui_reader.h"
+#include "ui_manga.h"
 #include "pagebook.h"
 #include <strings.h>
 
@@ -734,8 +735,8 @@ namespace bp
 		{
 			// the pages grid and the Reading menu are sheets over the reader (the menu is a menu, as today); in
 			// fullscreen the bottom panel is all page: the bar comes with the controls sheet, inside it
-			if (pageReader->mangaPages || mangaMenu) return false;
-			if ((pageReader->readerStatus.fullscreen || pageReader->readerStatus.book) && pageReader->readerBottom.on && !(mangaCtrlUntil && SDL_GetTicks() < mangaCtrlUntil)) return false;
+			if (pageReader->mangaPages || manga->mangaMenu) return false;
+			if ((pageReader->readerStatus.fullscreen || pageReader->readerStatus.book) && pageReader->readerBottom.on && !(manga->mangaCtrlUntil && SDL_GetTicks() < manga->mangaCtrlUntil)) return false;
 		}
 		return true;
 	}

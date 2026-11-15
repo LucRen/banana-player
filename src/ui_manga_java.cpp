@@ -10,6 +10,7 @@
 #include <cstdint>
 #include "ui_internal.h"
 #include "ui_reader.h"
+#include "ui_manga.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -87,12 +88,12 @@ namespace bp
 		}
 	}
 
-	uint64_t Ui::mangaJavaManagerSerial() const
+	uint64_t Ui::Manga::mangaJavaManagerSerial() const
 	{
 		return mangaNet && mangaNet->started() ? mangaNet->javaSources().serial() : 0;
 	}
 
-	bool Ui::mangaJavaInstalled() const
+	bool Ui::Manga::mangaJavaInstalled() const
 	{
 		if (!mangaNet) return false;
 		JavaExtHost& h = mangaNet->javaExt();
@@ -106,12 +107,12 @@ namespace bp
 		}
 	}
 
-	void Ui::mangaJavaNeedHost()
+	void Ui::Manga::mangaJavaNeedHost()
 	{
 		if (mangaNet && mangaJavaInstalled()) mangaNet->javaExt().want();
 	}
 
-	std::string Ui::mangaJavaStatusLine() const
+	std::string Ui::Manga::mangaJavaStatusLine() const
 	{
 		if (!mangaNet) return "";
 		JavaExtHost& h = mangaNet->javaExt();
@@ -125,7 +126,7 @@ namespace bp
 		}
 	}
 
-	const MangaJava::Source* Ui::mangaJavaSourceFor(const std::string& fullId) const
+	const MangaJava::Source* Ui::Manga::mangaJavaSourceFor(const std::string& fullId) const
 	{
 		if (!mangaNet || !mangaNet->started()) return nullptr;
 		return mangaNet->javaSources().source(fullId);
@@ -133,16 +134,16 @@ namespace bp
 
 	// ---- Sources: adding a store, its extensions, and their sheets ----
 
-	void Ui::mangaJavaAddRepo(const std::string& url, Player& p)
+	void Ui::Manga::mangaJavaAddRepo(const std::string& url, Player& p)
 	{
-		if (!mangaNet || !mangaNet->started()) { alert("Can\xE2\x80\x99t add repositories", "The player has no folder to keep them in.");; return; }
+		if (!mangaNet || !mangaNet->started()) { ui.alert("Can\xE2\x80\x99t add repositories", "The player has no folder to keep them in.");; return; }
 		// without the engine it's kept, and sent to the engine once it runs
 		bool engine = mangaJavaInstalled();
 		if (engine) mangaJavaNeedHost();
 		std::string error;
 		if (!mangaNet->javaSources().addRepo(url, error))
 		{
-			alert("The repository wasn\xE2\x80\x99t added", error);
+			ui.alert("The repository wasn\xE2\x80\x99t added", error);
 			return;
 		}
 		mangaNet->javaSources().save();
@@ -150,7 +151,7 @@ namespace bp
 		p.osd(engine ? "Adding repository\xE2\x80\xA6" : "Added. Its sources come with the manga engine", 3000);
 	}
 
-	void Ui::mangaJavaRefresh()
+	void Ui::Manga::mangaJavaRefresh()
 	{
 		if (!mangaNet || !mangaNet->started() || !mangaJavaInstalled()) return;
 		mangaJavaNeedHost();
@@ -159,26 +160,26 @@ namespace bp
 		mstJavaLocal++;
 	}
 
-	int Ui::mangaJavaInstalledRows(const Player& p) const
+	int Ui::Manga::mangaJavaInstalledRows(const Player& p) const
 	{
 		(void)p;
 		if (!mangaNet || !mangaNet->started()) return 0;
 		return (int)javaInstalledExtensions(mangaNet->javaSources()).size();
 	}
 
-	int Ui::mangaJavaAvailableRows(const Player& p) const
+	int Ui::Manga::mangaJavaAvailableRows(const Player& p) const
 	{
 		if (!mangaNet || !mangaNet->started()) return 0;
 		return (int)javaAvailableExtensions(mangaNet->javaSources(), p.settings.mangaAdult, [&](const std::string& l) { return !mstInstalledOnly && mangaLangShown(p, l); }, &mstAvOrder).size();
 	}
 
-	int Ui::mangaJavaRepoRows() const
+	int Ui::Manga::mangaJavaRepoRows() const
 	{
 		if (!mangaNet || !mangaNet->started()) return 0;
 		return (int)mangaNet->javaSources().repos().size();
 	}
 
-	void Ui::mangaJavaInstalledAct(int local, Player& p)
+	void Ui::Manga::mangaJavaInstalledAct(int local, Player& p)
 	{
 		(void)p;
 		if (!mangaNet || !mangaNet->started()) return;
@@ -191,7 +192,7 @@ namespace bp
 		mstJavaLocal++;
 	}
 
-	void Ui::mangaJavaAvailableAct(int local, Player& p)
+	void Ui::Manga::mangaJavaAvailableAct(int local, Player& p)
 	{
 		if (!mangaNet || !mangaNet->started()) return;
 		auto list = javaAvailableExtensions(mangaNet->javaSources(), p.settings.mangaAdult, [&](const std::string& l) { return !mstInstalledOnly && mangaLangShown(p, l); }, &mstAvOrder);
@@ -214,7 +215,7 @@ namespace bp
 			}
 			if (!mangaNet->javaSources().update(pkg, error))
 			{
-				alert("The extension couldn\xE2\x80\x99t be updated", error);
+				ui.alert("The extension couldn\xE2\x80\x99t be updated", error);
 				return;
 			}
 			mstJavaBusy[pkg] = "Updating\xE2\x80\xA6";
@@ -224,7 +225,7 @@ namespace bp
 		}
 		if (!mangaNet->javaSources().install(pkg, error))
 		{
-			alert("The extension couldn\xE2\x80\x99t be installed", error);
+			ui.alert("The extension couldn\xE2\x80\x99t be installed", error);
 			return;
 		}
 		mstJavaBusy[pkg] = "Installing\xE2\x80\xA6";
@@ -232,7 +233,7 @@ namespace bp
 		mstJavaLocal++;
 	}
 
-	void Ui::mangaJavaRepoAct(int local, Player& p)
+	void Ui::Manga::mangaJavaRepoAct(int local, Player& p)
 	{
 		(void)p;
 		if (!mangaNet || !mangaNet->started()) return;
@@ -245,7 +246,7 @@ namespace bp
 		mstJavaLocal++;
 	}
 
-	void Ui::mangaJavaPoll(const Player& p)
+	void Ui::Manga::mangaJavaPoll(const Player& p)
 	{
 		if (!mangaNet || !mangaNet->started()) return;
 		MangaJava& mgr = mangaNet->javaSources();
@@ -254,18 +255,18 @@ namespace bp
 		bool inUse = false;
 		{
 			std::string full, key;
-			if (page == Page::MangaRead && isSourceId(pageReader->mangaReadSeriesId))
+			if (ui.page == Page::MangaRead && isSourceId(ui.pageReader->mangaReadSeriesId))
 			{
-				splitSourceId(pageReader->mangaReadSeriesId, full, key);
+				splitSourceId(ui.pageReader->mangaReadSeriesId, full, key);
 				if (MangaJava::isSourceId(full)) inUse = true;
 			}
-			else if (page == Page::MangaSeries && isSourceId(mangaSeriesId))
+			else if (ui.page == Page::MangaSeries && isSourceId(mangaSeriesId))
 			{
 				splitSourceId(mangaSeriesId, full, key);
 				if (MangaJava::isSourceId(full)) inUse = true;
 			}
 		}
-		if (!inUse && page == Page::Manga && mangaView == 1 && MangaJava::isSourceId(mangaSrcId)) inUse = true;
+		if (!inUse && ui.page == Page::Manga && mangaView == 1 && MangaJava::isSourceId(mangaSrcId)) inUse = true;
 		if (!inUse)
 		{
 			Uint32 now = SDL_GetTicks();
@@ -359,7 +360,7 @@ namespace bp
 		// only while Sources is open: the list (450 KB, 15-20 s) went first at every start and the engine answers one
 		// request at a time, so a series' check and a chapter's pages waited behind it. Browse doesn't need it (the
 		// installed sources are on the card); opening Sources asks for it
-		if (page == Page::MangaSources && mangaJavaInstalled() && mgr.hasRepos() && !mgr.extensionsKnown() &&
+		if (ui.page == Page::MangaSources && mangaJavaInstalled() && mgr.hasRepos() && !mgr.extensionsKnown() &&
 			mangaNet->javaExt().state() == JavaExtHost::State::Running)
 		{
 			Uint32 now = SDL_GetTicks();
@@ -381,7 +382,7 @@ namespace bp
 		}
 	}
 
-	void Ui::mangaAvFreeze(const Player& p)
+	void Ui::Manga::mangaAvFreeze(const Player& p)
 	{
 		// the Available list's order as it stands now: kept until Available is opened again
 		mstAvOrder.clear();
@@ -391,7 +392,7 @@ namespace bp
 		for (size_t i = 0; i < list.size(); i++) mstAvOrder[list[i]->pkgName] = (int)i;
 	}
 
-	void Ui::mangaVideoGuard(Player& p)
+	void Ui::Manga::mangaVideoGuard(Player& p)
 	{
 		// The handheld's 1 GB can't hold a video and the manga engine (its server takes about 400 MB). In the manga
 		// reader a video is stopped (as Stop, everywhere, with the notice); outside it a video wins and the engine
@@ -401,8 +402,8 @@ namespace bp
 		// with no request) was undone the moment it happened, so the engine started again every five minutes under a
 		// chapter read from the card and its 400 MB never came back. After an idle stop the next use starts it (graphql)
 		{
-			bool in = page == Page::Manga || page == Page::MangaSeries || page == Page::MangaRead ||
-				page == Page::MangaSettings || page == Page::MangaSources;
+			bool in = ui.page == Page::Manga || ui.page == Page::MangaSeries || ui.page == Page::MangaRead ||
+				ui.page == Page::MangaSettings || ui.page == Page::MangaSources;
 			if (in && !engineInManga) engineEntryWant = true;
 			if (!in) engineEntryWant = false;
 			engineInManga = in;
@@ -442,8 +443,8 @@ namespace bp
 		}
 		if (p.playing() && !p.playingAudio() && !p.playingPhoto() && !p.loading())
 		{
-			bool inManga = page == Page::Manga || page == Page::MangaSeries || page == Page::MangaRead ||
-				page == Page::MangaSettings || page == Page::MangaSources;
+			bool inManga = ui.page == Page::Manga || ui.page == Page::MangaSeries || ui.page == Page::MangaRead ||
+				ui.page == Page::MangaSettings || ui.page == Page::MangaSources;
 			auto st = mangaNet && mangaNet->started() ? mangaNet->javaExt().state() : JavaExtHost::State::NotInstalled;
 			// outside the manga reader a video wins: the engine (loading or loaded) is stopped, and entering the
 			// reader again loads it again, the same way every time
@@ -459,14 +460,14 @@ namespace bp
 			}
 			else if (inManga)
 			{
-				stopPressed = true;
+				ui.stopPressed = true;
 				videoBlockedAt = SDL_GetTicks();
 				fprintf(stderr, "manga: a video stopped (the manga reader)\n");
 			}
 		}
 	}
 
-	std::string Ui::extNoticeText() const
+	std::string Ui::Manga::extNoticeText() const
 	{
 		if (videoBlockedAt && SDL_GetTicks() - videoBlockedAt < 5000)
 			return "Video stopped: no video in the manga reader";
@@ -489,21 +490,21 @@ namespace bp
 		}
 	}
 
-	void Ui::drawExtNotice()
+	void Ui::Manga::drawExtNotice()
 	{
 		std::string t = extNoticeText();
 		if (t.empty()) return;
 		bool failed = extNoticeState == (int)JavaExtHost::State::Failed ||
 			(videoBlockedAt && SDL_GetTicks() - videoBlockedAt < 5000);
 		bool ready = extNoticeState == (int)JavaExtHost::State::Running;
-		int tw = (int)std::lround(textWidth(t, 0) / sx);
+		int tw = (int)std::lround(ui.textWidth(t, 0) / sx);
 		Rect r{W / 2 - (tw + 40) / 2, 8, tw + 40, 30};
-		drawBox(r, SURFACE, R_CHIP, failed ? DANGER : ready ? ACCENT : DIM);
-		fillRound({r.x + 12, r.y + 11, 8, 8}, failed ? DANGER : ACCENT, 4);
-		drawTextMid(t, 0, failed ? DANGER : TEXT, r.x + 28, r.y + r.h / 2, tw + 4);
+		ui.drawBox(r, SURFACE, R_CHIP, failed ? DANGER : ready ? ACCENT : DIM);
+		ui.fillRound({r.x + 12, r.y + 11, 8, 8}, failed ? DANGER : ACCENT, 4);
+		ui.drawTextMid(t, 0, failed ? DANGER : TEXT, r.x + 28, r.y + r.h / 2, tw + 4);
 	}
 
-	void Ui::mangaNotesTick(Player& p)
+	void Ui::Manga::mangaNotesTick(Player& p)
 	{
 		// answers come back where only a const Player is at hand (a draw), so the note waits here for a frame
 		if (mangaNotes.empty()) return;
@@ -513,9 +514,9 @@ namespace bp
 
 	// ---- drawing the Java rows ----
 
-	void Ui::drawMangaJavaRow(int tab, int local, const Rect& r, bool at, bool focus, const Player& p)
+	void Ui::Manga::drawMangaJavaRow(int tab, int local, const Rect& r, bool at, bool focus, const Player& p)
 	{
-		if (focus && at) drawFocus(r);
+		if (focus && at) ui.drawFocus(r);
 		int mid = r.y + r.h / 2;
 		SDL_Color ink = at ? ACCENT : TEXT, soft = at ? DIM_ON : DIM;
 		if (tab == MST_REPOSITORIES)
@@ -524,9 +525,9 @@ namespace bp
 			const auto& repos = mangaNet->javaSources().repos();
 			if (local < 0 || local >= (int)repos.size()) return;
 			const MangaJava::Repo& rp = repos[local];
-			drawTextMid(rp.name.empty() ? rp.url : rp.name, 1, ink, 32, mid - 10, 450);
-			drawTextMid(elideMiddle(rp.url, 0, 380), 0, soft, 32, mid + 10, 0);
-			if (rp.queued) drawTextMid("Waits for the engine", 0, soft, 608, mid, 0, 1);
+			ui.drawTextMid(rp.name.empty() ? rp.url : rp.name, 1, ink, 32, mid - 10, 450);
+			ui.drawTextMid(elideMiddle(rp.url, 0, 380), 0, soft, 32, mid + 10, 0);
+			if (rp.queued) ui.drawTextMid("Waits for the engine", 0, soft, 608, mid, 0, 1);
 			return;
 		}
 		const SuwayomiExt* e = nullptr;
@@ -543,43 +544,43 @@ namespace bp
 			if (local < 0 || local >= (int)list.size()) return;
 			e = list[local];
 		}
-		drawTextMid(e->name.empty() ? e->pkgName : e->name, 1, ink, 32, mid - 10, 420);
+		ui.drawTextMid(e->name.empty() ? e->pkgName : e->name, 1, ink, 32, mid - 10, 420);
 		int x = 32;
 		if (!e->lang.empty())
 		{
-			int cw = (int)std::lround(textWidth(e->lang, 0) / sx) + 14;
-			fillRound({x, mid + 3, cw, 18}, TRACK, R_CHIP);
-			drawTextMid(e->lang, 0, at ? DIM_ON : TEXT, x + cw / 2, mid + 12, cw - 6, 2);
+			int cw = (int)std::lround(ui.textWidth(e->lang, 0) / sx) + 14;
+			ui.fillRound({x, mid + 3, cw, 18}, TRACK, R_CHIP);
+			ui.drawTextMid(e->lang, 0, at ? DIM_ON : TEXT, x + cw / 2, mid + 12, cw - 6, 2);
 			x += cw + 8;
 		}
-		drawTextMid(javaExtVersion(*e), 0, soft, x, mid + 12, 200);
-		if (e->isNsfw) drawAdultChip(x + std::min(200, (int)std::lround(textWidth(javaExtVersion(*e), 0) / sx)) + 8, mid + 12);
+		ui.drawTextMid(javaExtVersion(*e), 0, soft, x, mid + 12, 200);
+		if (e->isNsfw) drawAdultChip(x + std::min(200, (int)std::lround(ui.textWidth(javaExtVersion(*e), 0) / sx)) + 8, mid + 12);
 		auto busy = mstJavaBusy.find(e->pkgName);
 		if (busy != mstJavaBusy.end())
-			drawTextMid(busy->second, 0, ACCENT, 520, mid, 0, 1);
+			ui.drawTextMid(busy->second, 0, ACCENT, 520, mid, 0, 1);
 		else if (e->isInstalled && e->sourcesKnown && e->sources.empty())
 		{
 			// installed, but the engine couldn't load it (an extension built for a newer engine): it gives no sources
-			int w = (int)std::lround(textWidth("Can't load", 0) / sx) + 16;
-			drawBox({608 - w, mid - 10, w, 20}, TRACK, R_CHIP);
-			drawTextMid("Can't load", 0, DANGER, 608 - w / 2, mid, w - 6, 2);
+			int w = (int)std::lround(ui.textWidth("Can't load", 0) / sx) + 16;
+			ui.drawBox({608 - w, mid - 10, w, 20}, TRACK, R_CHIP);
+			ui.drawTextMid("Can't load", 0, DANGER, 608 - w / 2, mid, w - 6, 2);
 		}
 		else if (e->isInstalled && e->hasUpdate)
 		{
-			int w = (int)std::lround(textWidth("Update", 0) / sx) + 16;
-			fillRound({608 - w, mid - 10, w, 20}, ACCENT, R_CHIP);
-			drawTextMid("Update", 0, ON_ACCENT, 608 - w / 2, mid, w - 6, 2);
+			int w = (int)std::lround(ui.textWidth("Update", 0) / sx) + 16;
+			ui.fillRound({608 - w, mid - 10, w, 20}, ACCENT, R_CHIP);
+			ui.drawTextMid("Update", 0, ON_ACCENT, 608 - w / 2, mid, w - 6, 2);
 		}
 		else if (tab == MST_AVAILABLE && e->isInstalled)
 		{
 			// (Available lists the installed on top: marked, so A's "up to date" isn't a surprise)
-			int w = (int)std::lround(textWidth("Installed", 0) / sx) + 16;
-			fillRound({608 - w, mid - 10, w, 20}, TRACK, R_CHIP);
-			drawTextMid("Installed", 0, at ? DIM_ON : DIM, 608 - w / 2, mid, w - 6, 2);
+			int w = (int)std::lround(ui.textWidth("Installed", 0) / sx) + 16;
+			ui.fillRound({608 - w, mid - 10, w, 20}, TRACK, R_CHIP);
+			ui.drawTextMid("Installed", 0, at ? DIM_ON : DIM, 608 - w / 2, mid, w - 6, 2);
 		}
 	}
 
-	int Ui::mangaJavaModalRows() const
+	int Ui::Manga::mangaJavaModalRows() const
 	{
 		if (mstJavaModal == MJM_REPO) return 2;	// Refresh, Remove
 		if (mstJavaModal != MJM_DETAILS || !mangaNet || !mangaNet->started()) return 0;
@@ -588,14 +589,14 @@ namespace bp
 		return e->hasUpdate ? 2 : 1;	// Update (if any), then Uninstall
 	}
 
-	Ui::Rect Ui::mangaJavaModalBox() const
+	Ui::Rect Ui::Manga::mangaJavaModalBox() const
 	{
 		int rows = std::max(1, mangaJavaModalRows());
 		int h = mstJavaModal == MJM_DETAILS ? 132 + rows * 50 : 100 + rows * 52;
 		return {112, (436 - h) / 2, 416, h};
 	}
 
-	Ui::Rect Ui::mangaJavaModalRowRect(int i) const
+	Ui::Rect Ui::Manga::mangaJavaModalRowRect(int i) const
 	{
 		Rect b = mangaJavaModalBox();
 		int top = mstJavaModal == MJM_DETAILS ? b.y + 132 : b.y + 90;
@@ -603,7 +604,7 @@ namespace bp
 		return {b.x + 16, top + i * step, b.w - 32, step - 6};
 	}
 
-	bool Ui::mangaJavaModalKey(Button b, Player& p)
+	bool Ui::Manga::mangaJavaModalKey(Button b, Player& p)
 	{
 		int n = mangaJavaModalRows();
 		if (n <= 0) { mangaJavaModalClose(); return false; }
@@ -619,7 +620,7 @@ namespace bp
 		return false;
 	}
 
-	void Ui::mangaJavaModalAct(Player& p)
+	void Ui::Manga::mangaJavaModalAct(Player& p)
 	{
 		if (!mangaNet || !mangaNet->started()) { mangaJavaModalClose(); return; }
 		MangaJava& mgr = mangaNet->javaSources();
@@ -637,7 +638,7 @@ namespace bp
 			{
 				std::string error;
 				if (mgr.removeRepo(mstJavaModalId, error)) p.osd("Removed the repository", 2500);
-				else alert("Couldn\xE2\x80\x99t remove the repository", error);
+				else ui.alert("Couldn\xE2\x80\x99t remove the repository", error);
 				mgr.save();
 				mangaJavaModalClose();
 				return;
@@ -658,7 +659,7 @@ namespace bp
 			{
 				if (!mgr.uninstall(e->pkgName, error))
 				{
-					alert("The extension couldn\xE2\x80\x99t be removed", error);
+					ui.alert("The extension couldn\xE2\x80\x99t be removed", error);
 					return;
 				}
 				mstJavaBusy[e->pkgName] = "Removing\xE2\x80\xA6";
@@ -674,7 +675,7 @@ namespace bp
 		if (!e->hasUpdate) { p.osd("Already up to date", 1500); return; }
 		if (!mgr.update(e->pkgName, error))
 		{
-			alert("The extension couldn\xE2\x80\x99t be updated", error);
+			ui.alert("The extension couldn\xE2\x80\x99t be updated", error);
 			return;
 		}
 		mstJavaBusy[e->pkgName] = "Updating\xE2\x80\xA6";
@@ -682,7 +683,7 @@ namespace bp
 		mangaJavaModalClose();
 	}
 
-	void Ui::mangaJavaModalClose()
+	void Ui::Manga::mangaJavaModalClose()
 	{
 		mstJavaModal = MJM_NONE;
 		mstJavaModalCursor = 0;
@@ -691,7 +692,7 @@ namespace bp
 		mstJavaLocal++;
 	}
 
-	bool Ui::mangaJavaModalPointer(const Pointer& pt, int x, int y, Player& p)
+	bool Ui::Manga::mangaJavaModalPointer(const Pointer& pt, int x, int y, Player& p)
 	{
 		if (pt.kind != Pointer::Down || mstJavaModal == MJM_NONE) return false;
 		if (!mangaJavaModalBox().hit(x, y)) { mangaJavaModalClose(); return false; }
@@ -706,7 +707,7 @@ namespace bp
 		return false;
 	}
 
-	void Ui::drawMangaJavaModal(const Player& p)
+	void Ui::Manga::drawMangaJavaModal(const Player& p)
 	{
 		(void)p;
 		if (mstJavaModal == MJM_NONE) return;
@@ -719,17 +720,17 @@ namespace bp
 			for (const MangaJava::Repo& r : mgr.repos())
 				if (r.url == mstJavaModalId) { rp = &r; break; }
 			if (!rp) { mstJavaModal = MJM_NONE; return; }
-			drawDialog(box, rp->name.empty() ? "Java repository" : rp->name);
-			drawTextMid(elideMiddle(rp->url, 0, box.w - 40), 0, DIM, box.x + box.w / 2, box.y + 62, 0, 2);
+			ui.drawDialog(box, rp->name.empty() ? "Java repository" : rp->name);
+			ui.drawTextMid(elideMiddle(rp->url, 0, box.w - 40), 0, DIM, box.x + box.w / 2, box.y + 62, 0, 2);
 		}
 		else
 		{
 			const SuwayomiExt* e = mgr.extension(mstJavaModalId);
 			if (!e) { mstJavaModal = MJM_NONE; return; }
-			drawDialog(box, e->name.empty() ? e->pkgName : e->name);
+			ui.drawDialog(box, e->name.empty() ? e->pkgName : e->name);
 			auto line = [&](const char* label, const std::string& value, int y) {
-				drawTextMid(label, 0, DIM, box.x + 24, y, 104);
-				drawTextMid(value, 0, TEXT, box.x + 132, y, box.w - 156);
+				ui.drawTextMid(label, 0, DIM, box.x + 24, y, 104);
+				ui.drawTextMid(value, 0, TEXT, box.x + 132, y, box.w - 156);
 			};
 			line("Package", e->pkgName, box.y + 58);
 			line("Version", javaExtVersion(*e), box.y + 80);
@@ -767,16 +768,16 @@ namespace bp
 				g = i == 0 ? &G_REFRESH : &G_TRASH;
 				if (i == 1 && mstJavaUninstallArmed) note = "Press again";
 			}
-			drawDialogRow(mangaJavaModalRowRect(i), g, label, at, false, dim ? DIM : TEXT, note,
+			ui.drawDialogRow(mangaJavaModalRowRect(i), g, label, at, false, dim ? DIM : TEXT, note,
 				note == "Press again" ? ACCENT : SDL_Color{0, 0, 0, 0});
 		}
-		if (mstJavaUninstallArmed) drawFooterText("Press A again to remove", ACCENT);
-		else drawHints({{"A", "Choose"}, {"B", "Close"}});
+		if (mstJavaUninstallArmed) ui.drawFooterText("Press A again to remove", ACCENT);
+		else ui.drawHints({{"A", "Choose"}, {"B", "Close"}});
 	}
 
 	// ---- a Java source's page (the hooks in ui_manga_browse.cpp call these) ----
 
-	void Ui::mangaJavaSourceOpened(const MangaSrcRow& row, Player& p)
+	void Ui::Manga::mangaJavaSourceOpened(const MangaSrcRow& row, Player& p)
 	{
 		(void)p;
 		if (const MangaJava::Source* s = mangaJavaSourceFor(row.id)) mangaSrcHasLatest = s->supportsLatest;
@@ -785,14 +786,14 @@ namespace bp
 		mstJavaLocal++;
 	}
 
-	void Ui::mangaJavaCancelList()
+	void Ui::Manga::mangaJavaCancelList()
 	{
 		if (mangaJavaListSerial && mangaNet && mangaNet->started())
 			mangaNet->javaExt().cancelGraphQl(mangaJavaListSerial);
 		mangaJavaListSerial = 0;
 	}
 
-	void Ui::mangaJavaCancel()
+	void Ui::Manga::mangaJavaCancel()
 	{
 		if (mangaNet && mangaNet->started())
 		{
@@ -805,7 +806,7 @@ namespace bp
 		mstJavaLocal++;
 	}
 
-	void Ui::mangaJavaListLoad(int page)
+	void Ui::Manga::mangaJavaListLoad(int page)
 	{
 		mangaJavaCancelList();
 		mangaSrcError.clear();
@@ -847,7 +848,7 @@ namespace bp
 		mstJavaLocal++;
 	}
 
-	bool Ui::mangaJavaListAnswer(const JavaExtHost::GraphQlResult& r)
+	bool Ui::Manga::mangaJavaListAnswer(const JavaExtHost::GraphQlResult& r)
 	{
 		if (!mangaJavaListSerial || r.serial != mangaJavaListSerial) return false;
 		mangaJavaListSerial = 0;
@@ -886,7 +887,7 @@ namespace bp
 		return true;
 	}
 
-	void Ui::mangaJavaSeriesLoad(Player& p, bool refresh)
+	void Ui::Manga::mangaJavaSeriesLoad(Player& p, bool refresh)
 	{
 		(void)p;
 		// a refresh keeps the list on screen (the card's copy is the only thing asked again); a first load starts blank
@@ -930,7 +931,7 @@ namespace bp
 		mstJavaLocal++;
 	}
 
-	bool Ui::mangaJavaSeriesAnswer(const JavaExtHost::GraphQlResult& r)
+	bool Ui::Manga::mangaJavaSeriesAnswer(const JavaExtHost::GraphQlResult& r)
 	{
 		if (!mangaJavaSeriesSerial || r.serial != mangaJavaSeriesSerial) return false;
 		mangaJavaSeriesSerial = 0;
@@ -1009,7 +1010,7 @@ namespace bp
 		return true;
 	}
 
-	void Ui::mangaJavaCheckStart()
+	void Ui::Manga::mangaJavaCheckStart()
 	{
 		if (mangaNet && mangaNet->started() && mangaJavaCheckSerial) mangaNet->javaExt().cancelGraphQl(mangaJavaCheckSerial);
 		mangaJavaCheckSerial = 0;
@@ -1027,7 +1028,7 @@ namespace bp
 		mstJavaLocal++;
 	}
 
-	bool Ui::mangaJavaCheckAnswer(const JavaExtHost::GraphQlResult& r)
+	bool Ui::Manga::mangaJavaCheckAnswer(const JavaExtHost::GraphQlResult& r)
 	{
 		if (!mangaJavaCheckSerial || r.serial != mangaJavaCheckSerial) return false;
 		mangaJavaCheckSerial = 0;
@@ -1085,7 +1086,7 @@ namespace bp
 		return true;
 	}
 
-	bool Ui::mangaJavaRelinkStart(const std::string& why)
+	bool Ui::Manga::mangaJavaRelinkStart(const std::string& why)
 	{
 		const MangaSeries* saved = mangaStore ? mangaStore->series(mangaSeriesId) : nullptr;
 		if (mangaJavaRelinkTried || !saved || saved->title.empty() || !mangaNet || !mangaNet->started()) return false;
@@ -1100,7 +1101,7 @@ namespace bp
 		return true;
 	}
 
-	bool Ui::mangaJavaRelinkAnswer(const JavaExtHost::GraphQlResult& r)
+	bool Ui::Manga::mangaJavaRelinkAnswer(const JavaExtHost::GraphQlResult& r)
 	{
 		if (!mangaJavaRelinkSerial || r.serial != mangaJavaRelinkSerial) return false;
 		mangaJavaRelinkSerial = 0;
@@ -1144,7 +1145,7 @@ namespace bp
 		return true;
 	}
 
-	void Ui::mangaJavaRelinkChapters()
+	void Ui::Manga::mangaJavaRelinkChapters()
 	{
 		// each saved chapter place to its chapter's new id, by its title (what the place keeps of it)
 		mangaJavaRelinkFrom.clear();
@@ -1166,7 +1167,7 @@ namespace bp
 		fprintf(stderr, "manga: %s: %d chapter places moved to their new ids\n", mangaSeriesId.c_str(), (int)ids.size());
 	}
 
-	void Ui::mangaJavaPagesAsk(Player& p)
+	void Ui::Manga::mangaJavaPagesAsk(Player& p)
 	{
 		(void)p;
 		mangaSrcError.clear();
@@ -1201,7 +1202,7 @@ namespace bp
 		mstJavaLocal++;
 	}
 
-	bool Ui::mangaJavaPagesAnswer(const JavaExtHost::GraphQlResult& r, const Player& p)
+	bool Ui::Manga::mangaJavaPagesAnswer(const JavaExtHost::GraphQlResult& r, const Player& p)
 	{
 		if (!mangaJavaPagesSerial || r.serial != mangaJavaPagesSerial) return false;
 		mangaJavaPagesSerial = 0;
@@ -1262,7 +1263,7 @@ namespace bp
 		return true;
 	}
 
-	void Ui::mangaJavaFiltersAsk()
+	void Ui::Manga::mangaJavaFiltersAsk()
 	{
 		if (mangaSrcId.empty() || !MangaJava::isSourceId(mangaSrcId)) return;
 		MangaFilterSession& f = mangaFilters[mangaSrcId];
@@ -1275,14 +1276,14 @@ namespace bp
 		mangaFilterLocal++;
 	}
 
-	std::string Ui::mangaJavaFiltersJson() const
+	std::string Ui::Manga::mangaJavaFiltersJson() const
 	{
 		const MangaFilterSession* f = mangaFilterSession();
 		if (!f || !f->known || f->defs.empty()) return "[]";
 		return suwayomiFilterInputsJson(f->defs, f->values);
 	}
 
-	bool Ui::mangaJavaFilterAnswer(const JavaExtHost::GraphQlResult& r)
+	bool Ui::Manga::mangaJavaFilterAnswer(const JavaExtHost::GraphQlResult& r)
 	{
 		for (auto& kv : mangaFilters)
 		{
@@ -1317,7 +1318,7 @@ namespace bp
 
 	// ---- the Download sheet's page list ----
 
-	uint64_t Ui::mangaJavaDlSubmit(const MangaDlAsk& a)
+	uint64_t Ui::Manga::mangaJavaDlSubmit(const MangaDlAsk& a)
 	{
 		if (!mangaNet || !mangaNet->started() || !mangaJavaInstalled()) return 0;
 		int chapterId = std::atoi(a.chapterJson.c_str());
@@ -1327,7 +1328,7 @@ namespace bp
 		return mangaNet->javaExt().graphql(suwayomiFetchChapterPages(chapterId));
 	}
 
-	bool Ui::mangaJavaDlAnswer(const JavaExtHost::GraphQlResult& r)
+	bool Ui::Manga::mangaJavaDlAnswer(const JavaExtHost::GraphQlResult& r)
 	{
 		if (!mdlAskOn || !mdlPagesSerial || r.serial != mdlPagesSerial) return false;
 		if (!MangaJava::isSourceId(mdlAsk.sourceId)) return false;

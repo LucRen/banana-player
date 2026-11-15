@@ -17,6 +17,7 @@
 #endif
 #include "ui_internal.h"
 #include "ui_reader.h"
+#include "ui_manga.h"
 
 namespace bp
 {
@@ -354,11 +355,11 @@ namespace bp
 		pageReader->readFilterNow = page == Page::DocPages ? p.settings.pdfFilter : p.settings.mangaFilter;
 		pageReader->readDimNow = p.settings.readDim;
 		mangaOn = p.settings.mangaOn;
-		mangaHistOn = p.settings.mangaHistory;
+		manga->mangaHistOn = p.settings.mangaHistory;
 		// before the signature: "Again to clear" goes back to how it was when the second tap would no longer clear
 		if (clearArmed && SDL_GetTicks() - clearArmed >= QUIT_WINDOW_MS) clearArmed = 0;
-		if (mangaCacheAt && SDL_GetTicks() - mangaCacheAt >= QUIT_WINDOW_MS) mangaCacheAt = 0;
-		if (mangaJavaAt && SDL_GetTicks() - mangaJavaAt >= QUIT_WINDOW_MS) mangaJavaAt = 0;
+		if (manga->mangaCacheAt && SDL_GetTicks() - manga->mangaCacheAt >= QUIT_WINDOW_MS) manga->mangaCacheAt = 0;
+		if (manga->mangaJavaAt && SDL_GetTicks() - manga->mangaJavaAt >= QUIT_WINDOW_MS) manga->mangaJavaAt = 0;
 		if (!batteryAt || SDL_GetTicks() - batteryAt >= 10000) readPower();
 		// the lock held long enough: released (the finger still down presses nothing)
 		if (touchLocked && lockHoldAt && SDL_GetTicks() - lockHoldAt >= UNLOCK_HOLD_MS)
@@ -459,13 +460,7 @@ namespace bp
 		else if (page == Page::Chapters) drawChapters(p);
 		else if (page == Page::Playing) drawPlaying(p);
 		else if (page == Page::UpNext) drawUpNext(p);
-		else if (page == Page::Extensions) drawExtensions(p);
-		else if (page == Page::Manga) drawManga(p);
-		else if (page == Page::MangaSeries) drawMangaSeries(p);
-		else if (page == Page::MangaRead) drawMangaRead(p);
 		else if (Area* a = area()) a->draw(p);
-		else if (page == Page::MangaSettings) drawMangaSettings(p);
-		else if (page == Page::MangaSources) drawMangaSourcesPage(p);
 		else if (page != Page::Main) drawTracks(p);
 		else drawMain(p);
 		if (miniUp) drawMiniBar(p);
@@ -477,8 +472,8 @@ namespace bp
 		if (playOnOpen && inMenu && page == Page::Playing) drawPlayOn(p);
 		if (addPending.serial && page == Page::Browse) drawBusy();
 		if (popupShown(p)) drawUpdatePopup();
-		drawExtNotice();
-		if (mangaErrOpen) drawMangaErr();
+		manga->drawExtNotice();
+		if (manga->mangaErrOpen) manga->drawMangaErr();
 		if (quickOpen) drawQuick(p);
 		if (kbOpen) drawKeyboard();
 		drawFileInfo();

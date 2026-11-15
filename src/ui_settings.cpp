@@ -18,6 +18,7 @@
 #endif
 #include "ui_internal.h"
 #include "ui_reader.h"
+#include "ui_manga.h"
 
 namespace bp
 {
@@ -124,18 +125,18 @@ namespace bp
 		if (row == MANGA_CLEAR_ROW)
 		{
 			Uint32 now = SDL_GetTicks();
-			if (mangaCacheAt && now - mangaCacheAt < QUIT_WINDOW_MS)
+			if (manga->mangaCacheAt && now - manga->mangaCacheAt < QUIT_WINDOW_MS)
 			{
-				mangaPageCache.clear();
-				mangaNetCacheBytes = 0;	// (clear() empties the whole folder, the network chapters too)
-				mangaCacheAt = 0;
+				manga->mangaPageCache.clear();
+				manga->mangaNetCacheBytes = 0;	// (clear() empties the whole folder, the network chapters too)
+				manga->mangaCacheAt = 0;
 			}
-			else mangaCacheAt = now;
+			else manga->mangaCacheAt = now;
 			return;
 		}
 		// a note, not a value: nothing to change
 		if (row == EXT_NOTE) return;
-		if (row == MANGA_JAVA_ROW) { mangaJavaAct(); return; }
+		if (row == MANGA_JAVA_ROW) { manga->mangaJavaAct(); return; }
 		if (row == CHECK_ROW) { if (updater) updater->check(); return; }
 		if (row == TOP_LIGHT_ROW || row == BOTTOM_LIGHT_ROW)
 		{
@@ -170,17 +171,17 @@ namespace bp
 			else if (d->intField == &Settings::mangaCacheSize)
 			{
 				// over a smaller cap the cache gives its oldest pages up at once
-				mangaPageCache.setLimit(mangaCacheBytes(s.mangaCacheSize));
-				mangaNetTrim(pageReader->mangaRead.path, p);
+				manga->mangaPageCache.setLimit(mangaCacheBytes(s.mangaCacheSize));
+				manga->mangaNetTrim(pageReader->mangaRead.path, p);
 			}
 			else if (d->flagField == &Settings::mangaHistory)
 			{
-				mangaHistOn = s.mangaHistory;
+				manga->mangaHistOn = s.mangaHistory;
 				// off: the list goes; the places and the read marks stay (progress isn't history)
-				if (!s.mangaHistory && mangaStore)
+				if (!s.mangaHistory && manga->mangaStore)
 				{
-					mangaStore->clearHistory();
-					mangaSave();
+					manga->mangaStore->clearHistory();
+					manga->mangaSave();
 				}
 			}
 			else if (d->intField == &Settings::volumeMax && s.volumeMax == 150)
@@ -247,17 +248,17 @@ namespace bp
 		if (row == MANGA_CLEAR_ROW)
 		{
 			// the cache's Clear: an action too (its size from the cache itself)
-			uint64_t size = mangaPageCache.size() + mangaNetCacheBytes;
+			uint64_t size = manga->mangaPageCache.size() + manga->mangaNetCacheBytes;
 			drawTextMid("Clear cache", 1, at ? ACCENT : TEXT, 32, mid, 320);
-			drawTextMid(mangaCacheAt ? "Press again to clear" : size ? "Clear \xC2\xB7 " + formatBytes((long long)size) : "Empty", 1,
-				mangaCacheAt ? ACCENT : at ? DIM_ON : DIM, 608, mid, 0, 1);
+			drawTextMid(manga->mangaCacheAt ? "Press again to clear" : size ? "Clear \xC2\xB7 " + formatBytes((long long)size) : "Empty", 1,
+				manga->mangaCacheAt ? ACCENT : at ? DIM_ON : DIM, 608, mid, 0, 1);
 			return;
 		}
 		if (row == MANGA_JAVA_ROW)
 		{
 			// an action with the host's state as its value (installed size, download progress, why it failed)
 			drawTextMid("Extension support", 1, at ? ACCENT : TEXT, 32, mid, 250);
-			drawTextMid(mangaJavaValue(), 1, at ? ACCENT : TEXT, 608, mid, 330, 1);
+			drawTextMid(manga->mangaJavaValue(), 1, at ? ACCENT : TEXT, 608, mid, 330, 1);
 			return;
 		}
 		if (k >= 0 && k < STYLE_KEYS)

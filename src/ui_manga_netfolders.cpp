@@ -5,6 +5,7 @@
 #include "netpath.h"
 #include "ui_internal.h"
 #include "ui_reader.h"
+#include "ui_manga.h"
 #include "treecopy.h"
 #include <sys/time.h>
 #include <algorithm>
@@ -66,22 +67,22 @@ namespace bp
 		}
 	}
 
-	std::vector<NetServer> Ui::mangaNetFoldersServers() const
+	std::vector<NetServer> Ui::Manga::mangaNetFoldersServers() const
 	{
 		// the Files browser's order: the most recently used first, the file's own order for a tie
-		std::vector<NetServer> list = netStore ? netStore->servers() : std::vector<NetServer>();
+		std::vector<NetServer> list = ui.netStore ? ui.netStore->servers() : std::vector<NetServer>();
 		std::stable_sort(list.begin(), list.end(), [](const NetServer& a, const NetServer& b) {
 			return a.lastUsed > b.lastUsed;
 		});
 		return list;
 	}
 
-	int Ui::mangaNetFoldersCount() const
+	int Ui::Manga::mangaNetFoldersCount() const
 	{
 		return (int)mangaNetFoldersServers().size();
 	}
 
-	void Ui::mangaNetCancel()
+	void Ui::Manga::mangaNetCancel()
 	{
 		if (mangaNet && mangaNet->started())
 		{
@@ -93,7 +94,7 @@ namespace bp
 		mangaNetLoading = false;
 	}
 
-	void Ui::mangaNetFoldersReset(Player& p)
+	void Ui::Manga::mangaNetFoldersReset(Player& p)
 	{
 		(void)p;
 		mangaNetCancel();
@@ -113,7 +114,7 @@ namespace bp
 		mangaNetPendFull = false;
 	}
 
-	void Ui::mangaNetFoldersLeave()
+	void Ui::Manga::mangaNetFoldersLeave()
 	{
 		mangaNetCancel();
 		mangaNetView = MNF_OFF;
@@ -130,11 +131,11 @@ namespace bp
 		mangaNetPendAt = -1;
 	}
 
-	void Ui::mangaNetFoldersOpen(const std::string& serverId, Player& p)
+	void Ui::Manga::mangaNetFoldersOpen(const std::string& serverId, Player& p)
 	{
 		(void)p;
 		mangaNetCancel();
-		const NetServer* sv = netStore ? netStore->find(serverId) : nullptr;
+		const NetServer* sv = ui.netStore ? ui.netStore->find(serverId) : nullptr;
 		if (!sv)
 		{
 			mangaNetView = MNF_DIRS;
@@ -154,14 +155,14 @@ namespace bp
 		mangaNetScan(mangaNetStart);
 	}
 
-	void Ui::mangaNetList(const std::string& dir)
+	void Ui::Manga::mangaNetList(const std::string& dir)
 	{
 		mangaNetCancel();
 		mangaNetDir = dir;
 		mangaNetRows.clear();
 		mangaNetError.clear();
 		mangaNetCursor = mangaNetScroll = 0;
-		const NetServer* sv = netStore ? netStore->find(mangaNetServerId) : nullptr;
+		const NetServer* sv = ui.netStore ? ui.netStore->find(mangaNetServerId) : nullptr;
 		if (!sv)
 		{
 			mangaNetError = "This connection is gone";
@@ -183,7 +184,7 @@ namespace bp
 		job.sourceId = "net:" + sv->id;	// (not a source; kept apart for the queue's own bookkeeping)
 		job.replace = false;
 		job.netServer = *sv;
-		job.netPassword = netStore->password(*sv);
+		job.netPassword = ui.netStore->password(*sv);
 		job.netPath = dir;
 		mangaNetLoading = true;
 		mangaNetSerial = mangaNet->worker().submit(job);
@@ -194,14 +195,14 @@ namespace bp
 		}
 	}
 
-	void Ui::mangaNetScan(const std::string& path)
+	void Ui::Manga::mangaNetScan(const std::string& path)
 	{
 		mangaNetCancel();
 		mangaNetDir = path;
 		mangaNetRows.clear();
 		mangaNetError.clear();
 		mangaNetCursor = mangaNetScroll = 0;
-		const NetServer* sv = netStore ? netStore->find(mangaNetServerId) : nullptr;
+		const NetServer* sv = ui.netStore ? ui.netStore->find(mangaNetServerId) : nullptr;
 		if (!sv)
 		{
 			mangaNetError = "This connection is gone";
@@ -223,7 +224,7 @@ namespace bp
 		job.sourceId = "net:" + sv->id;
 		job.replace = false;
 		job.netServer = *sv;
-		job.netPassword = netStore->password(*sv);
+		job.netPassword = ui.netStore->password(*sv);
 		job.netPath = path;
 		mangaNetLoading = true;
 		mangaNetSerial = mangaNet->worker().submit(job);
@@ -234,7 +235,7 @@ namespace bp
 		}
 	}
 
-	void Ui::mangaNetSeriesOpen(const NetMangaSeries& s)
+	void Ui::Manga::mangaNetSeriesOpen(const NetMangaSeries& s)
 	{
 		mangaNetCancel();
 		mangaNetView = MNF_SERIES;
@@ -245,7 +246,7 @@ namespace bp
 		mangaNetError.clear();
 		mangaNetLoading = false;
 		mangaNetPendAt = -1;
-		page = Page::MangaSeries;
+		ui.page = Page::MangaSeries;
 		mangaSeriesId = s.path;
 		mangaSeriesFrom = 0;	// (our own key handler takes B: back to the folder it came from)
 		mserCursor = -1;
@@ -275,10 +276,10 @@ namespace bp
 		}
 	}
 
-	std::string Ui::mangaNetCachePath(const NetMangaChapter& c) const
+	std::string Ui::Manga::mangaNetCachePath(const NetMangaChapter& c) const
 	{
-		if (stateDirPath.empty()) return "";
-		std::string dir = stateDirPath + "/manga/cache/net/" + fnvHex(c.path);
+		if (ui.stateDirPath.empty()) return "";
+		std::string dir = ui.stateDirPath + "/manga/cache/net/" + fnvHex(c.path);
 		if (!c.archive) return dir;
 		std::string name = netDecode(baseName(c.path));
 		// (its own extension kept: it says which kind of book the reader opens)
@@ -286,14 +287,14 @@ namespace bp
 		return dir + "/" + name;
 	}
 
-	void Ui::mangaNetTrim(const std::string& keep, const Player& p)
+	void Ui::Manga::mangaNetTrim(const std::string& keep, const Player& p)
 	{
-		if (stateDirPath.empty()) return;
+		if (ui.stateDirPath.empty()) return;
 		uint64_t limit = mangaCacheBytes(p.settings.mangaCacheSize), pages = mangaPageCache.size();
-		mangaNetCacheBytes = trimCacheFolder(stateDirPath + "/manga/cache/net", limit > pages ? limit - pages : 0, keep);
+		mangaNetCacheBytes = trimCacheFolder(ui.stateDirPath + "/manga/cache/net", limit > pages ? limit - pages : 0, keep);
 	}
 
-	bool Ui::mangaNetCached(const std::string& localPath, bool archive) const
+	bool Ui::Manga::mangaNetCached(const std::string& localPath, bool archive) const
 	{
 		if (localPath.empty()) return false;
 		struct stat st;
@@ -307,7 +308,7 @@ namespace bp
 		return found;
 	}
 
-	void Ui::mangaNetChapterOpen(int i, int page0, Player& p)
+	void Ui::Manga::mangaNetChapterOpen(int i, int page0, Player& p)
 	{
 		if (i < 0 || i >= (int)mangaNetChapters.size()) return;
 		const NetMangaChapter& c = mangaNetChapters[i];
@@ -327,7 +328,7 @@ namespace bp
 		mangaNetFetchStart(c);
 	}
 
-	void Ui::mangaNetFetchStart(const NetMangaChapter& c)
+	void Ui::Manga::mangaNetFetchStart(const NetMangaChapter& c)
 	{
 		if (mangaNet && mangaNet->started() && mangaNetFetchSerial) mangaNet->worker().cancel(mangaNetFetchSerial);
 		mangaNetFetchSerial = 0;
@@ -338,7 +339,7 @@ namespace bp
 			mangaNetError = "No state folder for the chapter";
 			return;
 		}
-		const NetServer* sv = netStore ? netStore->find(mangaNetServerId) : nullptr;
+		const NetServer* sv = ui.netStore ? ui.netStore->find(mangaNetServerId) : nullptr;
 		if (!sv || !mangaNet)
 		{
 			mangaNetError = "This connection is gone";
@@ -355,7 +356,7 @@ namespace bp
 		job.sourceId = "net:" + sv->id;
 		job.replace = false;
 		job.netServer = *sv;
-		job.netPassword = netStore->password(*sv);
+		job.netPassword = ui.netStore->password(*sv);
 		job.netPath = c.path;
 		job.netDest = dest;
 		job.netArchive = c.archive;
@@ -368,23 +369,23 @@ namespace bp
 		}
 	}
 
-	void Ui::mangaNetChapterReady(const std::string& localPath, const Player& p)
+	void Ui::Manga::mangaNetChapterReady(const std::string& localPath, const Player& p)
 	{
 		if (mangaNetPendAt < 0 || mangaNetPendAt >= (int)mangaNetChapters.size()) return;
 		const NetMangaChapter& c = mangaNetChapters[mangaNetPendAt];
 		// the chapter open so far is saved before the next one replaces it in readerStatus
-		if (page == Page::MangaRead)
+		if (ui.page == Page::MangaRead)
 		{
 			mangaRecordProgress();
 			mangaSave();
 		}
 		mangaSeriesId = mangaNetSeriesPath;
-		pageReader->mangaReadSeriesId = mangaNetSeriesPath;
-		pageReader->mangaReadChapterId = c.path;
-		pageReader->mangaReadChapterTitle = c.title;
+		ui.pageReader->mangaReadSeriesId = mangaNetSeriesPath;
+		ui.pageReader->mangaReadChapterId = c.path;
+		ui.pageReader->mangaReadChapterTitle = c.title;
 		// path: the local copy the worker made (a folder of pictures or an archive); the ids stay the bpnet://
 		// paths, so progress and the store never see a machine's cache folder
-		pageReader->mangaRead = {mangaNetSeriesPath, mangaNetSeriesTitle, c.path, c.title, localPath, c.archive, mangaNetPendPage,
+		ui.pageReader->mangaRead = {mangaNetSeriesPath, mangaNetSeriesTitle, c.path, c.title, localPath, c.archive, mangaNetPendPage,
 			mangaNetPendMode, mangaNetPendFit};
 		// its folder marked as just used (the cache's oldest go first), then the cache held under the cap
 		{
@@ -392,28 +393,28 @@ namespace bp
 			utimes(item.c_str(), nullptr);
 			mangaNetTrim(item, p);
 		}
-		mangaProgPage = pageReader->readerStatus.page;
-		mangaProgPages = pageReader->readerStatus.pages;
+		mangaProgPage = ui.pageReader->readerStatus.page;
+		mangaProgPages = ui.pageReader->readerStatus.pages;
 		mangaReadLive = false;
-		pageReader->mangaSliderPage = -1;
+		ui.pageReader->mangaSliderPage = -1;
 		mangaCtrlUntil = 0;
 		mangaMenu = false;
-		pageReader->mangaZoomAsked = 100;
-		pageReader->mangaPages = false;
-		page = Page::MangaRead;
+		ui.pageReader->mangaZoomAsked = 100;
+		ui.pageReader->mangaPages = false;
+		ui.page = Page::MangaRead;
 		// Open fullscreen: the command SELECT sends right after the chapter, with the hinge it was asked with; the
 		// setting is written on the next key (mangaKey), where a Player can be changed
 		if (mangaNetPendFull)
 		{
 			Uint32 now = SDL_GetTicks();
-			pageReader->readerCmds.push_back({PageReader::ReaderCmd::Fullscreen, 1.0, (int64_t)now, (double)mangaNetPendHinge});
-			pageReader->mfTagUntil = now + 2500;
+			ui.pageReader->readerCmds.push_back({PageReader::ReaderCmd::Fullscreen, 1.0, (int64_t)now, (double)mangaNetPendHinge});
+			ui.pageReader->mfTagUntil = now + 2500;
 			if (!p.settings.mangaFullSeen) mangaToastUntil = now + MG_TOAST_MS;
 			mangaFullSeenPending = !p.settings.mangaFullSeen;
 		}
 	}
 
-	bool Ui::mangaNetFoldersResult(MangaWorker::Result& r, const Player& p)
+	bool Ui::Manga::mangaNetFoldersResult(MangaWorker::Result& r, const Player& p)
 	{
 		if (mangaNetFetchSerial && r.serial == mangaNetFetchSerial)
 		{
@@ -421,7 +422,7 @@ namespace bp
 			mangaNetLoading = false;
 			// the page moved on (Manga settings, another tab): the copy is kept for the next A, but the reader isn't
 			// opened under a page that didn't ask for it
-			if (page != Page::MangaSeries || mangaNetView != MNF_SERIES) return true;
+			if (ui.page != Page::MangaSeries || mangaNetView != MNF_SERIES) return true;
 			if (!r.ok || r.netFile.empty())
 			{
 				mangaNetError = r.error.empty() ? "The chapter didn\xE2\x80\x99t come" : r.error;
@@ -435,7 +436,7 @@ namespace bp
 		mangaNetSerial = 0;
 		mangaNetLoading = false;
 		// a listing belongs to Browse: a tab change while it was in flight drops it (the page starts again)
-		if (page != Page::Manga || mangaTab != MT_BROWSE || mangaNetView == MNF_OFF)
+		if (ui.page != Page::Manga || mangaTab != MT_BROWSE || mangaNetView == MNF_OFF)
 		{
 			mangaNetFoldersLeave();
 			return true;
@@ -477,7 +478,7 @@ namespace bp
 		return true;
 	}
 
-	bool Ui::mangaNetFoldersKey(Button b, Player& p)
+	bool Ui::Manga::mangaNetFoldersKey(Button b, Player& p)
 	{
 		if (mangaNetView == MNF_SERIES)
 		{
@@ -486,7 +487,7 @@ namespace bp
 			{
 				// back to the folder the series was found in; one opened from a connection's own start goes back
 				// to Browse's rows (there is no folder above it to show)
-				page = Page::Manga;
+				ui.page = Page::Manga;
 				mangaTab = MT_BROWSE;
 				mangaView = 0;
 				mBrowseList = false;
@@ -585,7 +586,7 @@ namespace bp
 		return false;
 	}
 
-	bool Ui::mangaNetFoldersPointer(const Pointer& pt, int x, int y, Player& p)
+	bool Ui::Manga::mangaNetFoldersPointer(const Pointer& pt, int x, int y, Player& p)
 	{
 		if (pt.kind != Pointer::Down) return false;
 		if (y < MNF_ROW_TOP || y >= MNF_ROW_TOP + MNF_ROWS * ROW_H) return false;
@@ -593,7 +594,7 @@ namespace bp
 		// with the rows shown), a tap (lifted where it went down) is what A does on the row
 		int n = mangaNetView == MNF_SERIES ? (int)mangaNetChapters.size() : (int)mangaNetRows.size();
 		int i = mangaNetScroll + (y - MNF_ROW_TOP) / ROW_H;
-		pageReader->mangaListBegin(x, y, mangaNetScroll, ROW_H, i < n ? i : -1, [this](int want) {
+		ui.pageReader->mangaListBegin(x, y, mangaNetScroll, ROW_H, i < n ? i : -1, [this](int want) {
 			int n = mangaNetView == MNF_SERIES ? (int)mangaNetChapters.size() : (int)mangaNetRows.size();
 			mangaNetScroll = std::clamp(want, 0, std::max(0, n - MNF_ROWS));
 			mangaNetCursor = std::clamp(mangaNetCursor, mangaNetScroll, std::max(mangaNetScroll, std::min(n - 1, mangaNetScroll + MNF_ROWS - 1)));
@@ -602,7 +603,7 @@ namespace bp
 		return false;
 	}
 
-	void Ui::mangaNetFoldersTap(int i, Player& p)
+	void Ui::Manga::mangaNetFoldersTap(int i, Player& p)
 	{
 		if (mangaNetView == MNF_SERIES)
 		{
@@ -639,12 +640,12 @@ namespace bp
 		}
 	}
 
-	void Ui::drawMangaNetFolders(const Player& p)
+	void Ui::Manga::drawMangaNetFolders(const Player& p)
 	{
 		if (mangaNetView == MNF_SERIES)
 		{
 			std::string title = mangaNetSeriesTitle.empty() ? netBaseName(mangaNetSeriesPath) : mangaNetSeriesTitle;
-			drawHeader(title.empty() ? "Series" : title, p);
+			ui.drawHeader(title.empty() ? "Series" : title, p);
 			int n = (int)mangaNetChapters.size();
 			int unread = 0;
 			if (mangaStore)
@@ -654,7 +655,7 @@ namespace bp
 				for (const auto& c : mangaNetChapters) ids.push_back(c.path);
 				unread = mangaStore->unread(mangaNetSeriesPath, ids);
 			}
-			drawTextMid(std::to_string(n) + (n == 1 ? " chapter" : " chapters") + " \xC2\xB7 " + std::to_string(unread) + " unread",
+			ui.drawTextMid(std::to_string(n) + (n == 1 ? " chapter" : " chapters") + " \xC2\xB7 " + std::to_string(unread) + " unread",
 				0, DIM, 16, 96, 592);
 			if (mangaNetCursor >= n) mangaNetCursor = n - 1;
 			if (mangaNetCursor < 0 && n) mangaNetCursor = 0;
@@ -665,32 +666,32 @@ namespace bp
 				const NetMangaChapter& c = mangaNetChapters[i];
 				int y = MNF_ROW_TOP + (i - mangaNetScroll) * ROW_H, mid = y + (ROW_H - 4) / 2;
 				bool at = i == mangaNetCursor;
-				if (at) drawFocus({16, y, 608, ROW_H - 4});
+				if (at) ui.drawFocus({16, y, 608, ROW_H - 4});
 				const ChapterProgress* pr = mangaStore ? mangaStore->progress(c.path) : nullptr;
 				bool read = pr && pr->read;
-				drawTextMid(c.title.empty() ? "Chapter" : c.title, 1, read ? DIM : at ? ACCENT : TEXT, 48, mid, 440);
-				if (read) drawGlyphMid(G_CHECK, 596, mid, DIM);
+				ui.drawTextMid(c.title.empty() ? "Chapter" : c.title, 1, read ? DIM : at ? ACCENT : TEXT, 48, mid, 440);
+				if (read) ui.drawGlyphMid(G_CHECK, 596, mid, DIM);
 				else if (pr && (pr->pages > 0 || pr->page > 0))
 				{
 					std::string line = "p. " + std::to_string(pr->page + 1);
 					if (pr->pages > 0) line += "/" + std::to_string(pr->pages);
-					drawTextMid(line, 0, at ? DIM_ON : DIM, 608, mid, 140, 1);
+					ui.drawTextMid(line, 0, at ? DIM_ON : DIM, 608, mid, 140, 1);
 				}
-				if (c.archive) drawTextMid("CBZ", 0, at ? DIM_ON : DIM, 208, mid, 60, 1);
+				if (c.archive) ui.drawTextMid("CBZ", 0, at ? DIM_ON : DIM, 208, mid, 60, 1);
 			}
-			if (n) drawScrollBar(MNF_ROW_TOP, MNF_ROWS * ROW_H - 4, mangaNetScroll, MNF_ROWS, n);
-			if (!mangaNetError.empty()) drawTextMid(mangaNetError, 1, DANGER, W / 2, MG_SRC_STATUS_Y, 560, 2);
-			else if (mangaNetLoading) drawTextMid("Fetching the chapter\xE2\x80\xA6", 0, DIM, W / 2, MG_SRC_STATUS_Y, 0, 2);
-			else if (n == 0) drawTextMid("No chapters", 0, DIM, W / 2, MG_SRC_STATUS_Y, 0, 2);
-			drawHints({{"A", "Read"}, {"X", "Read / unread"}, {"B", "Back"}});
+			if (n) ui.drawScrollBar(MNF_ROW_TOP, MNF_ROWS * ROW_H - 4, mangaNetScroll, MNF_ROWS, n);
+			if (!mangaNetError.empty()) ui.drawTextMid(mangaNetError, 1, DANGER, W / 2, MG_SRC_STATUS_Y, 560, 2);
+			else if (mangaNetLoading) ui.drawTextMid("Fetching the chapter\xE2\x80\xA6", 0, DIM, W / 2, MG_SRC_STATUS_Y, 0, 2);
+			else if (n == 0) ui.drawTextMid("No chapters", 0, DIM, W / 2, MG_SRC_STATUS_Y, 0, 2);
+			ui.drawHints({{"A", "Read"}, {"X", "Read / unread"}, {"B", "Back"}});
 			return;
 		}
 		// a folder of the server: its path, then its folders and archives
-		const NetServer* sv = netStore ? netStore->find(mangaNetServerId) : nullptr;
+		const NetServer* sv = ui.netStore ? ui.netStore->find(mangaNetServerId) : nullptr;
 		std::string where = sv ? serverName(*sv) : "Network";
 		std::string path = netDecode(mangaNetDir);
 		if (!path.empty()) where += " \xC2\xB7 " + path;
-		drawTextMid(where, 0, DIM, 16, 96, 592);
+		ui.drawTextMid(where, 0, DIM, 16, 96, 592);
 		int n = (int)mangaNetRows.size();
 		if (mangaNetCursor >= n) mangaNetCursor = n - 1;
 		if (mangaNetCursor < 0 && n) mangaNetCursor = 0;
@@ -701,15 +702,15 @@ namespace bp
 			const MangaNetRow& row = mangaNetRows[i];
 			int y = MNF_ROW_TOP + (i - mangaNetScroll) * ROW_H, mid = y + (ROW_H - 4) / 2;
 			bool at = i == mangaNetCursor;
-			if (at) drawFocus({16, y, 608, ROW_H - 4});
-			drawTextMid(row.name, 1, at ? ACCENT : TEXT, 48, mid, 470);
-			drawTextMid(row.dir ? "Folder" : "Archive", 0, at ? DIM_ON : DIM, 608, mid, 120, 1);
+			if (at) ui.drawFocus({16, y, 608, ROW_H - 4});
+			ui.drawTextMid(row.name, 1, at ? ACCENT : TEXT, 48, mid, 470);
+			ui.drawTextMid(row.dir ? "Folder" : "Archive", 0, at ? DIM_ON : DIM, 608, mid, 120, 1);
 		}
-		if (n) drawScrollBar(MNF_ROW_TOP, MNF_ROWS * ROW_H - 4, mangaNetScroll, MNF_ROWS, n);
-		if (!mangaNetError.empty()) drawTextMid(mangaNetError, 1, DANGER, W / 2, MG_SRC_STATUS_Y, 560, 2);
-		else if (mangaNetLoading) drawTextMid("Loading\xE2\x80\xA6", 0, DIM, W / 2, MG_SRC_STATUS_Y, 0, 2);
+		if (n) ui.drawScrollBar(MNF_ROW_TOP, MNF_ROWS * ROW_H - 4, mangaNetScroll, MNF_ROWS, n);
+		if (!mangaNetError.empty()) ui.drawTextMid(mangaNetError, 1, DANGER, W / 2, MG_SRC_STATUS_Y, 560, 2);
+		else if (mangaNetLoading) ui.drawTextMid("Loading\xE2\x80\xA6", 0, DIM, W / 2, MG_SRC_STATUS_Y, 0, 2);
 		else if (n == 0)
-			drawTextMid("Nothing here", 0, DIM, W / 2, MG_SRC_STATUS_Y, 0, 2);
-		drawHints({{"A", "Open"}, {"B", "Back"}});
+			ui.drawTextMid("Nothing here", 0, DIM, W / 2, MG_SRC_STATUS_Y, 0, 2);
+		ui.drawHints({{"A", "Open"}, {"B", "Back"}});
 	}
 }

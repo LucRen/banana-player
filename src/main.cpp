@@ -24,6 +24,7 @@
 #include "ui_docs.h"
 #include "ui_glyphs.h"
 #include "ui_reader.h"
+#include "ui_manga.h"
 #include "session_host.h"
 #include "updater.h"
 #include "netstore.h"
@@ -465,7 +466,7 @@ int main(int argc, char** argv)
 		}
 		// the reader's Secure DNS setting reaches the threads as a flag, never by their reading the Ui's state
 		mangaNet->setSecureDns(player.settings.mangaSecureDns);
-		ui.mangaNet = mangaNet;
+		ui.manga->mangaNet = mangaNet;
 		// the thread that lists the network folders (its answers come as evNet)
 		NetWorker netWorker([](NetListing* l) {
 			SDL_Event ev{};
@@ -489,7 +490,7 @@ int main(int argc, char** argv)
 			ev.type = evCover;
 			SDL_PushEvent(&ev);
 		});
-		ui.coverWorker = coverWorker;
+		ui.manga->coverWorker = coverWorker;
 		ui.setStateDir(opts.stateDir);
 		// Find on the network: the servers that answer, on the main thread as evFound
 		Discovery discovery;
@@ -1036,7 +1037,7 @@ int main(int argc, char** argv)
 				else if (e.type == evCover)
 				{
 					// a cover arrived: into a texture on this thread, and the grid redraws (its serial is in signature)
-					if (haveUi) ui.coversReady(coverWorker->take());
+					if (haveUi) ui.manga->coversReady(coverWorker->take());
 					else coverWorker->take();	// (nothing draws them: dropped)
 				}
 				else if (e.type == evFound)
@@ -1633,7 +1634,7 @@ int main(int argc, char** argv)
 						else
 						{
 							mangaNet->start();
-							PageCache& cache = ui.mangaPageCacheRef();
+							PageCache& cache = ui.manga->mangaPageCacheRef();
 							uint64_t limit = mangaCacheBytes(player.settings.mangaCacheSize);
 							if (!cache.open(opts.stateDir + "/manga/cache", limit))
 								ui.pageReader->readerStatus.error = "The page cache couldn't be opened";
@@ -1756,7 +1757,7 @@ int main(int argc, char** argv)
 				// a song's visualizer rests while the pages cover the top panel (nobody sees it; its frames cost CPU)
 				player.setTopCovered(readerOnTop());
 				// and while the manga engine starts (its ~25 s of Java start-up wants the cores the graph would take)
-				player.setEngineLoading(ui.mangaNet && ui.mangaNet->javaExt().state() == JavaExtHost::State::Starting);
+				player.setEngineLoading(ui.manga->mangaNet && ui.manga->mangaNet->javaExt().state() == JavaExtHost::State::Starting);
 				// a URL chapter's pages: requests reordered and the free slots filled (the answers themselves come
 				// through MangaNet's fetch owner above)
 				if (reader.isOpen()) reader.tick(now);

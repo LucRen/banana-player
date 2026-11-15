@@ -1,4 +1,5 @@
 #include "ui.h"
+#include "ui_manga.h"
 #include "manga_names.h"
 #include "manga_ui_logic.h"
 #include "manganet.h"
@@ -29,7 +30,7 @@ namespace bp
 		}
 	}
 
-	bool Ui::mangaWebChapters(const std::string& seriesId, MangaWebSeries& out)
+	bool Ui::Manga::mangaWebChapters(const std::string& seriesId, MangaWebSeries& out)
 	{
 		out = MangaWebSeries{};
 		out.id = seriesId;
@@ -180,7 +181,7 @@ namespace bp
 		return true;
 	}
 
-	bool Ui::mangaWebWorker(MangaWorker::Result& r)
+	bool Ui::Manga::mangaWebWorker(MangaWorker::Result& r)
 	{
 		if (!r.serial) return false;
 		for (auto& kv : mangaWebCache)
@@ -206,7 +207,7 @@ namespace bp
 		return false;
 	}
 
-	bool Ui::mangaWebDownload(const std::string& seriesId, const std::vector<std::string>& chapterIds, int& added,
+	bool Ui::Manga::mangaWebDownload(const std::string& seriesId, const std::vector<std::string>& chapterIds, int& added,
 		std::string& error)
 	{
 		added = 0;

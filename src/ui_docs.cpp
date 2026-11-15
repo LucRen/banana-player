@@ -6,6 +6,7 @@
 #include "ui_docs.h"
 #include "ui_reader.h"
 #include "filesave.h"
+#include "manga_ui_logic.h"
 #include "epub.h"
 #include "pagebook.h"
 #include "substyle.h"

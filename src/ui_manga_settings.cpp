@@ -1,5 +1,6 @@
 #include "ui.h"
 #include "ui_internal.h"
+#include "ui_manga.h"
 #include "manganet.h"
 
 namespace bp
@@ -14,66 +15,66 @@ namespace bp
 
 	// ---- the manga reader's settings: a page of the app's own, not a group of Banana Player's Settings ----
 
-	std::vector<int> Ui::mangaSettingRows() const
+	std::vector<int> Ui::Manga::mangaSettingRows() const
 	{
 		// (In Recent on Home, manga-recent, is kept in settings.conf and not shown: the reader stays off Home)
 		auto rows = pageRows(SG_MANGA, {{80, MANGA_CLEAR_ROW}, {90, MANGA_JAVA_ROW}, {130, EXT_NOTE}});
 		return rows;
 	}
 
-	void Ui::openMangaSettings()
+	void Ui::Manga::openMangaSettings()
 	{
 		// where it came from, and on the app the tab it was on (and Browse's list): B goes back to both. From the
 		// reader, the reader stays open behind it
-		mangaSettingsFrom = page;
+		mangaSettingsFrom = ui.page;
 		mangaSettingsTab = mangaTab;
 		mangaSettingsList = mBrowseList;
-		page = Page::MangaSettings;
-		cursor = scroll = 0;
-		pressedBtn = mangaPressed = -1;
+		ui.page = Page::MangaSettings;
+		ui.cursor = ui.scroll = 0;
+		ui.pressedBtn = mangaPressed = -1;
 		mangaCacheAt = 0;
 		mangaJavaAt = 0;
 	}
 
-	void Ui::closeMangaSettings()
+	void Ui::Manga::closeMangaSettings()
 	{
-		page = mangaSettingsFrom;
+		ui.page = mangaSettingsFrom;
 		mangaTab = mangaSettingsTab;
 		mBrowseList = mangaSettingsList;
-		cursor = scroll = 0;
-		pressedBtn = mangaPressed = -1;
+		ui.cursor = ui.scroll = 0;
+		ui.pressedBtn = mangaPressed = -1;
 		mangaCacheAt = 0;
 		mangaJavaAt = 0;
 	}
 
-	bool Ui::mangaSettingsKey(Button b, Player& p)
+	bool Ui::Manga::mangaSettingsKey(Button b, Player& p)
 	{
 		// (the mini bar shown here says SELECT goes to what plays, as on the app's other pages)
-		if (b == Button::Select && nowPlayable(p)) { goNowPlaying(p); return false; }
+		if (b == Button::Select && ui.nowPlayable(p)) { ui.goNowPlaying(p); return false; }
 		auto rows = mangaSettingRows();
 		int n = (int)rows.size();
-		cursor = std::min(cursor, n - 1);
+		ui.cursor = std::min(ui.cursor, n - 1);
 		switch (b)
 		{
-		case Button::Up: cursor = (cursor + n - 1) % n; break;
-		case Button::Down: cursor = (cursor + 1) % n; break;
-		case Button::Left: changeSetting(rows[cursor], -1, p); break;
-		case Button::Right: case Button::A: changeSetting(rows[cursor], 1, p); break;
+		case Button::Up: ui.cursor = (ui.cursor + n - 1) % n; break;
+		case Button::Down: ui.cursor = (ui.cursor + 1) % n; break;
+		case Button::Left: ui.changeSetting(rows[ui.cursor], -1, p); break;
+		case Button::Right: case Button::A: ui.changeSetting(rows[ui.cursor], 1, p); break;
 		case Button::B: closeMangaSettings(); return false;
 		default: break;
 		}
-		if (cursor < scroll) scroll = cursor;
-		if (cursor >= scroll + MSET_SHOWN) scroll = cursor - MSET_SHOWN + 1;
+		if (ui.cursor < ui.scroll) ui.scroll = ui.cursor;
+		if (ui.cursor >= ui.scroll + MSET_SHOWN) ui.scroll = ui.cursor - MSET_SHOWN + 1;
 		return false;
 	}
 
-	uint64_t Ui::mangaJavaSerial() const
+	uint64_t Ui::Manga::mangaJavaSerial() const
 	{
 		// (ui.cpp's signature has no MangaNet's definition: the serial it follows is asked for here)
 		return mangaNet ? mangaNet->javaExt().serial() : 0;
 	}
 
-	std::string Ui::mangaJavaValue() const
+	std::string Ui::Manga::mangaJavaValue() const
 	{
 		if (!mangaNet) return "Not installed \xC2\xB7 241 MB";
 		JavaExtHost& h = mangaNet->javaExt();
@@ -100,7 +101,7 @@ namespace bp
 		return "";
 	}
 
-	void Ui::mangaJavaAct()
+	void Ui::Manga::mangaJavaAct()
 	{
 		if (!mangaNet) return;
 		JavaExtHost& h = mangaNet->javaExt();
@@ -136,24 +137,24 @@ namespace bp
 		}
 	}
 
-	void Ui::drawMangaSettings(const Player& p)
+	void Ui::Manga::drawMangaSettings(const Player& p)
 	{
-		drawHeader("Manga settings", p);
+		ui.drawHeader("Manga settings", p);
 		auto rows = mangaSettingRows();
 		int n = (int)rows.size();
-		if (cursor >= n) cursor = n - 1;
-		if (scroll > n - MSET_SHOWN) scroll = std::max(0, n - MSET_SHOWN);
+		if (ui.cursor >= n) ui.cursor = n - 1;
+		if (ui.scroll > n - MSET_SHOWN) ui.scroll = std::max(0, n - MSET_SHOWN);
 		// the rows as Settings draws its group's: the note last
-		for (int i = scroll; i < n && i < scroll + MSET_SHOWN; i++)
-			drawSettingRow(rows[i], SET_Y + (i - scroll) * SET_H, i == cursor, p);
+		for (int i = ui.scroll; i < n && i < ui.scroll + MSET_SHOWN; i++)
+			ui.drawSettingRow(rows[i], SET_Y + (i - ui.scroll) * SET_H, i == ui.cursor, p);
 		// what the row under the cursor does, in up to three lines above the footer
-		std::string help = cursor >= 0 && cursor < n ? settingHelp(rows[cursor]) : "";
-		auto lines = wrapText(help, 0, 592, 3);
+		std::string help = ui.cursor >= 0 && ui.cursor < n ? ui.settingHelp(rows[ui.cursor]) : "";
+		auto lines = ui.wrapText(help, 0, 592, 3);
 		// a third line would reach into the footer: the block starts one step higher
 		int helpY = HELP_Y - (lines.size() > 2 ? 22 : 0);
-		for (size_t i = 0; i < lines.size(); i++) drawTextMid(lines[i], 0, DIM, 24, helpY + (int)i * 22, 592);
+		for (size_t i = 0; i < lines.size(); i++) ui.drawTextMid(lines[i], 0, DIM, 24, helpY + (int)i * 22, 592);
 		std::vector<Hint> hints = {{"UP/DOWN", "Choose"}, {"LEFT/RIGHT", "Change"}, {"B", "Back"}};
-		if (mangaNet && cursor >= 0 && cursor < n && rows[cursor] == MANGA_JAVA_ROW)
+		if (mangaNet && ui.cursor >= 0 && ui.cursor < n && rows[ui.cursor] == MANGA_JAVA_ROW)
 		{
 			const char* verb = nullptr;
 			switch (mangaNet->javaExt().state())
@@ -166,6 +167,6 @@ namespace bp
 			}
 			if (verb) hints.insert(hints.begin() + 2, Hint{"A", verb});
 		}
-		drawHints(hints);
+		ui.drawHints(hints);
 	}
 }

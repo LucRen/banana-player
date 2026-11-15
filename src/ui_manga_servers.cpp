@@ -4,6 +4,7 @@
 #include "manga_ui_logic.h"
 #include "ui_internal.h"
 #include "ui_reader.h"
+#include "ui_manga.h"
 #include <algorithm>
 #include <cctype>
 #include <cmath>
@@ -116,7 +117,7 @@ namespace bp
 
 	// ---- the pages' state ----
 
-	void Ui::mangaServersReset()
+	void Ui::Manga::mangaServersReset()
 	{
 		mangaServerCancel();
 		mangaSrvView = MGSRV_NONE;
@@ -160,7 +161,7 @@ namespace bp
 		mangaSrvLocal++;
 	}
 
-	void Ui::mangaServerCancel()
+	void Ui::Manga::mangaServerCancel()
 	{
 		if (mangaNet && mangaNet->started())
 		{
@@ -175,7 +176,7 @@ namespace bp
 
 	// ---- the answers ----
 
-	void Ui::mangaServersPoll()
+	void Ui::Manga::mangaServersPoll()
 	{
 		if (!mangaNet || !mangaNet->started()) return;
 		MangaServerStore& store = mangaNet->servers();
@@ -322,7 +323,7 @@ namespace bp
 
 	// ---- a server: its libraries or catalogue ----
 
-	void Ui::mangaServerOpen(const std::string& id, Player& p)
+	void Ui::Manga::mangaServerOpen(const std::string& id, Player& p)
 	{
 		(void)p;
 		if (!mangaNet || !mangaNet->started()) return;
@@ -358,7 +359,7 @@ namespace bp
 		}
 	}
 
-	void Ui::mangaServerListLoad(int load)
+	void Ui::Manga::mangaServerListLoad(int load)
 	{
 		mangaSrvError.clear();
 		if (!mangaNet || !mangaNet->started())
@@ -405,7 +406,7 @@ namespace bp
 		mangaSrvLocal++;
 	}
 
-	void Ui::mangaServerFeedLoad(const std::string& url)
+	void Ui::Manga::mangaServerFeedLoad(const std::string& url)
 	{
 		mangaSrvError.clear();
 		if (!mangaNet || !mangaNet->started())
@@ -436,7 +437,7 @@ namespace bp
 		mangaSrvLocal++;
 	}
 
-	void Ui::mangaServerMore()
+	void Ui::Manga::mangaServerMore()
 	{
 		if (mangaSrvLoading || !mangaSrvMore) return;
 		mangaSrvAppend = true;
@@ -449,7 +450,7 @@ namespace bp
 		else mangaSrvAppend = false;
 	}
 
-	void Ui::mangaServerReload()
+	void Ui::Manga::mangaServerReload()
 	{
 		// A after the error: the list that failed, from its first page
 		mangaSrvItems.clear();
@@ -462,7 +463,7 @@ namespace bp
 		else mangaServerFeedLoad(mangaSrvPath.empty() ? mangaSrvRootUrl : mangaSrvPath.back());
 	}
 
-	void Ui::mangaServerItemOpen(int i, Player& p)
+	void Ui::Manga::mangaServerItemOpen(int i, Player& p)
 	{
 		if (i < 0 || i >= (int)mangaSrvItems.size()) return;
 		const RemoteItem item = mangaSrvItems[i];
@@ -499,7 +500,7 @@ namespace bp
 		}
 	}
 
-	void Ui::mangaServerBack(Player& p)
+	void Ui::Manga::mangaServerBack(Player& p)
 	{
 		(void)p;
 		if (mangaSrvView == MGSRV_FORM)
@@ -538,11 +539,11 @@ namespace bp
 		mangaSrvLocal++;
 	}
 
-	bool Ui::mangaServersKey(Button b, Player& p)
+	bool Ui::Manga::mangaServersKey(Button b, Player& p)
 	{
 		mangaServersPoll();
 		if (mangaSrvView == MGSRV_FORM) return mangaServerFormKey(b, p);
-		if (page == Page::MangaSeries || mangaSrvView == MGSRV_SERIES) return mangaServerSeriesKey(b, p);
+		if (ui.page == Page::MangaSeries || mangaSrvView == MGSRV_SERIES) return mangaServerSeriesKey(b, p);
 		if (b == Button::B) { mangaServerBack(p); return false; }
 		int n = (int)mangaSrvItems.size();
 		int rows = (n + MG_COLS - 1) / MG_COLS;
@@ -568,7 +569,7 @@ namespace bp
 		return false;
 	}
 
-	bool Ui::mangaServersPointer(const Pointer& pt, int x, int y, Player& p)
+	bool Ui::Manga::mangaServersPointer(const Pointer& pt, int x, int y, Player& p)
 	{
 		mangaServersPoll();
 		if (pt.kind != Pointer::Down) return false;
@@ -595,7 +596,7 @@ namespace bp
 				if (r.y >= MGSRV_CLIP_BOTTOM) break;
 				if (r.hit(x, y)) hit = i;
 			}
-			pageReader->mangaListBegin(x, y, mangaSrvScroll, MGSRV_STEP, hit, [this](int want) {
+			ui.pageReader->mangaListBegin(x, y, mangaSrvScroll, MGSRV_STEP, hit, [this](int want) {
 				int n = (int)mangaSrvItems.size(), rows = (n + MG_COLS - 1) / MG_COLS;
 				mangaSrvScroll = std::clamp(want, 0, std::max(0, rows - MGSRV_GRID_ROWS_SHOWN));
 				if (n)
@@ -618,13 +619,13 @@ namespace bp
 		return false;
 	}
 
-	void Ui::drawMangaServers(const Player& p)
+	void Ui::Manga::drawMangaServers(const Player& p)
 	{
 		mangaServersPoll();
 		if (mangaSrvView == MGSRV_FORM) { drawMangaServerForm(p); return; }
-		if (page == Page::MangaSeries || mangaSrvView == MGSRV_SERIES) { drawMangaServerSeries(p); return; }
-		drawHeader(mangaSrvHere.empty() ? (mangaSrvName.empty() ? "Server" : mangaSrvName) : mangaSrvHere, p);
-		drawTextMid(mangaSrvName + " \xC2\xB7 " + kindName(mangaSrvKind), 0, DIM, 16, 68, 560);
+		if (ui.page == Page::MangaSeries || mangaSrvView == MGSRV_SERIES) { drawMangaServerSeries(p); return; }
+		ui.drawHeader(mangaSrvHere.empty() ? (mangaSrvName.empty() ? "Server" : mangaSrvName) : mangaSrvHere, p);
+		ui.drawTextMid(mangaSrvName + " \xC2\xB7 " + kindName(mangaSrvKind), 0, DIM, 16, 68, 560);
 		int n = (int)mangaSrvItems.size();
 		int rows = (n + MG_COLS - 1) / MG_COLS;
 		if (n && mangaSrvCursor >= n) mangaSrvCursor = n - 1;
@@ -654,7 +655,7 @@ namespace bp
 				}
 			}
 		}
-		SDL_RenderSetClipRect(ren, &clip);
+		SDL_RenderSetClipRect(ui.ren, &clip);
 		mangaCoverOnScreen.clear();
 		for (int i = mangaSrvScroll * MG_COLS; i < n; i++)
 		{
@@ -663,22 +664,22 @@ namespace bp
 			bool at = i == mangaSrvCursor;
 			// a generated cover until the real one arrives; the grid never waits on a server
 			drawMangaCover(r, mangaSrvItems[i].title, at, 4, "", mangaSrvItems[i].cover, &srvCoverHeaders);
-			drawTextMid(mangaSrvItems[i].title, 0, at ? ACCENT : TEXT, r.x + r.w / 2, r.y + r.h + 13, r.w, 2);
+			ui.drawTextMid(mangaSrvItems[i].title, 0, at ? ACCENT : TEXT, r.x + r.w / 2, r.y + r.h + 13, r.w, 2);
 		}
-		SDL_RenderSetClipRect(ren, nullptr);
+		SDL_RenderSetClipRect(ui.ren, nullptr);
 		mangaCoverCancelOffScreen();
 		coverFetchUrl = nullptr;
-		if (rows > 1) drawScrollBar(MGSRV_TOP, MGSRV_CLIP_BOTTOM - MGSRV_TOP - 4, mangaSrvScroll, MGSRV_GRID_ROWS_SHOWN, rows);
-		if (!mangaSrvError.empty()) drawTextMid(mangaSrvError, 1, DANGER, W / 2, MGSRV_STATUS_Y, 560, 2);
-		else if (mangaSrvLoading) drawTextMid("Loading\xE2\x80\xA6", 0, DIM, W / 2, MGSRV_STATUS_Y, 0, 2);
-		else if (n == 0) drawTextMid(mangaSrvKind == "komga" ? "This server has no libraries" : "Nothing in this catalogue", 1, DIM, W / 2, 210, 0, 2);
-		if (!mangaSrvError.empty()) drawHints({{"A", "Try again"}, {"B", "Back"}});
-		else drawHints({{"A", "Open"}, {"B", "Back"}});
+		if (rows > 1) ui.drawScrollBar(MGSRV_TOP, MGSRV_CLIP_BOTTOM - MGSRV_TOP - 4, mangaSrvScroll, MGSRV_GRID_ROWS_SHOWN, rows);
+		if (!mangaSrvError.empty()) ui.drawTextMid(mangaSrvError, 1, DANGER, W / 2, MGSRV_STATUS_Y, 560, 2);
+		else if (mangaSrvLoading) ui.drawTextMid("Loading\xE2\x80\xA6", 0, DIM, W / 2, MGSRV_STATUS_Y, 0, 2);
+		else if (n == 0) ui.drawTextMid(mangaSrvKind == "komga" ? "This server has no libraries" : "Nothing in this catalogue", 1, DIM, W / 2, 210, 0, 2);
+		if (!mangaSrvError.empty()) ui.drawHints({{"A", "Try again"}, {"B", "Back"}});
+		else ui.drawHints({{"A", "Open"}, {"B", "Back"}});
 	}
 
 	// ---- a server's series and its chapters ----
 
-	void Ui::mangaServerSeriesOpen(const std::string& key, const std::string& title, int from)
+	void Ui::Manga::mangaServerSeriesOpen(const std::string& key, const std::string& title, int from)
 	{
 		if (!mangaNet || !mangaNet->started() || key.empty()) return;
 		mangaServerCancel();
@@ -717,12 +718,12 @@ namespace bp
 		mangaSeriesFrom = 3;	// Browse's grid (an id that says whose the page is keeps it apart)
 		mserCursor = -1;
 		mserScroll = 0;
-		page = Page::MangaSeries;
+		ui.page = Page::MangaSeries;
 		mangaSrvLocal++;
 		mangaServerSeriesLoad();
 	}
 
-	void Ui::mangaServerSeriesOpenFromId(const std::string& id, Player& p)
+	void Ui::Manga::mangaServerSeriesOpenFromId(const std::string& id, Player& p)
 	{
 		(void)p;
 		std::string server, key;
@@ -748,7 +749,7 @@ namespace bp
 		mangaServerSeriesOpen(key, title, MGSRV_FROM_HISTORY);
 	}
 
-	void Ui::mangaServerSeriesLoad()
+	void Ui::Manga::mangaServerSeriesLoad()
 	{
 		mangaSrvSerError.clear();
 		if (!mangaNet || !mangaNet->started())
@@ -778,7 +779,7 @@ namespace bp
 		mangaSrvLocal++;
 	}
 
-	void Ui::mangaServerSeriesReload()
+	void Ui::Manga::mangaServerSeriesReload()
 	{
 		mangaSrvChapters.clear();
 		mangaSrvChaptersOn = false;
@@ -788,7 +789,7 @@ namespace bp
 		mangaServerSeriesLoad();
 	}
 
-	void Ui::mangaServerSeriesMore()
+	void Ui::Manga::mangaServerSeriesMore()
 	{
 		if (mangaSrvSerLoading || !mangaSrvSerMore || mangaSrvKind != "komga") return;
 		mangaSrvSerAppend = true;
@@ -796,11 +797,11 @@ namespace bp
 		mangaServerSeriesLoad();
 	}
 
-	void Ui::mangaServerSeriesBack(Player& p)
+	void Ui::Manga::mangaServerSeriesBack(Player& p)
 	{
 		(void)p;
 		mangaServerCancel();
-		page = Page::Manga;
+		ui.page = Page::Manga;
 		if (mangaSrvSeriesFrom == MGSRV_FROM_HISTORY)
 		{
 			mangaTab = MT_HISTORY;
@@ -828,7 +829,7 @@ namespace bp
 		mangaSrvLocal++;
 	}
 
-	bool Ui::mangaServerSeriesKey(Button b, Player& p)
+	bool Ui::Manga::mangaServerSeriesKey(Button b, Player& p)
 	{
 		mangaServersPoll();
 		if (b == Button::Start) { openMangaSettings(); return false; }
@@ -863,7 +864,7 @@ namespace bp
 		return false;
 	}
 
-	bool Ui::mangaServerSeriesPointer(const Pointer& pt, int x, int y, Player& p)
+	bool Ui::Manga::mangaServerSeriesPointer(const Pointer& pt, int x, int y, Player& p)
 	{
 		mangaServersPoll();
 		if (pt.kind != Pointer::Down) return false;
@@ -879,7 +880,7 @@ namespace bp
 			// the chapters follow a finger: a drag scrolls them (the next book page asked near the end, as the
 			// D-pad asks it), a tap (lifted where it went down) reads the row
 			int i = mserScroll + (y - MG_SRC_SER_TOP) / ROW_H;
-			pageReader->mangaListBegin(x, y, mserScroll, ROW_H, i < n ? i : -1, [this](int want) {
+			ui.pageReader->mangaListBegin(x, y, mserScroll, ROW_H, i < n ? i : -1, [this](int want) {
 				int n = (int)mangaSrvChapters.size();
 				mserScroll = std::clamp(want, 0, std::max(0, n - mserRows()));
 				if (mserCursor >= 0) mserCursor = std::clamp(mserCursor, mserScroll, std::max(mserScroll, std::min(n - 1, mserScroll + mserRows() - 1)));
@@ -894,19 +895,19 @@ namespace bp
 		return false;
 	}
 
-	void Ui::drawMangaServerSeries(const Player& p)
+	void Ui::Manga::drawMangaServerSeries(const Player& p)
 	{
 		mangaServersPoll();
-		drawHeader(mangaSrvSeriesTitle.empty() ? "Series" : mangaSrvSeriesTitle, p);
+		ui.drawHeader(mangaSrvSeriesTitle.empty() ? "Series" : mangaSrvSeriesTitle, p);
 		int n = (int)mangaSrvChapters.size();
 		std::vector<std::string> ids;
 		ids.reserve(n);
 		for (const auto& c : mangaSrvChapters) ids.push_back(serverItemId(mangaSrvId, c.key));
 		int unread = mangaStore ? mangaStore->unread(mangaSrvSeriesId, ids) : 0;
-		drawTextMid(std::to_string(n) + (n == 1 ? " chapter" : " chapters") + " \xC2\xB7 " + std::to_string(unread) + " unread",
+		ui.drawTextMid(std::to_string(n) + (n == 1 ? " chapter" : " chapters") + " \xC2\xB7 " + std::to_string(unread) + " unread",
 			0, DIM, 16, 68);
 		std::string line = mangaSrvSerError.empty() ? mangaSrvName : mangaSrvSerError;
-		if (!line.empty()) drawTextMid(line, 0, mangaSrvSerError.empty() ? DIM : DANGER, 16, 86, 592);
+		if (!line.empty()) ui.drawTextMid(line, 0, mangaSrvSerError.empty() ? DIM : DANGER, 16, 86, 592);
 		// Resume: the first started-but-unread chapter, else the first unread, else the first
 		std::vector<MangaChapterMark> marks;
 		marks.reserve(n);
@@ -925,19 +926,19 @@ namespace bp
 		MangaResumePoint resume = mangaResume(marks);
 		Rect rb = mangaServerResumeRect();
 		bool onResume = mserCursor < 0;
-		drawBox(rb, mangaPressed == MG_RESUME ? PRESSED : onResume ? BUTTON : SURFACE, R_BUTTON, onResume);
-		drawButton(rb, &G_PLAY, n ? "Resume" : "No chapters", nullptr, n == 0, 1);
+		ui.drawBox(rb, mangaPressed == MG_RESUME ? PRESSED : onResume ? BUTTON : SURFACE, R_BUTTON, onResume);
+		ui.drawButton(rb, &G_PLAY, n ? "Resume" : "No chapters", nullptr, n == 0, 1);
 		if (n == 0)
 		{
 			if (!mangaSrvSerError.empty())
 			{
-				drawTextMid(mangaSrvSerError, 1, DANGER, W / 2, 208, 560, 2);
-				drawHints({{"A", "Try again"}, {"B", "Back"}});
+				ui.drawTextMid(mangaSrvSerError, 1, DANGER, W / 2, 208, 560, 2);
+				ui.drawHints({{"A", "Try again"}, {"B", "Back"}});
 			}
 			else
 			{
-				if (!mangaSrvSerLoading) drawTextMid("No chapters", 0, DIM, W / 2, 208, 0, 2);
-				drawHints({{"B", "Back"}});
+				if (!mangaSrvSerLoading) ui.drawTextMid("No chapters", 0, DIM, W / 2, 208, 0, 2);
+				ui.drawHints({{"B", "Back"}});
 			}
 			return;
 		}
@@ -947,37 +948,37 @@ namespace bp
 			const RemoteChapter& c = mangaSrvChapters[i];
 			int y = MG_SRC_SER_TOP + (i - mserScroll) * ROW_H, mid = y + (ROW_H - 4) / 2;
 			bool at = mserCursor == i;
-			if (at) drawFocus({16, y, 608, ROW_H - 4});
-			if (resume.chapter == i) fillRound({28, mid - 4, 8, 8}, ACCENT, 4);
+			if (at) ui.drawFocus({16, y, 608, ROW_H - 4});
+			if (resume.chapter == i) ui.fillRound({28, mid - 4, 8, 8}, ACCENT, 4);
 			const ChapterProgress* pr = mangaStore ? mangaStore->progress(serverItemId(mangaSrvId, c.key)) : nullptr;
 			bool read = pr && pr->read;
-			drawTextMid(chapterLabel(c), 1, read ? DIM : at ? ACCENT : TEXT, 48, mid, 470);
-			if (read) drawGlyphMid(G_CHECK, 596, mid, DIM);
+			ui.drawTextMid(chapterLabel(c), 1, read ? DIM : at ? ACCENT : TEXT, 48, mid, 470);
+			if (read) ui.drawGlyphMid(G_CHECK, 596, mid, DIM);
 			else if (pr && (pr->pages > 0 || pr->page > 0))
-				drawTextMid(progressLine(pr->page, pr->pages), 0, at ? DIM_ON : DIM, 608, mid, 150, 1);
-			else if (c.pages > 0) drawTextMid(std::to_string(c.pages) + " pages", 0, at ? DIM_ON : DIM, 608, mid, 150, 1);
+				ui.drawTextMid(progressLine(pr->page, pr->pages), 0, at ? DIM_ON : DIM, 608, mid, 150, 1);
+			else if (c.pages > 0) ui.drawTextMid(std::to_string(c.pages) + " pages", 0, at ? DIM_ON : DIM, 608, mid, 150, 1);
 		}
-		drawScrollBar(MG_SRC_SER_TOP, mserRows() * ROW_H - 4, mserScroll, mserRows(), n);
-		drawHints({{"A", "Read"}, {"B", "Back"}});
+		ui.drawScrollBar(MG_SRC_SER_TOP, mserRows() * ROW_H - 4, mserScroll, mserRows(), n);
+		ui.drawHints({{"A", "Read"}, {"B", "Back"}});
 	}
 
 	// ---- reading a chapter ----
 
-	int Ui::mangaServerChapterIndex() const
+	int Ui::Manga::mangaServerChapterIndex() const
 	{
-		if (!isServerId(pageReader->mangaReadSeriesId) || mangaSrvSeriesId != pageReader->mangaReadSeriesId) return -1;
+		if (!isServerId(ui.pageReader->mangaReadSeriesId) || mangaSrvSeriesId != ui.pageReader->mangaReadSeriesId) return -1;
 		for (size_t i = 0; i < mangaSrvChapters.size(); i++)
-			if (serverItemId(mangaSrvId, mangaSrvChapters[i].key) == pageReader->mangaReadChapterId) return (int)i;
+			if (serverItemId(mangaSrvId, mangaSrvChapters[i].key) == ui.pageReader->mangaReadChapterId) return (int)i;
 		return -1;
 	}
 
-	void Ui::mangaServerSeriesChoose(int i, Player& p)
+	void Ui::Manga::mangaServerSeriesChoose(int i, Player& p)
 	{
 		if (i < 0 || i >= (int)mangaSrvChapters.size()) return;
 		mangaServerChapterOpen(i, p);
 	}
 
-	void Ui::mangaServerSeriesResume(Player& p)
+	void Ui::Manga::mangaServerSeriesResume(Player& p)
 	{
 		if (mangaSrvChapters.empty()) return;
 		std::vector<MangaChapterMark> marks;
@@ -998,7 +999,7 @@ namespace bp
 		if (r.chapter >= 0) mangaServerChapterOpen(r.chapter, p);
 	}
 
-	void Ui::mangaServerChapterOpen(int i, Player& p)
+	void Ui::Manga::mangaServerChapterOpen(int i, Player& p)
 	{
 		if (i < 0 || i >= (int)mangaSrvChapters.size()) return;
 		if (!mangaNet || !mangaNet->started()) { mangaSrvSerError = "The reader\xE2\x80\x99s network side is off"; return; }
@@ -1041,7 +1042,7 @@ namespace bp
 			if (const ChapterProgress* pr = mangaStore->progress(chapterId))
 				if (!pr->read) page0 = pr->page;
 		// the chapter open so far is saved before the next one replaces it in readerStatus
-		if (page == Page::MangaRead)
+		if (ui.page == Page::MangaRead)
 		{
 			mangaRecordProgress();
 			mangaSave();
@@ -1049,34 +1050,34 @@ namespace bp
 		mangaSrvSerError.clear();
 		mangaSeriesId = mangaSrvSeriesId;
 		mangaReadSrcChapters.clear();	// not an installed source's
-		pageReader->mangaReadSeriesId = mangaSrvSeriesId;
-		pageReader->mangaReadChapterId = chapterId;
-		pageReader->mangaReadChapterTitle = chapterLabel(c);
+		ui.pageReader->mangaReadSeriesId = mangaSrvSeriesId;
+		ui.pageReader->mangaReadChapterId = chapterId;
+		ui.pageReader->mangaReadChapterTitle = chapterLabel(c);
 		// path: the chapter's own id, the cache's key; the pages are the URLs, in order, with the server's header
-		pageReader->mangaRead = {mangaSrvSeriesId, mangaSrvSeriesTitle, chapterId, pageReader->mangaReadChapterTitle, chapterId, false, page0,
+		ui.pageReader->mangaRead = {mangaSrvSeriesId, mangaSrvSeriesTitle, chapterId, ui.pageReader->mangaReadChapterTitle, chapterId, false, page0,
 			mangaModeFor(mangaSrvSeriesId, p), p.settings.mangaFit};
-		pageReader->mangaRead.pageUrls = urls;
-		pageReader->mangaRead.pageHeaders = headers;
-		mangaProgPage = pageReader->readerStatus.page;
-		mangaProgPages = pageReader->readerStatus.pages;
+		ui.pageReader->mangaRead.pageUrls = urls;
+		ui.pageReader->mangaRead.pageHeaders = headers;
+		mangaProgPage = ui.pageReader->readerStatus.page;
+		mangaProgPages = ui.pageReader->readerStatus.pages;
 		mangaReadLive = false;
-		pageReader->mangaSliderPage = -1;
+		ui.pageReader->mangaSliderPage = -1;
 		mangaCtrlUntil = 0;
 		mangaMenu = false;
-		pageReader->mangaZoomAsked = 100;
-		page = Page::MangaRead;
+		ui.pageReader->mangaZoomAsked = 100;
+		ui.page = Page::MangaRead;
 		if (p.settings.mangaOpenFull)
 		{
 			// Open fullscreen: the command SELECT sends right after the chapter, as a source's chapter does
 			Uint32 now = SDL_GetTicks();
-			pageReader->readerCmds.push_back({PageReader::ReaderCmd::Fullscreen, 1.0, (int64_t)now, (double)p.settings.mangaHinge});
-			pageReader->mfTagUntil = now + 2500;
+			ui.pageReader->readerCmds.push_back({PageReader::ReaderCmd::Fullscreen, 1.0, (int64_t)now, (double)p.settings.mangaHinge});
+			ui.pageReader->mfTagUntil = now + 2500;
 			if (!p.settings.mangaFullSeen) mangaToastUntil = now + MG_TOAST_MS;
 			mangaFullSeenPending = !p.settings.mangaFullSeen;
 		}
 	}
 
-	void Ui::mangaServerChapterStep(int dir, Player& p)
+	void Ui::Manga::mangaServerChapterStep(int dir, Player& p)
 	{
 		int i = mangaServerChapterIndex();
 		if (i < 0) return;
@@ -1087,9 +1088,9 @@ namespace bp
 
 	// ---- the form: Add server / Edit ----
 
-	void Ui::mangaServerAddOpen(Player& p)
+	void Ui::Manga::mangaServerAddOpen(Player& p)
 	{
-		if (!mangaNet || !mangaNet->started()) { alert("Can\xE2\x80\x99t add servers", "The player has no folder to keep them in.");; return; }
+		if (!mangaNet || !mangaNet->started()) { ui.alert("Can\xE2\x80\x99t add servers", "The player has no folder to keep them in.");; return; }
 		mangaServerCancel();
 		mangaSrvFormId.clear();
 		mangaSrvFormKind = "komga";
@@ -1106,7 +1107,7 @@ namespace bp
 		mangaSrvLocal++;
 	}
 
-	void Ui::mangaServerEditOpen(const std::string& id, Player& p)
+	void Ui::Manga::mangaServerEditOpen(const std::string& id, Player& p)
 	{
 		(void)p;
 		if (!mangaNet || !mangaNet->started()) return;
@@ -1128,7 +1129,7 @@ namespace bp
 		mangaSrvLocal++;
 	}
 
-	bool Ui::mangaServerFormKey(Button b, Player& p)
+	bool Ui::Manga::mangaServerFormKey(Button b, Player& p)
 	{
 		if (b == Button::B) { mangaServerBack(p); return false; }
 		switch (b)
@@ -1153,7 +1154,7 @@ namespace bp
 		return false;
 	}
 
-	void Ui::mangaServerFormChoose(Player& p)
+	void Ui::Manga::mangaServerFormChoose(Player& p)
 	{
 		switch (mangaSrvFormCursor)
 		{
@@ -1166,17 +1167,17 @@ namespace bp
 			mangaSrvLocal++;
 			break;
 		}
-		case SRV_FORM_NAME: openKeyboard(MGSRV_NAME_FIELD, mangaSrvFormName); break;
-		case SRV_FORM_URL: openKeyboard(MGSRV_URL_FIELD, mangaSrvFormUrl); break;
-		case SRV_FORM_USER: openKeyboard(MGSRV_USER_FIELD, mangaSrvFormUser); break;
-		case SRV_FORM_PASS: openKeyboard(MGSRV_PASS_FIELD, mangaSrvFormPasswordTyped ? mangaSrvFormPassword : ""); break;
+		case SRV_FORM_NAME: ui.openKeyboard(MGSRV_NAME_FIELD, mangaSrvFormName); break;
+		case SRV_FORM_URL: ui.openKeyboard(MGSRV_URL_FIELD, mangaSrvFormUrl); break;
+		case SRV_FORM_USER: ui.openKeyboard(MGSRV_USER_FIELD, mangaSrvFormUser); break;
+		case SRV_FORM_PASS: ui.openKeyboard(MGSRV_PASS_FIELD, mangaSrvFormPasswordTyped ? mangaSrvFormPassword : ""); break;
 		case SRV_FORM_TEST: mangaServerTest(); break;
 		case SRV_FORM_SAVE: mangaServerFormSave(p); break;
 		default: break;
 		}
 	}
 
-	void Ui::mangaServerFieldTyped(int field, const std::string& text)
+	void Ui::Manga::mangaServerFieldTyped(int field, const std::string& text)
 	{
 		switch (field)
 		{
@@ -1208,7 +1209,7 @@ namespace bp
 		mangaSrvLocal++;
 	}
 
-	void Ui::mangaServerTest()
+	void Ui::Manga::mangaServerTest()
 	{
 		mangaSrvTestText.clear();
 		if (!mangaNet || !mangaNet->started()) { mangaSrvTestText = "The reader\xE2\x80\x99s network side is off"; return; }
@@ -1228,7 +1229,7 @@ namespace bp
 		mangaSrvLocal++;
 	}
 
-	void Ui::mangaServerFormSave(Player& p)
+	void Ui::Manga::mangaServerFormSave(Player& p)
 	{
 		if (!mangaNet || !mangaNet->started())
 		{
@@ -1294,10 +1295,10 @@ namespace bp
 		p.osd("Saved " + name, 2000);
 	}
 
-	void Ui::drawMangaServerForm(const Player& p)
+	void Ui::Manga::drawMangaServerForm(const Player& p)
 	{
 		(void)p;
-		drawHeader(mangaSrvFormId.empty() ? "Add server" : "Edit server", p);
+		ui.drawHeader(mangaSrvFormId.empty() ? "Add server" : "Edit server", p);
 		std::string test = mangaSrvTestText.empty() ? "Tap to test" : mangaSrvTestText;
 		std::string pass;
 		if (mangaSrvFormPasswordTyped) pass = passwordBullets(mangaSrvFormPassword);
@@ -1320,28 +1321,28 @@ namespace bp
 		{
 			Rect r = mangaSrvFormRowRect(i);
 			bool at = i == mangaSrvFormCursor;
-			if (at) drawFocus(r);
+			if (at) ui.drawFocus(r);
 			int mid = r.y + r.h / 2;
 			SDL_Color ink = at ? ACCENT : TEXT, soft = at ? DIM_ON : DIM;
-			drawTextMid(LABELS[i], 0, soft, 32, mid, 130);
+			ui.drawTextMid(LABELS[i], 0, soft, 32, mid, 130);
 			bool placeholder = (i == SRV_FORM_NAME && mangaSrvFormName.empty()) ||
 				(i == SRV_FORM_URL && mangaSrvFormUrl.empty()) ||
 				(i == SRV_FORM_USER && mangaSrvFormUser.empty()) ||
 				(i == SRV_FORM_PASS && pass == "None") || (i == SRV_FORM_TEST && mangaSrvTestText.empty());
-			drawTextMid(values[i].empty() ? std::string(1, DIM_NOTE) + LABELS[i] : values[i], 0,
+			ui.drawTextMid(values[i].empty() ? std::string(1, DIM_NOTE) + LABELS[i] : values[i], 0,
 				placeholder ? DIM : i == SRV_FORM_TEST && !mangaSrvTestText.empty() ? ink : at ? ACCENT : TEXT,
 				592, mid, 420, 1);
 		}
-		if (!mangaSrvFormNote.empty()) drawTextMid(mangaSrvFormNote, 0, DANGER, W / 2, 362, 592, 2);
-		else drawTextMid(mangaSrvFormKind == "kavita"
+		if (!mangaSrvFormNote.empty()) ui.drawTextMid(mangaSrvFormNote, 0, DANGER, W / 2, 362, 592, 2);
+		else ui.drawTextMid(mangaSrvFormKind == "kavita"
 			? "The API key is sealed on Save and never shown again."
 			: "A password is sealed on Save and never shown again.", 0, DIM, W / 2, 362, 592, 2);
-		drawHints({{"A", "Change"}, {"LEFT/RIGHT", "Kind"}, {"B", "Back"}});
+		ui.drawHints({{"A", "Change"}, {"LEFT/RIGHT", "Kind"}, {"B", "Back"}});
 	}
 
 	// ---- X on a server row: Edit / Delete, the delete asked twice ----
 
-	void Ui::mangaServerModalOpen(int row, Player& p)
+	void Ui::Manga::mangaServerModalOpen(int row, Player& p)
 	{
 		(void)p;
 		if (!mangaNet || !mangaNet->started()) return;
@@ -1354,7 +1355,7 @@ namespace bp
 		mangaSrvLocal++;
 	}
 
-	bool Ui::mangaServerModalKey(Button b, Player& p)
+	bool Ui::Manga::mangaServerModalKey(Button b, Player& p)
 	{
 		if (b == Button::B)
 		{
@@ -1404,31 +1405,31 @@ namespace bp
 		return false;
 	}
 
-	void Ui::drawMangaServerModal(const Player& p)
+	void Ui::Manga::drawMangaServerModal(const Player& p)
 	{
 		(void)p;
 		std::string name = mangaSrvMenuId;
 		if (mangaNet && mangaNet->started())
 			if (const MangaServer* s = mangaNet->servers().find(mangaSrvMenuId)) name = s->name;
 		Rect box = mangaServerModalBox();
-		drawDialog(box, "Server");
-		drawTextMid(elideMiddle(name, 0, box.w - 40), 0, DIM, box.x + box.w / 2, box.y + 62, box.w - 40, 2);
+		ui.drawDialog(box, "Server");
+		ui.drawTextMid(elideMiddle(name, 0, box.w - 40), 0, DIM, box.x + box.w / 2, box.y + 62, box.w - 40, 2);
 		for (int i = 0; i < 2; i++)
 		{
 			Rect r = mangaServerModalRowRect(i);
 			bool at = i == mangaSrvMenuCursor;
-			if (i == 0) drawDialogRow(r, &G_PENCIL, "Edit", at, false, TEXT, "", {0, 0, 0, 0});
+			if (i == 0) ui.drawDialogRow(r, &G_PENCIL, "Edit", at, false, TEXT, "", {0, 0, 0, 0});
 			else
-				drawDialogRow(r, &G_TRASH, "Delete", at, false, DANGER,
+				ui.drawDialogRow(r, &G_TRASH, "Delete", at, false, DANGER,
 					mangaSrvDeleteArmed ? "Press again" : "", ACCENT);
 		}
-		if (mangaSrvDeleteArmed) drawFooterText("Press A again to delete", ACCENT);
-		else drawHints({{"A", "Choose"}, {"B", "Close"}});
+		if (mangaSrvDeleteArmed) ui.drawFooterText("Press A again to delete", ACCENT);
+		else ui.drawHints({{"A", "Choose"}, {"B", "Close"}});
 	}
 
 	// ---- signature() ----
 
-	std::string Ui::mangaServersSignature() const
+	std::string Ui::Manga::mangaServersSignature() const
 	{
 		// the typed password never comes near this string: only whether one was typed (the field draws bullets)
 		char buf[320];

@@ -12,6 +12,7 @@
 #include "mangadownloader.h"
 #include "player.h"
 #include "ui.h"
+#include "ui_manga.h"
 #include <httplib.h>
 #include <cstdio>
 #include <functional>
@@ -46,8 +47,8 @@ namespace bp
 			}
 			// the dashboard counts as using the reader: its stores and threads start as on the handheld (MangaNet's
 			// repos, queue and downloader exist only once started)
-			if (u.mangaNet && !u.mangaNet->started()) u.mangaNet->start();
-			return u.mangaNet && u.mangaNet->started();
+			if (u.manga->mangaNet && !u.manga->mangaNet->started()) u.manga->mangaNet->start();
+			return u.manga->mangaNet && u.manga->mangaNet->started();
 		}
 
 		// a "manga" SSE event with the stores' serials, so pages reload what changed
@@ -55,11 +56,11 @@ namespace bp
 		{
 			JsonWriter j;
 			j.obj();
-			if (u.mangaStorePublic()) j.key("store").num((int64_t)u.mangaStorePublic()->serial());
-			if (u.mangaNet)
+			if (u.manga->mangaStorePublic()) j.key("store").num((int64_t)u.manga->mangaStorePublic()->serial());
+			if (u.manga->mangaNet)
 			{
-				j.key("repos").num((int64_t)u.mangaNet->repos().serial());
-				j.key("queue").num((int64_t)u.mangaNet->queue().serial());
+				j.key("repos").num((int64_t)u.manga->mangaNet->repos().serial());
+				j.key("queue").num((int64_t)u.manga->mangaNet->queue().serial());
 			}
 			ws.notify("manga", j.end().out());
 		}
@@ -81,7 +82,7 @@ namespace bp
 		}
 
 		// the JSON for one chapter the dashboard's series view shows
-		void writeWebChapter(JsonWriter& j, const Ui::MangaWebChapter& c)
+		void writeWebChapter(JsonWriter& j, const Ui::Manga::MangaWebChapter& c)
 		{
 			j.obj().key("id").str(c.id).key("number").num(c.number).key("title").str(c.title)
 				.key("read").boolean(c.read).key("page").num(c.page).key("pages").num(c.pages);
@@ -106,28 +107,28 @@ namespace bp
 				j.obj().key("on").boolean(true);
 				// the library
 				j.key("library").arr();
-				if (u.mangaStorePublic())
-					for (auto& s : u.mangaStorePublic()->library())
-						writeSeries(j, s, u.mangaStorePublic());
+				if (u.manga->mangaStorePublic())
+					for (auto& s : u.manga->mangaStorePublic()->library())
+						writeSeries(j, s, u.manga->mangaStorePublic());
 				j.end();
 				// repositories
 				j.key("repos").arr();
-				if (u.mangaNet)
-					for (auto& r : u.mangaNet->repos().repos())
+				if (u.manga->mangaNet)
+					for (auto& r : u.manga->mangaNet->repos().repos())
 					{
 						j.obj().key("url").str(r.url).key("name").str(r.name).key("count").num((int64_t)r.sourceCount)
 							.key("lastFetched").num(r.lastFetched).key("haveIndex").boolean(r.haveIndex).end();
 					}
 				// the extensions' repositories (index.pb / index.min.json): queued ones wait for the manga engine
-				if (u.mangaNet)
-					for (auto& r : u.mangaNet->javaSources().repos())
+				if (u.manga->mangaNet)
+					for (auto& r : u.manga->mangaNet->javaSources().repos())
 						j.obj().key("url").str(r.url).key("name").str(r.name).key("java").boolean(true)
 							.key("queued").boolean(r.queued).end();
 				j.end();
 				// installed sources
 				j.key("installed").arr();
-				if (u.mangaNet)
-					for (auto& src : u.mangaNet->repos().installed())
+				if (u.manga->mangaNet)
+					for (auto& src : u.manga->mangaNet->repos().installed())
 					{
 						j.obj().key("id").str(src.fullId).key("name").str(src.name).key("lang").str(src.lang)
 							.key("version").str(src.version).key("repo").str(src.repo).key("adult").boolean(src.adult)
@@ -136,8 +137,8 @@ namespace bp
 				j.end();
 				// available sources (not installed yet)
 				j.key("available").arr();
-				if (u.mangaNet)
-					for (auto& a : u.mangaNet->repos().available())
+				if (u.manga->mangaNet)
+					for (auto& a : u.manga->mangaNet->repos().available())
 					{
 						j.obj().key("id").str(a.fullId).key("name").str(a.name).key("lang").str(a.lang)
 							.key("version").str(a.version).key("repo").str(a.repo).key("repoName").str(a.repoName)
@@ -147,9 +148,9 @@ namespace bp
 				// settings the dashboard needs (adult filter)
 				j.key("showAdult").boolean(p.settings.mangaAdult);
 				// download status summary
-				if (u.mangaNet)
+				if (u.manga->mangaNet)
 				{
-					auto st = u.mangaNet->downloader().status();
+					auto st = u.manga->mangaNet->downloader().status();
 					j.key("dl").obj().key("running").str(st.runningId).key("done").num(st.done).key("total").num(st.total)
 						.key("bytes").num((int64_t)st.bytes).key("low").boolean(st.lowSpace).end();
 				}
@@ -165,30 +166,30 @@ namespace bp
 			int status = 200;
 			std::string body = w->call([w, url](Player& p, Ui& u) {
 				if (!mangaReady(p, u)) return error("Manga is off");
-				if (!u.mangaNet) { WebCall::setStatus(503); return error("Manga isn't running"); }
+				if (!u.manga->mangaNet) { WebCall::setStatus(503); return error("Manga isn't running"); }
 				std::string err;
 				// a Keiyoushi-style index (index.pb / index.min.json) is a Java repository: Suwayomi takes it
 				if (MangaJava::isRepoUrl(url))
 				{
 					// without the engine it's kept, and sent to it once it runs
-					auto st = u.mangaNet->javaExt().state();
+					auto st = u.manga->mangaNet->javaExt().state();
 					bool engine = st != JavaExtHost::State::NotInstalled && st != JavaExtHost::State::Downloading;
-					if (engine) u.mangaNet->javaExt().want();
-					if (!u.mangaNet->javaSources().addRepo(url, err))
+					if (engine) u.manga->mangaNet->javaExt().want();
+					if (!u.manga->mangaNet->javaSources().addRepo(url, err))
 					{
 						WebCall::setStatus(400);
 						return error(err);
 					}
-					u.mangaNet->javaSources().save();
+					u.manga->mangaNet->javaSources().save();
 					mangaNotify(*w, u);
 					return std::string(engine ? "{\"ok\":true,\"java\":true}" : "{\"ok\":true,\"java\":true,\"queued\":true}");
 				}
-				if (!u.mangaNet->repos().addRepo(url, err))
+				if (!u.manga->mangaNet->repos().addRepo(url, err))
 				{
 					WebCall::setStatus(400);
 					return error(err);
 				}
-				u.mangaNet->repos().save();
+				u.manga->mangaNet->repos().save();
 				mangaNotify(*w, u);
 				return std::string("{\"ok\":true}");
 			}, 2000, status);
@@ -204,25 +205,25 @@ namespace bp
 			int status = 200;
 			std::string body = w->call([w, url, alsoSources](Player& p, Ui& u) {
 				if (!mangaReady(p, u)) return error("Manga is off");
-				if (!u.mangaNet) { WebCall::setStatus(503); return error("Manga isn't running"); }
+				if (!u.manga->mangaNet) { WebCall::setStatus(503); return error("Manga isn't running"); }
 				if (MangaJava::isRepoUrl(url))
 				{
 					std::string err;
-					if (!u.mangaNet->javaSources().removeRepo(url, err))
+					if (!u.manga->mangaNet->javaSources().removeRepo(url, err))
 					{
 						WebCall::setStatus(404);
 						return error(err);
 					}
-					u.mangaNet->javaSources().save();
+					u.manga->mangaNet->javaSources().save();
 					mangaNotify(*w, u);
 					return std::string("{\"ok\":true}");
 				}
-				if (!u.mangaNet->repos().removeRepo(url, alsoSources))
+				if (!u.manga->mangaNet->repos().removeRepo(url, alsoSources))
 				{
 					WebCall::setStatus(404);
 					return error("No such repository");
 				}
-				u.mangaNet->repos().save();
+				u.manga->mangaNet->repos().save();
 				mangaNotify(*w, u);
 				return std::string("{\"ok\":true}");
 			}, 2000, status);
@@ -234,8 +235,8 @@ namespace bp
 			int status = 200;
 			std::string body = w->call([w](Player& p, Ui& u) {
 				if (!mangaReady(p, u)) return error("Manga is off");
-				if (!u.mangaNet) { WebCall::setStatus(503); return error("Manga isn't running"); }
-				u.mangaNet->repos().refresh(true);
+				if (!u.manga->mangaNet) { WebCall::setStatus(503); return error("Manga isn't running"); }
+				u.manga->mangaNet->repos().refresh(true);
 				mangaNotify(*w, u);
 				return std::string("{\"ok\":true}");
 			}, 2000, status);
@@ -252,15 +253,15 @@ namespace bp
 			int status = 200;
 			std::string body = w->call([w, id](Player& p, Ui& u) {
 				if (!mangaReady(p, u)) return error("Manga is off");
-				if (!u.mangaNet) { WebCall::setStatus(503); return error("Manga isn't running"); }
+				if (!u.manga->mangaNet) { WebCall::setStatus(503); return error("Manga isn't running"); }
 				// find the repo URL from the full id's hash prefix
 				std::string repoUrl;
-				for (auto& r : u.mangaNet->repos().repos())
+				for (auto& r : u.manga->mangaNet->repos().repos())
 					if (id.compare(0, MangaRepos::repoHash(r.url).size(), MangaRepos::repoHash(r.url)) == 0)
 					{ repoUrl = r.url; break; }
 				if (repoUrl.empty()) { WebCall::setStatus(404); return error("No such repository"); }
 				std::string srcId = id.substr(id.find('/') + 1);
-				if (!u.mangaNet->repos().install(repoUrl, srcId))
+				if (!u.manga->mangaNet->repos().install(repoUrl, srcId))
 				{
 					WebCall::setStatus(400);
 					return error("Couldn't start the install");
@@ -278,14 +279,14 @@ namespace bp
 			int status = 200;
 			std::string body = w->call([w, id](Player& p, Ui& u) {
 				if (!mangaReady(p, u)) return error("Manga is off");
-				if (!u.mangaNet) { WebCall::setStatus(503); return error("Manga isn't running"); }
+				if (!u.manga->mangaNet) { WebCall::setStatus(503); return error("Manga isn't running"); }
 				std::string repoUrl;
-				for (auto& r : u.mangaNet->repos().repos())
+				for (auto& r : u.manga->mangaNet->repos().repos())
 					if (id.compare(0, MangaRepos::repoHash(r.url).size(), MangaRepos::repoHash(r.url)) == 0)
 					{ repoUrl = r.url; break; }
 				if (repoUrl.empty()) { WebCall::setStatus(404); return error("No such repository"); }
 				std::string srcId = id.substr(id.find('/') + 1);
-				if (!u.mangaNet->repos().update(repoUrl, srcId))
+				if (!u.manga->mangaNet->repos().update(repoUrl, srcId))
 				{
 					WebCall::setStatus(400);
 					return error("Couldn't start the update");
@@ -303,13 +304,13 @@ namespace bp
 			int status = 200;
 			std::string body = w->call([w, id](Player& p, Ui& u) {
 				if (!mangaReady(p, u)) return error("Manga is off");
-				if (!u.mangaNet) { WebCall::setStatus(503); return error("Manga isn't running"); }
-				if (!u.mangaNet->repos().uninstall(id))
+				if (!u.manga->mangaNet) { WebCall::setStatus(503); return error("Manga isn't running"); }
+				if (!u.manga->mangaNet->repos().uninstall(id))
 				{
 					WebCall::setStatus(404);
 					return error("No such source");
 				}
-				u.mangaNet->repos().save();
+				u.manga->mangaNet->repos().save();
 				mangaNotify(*w, u);
 				return std::string("{\"ok\":true}");
 			}, 2000, status);
@@ -323,11 +324,11 @@ namespace bp
 				if (!mangaReady(p, u)) return error("Manga is off");
 				JsonWriter j;
 				j.obj().key("items").arr();
-				if (u.mangaStorePublic())
-					for (auto& s : u.mangaStorePublic()->library())
-						writeSeries(j, s, u.mangaStorePublic());
+				if (u.manga->mangaStorePublic())
+					for (auto& s : u.manga->mangaStorePublic()->library())
+						writeSeries(j, s, u.manga->mangaStorePublic());
 				j.end();
-				if (u.mangaStorePublic()) j.key("serial").num((int64_t)u.mangaStorePublic()->serial());
+				if (u.manga->mangaStorePublic()) j.key("serial").num((int64_t)u.manga->mangaStorePublic()->serial());
 				return j.end().out();
 			}, 2000, status);
 			answer(res, body, status);
@@ -340,9 +341,9 @@ namespace bp
 			int status = 200;
 			std::string body = w->call([w, id](Player& p, Ui& u) {
 				if (!mangaReady(p, u)) return error("Manga is off");
-				if (!u.mangaStorePublic()) { WebCall::setStatus(503); return error("Manga store isn't ready"); }
-				u.mangaStorePublic()->removeSeries(id);
-				u.mangaStorePublic()->save();
+				if (!u.manga->mangaStorePublic()) { WebCall::setStatus(503); return error("Manga store isn't ready"); }
+				u.manga->mangaStorePublic()->removeSeries(id);
+				u.manga->mangaStorePublic()->save();
 				mangaNotify(*w, u);
 				return std::string("{\"ok\":true}");
 			}, 2000, status);
@@ -365,9 +366,9 @@ namespace bp
 			int status = 200;
 			std::string body = w->call([w, sid, chapters, read](Player& p, Ui& u) {
 				if (!mangaReady(p, u)) return error("Manga is off");
-				if (!u.mangaStorePublic()) { WebCall::setStatus(503); return error("Manga store isn't ready"); }
-				u.mangaStorePublic()->markRead(sid, chapters, read);
-				u.mangaStorePublic()->save();
+				if (!u.manga->mangaStorePublic()) { WebCall::setStatus(503); return error("Manga store isn't ready"); }
+				u.manga->mangaStorePublic()->markRead(sid, chapters, read);
+				u.manga->mangaStorePublic()->save();
 				mangaNotify(*w, u);
 				return std::string("{\"ok\":true}");
 			}, 2000, status);
@@ -386,8 +387,8 @@ namespace bp
 			int status = 200;
 			std::string body = w->call([sid](Player& p, Ui& u) {
 				if (!mangaReady(p, u)) return error("Manga is off");
-				Ui::MangaWebSeries s;
-				if (!u.mangaWebChapters(sid, s))
+				Ui::Manga::MangaWebSeries s;
+				if (!u.manga->mangaWebChapters(sid, s))
 				{
 					if (s.pending)
 					{
@@ -421,7 +422,7 @@ namespace bp
 			int status = 200;
 			std::string body = w->call([w, key, &res](Player& p, Ui& u) {
 				if (!mangaReady(p, u)) return error("Manga is off");
-				PageCache& cc = u.mangaCoverCacheRef();
+				PageCache& cc = u.manga->mangaCoverCacheRef();
 				std::vector<uint8_t> bytes;
 				if (!cc.has(key) || !cc.get(key, bytes))
 				{
@@ -450,9 +451,9 @@ namespace bp
 				if (!mangaReady(p, u)) return error("Manga is off");
 				JsonWriter j;
 				j.obj().key("items").arr();
-				if (u.mangaNet)
+				if (u.manga->mangaNet)
 				{
-					for (auto& it : u.mangaNet->queue().items())
+					for (auto& it : u.manga->mangaNet->queue().items())
 					{
 						j.obj().key("id").str(it.id).key("seriesId").str(it.seriesId).key("seriesTitle").str(it.seriesTitle)
 							.key("chapterId").str(it.chapterId).key("chapterTitle").str(it.chapterTitle)
@@ -471,13 +472,13 @@ namespace bp
 						if (!it.error.empty()) j.key("error").str(it.error);
 						j.end();
 					}
-					auto dl = u.mangaNet->downloader().status();
+					auto dl = u.manga->mangaNet->downloader().status();
 					j.key("status").obj().key("running").str(dl.runningId).key("done").num(dl.done).key("total").num(dl.total)
 						.key("bytes").num((int64_t)dl.bytes).key("low").boolean(dl.lowSpace).end();
-					j.key("allPaused").boolean(u.mangaNet->queue().allPaused());
+					j.key("allPaused").boolean(u.manga->mangaNet->queue().allPaused());
 				}
 				j.end();
-				if (u.mangaNet) j.key("serial").num((int64_t)u.mangaNet->queue().serial());
+				if (u.manga->mangaNet) j.key("serial").num((int64_t)u.manga->mangaNet->queue().serial());
 				return j.end().out();
 			}, 2000, status);
 			answer(res, body, status);
@@ -499,18 +500,18 @@ namespace bp
 			int status = 200;
 			std::string body = w->call([w, series, chapters](Player& p, Ui& u) {
 				if (!mangaReady(p, u)) return error("Manga is off");
-				if (!u.mangaNet) { WebCall::setStatus(503); return error("Manga isn't running"); }
+				if (!u.manga->mangaNet) { WebCall::setStatus(503); return error("Manga isn't running"); }
 				int added = 0;
 				std::string why;
-				if (!u.mangaWebDownload(series, chapters, added, why))
+				if (!u.manga->mangaWebDownload(series, chapters, added, why))
 				{
 					WebCall::setStatus(400);
 					return error(why);
 				}
 				if (added > 0)
 				{
-					u.mangaNet->queue().save();
-					u.mangaNet->queue().resumeAll();	// one ask also lifts an all-pause
+					u.manga->mangaNet->queue().save();
+					u.manga->mangaNet->queue().resumeAll();	// one ask also lifts an all-pause
 				}
 				mangaNotify(*w, u);
 				JsonWriter j;
@@ -528,10 +529,10 @@ namespace bp
 			int status = 200;
 			std::string body = w->call([w, id](Player& p, Ui& u) {
 				if (!mangaReady(p, u)) return error("Manga is off");
-				if (!u.mangaNet) { WebCall::setStatus(503); return error("Manga isn't running"); }
-				u.mangaNet->downloader().cancel(id);
-				u.mangaNet->queue().remove(id);
-				u.mangaNet->queue().save();
+				if (!u.manga->mangaNet) { WebCall::setStatus(503); return error("Manga isn't running"); }
+				u.manga->mangaNet->downloader().cancel(id);
+				u.manga->mangaNet->queue().remove(id);
+				u.manga->mangaNet->queue().save();
 				mangaNotify(*w, u);
 				return std::string("{\"ok\":true}");
 			}, 2000, status);
@@ -545,15 +546,15 @@ namespace bp
 			int status = 200;
 			std::string body = w->call([w, id, resume](Player& p, Ui& u) {
 				if (!mangaReady(p, u)) return error("Manga is off");
-				if (!u.mangaNet) { WebCall::setStatus(503); return error("Manga isn't running"); }
+				if (!u.manga->mangaNet) { WebCall::setStatus(503); return error("Manga isn't running"); }
 				if (id.empty())
 				{
-					if (resume) u.mangaNet->queue().resumeAll();
-					else u.mangaNet->queue().pauseAll();
+					if (resume) u.manga->mangaNet->queue().resumeAll();
+					else u.manga->mangaNet->queue().pauseAll();
 				}
-				else if (resume) u.mangaNet->queue().resume(id);
-				else u.mangaNet->queue().pause(id);
-				u.mangaNet->queue().save();
+				else if (resume) u.manga->mangaNet->queue().resume(id);
+				else u.manga->mangaNet->queue().pause(id);
+				u.manga->mangaNet->queue().save();
 				mangaNotify(*w, u);
 				return std::string("{\"ok\":true}");
 			}, 2000, status);

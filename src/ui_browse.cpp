@@ -17,6 +17,7 @@
 #endif
 #include "ui_internal.h"
 #include "ui_docs.h"
+#include "ui_manga.h"
 #include "pagebook.h"
 #include "durworker.h"
 
@@ -34,7 +35,7 @@ namespace bp
 		std::vector<BrowseRoot> was = roots;
 		roots = fresh;
 		rootsChanged++;
-		mangaScanned = false;	// (the Manga folders read again: a card's came or went)
+		manga->mangaScanned = false;	// (the Manga folders read again: a card's came or went)
 		bool gone = false;
 		for (auto& r : was)
 		{
@@ -1146,7 +1147,7 @@ namespace bp
 			if (browseDir == EXTDIR)
 			{
 				// the drawer: what's on, or none (its own drawing, ui_ext.cpp)
-				drawExtensionsDrawer(p);
+				manga->drawExtensionsDrawer(p);
 				return;
 			}
 			// where it is, its end kept; the folder it's in brighter. A playlist: how many items, on the right. A

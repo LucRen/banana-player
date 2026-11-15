@@ -3,6 +3,7 @@
 #include "manga_ui_logic.h"
 #include "ui_internal.h"
 #include "ui_reader.h"
+#include "ui_manga.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -20,19 +21,19 @@ namespace bp
 		std::string sourceName(const MangaRepos::InstalledSource& s) { return s.name.empty() ? s.id : s.name; }
 	}
 
-	uint64_t Ui::mangaReposSerial() const
+	uint64_t Ui::Manga::mangaReposSerial() const
 	{
 		// (ui.cpp's signature has no MangaNet's definition: the serial it follows is asked for here)
 		return mangaNet && mangaNet->started() ? mangaNet->repos().serial() : 0;
 	}
 
-	std::vector<MangaRepos::InstalledSource> Ui::mangaSourcesInstalled() const
+	std::vector<MangaRepos::InstalledSource> Ui::Manga::mangaSourcesInstalled() const
 	{
 		if (!mangaNet || !mangaNet->started()) return {};
 		return mangaNet->repos().installed();
 	}
 
-	std::vector<MangaRepos::AvailableSource> Ui::mangaSourcesAvailable(const Player& p) const
+	std::vector<MangaRepos::AvailableSource> Ui::Manga::mangaSourcesAvailable(const Player& p) const
 	{
 		if (!mangaNet || !mangaNet->started()) return {};
 		std::vector<MangaRepos::AvailableSource> all = mangaNet->repos().available();
@@ -47,13 +48,13 @@ namespace bp
 		return all;
 	}
 
-	std::vector<MangaRepos::RepoInfo> Ui::mangaSourcesRepos() const
+	std::vector<MangaRepos::RepoInfo> Ui::Manga::mangaSourcesRepos() const
 	{
 		if (!mangaNet || !mangaNet->started()) return {};
 		return mangaNet->repos().repos();
 	}
 
-	void Ui::mangaSourcesOpen(Player& p)
+	void Ui::Manga::mangaSourcesOpen(Player& p)
 	{
 		(void)p;
 		mstModal = MSM_NONE;
@@ -72,34 +73,34 @@ namespace bp
 			mangaJavaRefresh();
 	}
 
-	void Ui::openMangaSources(Player& p)
+	void Ui::Manga::openMangaSources(Player& p)
 	{
 		// X on Browse: a page of its own, so its lists keep their place while Browse is browsed again
-		page = Page::MangaSources;
+		ui.page = Page::MangaSources;
 		mangaTab = MT_BROWSE;
 		mangaSourcesOpen(p);
 		mangaAvFreeze(p);
 	}
 
-	bool Ui::mangaSourcesPageKey(Button b, Player& p)
+	bool Ui::Manga::mangaSourcesPageKey(Button b, Player& p)
 	{
 		// a sheet takes the keys first (B closes it, as it always has)
 		if (mangaSourcesModal()) return mangaSourcesKey(b, p);
 		if (b == Button::B)
 		{
 			// back to Browse, as a series page returns to the tab it came from
-			page = Page::Manga;
+			ui.page = Page::Manga;
 			mangaTab = MT_BROWSE;
 			return false;
 		}
 		// the app's settings (it comes back to this page)
 		if (b == Button::Start) { openMangaSettings(); return false; }
 		// (the mini bar shown here says SELECT goes to what plays)
-		if (b == Button::Select && nowPlayable(p)) { goNowPlaying(p); return false; }
+		if (b == Button::Select && ui.nowPlayable(p)) { ui.goNowPlaying(p); return false; }
 		return mangaSourcesKey(b, p);
 	}
 
-	int Ui::mangaSourcesRows(const Player& p) const
+	int Ui::Manga::mangaSourcesRows(const Player& p) const
 	{
 		switch (mstTab)
 		{
@@ -110,7 +111,7 @@ namespace bp
 		}
 	}
 
-	int Ui::mangaSourcesModalRows() const
+	int Ui::Manga::mangaSourcesModalRows() const
 	{
 		switch (mstModal)
 		{
@@ -125,37 +126,37 @@ namespace bp
 		}
 	}
 
-	std::string Ui::elideMiddle(const std::string& s, int size, int maxW) const
+	std::string Ui::Manga::elideMiddle(const std::string& s, int size, int maxW) const
 	{
 		// a URL keeps both its host and its file (the middle, a long path, is what goes)
-		if (maxW <= 0 || textWidth(s, size) <= (int)(maxW * sx)) return s;
+		if (maxW <= 0 || ui.textWidth(s, size) <= (int)(maxW * sx)) return s;
 		for (size_t n = s.size(); n > 8; n--)
 		{
 			size_t head = n / 2, tail = n - head;
 			std::string t = s.substr(0, head) + "\xE2\x80\xA6" + s.substr(s.size() - tail);
-			if (textWidth(t, size) <= (int)(maxW * sx)) return t;
+			if (ui.textWidth(t, size) <= (int)(maxW * sx)) return t;
 		}
 		return "\xE2\x80\xA6";
 	}
 
 	// ---- what the tab asks of MangaNet ----
 
-	void Ui::mangaSourcesAddOpen(Player& p)
+	void Ui::Manga::mangaSourcesAddOpen(Player& p)
 	{
-		if (!mangaNet || !mangaNet->started()) { alert("Can\xE2\x80\x99t add repositories", "The player has no folder to keep them in.");; return; }
+		if (!mangaNet || !mangaNet->started()) { ui.alert("Can\xE2\x80\x99t add repositories", "The player has no folder to keep them in.");; return; }
 		// the keyboard has no URL page of its own, so its letters page types a URL (its symbols page has / : .); the
 		// field is prefilled, the caret after it: a host goes on the end
-		openKeyboard(SRC_URL_FIELD, "https://");
+		ui.openKeyboard(SRC_URL_FIELD, "https://");
 	}
 
-	void Ui::mangaSourcesUrlTyped(const std::string& url)
+	void Ui::Manga::mangaSourcesUrlTyped(const std::string& url)
 	{
 		// the keyboard's answer, added on the next tick (which has the Player for an error's toast)
 		mstPendingUrl = url;
 		mstLocal++;
 	}
 
-	void Ui::mangaSourcesInstall(const std::string& fullId, const std::string& repo, const std::string& id,
+	void Ui::Manga::mangaSourcesInstall(const std::string& fullId, const std::string& repo, const std::string& id,
 		const std::string& name, Player& p)
 	{
 		(void)p;
@@ -170,7 +171,7 @@ namespace bp
 		mstLocal++;
 	}
 
-	void Ui::mangaSourcesUpdate(const std::string& fullId, const std::string& repo, const std::string& id,
+	void Ui::Manga::mangaSourcesUpdate(const std::string& fullId, const std::string& repo, const std::string& id,
 		const std::string& name, Player& p)
 	{
 		(void)p;
@@ -184,7 +185,7 @@ namespace bp
 		mstLocal++;
 	}
 
-	void Ui::mangaSourcesUninstall(const std::string& fullId, const std::string& name, Player& p)
+	void Ui::Manga::mangaSourcesUninstall(const std::string& fullId, const std::string& name, Player& p)
 	{
 		if (!mangaNet || !mangaNet->started()) return;
 		if (mangaNet->repos().uninstall(fullId))
@@ -192,12 +193,12 @@ namespace bp
 			mangaNet->repos().save();
 			p.osd("Removed " + (name.empty() ? std::string("the source") : name), 2000);
 		}
-		else alert("Couldn\xE2\x80\x99t remove the source", "Is the card read only?");
+		else ui.alert("Couldn\xE2\x80\x99t remove the source", "Is the card read only?");
 		mstInstalling.erase(fullId);
 		mangaSourcesCloseModal();
 	}
 
-	void Ui::mangaSourcesTick(Player& p)
+	void Ui::Manga::mangaSourcesTick(Player& p)
 	{
 		// the keyboard's URL first (its toast needs the Player, which kbClose hasn't got)
 		if (!mstPendingUrl.empty())
@@ -205,12 +206,12 @@ namespace bp
 			std::string url = mstPendingUrl;
 			mstPendingUrl.clear();
 			mstLocal++;
-			if (!mangaNet || !mangaNet->started()) alert("Can\xE2\x80\x99t add repositories", "The player has no folder to keep them in.");
+			if (!mangaNet || !mangaNet->started()) ui.alert("Can\xE2\x80\x99t add repositories", "The player has no folder to keep them in.");
 			else if (MangaJava::isRepoUrl(url)) mangaJavaAddRepo(url, p);
 			else
 			{
 				std::string error;
-				if (!mangaNet->repos().addRepo(url, error)) alert("The repository wasn\xE2\x80\x99t added", error);
+				if (!mangaNet->repos().addRepo(url, error)) ui.alert("The repository wasn\xE2\x80\x99t added", error);
 				else
 				{
 					// its first index says Added: a load after a Refresh is silent
@@ -239,7 +240,7 @@ namespace bp
 				std::string name = e.repo;
 				for (auto& r : repos.repos())
 					if (r.url == e.repo) { name = r.name.empty() ? r.url : r.name; break; }
-				alert("The repository wasn\xE2\x80\x99t added", name + ": " + mstRepoError[e.repo]);
+				ui.alert("The repository wasn\xE2\x80\x99t added", name + ": " + mstRepoError[e.repo]);
 				break;
 			}
 			case MangaRepos::Event::Installed:
@@ -253,7 +254,7 @@ namespace bp
 			}
 			case MangaRepos::Event::InstallFailed:
 				mstInstalling.erase(e.source);
-				alert("The source couldn\xE2\x80\x99t be installed", e.message);
+				ui.alert("The source couldn\xE2\x80\x99t be installed", e.message);
 				break;
 			}
 		}
@@ -273,7 +274,7 @@ namespace bp
 
 	// ---- the keys ----
 
-	bool Ui::mangaSourcesKey(Button b, Player& p)
+	bool Ui::Manga::mangaSourcesKey(Button b, Player& p)
 	{
 		if (mstAvMenu) return mangaAvMenuKey(b, p);
 		if (mstJavaModal != MJM_NONE) return mangaJavaModalKey(b, p);
@@ -298,7 +299,7 @@ namespace bp
 				mangaJavaRefresh();
 				p.osd("Checking repositories\xE2\x80\xA6", 1200);
 			}
-			else alert("Can\xE2\x80\x99t check repositories", "The player has no folder to keep them in.");
+			else ui.alert("Can\xE2\x80\x99t check repositories", "The player has no folder to keep them in.");
 			mstLocal++;
 		}
 		else switch (b)
@@ -357,7 +358,7 @@ namespace bp
 		return false;
 	}
 
-	void Ui::mangaSourcesAct(Player& p)
+	void Ui::Manga::mangaSourcesAct(Player& p)
 	{
 		int& cur = mstCursor[mstTab];
 		if (mstTab == MST_INSTALLED)
@@ -404,7 +405,7 @@ namespace bp
 		if (cur == lua + java) { mangaSourcesAddOpen(p); return; }
 		// a repository's long address is easier typed on a phone or a computer: the Web dashboard's page (its address
 		// and PIN, or its switch), and B comes back here
-		if (cur == lua + java + 1) { openWeb(); return; }
+		if (cur == lua + java + 1) { ui.openWeb(); return; }
 		if (cur == lua + java + 2) { if (mangaEngineMissing()) mangaEngineOffer(); return; }
 		if (cur < 0 || cur >= lua) return;
 		mstModal = MSM_REPO;
@@ -414,7 +415,7 @@ namespace bp
 		mstLocal++;
 	}
 
-	void Ui::mangaSourcesCloseModal()
+	void Ui::Manga::mangaSourcesCloseModal()
 	{
 		mstModal = MSM_NONE;
 		mstModalCursor = 0;
@@ -423,7 +424,7 @@ namespace bp
 		mstLocal++;
 	}
 
-	bool Ui::mangaSourcesModalKey(Button b, Player& p)
+	bool Ui::Manga::mangaSourcesModalKey(Button b, Player& p)
 	{
 		int n = mangaSourcesModalRows();
 		if (n <= 0) { mangaSourcesCloseModal(); return false; }
@@ -441,7 +442,7 @@ namespace bp
 		return false;
 	}
 
-	void Ui::mangaSourcesModalAct(Player& p)
+	void Ui::Manga::mangaSourcesModalAct(Player& p)
 	{
 		if (!mangaNet || !mangaNet->started()) { mangaSourcesCloseModal(); return; }
 		MangaRepos& repos = mangaNet->repos();
@@ -458,7 +459,7 @@ namespace bp
 				mstRepoError.erase(url);
 				p.osd(alsoSources ? "Removed the repository and its sources" : "Removed the repository", 2500);
 			}
-			else alert("Couldn\xE2\x80\x99t remove the repository", "Is the card read only?");
+			else ui.alert("Couldn\xE2\x80\x99t remove the repository", "Is the card read only?");
 			mangaSourcesCloseModal();
 			return;
 		}
@@ -505,7 +506,7 @@ namespace bp
 		mangaSourcesCloseModal();
 	}
 
-	bool Ui::mangaSourcesPointer(const Pointer& pt, int x, int y, Player& p)
+	bool Ui::Manga::mangaSourcesPointer(const Pointer& pt, int x, int y, Player& p)
 	{
 		if (pt.kind != Pointer::Down) return false;
 		if (mstAvMenu) return mangaAvMenuPointer(x, y, p);
@@ -542,7 +543,7 @@ namespace bp
 		for (int i = sc; i < n && i < sc + MS_ROWS; i++)
 			if (mangaSourcesRowRect(i - sc).hit(x, y)) hit = i;
 		int tab = mstTab;
-		pageReader->mangaListBegin(x, y, sc, MS_ROW_H, hit, [this, &p, tab](int want) {
+		ui.pageReader->mangaListBegin(x, y, sc, MS_ROW_H, hit, [this, &p, tab](int want) {
 			if (mstTab != tab) return want;
 			int n = mangaSourcesRows(p), &cur = mstCursor[tab], &sc = mstScroll[tab];
 			sc = std::clamp(want, 0, std::max(0, n - MS_ROWS));
@@ -558,42 +559,42 @@ namespace bp
 
 	// ---- the drawing ----
 
-	void Ui::drawMangaSourcesPage(const Player& p)
+	void Ui::Manga::drawMangaSourcesPage(const Player& p)
 	{
 		// the page has its own header (and so its "<", which is B): the segments start under it, as the tab's did
-		drawHeader("Sources", p);
+		ui.drawHeader("Sources", p);
 		drawMangaSources(p);
 	}
 
 
 	// an installed Lua source's row: name, language, version, its Update chip (Available lists these on top)
-	void Ui::drawMangaLuaInstalledRow(const MangaRepos::InstalledSource& s, Rect r, bool at)
+	void Ui::Manga::drawMangaLuaInstalledRow(const MangaRepos::InstalledSource& s, Rect r, bool at)
 	{
-		if (at) drawFocus(r);
+		if (at) ui.drawFocus(r);
 		int mid = r.y + r.h / 2;
 		SDL_Color ink = at ? ACCENT : TEXT, soft = at ? DIM_ON : DIM;
-		drawTextMid(sourceName(s), 1, ink, 32, mid - 10, 450);
+		ui.drawTextMid(sourceName(s), 1, ink, 32, mid - 10, 450);
 		int x = 32;
 		if (!s.lang.empty())
 		{
-			int cw = (int)std::lround(textWidth(s.lang, 0) / sx) + 14;
-			fillRound({x, mid + 3, cw, 18}, TRACK, R_CHIP);
-			drawTextMid(s.lang, 0, at ? DIM_ON : TEXT, x + cw / 2, mid + 12, cw - 6, 2);
+			int cw = (int)std::lround(ui.textWidth(s.lang, 0) / sx) + 14;
+			ui.fillRound({x, mid + 3, cw, 18}, TRACK, R_CHIP);
+			ui.drawTextMid(s.lang, 0, at ? DIM_ON : TEXT, x + cw / 2, mid + 12, cw - 6, 2);
 			x += cw + 8;
 		}
-		drawTextMid(s.version.empty() ? "version unknown" : s.version, 0, soft, x, mid + 12, 240);
-		if (s.adult) drawAdultChip(x + std::min(240, (int)std::lround(textWidth(s.version.empty() ? "version unknown" : s.version, 0) / sx)) + 8, mid + 12);
-		if (mstInstalling.count(s.fullId)) drawTextMid("Updating\xE2\x80\xA6", 0, ACCENT, 608, mid, 0, 1);
+		ui.drawTextMid(s.version.empty() ? "version unknown" : s.version, 0, soft, x, mid + 12, 240);
+		if (s.adult) drawAdultChip(x + std::min(240, (int)std::lround(ui.textWidth(s.version.empty() ? "version unknown" : s.version, 0) / sx)) + 8, mid + 12);
+		if (mstInstalling.count(s.fullId)) ui.drawTextMid("Updating\xE2\x80\xA6", 0, ACCENT, 608, mid, 0, 1);
 		else if (s.updateAvailable)
 		{
 			// the design's Update mark: a chip on the row's right
-			int w = (int)std::lround(textWidth("Update", 0) / sx) + 16;
-			fillRound({608 - w, mid - 10, w, 20}, ACCENT, R_CHIP);
-			drawTextMid("Update", 0, ON_ACCENT, 608 - w / 2, mid, w - 6, 2);
+			int w = (int)std::lround(ui.textWidth("Update", 0) / sx) + 16;
+			ui.fillRound({608 - w, mid - 10, w, 20}, ACCENT, R_CHIP);
+			ui.drawTextMid("Update", 0, ON_ACCENT, 608 - w / 2, mid, w - 6, 2);
 		}
 	}
 
-	void Ui::drawMangaSources(const Player& p)
+	void Ui::Manga::drawMangaSources(const Player& p)
 	{
 		if (mstTab == MST_INSTALLED) mstTab = MST_AVAILABLE;
 		for (int i = 0; i < 2; i++)
@@ -601,11 +602,11 @@ namespace bp
 			int tab = i == 0 ? MST_AVAILABLE : MST_REPOSITORIES;
 			Rect r = mangaSourcesSegRect(i);
 			bool at = tab == mstTab;
-			drawBox(r, at ? ACCENT : SURFACE, R_CHIP);
-			drawTextMid(MST_NAMES[tab], 0, at ? ON_ACCENT : TEXT, r.x + r.w / 2, r.y + r.h / 2, r.w - 16, 2);
+			ui.drawBox(r, at ? ACCENT : SURFACE, R_CHIP);
+			ui.drawTextMid(MST_NAMES[tab], 0, at ? ON_ACCENT : TEXT, r.x + r.w / 2, r.y + r.h / 2, r.w - 16, 2);
 		}
-		drawTextMid("L", 0, ACCENT, 8, mangaSourcesSegRect(0).y + 13, 0, 2);
-		drawTextMid("R", 0, ACCENT, 632, mangaSourcesSegRect(1).y + 13, 0, 2);
+		ui.drawTextMid("L", 0, ACCENT, 8, mangaSourcesSegRect(0).y + 13, 0, 2);
+		ui.drawTextMid("R", 0, ACCENT, 632, mangaSourcesSegRect(1).y + 13, 0, 2);
 		int n = mangaSourcesRows(p);
 		int& cur = mstCursor[mstTab], &sc = mstScroll[mstTab];
 		if (n > 0 && cur >= n) cur = n - 1;
@@ -622,14 +623,14 @@ namespace bp
 			auto list = mangaSourcesInstalled();
 			int lua = (int)list.size(), java = mangaJavaInstalledRows(p);
 			if (lua + java == 0 && javaStatus.empty())
-				drawEmpty(G_BLOCKS, "No sources yet", "Add a repository, then install from Available", nullptr);
+				ui.drawEmpty(G_BLOCKS, "No sources yet", "Add a repository, then install from Available", nullptr);
 			for (int i = sc; i < lua && i < sc + MS_ROWS; i++)
 			{
 				drawMangaLuaInstalledRow(list[i], mangaSourcesRowRect(i - sc), i == cur);
 			}
 			for (int i = std::max(sc, lua); i < lua + java && i < sc + MS_ROWS; i++)
 				drawMangaJavaRow(MST_INSTALLED, i - lua, mangaSourcesRowRect(i - sc), i == cur, true, p);
-			drawScrollBar(MS_ROW_TOP, MS_ROWS * MS_ROW_H - 4, sc, MS_ROWS, lua + java);
+			ui.drawScrollBar(MS_ROW_TOP, MS_ROWS * MS_ROW_H - 4, sc, MS_ROWS, lua + java);
 		}
 		else if (mstTab == MST_AVAILABLE)
 		{
@@ -648,9 +649,9 @@ namespace bp
 				listLoading = mangaNet->javaSources().refreshPending() || st == JavaExtHost::State::Starting ||
 					(!mangaNet->javaSources().extensionsKnown() && st != JavaExtHost::State::Failed);
 			}
-			if (total == 0 && listLoading) drawLoader(W / 2, 270, "Loading sources\xE2\x80\xA6");
+			if (total == 0 && listLoading) ui.drawLoader(W / 2, 270, "Loading sources\xE2\x80\xA6");
 			else if (total == 0 && javaStatus.empty())
-				drawEmpty(G_DOWNLOAD, "Nothing to install", "Add a repository first", nullptr);
+				ui.drawEmpty(G_DOWNLOAD, "Nothing to install", "Add a repository first", nullptr);
 			for (int k = sc; k < total && k < sc + MS_ROWS; k++)
 			{
 				if (k < li) { drawMangaLuaInstalledRow(inst[k], mangaSourcesRowRect(k - sc), k == cur); continue; }
@@ -658,41 +659,41 @@ namespace bp
 				const MangaRepos::AvailableSource& a = list[k - li - jv];
 				Rect r = mangaSourcesRowRect(k - sc);
 				bool at = k == cur;
-				if (at) drawFocus(r);
+				if (at) ui.drawFocus(r);
 				int mid = r.y + r.h / 2;
 				SDL_Color ink = at ? ACCENT : TEXT, soft = at ? DIM_ON : DIM;
-				drawTextMid(a.name.empty() ? a.id : a.name, 1, ink, 32, mid - 10, 450);
+				ui.drawTextMid(a.name.empty() ? a.id : a.name, 1, ink, 32, mid - 10, 450);
 				int x = 32;
 				if (!a.lang.empty())
 				{
-					int cw = (int)std::lround(textWidth(a.lang, 0) / sx) + 14;
-					fillRound({x, mid + 3, cw, 18}, TRACK, R_CHIP);
-					drawTextMid(a.lang, 0, at ? DIM_ON : TEXT, x + cw / 2, mid + 12, cw - 6, 2);
+					int cw = (int)std::lround(ui.textWidth(a.lang, 0) / sx) + 14;
+					ui.fillRound({x, mid + 3, cw, 18}, TRACK, R_CHIP);
+					ui.drawTextMid(a.lang, 0, at ? DIM_ON : TEXT, x + cw / 2, mid + 12, cw - 6, 2);
 					x += cw + 8;
 				}
-				drawTextMid(a.version.empty() ? "version unknown" : a.version, 0, soft, x, mid + 12, 240);
-				if (a.adult) drawAdultChip(x + std::min(240, (int)std::lround(textWidth(a.version.empty() ? "version unknown" : a.version, 0) / sx)) + 8, mid + 12);
-				if (mstInstalling.count(a.fullId)) drawTextMid("Installing\xE2\x80\xA6", 0, ACCENT, 608, mid, 0, 1);
-				else drawTextMid(elideLeft(a.repoName, 0, 150), 0, soft, 608, mid, 0, 1);
+				ui.drawTextMid(a.version.empty() ? "version unknown" : a.version, 0, soft, x, mid + 12, 240);
+				if (a.adult) drawAdultChip(x + std::min(240, (int)std::lround(ui.textWidth(a.version.empty() ? "version unknown" : a.version, 0) / sx)) + 8, mid + 12);
+				if (mstInstalling.count(a.fullId)) ui.drawTextMid("Installing\xE2\x80\xA6", 0, ACCENT, 608, mid, 0, 1);
+				else ui.drawTextMid(ui.elideLeft(a.repoName, 0, 150), 0, soft, 608, mid, 0, 1);
 			}
-			drawScrollBar(MS_ROW_TOP, MS_ROWS * MS_ROW_H - 4, sc, MS_ROWS, total);
+			ui.drawScrollBar(MS_ROW_TOP, MS_ROWS * MS_ROW_H - 4, sc, MS_ROWS, total);
 			if (total > 0 && listLoading)
 			{
 				std::string t = "Checking for updates\xE2\x80\xA6";
-				int tw = (int)std::lround(textWidth(t, 0) / sx) + 56;
+				int tw = (int)std::lround(ui.textWidth(t, 0) / sx) + 56;
 				Rect r{W / 2 - tw / 2, MS_ROW_TOP + MS_ROWS * MS_ROW_H - 38, tw, 30};
-				drawBox(r, SURFACE, R_CHIP, ACCENT);
+				ui.drawBox(r, SURFACE, R_CHIP, ACCENT);
 				// a small ring at its left, the same mark as the loading one
-				loaderShown = true;
+				ui.loaderShown = true;
 				int step = (int)(SDL_GetTicks() / 110 % 8);
 				for (int k = 0; k < 8; k++)
 				{
 					int age = ((step - k) % 8 + 8) % 8;
 					double a = k * 3.14159265 / 4;
 					int dx = r.x + 20 + (int)std::lround(8 * std::sin(a)), dy = r.y + 15 + (int)std::lround(-8 * std::cos(a));
-					fillRound({dx - 2, dy - 2, 4, 4}, age == 0 ? ACCENT : age < 3 ? TEXT : DIM, 2);
+					ui.fillRound({dx - 2, dy - 2, 4, 4}, age == 0 ? ACCENT : age < 3 ? TEXT : DIM, 2);
 				}
-				drawTextMid(t, 0, TEXT, r.x + 36, r.y + r.h / 2, tw - 40);
+				ui.drawTextMid(t, 0, TEXT, r.x + 36, r.y + r.h / 2, tw - 40);
 			}
 		}
 		else
@@ -704,16 +705,16 @@ namespace bp
 				const MangaRepos::RepoInfo& rp = list[i];
 				Rect r = mangaSourcesRowRect(i - sc);
 				bool at = i == cur;
-				if (at) drawFocus(r);
+				if (at) ui.drawFocus(r);
 				int mid = r.y + r.h / 2;
 				SDL_Color ink = at ? ACCENT : TEXT, soft = at ? DIM_ON : DIM;
-				drawTextMid(rp.name.empty() ? rp.url : rp.name, 1, ink, 32, mid - 10, 470);
-				drawTextMid(elideMiddle(rp.url, 0, 380), 0, soft, 32, mid + 10, 0);
+				ui.drawTextMid(rp.name.empty() ? rp.url : rp.name, 1, ink, 32, mid - 10, 470);
+				ui.drawTextMid(elideMiddle(rp.url, 0, 380), 0, soft, 32, mid + 10, 0);
 				auto it = mstRepoError.find(rp.url);
-				if (it != mstRepoError.end()) drawTextMid(elideLeft(it->second, 0, 180), 0, DANGER, 608, mid, 0, 1);
+				if (it != mstRepoError.end()) ui.drawTextMid(ui.elideLeft(it->second, 0, 180), 0, DANGER, 608, mid, 0, 1);
 				else if (rp.lastFetched > 0)
-					drawTextMid(mangaAgo(rp.lastFetched, (int64_t)time(nullptr)), 0, soft, 608, mid, 0, 1);
-				else drawTextMid("Not checked yet", 0, soft, 608, mid, 0, 1);
+					ui.drawTextMid(mangaAgo(rp.lastFetched, (int64_t)time(nullptr)), 0, soft, 608, mid, 0, 1);
+				else ui.drawTextMid("Not checked yet", 0, soft, 608, mid, 0, 1);
 			}
 			for (int i = std::max(sc, lua); i < total && i < sc + MS_ROWS; i++)
 				drawMangaJavaRow(MST_REPOSITORIES, i - lua, mangaSourcesRowRect(i - sc), i == cur, true, p);
@@ -723,10 +724,10 @@ namespace bp
 			{
 				Rect r = mangaSourcesRowRect(i);
 				bool at = cur == total;
-				if (at) drawFocus(r);
+				if (at) ui.drawFocus(r);
 				int mid = r.y + r.h / 2;
-				drawGlyphMid(G_PLUS, 42, mid, at ? ACCENT : DIM);
-				drawTextMid("Add repository\xE2\x80\xA6", 1, at ? ACCENT : TEXT, 62, mid, 0);
+				ui.drawGlyphMid(G_PLUS, 42, mid, at ? ACCENT : DIM);
+				ui.drawTextMid("Add repository\xE2\x80\xA6", 1, at ? ACCENT : TEXT, 62, mid, 0);
 			}
 			// and the recommended way: the dashboard, where the address is pasted on a phone or a computer
 			i = total + 1 - sc;
@@ -734,14 +735,14 @@ namespace bp
 			{
 				Rect r = mangaSourcesRowRect(i);
 				bool at = cur == total + 1;
-				if (at) drawFocus(r);
+				if (at) ui.drawFocus(r);
 				int mid = r.y + r.h / 2;
-				drawGlyphMid(G_WEB, 42, mid, at ? ACCENT : DIM);
-				drawTextMid("Add from the web dashboard", 1, at ? ACCENT : TEXT, 62, mid - 10, 400);
-				drawTextMid("Paste it on your phone or computer", 0, at ? DIM_ON : DIM, 62, mid + 10, 400);
-				int cw = (int)std::lround(textWidth("Recommended", 0) / sx) + 16;
-				fillRound({608 - cw, mid - 10, cw, 20}, ACCENT, R_CHIP);
-				drawTextMid("Recommended", 0, ON_ACCENT, 608 - cw / 2, mid, cw - 6, 2);
+				ui.drawGlyphMid(G_WEB, 42, mid, at ? ACCENT : DIM);
+				ui.drawTextMid("Add from the web dashboard", 1, at ? ACCENT : TEXT, 62, mid - 10, 400);
+				ui.drawTextMid("Paste it on your phone or computer", 0, at ? DIM_ON : DIM, 62, mid + 10, 400);
+				int cw = (int)std::lround(ui.textWidth("Recommended", 0) / sx) + 16;
+				ui.fillRound({608 - cw, mid - 10, cw, 20}, ACCENT, R_CHIP);
+				ui.drawTextMid("Recommended", 0, ON_ACCENT, 608 - cw / 2, mid, cw - 6, 2);
 			}
 			// the engine, while it isn't on the card: an index.pb repository's sources need it (the offer again)
 			bool engineRow = mangaEngineMissing();
@@ -750,30 +751,30 @@ namespace bp
 			{
 				Rect r = mangaSourcesRowRect(i);
 				bool at = cur == total + 2;
-				if (at) drawFocus(r);
+				if (at) ui.drawFocus(r);
 				int mid = r.y + r.h / 2;
-				drawGlyphMid(G_DOWNLOAD, 42, mid, at ? ACCENT : DIM);
-				drawTextMid("Download manga engine", 1, at ? ACCENT : TEXT, 62, mid - 10, 400);
-				drawTextMid("Needed for index.pb repositories", 0, at ? DIM_ON : DIM, 62, mid + 10, 400);
-				drawTextMid("241 MB", 0, at ? DIM_ON : DIM, 608, mid, 0, 1);
+				ui.drawGlyphMid(G_DOWNLOAD, 42, mid, at ? ACCENT : DIM);
+				ui.drawTextMid("Download manga engine", 1, at ? ACCENT : TEXT, 62, mid - 10, 400);
+				ui.drawTextMid("Needed for index.pb repositories", 0, at ? DIM_ON : DIM, 62, mid + 10, 400);
+				ui.drawTextMid("241 MB", 0, at ? DIM_ON : DIM, 608, mid, 0, 1);
 			}
-			drawScrollBar(MS_ROW_TOP, MS_ROWS * MS_ROW_H - 4, sc, MS_ROWS, total + 2 + (engineRow ? 1 : 0));
+			ui.drawScrollBar(MS_ROW_TOP, MS_ROWS * MS_ROW_H - 4, sc, MS_ROWS, total + 2 + (engineRow ? 1 : 0));
 		}
 
-		if (!javaStatus.empty()) drawTextMid(javaStatus, 0, DANGER, W / 2, 378, 560, 2);
+		if (!javaStatus.empty()) ui.drawTextMid(javaStatus, 0, DANGER, W / 2, 378, 560, 2);
 
 		// the note at the foot of every sub-list (design 9's Repositories row)
-		auto lines = wrapText(NOTE, 0, 552, 2);
-		drawGlyphMid(G_INFO, 24, 396, DIM);
-		for (size_t i = 0; i < lines.size(); i++) drawTextMid(lines[i], 0, DIM, 40, 396 + (int)i * 20, 552);
+		auto lines = ui.wrapText(NOTE, 0, 552, 2);
+		ui.drawGlyphMid(G_INFO, 24, 396, DIM);
+		for (size_t i = 0; i < lines.size(); i++) ui.drawTextMid(lines[i], 0, DIM, 40, 396 + (int)i * 20, 552);
 
 		if (mstTab == MST_INSTALLED)
-			drawHints({{"A", "Details"}, {"X", "Options"}, {"L/R", "List"}, {"Y", "Refresh"}, {"B", "Back"}});
+			ui.drawHints({{"A", "Details"}, {"X", "Options"}, {"L/R", "List"}, {"Y", "Refresh"}, {"B", "Back"}});
 		else if (mstTab == MST_AVAILABLE)
-			drawHints({{"A", "Install"}, {"X", "Filter"}, {"L/R", "List"}, {"Y", "Refresh"}, {"B", "Back"}});
+			ui.drawHints({{"A", "Install"}, {"X", "Filter"}, {"L/R", "List"}, {"Y", "Refresh"}, {"B", "Back"}});
 		else if (mstCursor[MST_REPOSITORIES] < (int)mangaSourcesRepos().size() + mangaJavaRepoRows())
-			drawHints({{"A", "Options"}, {"X", "Remove"}, {"L/R", "List"}, {"B", "Back"}});
-		else drawHints({{"A", "Open"}, {"L/R", "List"}, {"Y", "Refresh"}, {"B", "Back"}});
+			ui.drawHints({{"A", "Options"}, {"X", "Remove"}, {"L/R", "List"}, {"B", "Back"}});
+		else ui.drawHints({{"A", "Open"}, {"L/R", "List"}, {"Y", "Refresh"}, {"B", "Back"}});
 
 		if (mstModal != MSM_NONE) drawMangaSourceModal(p);
 		if (mstJavaModal != MJM_NONE) drawMangaJavaModal(p);
@@ -781,7 +782,7 @@ namespace bp
 		if (mengSheet) drawMangaEngineSheet();
 	}
 
-	void Ui::drawMangaSourceModal(const Player& p)
+	void Ui::Manga::drawMangaSourceModal(const Player& p)
 	{
 		(void)p;
 		auto installed = mangaSourcesInstalled();
@@ -799,26 +800,26 @@ namespace bp
 			: mstModal == MSM_OPTIONS ? "Options"
 			: mstModal == MSM_REPO ? "Repository"
 			: "Remove repository";
-		drawDialog(box, title);
+		ui.drawDialog(box, title);
 		int rows = mangaSourcesModalRows();
 		if (mstModal == MSM_DETAILS)
 		{
 			auto line = [&](const char* label, const std::string& value, int y) {
-				drawTextMid(label, 0, DIM, box.x + 24, y, 104);
-				drawTextMid(value, 0, TEXT, box.x + 132, y, box.w - 156);
+				ui.drawTextMid(label, 0, DIM, box.x + 24, y, 104);
+				ui.drawTextMid(value, 0, TEXT, box.x + 132, y, box.w - 156);
 			};
 			line("Repository", repoName.empty() ? "Not in a repository" : repoName, box.y + 58);
 			line("Version", s->version.empty() ? "unknown" : s->version, box.y + 80);
 			line("Language", s->lang.empty() ? "unknown" : s->lang, box.y + 102);
 		}
 		else if (mstModal == MSM_OPTIONS)
-			drawTextMid(sourceName(*s), 0, DIM, box.x + box.w / 2, box.y + 62, box.w - 40, 2);
+			ui.drawTextMid(sourceName(*s), 0, DIM, box.x + box.w / 2, box.y + 62, box.w - 40, 2);
 		else if (mstModal == MSM_REPO)
 		{
 			std::string name;
 			for (auto& r : repos)
 				if (r.url == mstModalId) { name = r.name.empty() ? r.url : r.name; break; }
-			drawTextMid(elideMiddle(name.empty() ? mstModalId : name, 0, box.w - 40), 0, DIM, box.x + box.w / 2,
+			ui.drawTextMid(elideMiddle(name.empty() ? mstModalId : name, 0, box.w - 40), 0, DIM, box.x + box.w / 2,
 				box.y + 62, 0, 2);
 		}
 		else if (mstModal == MSM_REMOVE)
@@ -826,8 +827,8 @@ namespace bp
 			std::string name;
 			for (auto& r : repos)
 				if (r.url == mstModalId) { name = r.name.empty() ? r.url : r.name; break; }
-			drawTextMid("Remove its sources too?", 0, TEXT, box.x + box.w / 2, box.y + 64, box.w - 40, 2);
-			drawTextMid(elideMiddle(name.empty() ? mstModalId : name, 0, box.w - 40), 0, DIM, box.x + box.w / 2,
+			ui.drawTextMid("Remove its sources too?", 0, TEXT, box.x + box.w / 2, box.y + 64, box.w - 40, 2);
+			ui.drawTextMid(elideMiddle(name.empty() ? mstModalId : name, 0, box.w - 40), 0, DIM, box.x + box.w / 2,
 				box.y + 86, 0, 2);
 		}
 		bool updateRow = mstModal == MSM_OPTIONS || (s && s->updateAvailable);
@@ -867,11 +868,11 @@ namespace bp
 				else if (i == 1) { label = "No"; note = "its sources stay"; }
 				else label = "Cancel";
 			}
-			drawDialogRow(r, g, label, at, false, dim ? DIM : TEXT, note, note == "Press again" ? ACCENT : SDL_Color{0, 0, 0, 0});
+			ui.drawDialogRow(r, g, label, at, false, dim ? DIM : TEXT, note, note == "Press again" ? ACCENT : SDL_Color{0, 0, 0, 0});
 		}
-		if (mstUninstallArmed) drawFooterText("Press A again to uninstall", ACCENT);
-		else if (mstModal == MSM_REMOVE) drawHints({{"A", "Choose"}, {"LEFT/RIGHT", "Move"}, {"B", "Cancel"}});
-		else drawHints({{"A", "Choose"}, {"B", "Close"}});
+		if (mstUninstallArmed) ui.drawFooterText("Press A again to uninstall", ACCENT);
+		else if (mstModal == MSM_REMOVE) ui.drawHints({{"A", "Choose"}, {"LEFT/RIGHT", "Move"}, {"B", "Cancel"}});
+		else ui.drawHints({{"A", "Choose"}, {"B", "Close"}});
 	}
 
 	// ---- Available's menu: Refresh, Languages ----
@@ -910,15 +911,15 @@ namespace bp
 		}
 	}
 
-	void Ui::drawAdultChip(int x, int cy)
+	void Ui::Manga::drawAdultChip(int x, int cy)
 	{
 		// a source marked adult (shown only with Adult sources on): said so, plainly
-		int w = (int)std::lround(textWidth("18+", 0) / sx) + 14;
-		fillRound({x, cy - 9, w, 18}, DANGER, R_CHIP);
-		drawTextMid("18+", 0, TEXT, x + w / 2, cy, w - 6, 2);
+		int w = (int)std::lround(ui.textWidth("18+", 0) / sx) + 14;
+		ui.fillRound({x, cy - 9, w, 18}, DANGER, R_CHIP);
+		ui.drawTextMid("18+", 0, TEXT, x + w / 2, cy, w - 6, 2);
 	}
 
-	bool Ui::mangaLangShown(const Player& p, const std::string& lang) const
+	bool Ui::Manga::mangaLangShown(const Player& p, const std::string& lang) const
 	{
 		// (with a choice made it is the whole rule: a multi-language source is "all", a choice of its own)
 		if (p.settings.mangaLangs.empty() || lang.empty()) return true;
@@ -928,7 +929,7 @@ namespace bp
 		return false;
 	}
 
-	std::string Ui::mangaLangsSummary(const Player& p) const
+	std::string Ui::Manga::mangaLangsSummary(const Player& p) const
 	{
 		auto list = splitLangs(p.settings.mangaLangs);
 		if (list.empty()) return "All";
@@ -938,7 +939,7 @@ namespace bp
 		return out;
 	}
 
-	void Ui::mangaAvMenuOpen(Player& p)
+	void Ui::Manga::mangaAvMenuOpen(Player& p)
 	{
 		(void)p;
 		mstAvMenu = 1;
@@ -946,20 +947,20 @@ namespace bp
 		mstLocal++;
 	}
 
-	Ui::Rect Ui::mangaAvBox() const
+	Ui::Rect Ui::Manga::mangaAvBox() const
 	{
 		int rows = mstAvMenu == 1 ? 3 : std::min(MST_AV_SHOWN, (int)mstAvLangs.size() + 1);
 		int h = 70 + rows * 44;
 		return {112, (436 - h) / 2, 416, h};
 	}
 
-	Ui::Rect Ui::mangaAvRow(int i) const
+	Ui::Rect Ui::Manga::mangaAvRow(int i) const
 	{
 		Rect b = mangaAvBox();
 		return {b.x + 16, b.y + 56 + i * 44, b.w - 32, 40};
 	}
 
-	void Ui::mangaAvMenuAct(Player& p)
+	void Ui::Manga::mangaAvMenuAct(Player& p)
 	{
 		if (mstAvMenu == 1)
 		{
@@ -1026,7 +1027,7 @@ namespace bp
 		mstLocal++;
 	}
 
-	bool Ui::mangaAvMenuKey(Button b, Player& p)
+	bool Ui::Manga::mangaAvMenuKey(Button b, Player& p)
 	{
 		int n = mstAvMenu == 1 ? 3 : (int)mstAvLangs.size() + 1;
 		switch (b)
@@ -1051,7 +1052,7 @@ namespace bp
 		return false;
 	}
 
-	bool Ui::mangaAvMenuPointer(int x, int y, Player& p)
+	bool Ui::Manga::mangaAvMenuPointer(int x, int y, Player& p)
 	{
 		if (!mangaAvBox().hit(x, y)) { mstAvMenu = 0; mstLocal++; return false; }
 		int shown = mstAvMenu == 1 ? 3 : std::min(MST_AV_SHOWN, (int)mstAvLangs.size() + 1);
@@ -1065,10 +1066,10 @@ namespace bp
 		return false;
 	}
 
-	void Ui::drawMangaAvMenu(const Player& p)
+	void Ui::Manga::drawMangaAvMenu(const Player& p)
 	{
 		Rect b = mangaAvBox();
-		drawDialog(b, mstAvMenu == 1 ? "Filter" : "Languages");
+		ui.drawDialog(b, mstAvMenu == 1 ? "Filter" : "Languages");
 		if (mstAvMenu == 1)
 		{
 			const char* LABELS[3] = {"Refresh", "Languages", "Installed only"};
@@ -1076,12 +1077,12 @@ namespace bp
 			{
 				Rect r = mangaAvRow(i);
 				bool at = i == mstAvCursor;
-				if (at) drawFocus(r);
-				drawTextMid(LABELS[i], 1, at ? ACCENT : TEXT, r.x + 12, r.y + r.h / 2, 220);
-				if (i == 1) drawTextMid(mangaLangsSummary(p), 0, at ? DIM_ON : DIM, r.x + r.w - 12, r.y + r.h / 2, 160, 1);
-				if (i == 2) drawTextMid(mstInstalledOnly ? "On" : "Off", 0, mstInstalledOnly ? ACCENT : at ? DIM_ON : DIM, r.x + r.w - 12, r.y + r.h / 2, 0, 1);
+				if (at) ui.drawFocus(r);
+				ui.drawTextMid(LABELS[i], 1, at ? ACCENT : TEXT, r.x + 12, r.y + r.h / 2, 220);
+				if (i == 1) ui.drawTextMid(mangaLangsSummary(p), 0, at ? DIM_ON : DIM, r.x + r.w - 12, r.y + r.h / 2, 160, 1);
+				if (i == 2) ui.drawTextMid(mstInstalledOnly ? "On" : "Off", 0, mstInstalledOnly ? ACCENT : at ? DIM_ON : DIM, r.x + r.w - 12, r.y + r.h / 2, 0, 1);
 			}
-			drawHints({{"A", "Choose"}, {"B", "Close"}});
+			ui.drawHints({{"A", "Choose"}, {"B", "Close"}});
 			return;
 		}
 		auto chosen = splitLangs(p.settings.mangaLangs);
@@ -1091,13 +1092,13 @@ namespace bp
 			int k = mstAvScroll + i;
 			Rect r = mangaAvRow(i);
 			bool at = k == mstAvCursor;
-			if (at) drawFocus(r);
+			if (at) ui.drawFocus(r);
 			bool on = k == 0 ? chosen.empty()
 				: std::find(chosen.begin(), chosen.end(), mstAvLangs[k - 1]) != chosen.end();
-			drawTextMid(k == 0 ? "All languages" : langName(mstAvLangs[k - 1]), 1, at ? ACCENT : TEXT, r.x + 12, r.y + r.h / 2, 300);
-			if (on) drawGlyphMid(G_CHECK, r.x + r.w - 20, r.y + r.h / 2, at ? ACCENT : TEXT);
+			ui.drawTextMid(k == 0 ? "All languages" : langName(mstAvLangs[k - 1]), 1, at ? ACCENT : TEXT, r.x + 12, r.y + r.h / 2, 300);
+			if (on) ui.drawGlyphMid(G_CHECK, r.x + r.w - 20, r.y + r.h / 2, at ? ACCENT : TEXT);
 		}
-		if (n > MST_AV_SHOWN) drawScrollBar(mangaAvRow(0).y, MST_AV_SHOWN * 44 - 4, mstAvScroll, MST_AV_SHOWN, n);
-		drawHints({{"A", "Tick / untick"}, {"B", "Done"}});
+		if (n > MST_AV_SHOWN) ui.drawScrollBar(mangaAvRow(0).y, MST_AV_SHOWN * 44 - 4, mstAvScroll, MST_AV_SHOWN, n);
+		ui.drawHints({{"A", "Tick / untick"}, {"B", "Done"}});
 	}
 }

@@ -2,6 +2,7 @@
 // pages, the pages grid and the dragged lists, shared by Files' PDF/comic viewer (Ui::Docs) and the Manga reader.
 #include "ui_reader.h"
 #include "ui_internal.h"
+#include "ui_manga.h"
 #include "textreader.h"
 #include "manga_ui_logic.h"
 #include "pagebook.h"
@@ -24,8 +25,8 @@ namespace bp
 		if (mangaRead.path.empty()) return false;
 		out = std::move(mangaRead);
 		mangaRead = {};
-		out.book = ui.mangaBookFor(out.seriesId);
-		out.within = ui.mangaWithinFor(out.chapterId, out.page);
+		out.book = ui.manga->mangaBookFor(out.seriesId);
+		out.within = ui.manga->mangaWithinFor(out.chapterId, out.page);
 		return true;
 	}
 
@@ -83,8 +84,8 @@ namespace bp
 		// the pages under the hinge: main gives each page's box (fractions of the panel) and its pixels; they become
 		// this renderer's textures, one page a frame at most so a turn never stalls the panel
 		Uint32 now = SDL_GetTicks();
-		if (ui.mangaCtrlUntil && now >= ui.mangaCtrlUntil) ui.mangaCtrlUntil = 0;	// the timer's end: the controls go
-		if (ui.mangaToastUntil && now >= ui.mangaToastUntil) ui.mangaToastUntil = ui.mangaBookToast = 0;
+		if (ui.manga->mangaCtrlUntil && now >= ui.manga->mangaCtrlUntil) ui.manga->mangaCtrlUntil = 0;	// the timer's end: the controls go
+		if (ui.manga->mangaToastUntil && now >= ui.manga->mangaToastUntil) ui.manga->mangaToastUntil = ui.manga->mangaBookToast = 0;
 		if (readerBottom.gen != mfGen) { mfFree(); mfGen = readerBottom.gen; }
 		// a new page: its number shows a moment
 		if (readerStatus.page != mfLastPage) { mfLastPage = readerStatus.page; mfTagUntil = now + 1500; }
@@ -169,7 +170,7 @@ namespace bp
 		// held top-left, its right edge held top-right); at the chapter's end they stay, with what comes next
 		if (readerStatus.book && readerStatus.pages > 0)
 		{
-			if (now < mfTagUntil || readerStatus.atEnd) ui.drawMangaBookTag();
+			if (now < mfTagUntil || readerStatus.atEnd) ui.manga->drawMangaBookTag();
 		}
 		// a thin page tag for a moment after a change
 		else if (now < mfTagUntil && readerStatus.pages > 0)
@@ -181,8 +182,8 @@ namespace bp
 		}
 		if (readerStatus.failedHere) drawMangaRetry(true);
 		// the controls, while they show (over the tag), then the first open's toast over both
-		if (now < ui.mangaCtrlUntil) ui.drawMangaControls();
-		if (now < ui.mangaToastUntil) ui.drawMangaToast();
+		if (now < ui.manga->mangaCtrlUntil) ui.manga->drawMangaControls();
+		if (now < ui.manga->mangaToastUntil) ui.manga->drawMangaToast();
 	}
 
 	void Ui::PageReader::mangaPagesOpen(Player& p)

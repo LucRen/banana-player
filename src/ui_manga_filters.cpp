@@ -1,6 +1,7 @@
 #include "ui.h"
 #include "manganet.h"
 #include "ui_internal.h"
+#include "ui_manga.h"
 #include <algorithm>
 
 namespace bp
@@ -80,19 +81,19 @@ namespace bp
 		}
 	}
 
-	Ui::MangaFilterSession* Ui::mangaFilterSession()
+	Ui::Manga::MangaFilterSession* Ui::Manga::mangaFilterSession()
 	{
 		auto it = mangaFilters.find(mangaSrcId);
 		return it == mangaFilters.end() ? nullptr : &it->second;
 	}
 
-	const Ui::MangaFilterSession* Ui::mangaFilterSession() const
+	const Ui::Manga::MangaFilterSession* Ui::Manga::mangaFilterSession() const
 	{
 		auto it = mangaFilters.find(mangaSrcId);
 		return it == mangaFilters.end() ? nullptr : &it->second;
 	}
 
-	void Ui::mangaFilterAsk()
+	void Ui::Manga::mangaFilterAsk()
 	{
 		// once a run per source: a source without filters() answers "[]" and is remembered as such
 		if (mangaSrcId.empty()) return;
@@ -110,19 +111,19 @@ namespace bp
 		mangaFilterLocal++;
 	}
 
-	bool Ui::mangaFilterAvailable() const
+	bool Ui::Manga::mangaFilterAvailable() const
 	{
 		const MangaFilterSession* f = mangaFilterSession();
 		return f && f->known && !f->defs.empty();
 	}
 
-	bool Ui::mangaFilterShown() const
+	bool Ui::Manga::mangaFilterShown() const
 	{
 		const MangaFilterSession* f = mangaFilterSession();
 		return f && f->open;
 	}
 
-	std::string Ui::mangaSourceFiltersJson() const
+	std::string Ui::Manga::mangaSourceFiltersJson() const
 	{
 		if (MangaJava::isSourceId(mangaSrcId)) return mangaJavaFiltersJson();
 		const MangaFilterSession* f = mangaFilterSession();
@@ -130,7 +131,7 @@ namespace bp
 		return mangaFilterValuesJson(f->defs, f->values);
 	}
 
-	void Ui::mangaFilterShow(Player& p)
+	void Ui::Manga::mangaFilterShow(Player& p)
 	{
 		(void)p;
 		if (!mangaFilterAvailable()) return;
@@ -144,7 +145,7 @@ namespace bp
 		mangaFilterLocal++;
 	}
 
-	void Ui::mangaFilterClose()
+	void Ui::Manga::mangaFilterClose()
 	{
 		MangaFilterSession* f = mangaFilterSession();
 		if (!f || !f->open) return;
@@ -157,7 +158,7 @@ namespace bp
 		mangaFilterLocal++;
 	}
 
-	void Ui::mangaFilterTextTyped(const std::string& text)
+	void Ui::Manga::mangaFilterTextTyped(const std::string& text)
 	{
 		MangaFilterSession* f = mangaFilterSession();
 		if (!f) return;
@@ -170,7 +171,7 @@ namespace bp
 		mangaFilterLocal++;
 	}
 
-	bool Ui::mangaFilterKey(Button b, Player& p)
+	bool Ui::Manga::mangaFilterKey(Button b, Player& p)
 	{
 		MangaFilterSession* f = mangaFilterSession();
 		if (!f || !f->open) return false;
@@ -320,7 +321,7 @@ namespace bp
 		{
 			f->textAt = row.index;
 			mangaFilterLocal++;
-			openKeyboard(MANGA_FILTER_FIELD, v.text);
+			ui.openKeyboard(MANGA_FILTER_FIELD, v.text);
 		}
 		else if (d.type == "group")
 		{
@@ -331,7 +332,7 @@ namespace bp
 		return false;
 	}
 
-	bool Ui::mangaFilterPointer(const Pointer& pt, int x, int y, Player& p)
+	bool Ui::Manga::mangaFilterPointer(const Pointer& pt, int x, int y, Player& p)
 	{
 		if (pt.kind != Pointer::Down) return false;
 		MangaFilterSession* f = mangaFilterSession();
@@ -373,7 +374,7 @@ namespace bp
 		return false;
 	}
 
-	void Ui::drawMangaFilters(const Player& p)
+	void Ui::Manga::drawMangaFilters(const Player& p)
 	{
 		(void)p;
 		MangaFilterSession* f = mangaFilterSession();
@@ -406,15 +407,15 @@ namespace bp
 			walk = &(*walk)[i].children;
 		}
 		if (f->checkAt >= 0 && f->checkAt < (int)defs->size()) title = (*defs)[f->checkAt].name;
-		drawDialog(mangaFilterBox(), title);
+		ui.drawDialog(mangaFilterBox(), title);
 		// a scroll bar inside the sheet's right edge (drawScrollBar's own place is outside a dialog)
 		auto bar = [&](int first, int shown, int total) {
 			if (total <= shown || shown <= 0) return;
 			int height = MF_ROWS * MF_ROW_H - 8;
-			fillRound({584, MF_ROW_TOP, 4, height}, TRACK, 2);
+			ui.fillRound({584, MF_ROW_TOP, 4, height}, TRACK, 2);
 			int h = std::max(16, height * shown / total);
 			int y = MF_ROW_TOP + (height - h) * first / std::max(1, total - shown);
-			fillRound({584, y, 4, h}, DIM, 2);
+			ui.fillRound({584, y, 4, h}, DIM, 2);
 		};
 
 		if (f->checkAt >= 0 && f->checkAt < (int)defs->size())
@@ -442,10 +443,10 @@ namespace bp
 					if (t == 1) note = "Include";
 					else if (t == 2) { note = "Exclude"; noteInk = DANGER; }
 				}
-				drawDialogRow(mangaFilterRowRect(i - scroll), g, d.options[i].name, i == cursor, false, TEXT, note, noteInk);
+				ui.drawDialogRow(mangaFilterRowRect(i - scroll), g, d.options[i].name, i == cursor, false, TEXT, note, noteInk);
 			}
 			bar(scroll, MF_ROWS, n);
-			drawHints({{"A", d.type == "tri" ? "Off / In / Ex" : "Check"}, {"B", "Back"}});
+			ui.drawHints({{"A", d.type == "tri" ? "Off / In / Ex" : "Check"}, {"B", "Back"}});
 			return;
 		}
 
@@ -459,20 +460,20 @@ namespace bp
 			bool at = i == cursor;
 			if (row.kind == MFRowKind::Reset)
 			{
-				drawDialogRow(mangaFilterRowRect(i - scroll), &G_CROSS, "Reset", at, false, TEXT, "Defaults",
+				ui.drawDialogRow(mangaFilterRowRect(i - scroll), &G_CROSS, "Reset", at, false, TEXT, "Defaults",
 					SDL_Color{0, 0, 0, 0});
 				continue;
 			}
 			if (row.kind == MFRowKind::Apply)
 			{
-				drawDialogRow(mangaFilterRowRect(i - scroll), &G_CHECK, "Apply", at, false, TEXT, "",
+				ui.drawDialogRow(mangaFilterRowRect(i - scroll), &G_CHECK, "Apply", at, false, TEXT, "",
 					SDL_Color{0, 0, 0, 0});
 				continue;
 			}
 			if (row.kind == MFRowKind::Refresh)
 			{
 				static const char* TABS[3] = {"Popular", "Latest", "Search"};
-				drawDialogRow(mangaFilterRowRect(i - scroll), &G_REFRESH, "Refresh", at, false, TEXT,
+				ui.drawDialogRow(mangaFilterRowRect(i - scroll), &G_REFRESH, "Refresh", at, false, TEXT,
 					TABS[std::clamp(mangaSrcTab, 0, 2)], SDL_Color{0, 0, 0, 0});
 				continue;
 			}
@@ -480,14 +481,14 @@ namespace bp
 			const MangaFilterValue& v = (*levelValues)[row.index];
 			if (row.kind == MFRowKind::Direction)
 			{
-				drawDialogRow(mangaFilterRowRect(i - scroll), v.sortAsc ? &G_UP : &G_DOWN, "Direction", at, false, TEXT,
+				ui.drawDialogRow(mangaFilterRowRect(i - scroll), v.sortAsc ? &G_UP : &G_DOWN, "Direction", at, false, TEXT,
 					v.sortAsc ? "Ascending" : "Descending", SDL_Color{0, 0, 0, 0});
 				continue;
 			}
-			drawDialogRow(mangaFilterRowRect(i - scroll), filterGlyph(d, v), d.name, at, false, TEXT,
+			ui.drawDialogRow(mangaFilterRowRect(i - scroll), filterGlyph(d, v), d.name, at, false, TEXT,
 				mangaFilterSummary(d, v), SDL_Color{0, 0, 0, 0});
 		}
 		bar(scroll, MF_ROWS, n);
-		drawHints({{"A", "Choose"}, {"LEFT/RIGHT", "Change"}, {"B", "Back"}});
+		ui.drawHints({{"A", "Choose"}, {"LEFT/RIGHT", "Change"}, {"B", "Back"}});
 	}
 }
