@@ -1,5 +1,6 @@
 #include "ui.h"
 #include "ui_internal.h"
+#include "ui_settings.h"
 #include "ui_manga.h"
 #include "manganet.h"
 
@@ -58,8 +59,8 @@ namespace bp
 		{
 		case Button::Up: ui.cursor = (ui.cursor + n - 1) % n; break;
 		case Button::Down: ui.cursor = (ui.cursor + 1) % n; break;
-		case Button::Left: ui.changeSetting(rows[ui.cursor], -1, p); break;
-		case Button::Right: case Button::A: ui.changeSetting(rows[ui.cursor], 1, p); break;
+		case Button::Left: ui.settingsPage->changeSetting(rows[ui.cursor], -1, p); break;
+		case Button::Right: case Button::A: ui.settingsPage->changeSetting(rows[ui.cursor], 1, p); break;
 		case Button::B: closeMangaSettings(); return false;
 		default: break;
 		}
@@ -146,9 +147,9 @@ namespace bp
 		if (ui.scroll > n - MSET_SHOWN) ui.scroll = std::max(0, n - MSET_SHOWN);
 		// the rows as Settings draws its group's: the note last
 		for (int i = ui.scroll; i < n && i < ui.scroll + MSET_SHOWN; i++)
-			ui.drawSettingRow(rows[i], SET_Y + (i - ui.scroll) * SET_H, i == ui.cursor, p);
+			ui.settingsPage->drawSettingRow(rows[i], SET_Y + (i - ui.scroll) * SET_H, i == ui.cursor, p);
 		// what the row under the cursor does, in up to three lines above the footer
-		std::string help = ui.cursor >= 0 && ui.cursor < n ? ui.settingHelp(rows[ui.cursor]) : "";
+		std::string help = ui.cursor >= 0 && ui.cursor < n ? ui.settingsPage->settingHelp(rows[ui.cursor]) : "";
 		auto lines = ui.wrapText(help, 0, 592, 3);
 		// a third line would reach into the footer: the block starts one step higher
 		int helpY = HELP_Y - (lines.size() > 2 ? 22 : 0);

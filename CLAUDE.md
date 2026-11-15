@@ -11,7 +11,7 @@ constraints this repo can't show), `docs/workflow.md` (harness, tests, bundle, r
 feature, control and setting: grep for yours; a new one gets its entry), `DEVELOPMENT.md` (detail, roadmap),
 `docs/notes/` (one note per investigation: read the one your brief names; an agent finishing one adds a note).
 `src/ui.h` is large: grep it, and work in the area's own header where there is one (`ui_docs.h`, `ui_sound.h`,
-`ui_web.h`, `ui_manga.h`; the page reader Docs and Manga share: `ui_reader.h`).
+`ui_web.h`, `ui_manga.h`, `ui_settings.h`; the page reader Docs and Manga share: `ui_reader.h`).
 
 ## Commands
 

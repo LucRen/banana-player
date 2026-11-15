@@ -444,3 +444,51 @@ pages were dispatched in the lines right after it, so they moved there without a
 with `pointerDownLate`); a page that is
 handled earlier in `press` today (Exit's dialog, Settings' B, the menu's tabs) must keep what runs before it, so
 check that page's special cases above the dispatch before moving it.
+
+## Settings (the sixth): `Ui::SettingsPage`
+
+`src/ui_settings.h`, `src/ui_settings.cpp`; `Page::Settings`; named `SettingsPage` (`Settings` is the settings struct),
+owned as `settingsPage`. `ui.h` 1,356 -> 1,347: the page's state was small (the open group lives in `Ui`, below); what
+moved is its code: the groups' tiles and a group's rows (`settingRows`), their help, stepping (`changeSetting`: the
+table's rows, the history and cache Clear, the backlight rows, the updater's rows) and drawing (`drawSettingRow`,
+`draw`, the subtitle style's `drawPreview`), `stepGroup`/`openGroup`, `styleFromSubs`, the group tiles' rect, the page's
+keys (`key`: the groups' grid, the rows, Y/X between groups), its down (`pointer`: the neighbours, a row, a tile:
+`settingsDown`) and the Controls group's `|bl` term of the signature (`signature`).
+
+- **Callers go through it**: `settingsPage->changeSetting/drawSettingRow/settingHelp/settingsDown` (Manga's settings
+  page, `Page::MangaSettings`: its rows are this list's; `Ui::settingsDown` became `SettingsPage::settingsDown`, the
+  same lines, called by `Manga::pointer` at the same point), `settingsPage->settingRows/openGroup/stepGroup` (the
+  list's lift in `Ui::pointer`, the group buttons in `act`, Sound's way back), `settingsPage->styleFromSubs` (the
+  subtitle style row of the Tracks page, `showTab`, Sound, Web).
+- **`menuBack(p)`**: in START's menu the keys run before an area's (`press` does L/R tabs, B, START, the Exit page,
+  then the area), so the two B cases that belong to this page (back from the subtitle style opened from the Subtitles
+  list; back from a group to the tiles) were cut out whole into this method and `press` asks it for B on this page, at
+  the same point, before `closeMenu`.
+- **`pointerDownLate()` is true**: the page's downs were after the header's "<", the menu's tabs and the empty page's
+  button, as Manga's; its moves and lifts were already the list's (`Ui::pointer`'s `listTouch` block), after which
+  nothing but `return false` was left for a move or a lift, so the area's `pointer` returns false for them.
+- **Stayed `Ui`'s, on purpose**: `setGroup` (the open group: `showPlayer`'s `playerBack`, the dashboard's `webBack`,
+  Browse's way-back stash all copy it, and `ui.h` reads it inline), `SetGroup` (GROUP_*), the row ids (`STYLE_ROW0`..
+  `MANGA_JAVA_ROW`, `SET_ROW0`), the list's measures (`SET_Y`, `SET_H`, `SET_SHOWN`, `HELP_Y`, `SET_ARROW_X`, shared with
+  Manga's page and the document menus), `GROUP_PREV/NEXT` (`buttonRect`), the list's lift in `Ui::pointer` (one block
+  for the tracks, the browser, Info, Settings and Manga's settings), `setBrightness` (the quick settings' too), the
+  `Settings` table (`settings.cpp`, not part of this).
+- **Key repeat and L2/R2** do not name this page (`Ui::repeats` by direction, L2/R2's page list), so unchanged.
+
+### Checked (Settings)
+
+Desktop build (macOS) against a build of `main` (2c2e654) in a separate directory, the scripted harness (`--press`,
+`BP_SHOTS`, a fresh `--state-dir` per run, `settings.conf` touched to a fixed time, the network denied to the process
+by `sandbox-exec` with localhost only, generated media), both panels shot and compared (the header's clock masked), and
+the harness's state lines compared. `core-test` passes. Six scenarios, 130 shot files (both panels), all identical, logs identical:
+
+- START's menu: the tiles, a group opened by A, every group walked with X (a row stepped in each but Updates), Y back
+  twice, Left/Right/Up/Down on the tiles, B to the tiles, B out; the subtitle group's preview and Text encoding's help.
+- By touch: a tile, a row's right and its left arrow, a finger down and moved (shot mid-drag) and up (the list
+  scrolls), the back icon, the neighbours' buttons (X/Y chips), a drag on the tiles and on a group, L/R tabs.
+- Home's Options > Settings, and out by B twice to Home.
+- The Manga settings page (`manga-reader = yes`, the engine's offer declined with B): rows stepped by keys, a tap, a
+  finger dragged (the list scrolled) through `settingsPage->settingsDown`.
+- A video paused behind: Tracks > Subtitle style... opens the Subtitles group (`styleFromSubs`), a row stepped, B back
+  to the Tracks list on its last row, and Y/X away from the group, B to the player.
+- Music > Sound FX (A) and B back to its row, the Web dashboard tile (A) and B, X from the last group into the Web page.

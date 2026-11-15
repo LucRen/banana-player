@@ -456,7 +456,6 @@ namespace bp
 		loaderShown = false;
 		if (page == Page::Info || page == Page::About) drawInfo(p);
 		else if (page == Page::Exit) drawExit(p);
-		else if (page == Page::Settings) drawSettings(p);
 		else if (page == Page::Chapters) drawChapters(p);
 		else if (page == Page::Playing) drawPlaying(p);
 		else if (page == Page::UpNext) drawUpNext(p);

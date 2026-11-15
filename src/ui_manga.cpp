@@ -2,6 +2,7 @@
 #include "textreader.h"
 #include "manganet.h"
 #include "ui_internal.h"
+#include "ui_settings.h"
 #include "ui_reader.h"
 #include "ui_manga.h"
 #include "pagebook.h"
@@ -1406,7 +1407,7 @@ namespace bp
 		{
 			if (ui.page == Page::Extensions || ui.page == Page::Manga) return extPointer(pt, x, y, p);
 			if (ui.page == Page::MangaSeries || ui.page == Page::MangaSources) return mangaPointer(pt, x, y, p);
-			if (ui.page == Page::MangaSettings) return ui.settingsDown(x, y);
+			if (ui.page == Page::MangaSettings) return ui.settingsPage->settingsDown(x, y);
 			return false;
 		}
 		// the reader's page: its drag area and slider take the finger's moves too (the mini bar's taken before)
@@ -2375,10 +2376,10 @@ namespace bp
 			else mangaSetMode((ui.pageReader->readerStatus.mode + dir + MANGA_MODES) % MANGA_MODES, p);
 			break;
 		// the setting itself, so the next chapter opens the same way
-		case MGM_FIT: ui.changeSetting(settingRow("manga-fit"), dir, p); break;
+		case MGM_FIT: ui.settingsPage->changeSetting(settingRow("manga-fit"), dir, p); break;
 		case MGM_ZOOM: ui.pageReader->mangaZoomStep(dir); break;
-		case MGM_HINGE: ui.changeSetting(settingRow("manga-hinge"), dir, p); break;
-		case MGM_SWAP: ui.changeSetting(settingRow("manga-swap-lr"), dir, p); break;	// Swap Left/Right
+		case MGM_HINGE: ui.settingsPage->changeSetting(settingRow("manga-hinge"), dir, p); break;
+		case MGM_SWAP: ui.settingsPage->changeSetting(settingRow("manga-swap-lr"), dir, p); break;	// Swap Left/Right
 		default: break;	// Pages and All Manga settings: nothing to step
 		}
 	}

@@ -17,6 +17,7 @@
 #include <qrcodegen.hpp>
 #endif
 #include "ui_internal.h"
+#include "ui_settings.h"
 #include "ui_docs.h"
 #include "ui_reader.h"
 #include "ui_manga.h"
@@ -91,6 +92,8 @@ namespace bp
 		areas.push_back(webPage.get());
 		manga = std::make_unique<Manga>(*this);
 		areas.push_back(manga.get());
+		settingsPage = std::make_unique<SettingsPage>(*this);
+		areas.push_back(settingsPage.get());
 	}
 
 	Ui::Area* Ui::area() const
@@ -228,23 +231,8 @@ namespace bp
 				showTab(tabs[(at + (b == Button::R ? 1 : n - 1)) % n], p);
 				return false;
 			}
-			// B in the subtitle style opened from the Subtitles list: back to that list
-			if (b == Button::B && page == Page::Settings && setGroup == GROUP_SUBS && styleFromSubs)
-			{
-				styleFromSubs = false;
-				inMenu = false;
-				openTracks(TRACKS_SUBS, p);
-				cursor = (int)rows(p).size() - 1;	// on Subtitle style, where it was
-				scroll = std::max(0, cursor - ROWS_SHOWN + 1);
-				return false;
-			}
-			// B in a settings group: back to the groups
-			if (b == Button::B && page == Page::Settings && setGroup >= 0)
-			{
-				cursor = setGroup;
-				setGroup = -1;
-				return false;
-			}
+			// B in the subtitle style opened from the Subtitles list, or in a settings group: back (SettingsPage)
+			if (b == Button::B && page == Page::Settings && settingsPage->menuBack(p)) return false;
 			if (b == Button::Start || b == Button::B) { closeMenu(p); return false; }
 			if (page == Page::Exit)
 			{
@@ -258,49 +246,6 @@ namespace bp
 		// an area's page (Files' document viewers): its own keys
 		if (Area* a = area()) return a->key(b, p);
 		if (page == Page::Playing) return playingKey(b, p);
-		if (page == Page::Settings)
-		{
-			auto rows = settingRows();
-			int n = setGroup < 0 ? GROUPS : (int)rows.size();
-			cursor = std::min(cursor, n - 1);	// a group's rows can change (the updater's)
-			// in a group: Y (the west button) to the one before, X to the one after (L/R are the menu's tabs)
-			if (setGroup >= 0 && (b == Button::X || b == Button::Y))
-			{
-				stepGroup(b == Button::X ? 1 : -1);
-				return false;
-			}
-			// the groups: tiles two to a row, the cursor moved as on a grid
-			if (setGroup < 0 && (b == Button::Up || b == Button::Down || b == Button::Left || b == Button::Right))
-			{
-				if (b == Button::Up && cursor >= 2) cursor -= 2;
-				else if (b == Button::Down) cursor = cursor + 2 < n ? cursor + 2 : cursor / 2 < (n - 1) / 2 ? n - 1 : cursor;
-				else if (b == Button::Left && cursor % 2 == 1) cursor--;
-				else if (b == Button::Right && cursor % 2 == 0 && cursor + 1 < n) cursor++;
-				return false;
-			}
-			switch (b)
-			{
-			case Button::Up: cursor = (cursor + n - 1) % n; break;
-			case Button::Down: cursor = (cursor + 1) % n; break;
-			case Button::Left: if (setGroup >= 0 && rows[cursor] != SOUND_ROW) changeSetting(rows[cursor], -1, p); break;
-			case Button::Right: case Button::A:
-				if (setGroup < 0) openGroup(cursor);
-				else if (rows[cursor] == SOUND_ROW) { sound->open(p, true); return false; }
-				else changeSetting(rows[cursor], 1, p);
-				break;
-			// the mini bar's right end says SELECT: back to what plays (Settings has no SELECT of its own)
-			case Button::Select: if (nowPlayable(barPlayer(p))) goNowPlaying(p); break;
-			case Button::B:
-				if (setGroup >= 0) { cursor = setGroup; setGroup = -1; }
-				else page = home(p);
-				break;
-			case Button::Start: page = home(p); break;
-			default: break;
-			}
-			if (cursor < scroll) scroll = cursor;
-			if (cursor >= scroll + SET_SHOWN) scroll = cursor - SET_SHOWN + 1;
-			return false;
-		}
 		if (page == Page::Info || page == Page::About)
 		{
 			int maxScroll = std::max(0, (int)infoLines.size() - INFO_SHOWN);
@@ -696,7 +641,7 @@ namespace bp
 		// a video's lines and the chapter line: their tab of Tracks
 		if (id == LINE1_BTN || id == LINE2_BTN) { openTracks(id == LINE1_BTN ? TRACKS_AUDIO : TRACKS_SUBS, p); return false; }
 		if (id == CHAPTER_BTN) { openTracks(TRACKS_CHAPTERS, p); return false; }
-		if (id == GROUP_PREV || id == GROUP_NEXT) { stepGroup(id == GROUP_NEXT ? 1 : -1); return false; }
+		if (id == GROUP_PREV || id == GROUP_NEXT) { settingsPage->stepGroup(id == GROUP_NEXT ? 1 : -1); return false; }
 		if (id == SCREEN_BTN) { panel.set(false); return false; }
 		if (id == EXIT_BTN) { quitRequested = true; return false; }
 		if (id == LOCK_BTN)
@@ -729,33 +674,6 @@ namespace bp
 		double s = stepSpeed(p.speed, 1, true);
 		p.setSpeed(s);
 		p.osd("Speed " + speedLabel(s));
-		return false;
-	}
-
-	// a finger down on the settings' list (Settings' groups or a group's rows, the Manga settings' rows): the row it
-	// is on, and the list's touch begun (its lift acts, its moves scroll)
-	bool Ui::settingsDown(int x, int y)
-	{
-		int top = SET_Y, h = SET_H;
-		bool groups = page == Page::Settings && setGroup < 0;
-		auto srows = groups ? std::vector<int>() : page == Page::MangaSettings ? manga->mangaSettingRows() : settingRows();
-		int n = groups ? GROUPS : (int)srows.size();
-		int row = scroll + (y - top) / h;
-		if (groups)
-		{
-			// a tile
-			row = -1;
-			for (int g = 0; g < GROUPS; g++)
-				if (groupRect(g).hit(x, y)) row = g;
-			if (row < 0) return false;
-		}
-		else if (y < top || y >= top + SET_SHOWN * h || row >= n) return false;
-		cursor = row;
-		listTouch = true;
-		listScrolled = false;
-		touchStartY = y;
-		touchX = x;
-		scrollStart = scroll;
 		return false;
 	}
 
@@ -923,7 +841,7 @@ namespace bp
 			// lifts
 			bool set = page == Page::Settings || page == Page::MangaSettings, groups = page == Page::Settings && setGroup < 0;
 			bool info = page == Page::Info || page == Page::About;
-			auto srows = set && !groups ? (page == Page::MangaSettings ? manga->mangaSettingRows() : settingRows()) : std::vector<int>();
+			auto srows = set && !groups ? (page == Page::MangaSettings ? manga->mangaSettingRows() : settingsPage->settingRows()) : std::vector<int>();
 			int n = groups ? GROUPS : set ? (int)srows.size() : info ? (int)infoLines.size() : (int)rows(p).size();
 			int rowH = groups ? 84 : set ? SET_H : info ? INFO_H : ROW_H, shown = set ? SET_SHOWN : info ? INFO_SHOWN : ROWS_SHOWN;
 			if (pt.kind == Pointer::Move && (listScrolled || std::abs(y - touchStartY) > 12))
@@ -942,9 +860,9 @@ namespace bp
 				if (listScrolled || info) return false;	// the info page only scrolls
 				// a setting: the left of its value (its arrow) steps back, the rest of the row on
 				int dir = touchX >= SET_ARROW_X - 12 && touchX < 490 ? -1 : 1;
-				if (groups) openGroup(cursor);
+				if (groups) settingsPage->openGroup(cursor);
 				else if (set && page == Page::Settings && srows[cursor] == SOUND_ROW) sound->open(p, true);	// a page, not a value
-				else if (set) changeSetting(srows[cursor], dir, p);
+				else if (set) settingsPage->changeSetting(srows[cursor], dir, p);
 				else choose(cursor, p);
 			}
 			return false;
@@ -1042,10 +960,6 @@ namespace bp
 			scrollStart = scroll;
 			return false;
 		}
-		if (page == Page::Settings && setGroup >= 0)
-			for (int id : {GROUP_PREV, GROUP_NEXT})
-				if (buttonRect(id).hit(x, y)) { pressedBtn = id; return false; }
-		if (page == Page::Settings) return settingsDown(x, y);
 		if (page == Page::Browse && !inMenu && selMode != SEL_NONE)
 		{
 			// selecting: no tabs (the header's "<" was taken above); the bar's buttons, those that can act now
@@ -1187,8 +1101,6 @@ namespace bp
 		// the backlights' levels while their rows show (the keys change them too)
 		std::string upd = quickOpen ? "|quick" + std::to_string(quickCursor) + " " + std::to_string(volumePct) + " " + std::to_string(pressedBtn) +
 			" " + std::to_string(backlight.permille(Backlight::TOP)) + "," + std::to_string(backlight.permille(Backlight::BOTTOM)) : "";
-		upd += page == Page::Settings && setGroup == GROUP_CONTROLS
-			? "|bl" + std::to_string(backlight.permille(Backlight::TOP)) + "," + std::to_string(backlight.permille(Backlight::BOTTOM)) : "";
 		if (updater)
 			upd += "|upd" + std::to_string((int)updater->state()) + " " + std::to_string(updater->progress()) + " " + updater->available() +
 				" " + std::to_string(popupShown(p)) + std::to_string(popupCursor) + std::to_string(pressedBtn);

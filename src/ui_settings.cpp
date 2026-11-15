@@ -19,16 +19,18 @@
 #include "ui_internal.h"
 #include "ui_reader.h"
 #include "ui_manga.h"
+#include "ui_settings.h"
+#include "ui_sound.h"
 
 namespace bp
 {
-	std::vector<int> Ui::settingRows() const
+	std::vector<int> Ui::SettingsPage::settingRows() const
 	{
 		// the page's groups are settings.h's SettingsGroup: the table's rows name theirs
 		static_assert(GROUP_SUBS == SG_SUBS && GROUP_MUSIC == SG_MUSIC && GROUP_PHOTOS == SG_PHOTOS &&
 			GROUP_REMEMBER == SG_REMEMBER && GROUP_FILES == SG_FILES && GROUP_CONTROLS == SG_CONTROLS &&
 			GROUP_UPDATES == SG_UPDATES && GROUP_WEB == SG_WEB, "Ui::SetGroup and SettingsGroup go together");
-		switch (setGroup)
+		switch (ui.setGroup)
 		{
 		case GROUP_SUBS:
 		{
@@ -46,9 +48,9 @@ namespace bp
 			// the brightness rows where there are backlights (the handheld): one row for both panels (Same for both
 			// screens, which is there only with two), or one each
 			std::vector<std::pair<int, int>> own;
-			bool both = backlight.present(Backlight::TOP) && backlight.present(Backlight::BOTTOM);
-			if (backlight.present(Backlight::TOP)) own.push_back({10, TOP_LIGHT_ROW});
-			if (backlight.present(Backlight::BOTTOM) && !(both && sameBrightness)) own.push_back({20, BOTTOM_LIGHT_ROW});
+			bool both = ui.backlight.present(Backlight::TOP) && ui.backlight.present(Backlight::BOTTOM);
+			if (ui.backlight.present(Backlight::TOP)) own.push_back({10, TOP_LIGHT_ROW});
+			if (ui.backlight.present(Backlight::BOTTOM) && !(both && ui.sameBrightness)) own.push_back({20, BOTTOM_LIGHT_ROW});
 			std::vector<int> out = pageRows(SG_CONTROLS, own);
 			if (!both) out.erase(std::remove(out.begin(), out.end(), settingRow("same-brightness")), out.end());
 			return out;
@@ -56,10 +58,10 @@ namespace bp
 		case GROUP_UPDATES:
 		{
 			// a Store install (or a computer's build): the status alone
-			if (!updater || updater->state() == Updater::State::Off) return {CHECK_ROW};
-			Updater::State st = updater->state();
+			if (!ui.updater || ui.updater->state() == Updater::State::Off) return {CHECK_ROW};
+			Updater::State st = ui.updater->state();
 			bool install = st == Updater::State::Available || st == Updater::State::Downloading || st == Updater::State::Ready ||
-				(st == Updater::State::Failed && !updater->available().empty());
+				(st == Updater::State::Failed && !ui.updater->available().empty());
 			if (install) return pageRows(SG_UPDATES, {{20, CHECK_ROW}, {30, INSTALL_ROW}});
 			return pageRows(SG_UPDATES, {{20, CHECK_ROW}});
 		}
@@ -67,7 +69,7 @@ namespace bp
 		}
 	}
 
-	std::string Ui::settingHelp(int row) const
+	std::string Ui::SettingsPage::settingHelp(int row) const
 	{
 		if (const SettingDef* d = rowDef(row)) return d->help;
 		if (row == STYLE_ROW0 + ENCODING)
@@ -84,27 +86,27 @@ namespace bp
 		return "";
 	}
 
-	void Ui::stepGroup(int dir)
+	void Ui::SettingsPage::stepGroup(int dir)
 	{
-		setGroup = (setGroup + dir + GROUPS) % GROUPS;
-		cursor = scroll = 0;
+		ui.setGroup = (ui.setGroup + dir + GROUPS) % GROUPS;
+		ui.cursor = ui.scroll = 0;
 		styleFromSubs = false;
 		// Web dashboard has no rows: its page
-		if (setGroup == GROUP_WEB) openWeb();
+		if (ui.setGroup == GROUP_WEB) ui.openWeb();
 	}
 
-	void Ui::openGroup(int g)
+	void Ui::SettingsPage::openGroup(int g)
 	{
-		page = Page::Settings;
+		ui.page = Page::Settings;
 		if (g == GROUP_WEB)
 		{
-			setGroup = -1;
-			cursor = GROUP_WEB;
-			openWeb();
+			ui.setGroup = -1;
+			ui.cursor = GROUP_WEB;
+			ui.openWeb();
 			return;
 		}
-		setGroup = g;
-		cursor = scroll = 0;
+		ui.setGroup = g;
+		ui.cursor = ui.scroll = 0;
 	}
 
 	void Ui::setBrightness(Backlight::Panel panel, int pm, Player& p)
@@ -118,38 +120,38 @@ namespace bp
 		else backlight.set(panel, pm);
 	}
 
-	void Ui::changeSetting(int row, int dir, Player& p)
+	void Ui::SettingsPage::changeSetting(int row, int dir, Player& p)
 	{
-		if (row == CLEAR_ROW) { clearHistory(p); return; }
+		if (row == CLEAR_ROW) { ui.clearHistory(p); return; }
 		// the cache's Clear asked twice, as the history's is
 		if (row == MANGA_CLEAR_ROW)
 		{
 			Uint32 now = SDL_GetTicks();
-			if (manga->mangaCacheAt && now - manga->mangaCacheAt < QUIT_WINDOW_MS)
+			if (ui.manga->mangaCacheAt && now - ui.manga->mangaCacheAt < QUIT_WINDOW_MS)
 			{
-				manga->mangaPageCache.clear();
-				manga->mangaNetCacheBytes = 0;	// (clear() empties the whole folder, the network chapters too)
-				manga->mangaCacheAt = 0;
+				ui.manga->mangaPageCache.clear();
+				ui.manga->mangaNetCacheBytes = 0;	// (clear() empties the whole folder, the network chapters too)
+				ui.manga->mangaCacheAt = 0;
 			}
-			else manga->mangaCacheAt = now;
+			else ui.manga->mangaCacheAt = now;
 			return;
 		}
 		// a note, not a value: nothing to change
 		if (row == EXT_NOTE) return;
-		if (row == MANGA_JAVA_ROW) { manga->mangaJavaAct(); return; }
-		if (row == CHECK_ROW) { if (updater) updater->check(); return; }
+		if (row == MANGA_JAVA_ROW) { ui.manga->mangaJavaAct(); return; }
+		if (row == CHECK_ROW) { if (ui.updater) ui.updater->check(); return; }
 		if (row == TOP_LIGHT_ROW || row == BOTTOM_LIGHT_ROW)
 		{
 			Backlight::Panel panel = row == TOP_LIGHT_ROW ? Backlight::TOP : Backlight::BOTTOM;
-			int pm = backlight.permille(panel);
-			if (pm >= 0) setBrightness(panel, stepBrightness(pm, dir), p);
+			int pm = ui.backlight.permille(panel);
+			if (pm >= 0) ui.setBrightness(panel, stepBrightness(pm, dir), p);
 			return;
 		}
 		if (row == INSTALL_ROW)
 		{
-			if (!updater) return;
-			if (updater->state() == Updater::State::Ready) restartRequested = true;
-			else updater->download();
+			if (!ui.updater) return;
+			if (ui.updater->state() == Updater::State::Ready) ui.restartRequested = true;
+			else ui.updater->download();
 			return;
 		}
 		Settings s = p.settings;
@@ -160,32 +162,32 @@ namespace bp
 			if (d->intField == &Settings::mangaFit)
 			{
 				// a chapter open on the top panel takes it at once, as X takes the mode
-				if (pageReader->readerStatus.open) pageReader->readerCmds.push_back({PageReader::ReaderCmd::Fit, (double)s.mangaFit, (int64_t)SDL_GetTicks()});
+				if (ui.pageReader->readerStatus.open) ui.pageReader->readerCmds.push_back({PageReader::ReaderCmd::Fit, (double)s.mangaFit, (int64_t)SDL_GetTicks()});
 			}
 			else if (d->intField == &Settings::mangaHinge)
 			{
 				// both panels are one view while reading fullscreen: the reader relayouts now, not at the next open
-				if (pageReader->readerStatus.open && pageReader->readerStatus.fullscreen)
-					pageReader->readerCmds.push_back({PageReader::ReaderCmd::Fullscreen, 1.0, (int64_t)SDL_GetTicks(), (double)s.mangaHinge});
+				if (ui.pageReader->readerStatus.open && ui.pageReader->readerStatus.fullscreen)
+					ui.pageReader->readerCmds.push_back({PageReader::ReaderCmd::Fullscreen, 1.0, (int64_t)SDL_GetTicks(), (double)s.mangaHinge});
 			}
 			else if (d->intField == &Settings::mangaCacheSize)
 			{
 				// over a smaller cap the cache gives its oldest pages up at once
-				manga->mangaPageCache.setLimit(mangaCacheBytes(s.mangaCacheSize));
-				manga->mangaNetTrim(pageReader->mangaRead.path, p);
+				ui.manga->mangaPageCache.setLimit(mangaCacheBytes(s.mangaCacheSize));
+				ui.manga->mangaNetTrim(ui.pageReader->mangaRead.path, p);
 			}
 			else if (d->flagField == &Settings::mangaHistory)
 			{
-				manga->mangaHistOn = s.mangaHistory;
+				ui.manga->mangaHistOn = s.mangaHistory;
 				// off: the list goes; the places and the read marks stay (progress isn't history)
-				if (!s.mangaHistory && manga->mangaStore)
+				if (!s.mangaHistory && ui.manga->mangaStore)
 				{
-					manga->mangaStore->clearHistory();
-					manga->mangaSave();
+					ui.manga->mangaStore->clearHistory();
+					ui.manga->mangaSave();
 				}
 			}
 			else if (d->intField == &Settings::volumeMax && s.volumeMax == 150)
-				alert("Up to 150%", "Over 120% can damage your hearing, and the speakers (headphones too). The volume keys go there only one step at a time past 100%.");
+				ui.alert("Up to 150%", "Over 120% can damage your hearing, and the speakers (headphones too). The volume keys go there only one step at a time past 100%.");
 		}
 		else if (row - STYLE_ROW0 < STYLE_KEYS) stepStyle(s.style, (StyleKey)(row - STYLE_ROW0), dir);
 		p.setSettings(s);
@@ -194,71 +196,71 @@ namespace bp
 	}
 
 	// a settings row: its label on the left, the arrows and the value; an action's or the repositories' note's own look
-	void Ui::drawSettingRow(int row, int y, bool at, const Player& p)
+	void Ui::SettingsPage::drawSettingRow(int row, int y, bool at, const Player& p)
 	{
 		int mid = y + (SET_H - 4) / 2;
-		if (at && row != EXT_NOTE) drawFocus({16, y, 608, SET_H - 4});
+		if (at && row != EXT_NOTE) ui.drawFocus({16, y, 608, SET_H - 4});
 		std::string label, value;
 		if (row == EXT_NOTE)
 		{
 			// a note, not a value: an info box, its lines wrapped (A does nothing there)
-			drawBox({16, y, 608, SET_H - 4}, SURFACE, R_BUTTON, at);
-			drawGlyphMid(G_INFO, 42, mid, at ? DIM_ON : DIM);
-			auto lines = wrapText("Repositories are added by you. Banana Player doesn\xE2\x80\x99t provide or check their content.",
+			ui.drawBox({16, y, 608, SET_H - 4}, SURFACE, R_BUTTON, at);
+			ui.drawGlyphMid(G_INFO, 42, mid, at ? DIM_ON : DIM);
+			auto lines = ui.wrapText("Repositories are added by you. Banana Player doesn\xE2\x80\x99t provide or check their content.",
 				0, 540, 2);
 			for (size_t k = 0; k < lines.size(); k++)
-				drawTextMid(lines[k], 0, at ? DIM_ON : DIM, 66, mid + (k == 0 ? (lines.size() > 1 ? -11 : 0) : 11), 540);
+				ui.drawTextMid(lines[k], 0, at ? DIM_ON : DIM, 66, mid + (k == 0 ? (lines.size() > 1 ? -11 : 0) : 11), 540);
 			return;
 		}
 		int k = row - STYLE_ROW0;	// a style row's key
 		if (row == CHECK_ROW || row == INSTALL_ROW)
 		{
 			// actions with a state: no arrows
-			std::string label = "Check for updates", value = updateStatus();
+			std::string label = "Check for updates", value = ui.updateStatus();
 			if (row == INSTALL_ROW)
 			{
-				label = "Update to " + updater->available();
-				int pct = updater->progress();
-				value = updater->state() == Updater::State::Ready ? "Restart now"
-					: updater->state() == Updater::State::Downloading ? (pct >= 0 ? std::to_string(pct) + "%" : "Downloading")
-					: updater->state() == Updater::State::Failed ? "Try again" : "Download";
+				label = "Update to " + ui.updater->available();
+				int pct = ui.updater->progress();
+				value = ui.updater->state() == Updater::State::Ready ? "Restart now"
+					: ui.updater->state() == Updater::State::Downloading ? (pct >= 0 ? std::to_string(pct) + "%" : "Downloading")
+					: ui.updater->state() == Updater::State::Failed ? "Try again" : "Download";
 			}
-			drawTextMid(label, 1, at ? ACCENT : TEXT, 32, mid, 320);
-			drawTextMid(value, 1, at ? ACCENT : DIM_ON, 608, mid, 260, 1);
+			ui.drawTextMid(label, 1, at ? ACCENT : TEXT, 32, mid, 320);
+			ui.drawTextMid(value, 1, at ? ACCENT : DIM_ON, 608, mid, 260, 1);
 			return;
 		}
 		if (row == SOUND_ROW)
 		{
 			// a page of its own: what it's set to, and a chevron (no arrows: nothing to step)
-			drawTextMid("Sound FX", 1, at ? ACCENT : TEXT, 32, mid, 320);
-			drawTextMid(soundSummary(p.settings), 1, at ? ACCENT : p.settings.eqOn || p.settings.soundFx != SoundFx::None ? TEXT : DIM,
+			ui.drawTextMid("Sound FX", 1, at ? ACCENT : TEXT, 32, mid, 320);
+			ui.drawTextMid(soundSummary(p.settings), 1, at ? ACCENT : p.settings.eqOn || p.settings.soundFx != SoundFx::None ? TEXT : DIM,
 				584, mid, 240, 1);
-			drawGlyphMid(G_RIGHT, 604, mid, at ? ACCENT : DIM);
+			ui.drawGlyphMid(G_RIGHT, 604, mid, at ? ACCENT : DIM);
 			return;
 		}
 		if (row == CLEAR_ROW)
 		{
 			// an action, not a value: no arrows
 			size_t n = p.history().items().size();
-			drawTextMid("Clear play history", 1, at ? ACCENT : TEXT, 32, mid, 320);
-			drawTextMid(clearArmed ? "Press again to clear" : n ? std::to_string(n) + (n == 1 ? " file" : " files") : "Empty", 1,
-				clearArmed ? ACCENT : at ? DIM_ON : DIM, 608, mid, 0, 1);
+			ui.drawTextMid("Clear play history", 1, at ? ACCENT : TEXT, 32, mid, 320);
+			ui.drawTextMid(ui.clearArmed ? "Press again to clear" : n ? std::to_string(n) + (n == 1 ? " file" : " files") : "Empty", 1,
+				ui.clearArmed ? ACCENT : at ? DIM_ON : DIM, 608, mid, 0, 1);
 			return;
 		}
 		if (row == MANGA_CLEAR_ROW)
 		{
 			// the cache's Clear: an action too (its size from the cache itself)
-			uint64_t size = manga->mangaPageCache.size() + manga->mangaNetCacheBytes;
-			drawTextMid("Clear cache", 1, at ? ACCENT : TEXT, 32, mid, 320);
-			drawTextMid(manga->mangaCacheAt ? "Press again to clear" : size ? "Clear \xC2\xB7 " + formatBytes((long long)size) : "Empty", 1,
-				manga->mangaCacheAt ? ACCENT : at ? DIM_ON : DIM, 608, mid, 0, 1);
+			uint64_t size = ui.manga->mangaPageCache.size() + ui.manga->mangaNetCacheBytes;
+			ui.drawTextMid("Clear cache", 1, at ? ACCENT : TEXT, 32, mid, 320);
+			ui.drawTextMid(ui.manga->mangaCacheAt ? "Press again to clear" : size ? "Clear \xC2\xB7 " + formatBytes((long long)size) : "Empty", 1,
+				ui.manga->mangaCacheAt ? ACCENT : at ? DIM_ON : DIM, 608, mid, 0, 1);
 			return;
 		}
 		if (row == MANGA_JAVA_ROW)
 		{
 			// an action with the host's state as its value (installed size, download progress, why it failed)
-			drawTextMid("Extension support", 1, at ? ACCENT : TEXT, 32, mid, 250);
-			drawTextMid(manga->mangaJavaValue(), 1, at ? ACCENT : TEXT, 608, mid, 330, 1);
+			ui.drawTextMid("Extension support", 1, at ? ACCENT : TEXT, 32, mid, 250);
+			ui.drawTextMid(ui.manga->mangaJavaValue(), 1, at ? ACCENT : TEXT, 608, mid, 330, 1);
 			return;
 		}
 		if (k >= 0 && k < STYLE_KEYS)
@@ -268,8 +270,8 @@ namespace bp
 		}
 		else if (row == TOP_LIGHT_ROW || row == BOTTOM_LIGHT_ROW)
 		{
-			label = row == BOTTOM_LIGHT_ROW ? "Bottom brightness" : sameBrightness ? "Brightness" : "Top brightness";
-			int pm = backlight.permille(row == TOP_LIGHT_ROW ? Backlight::TOP : Backlight::BOTTOM);
+			label = row == BOTTOM_LIGHT_ROW ? "Bottom brightness" : ui.sameBrightness ? "Brightness" : "Top brightness";
+			int pm = ui.backlight.permille(row == TOP_LIGHT_ROW ? Backlight::TOP : Backlight::BOTTOM);
 			value = pm < 0 ? "-" : std::to_string((pm + 5) / 10) + "%";
 		}
 		else if (const SettingDef* d = rowDef(row))
@@ -277,73 +279,73 @@ namespace bp
 			label = d->label;
 			value = settingValueText(*d, p.settings);
 		}
-		drawTextMid(label, 1, at ? ACCENT : TEXT, 32, mid, 330);
+		ui.drawTextMid(label, 1, at ? ACCENT : TEXT, 32, mid, 330);
 		// arrows on every row: they are where a finger steps back and on
-		drawTextMid("<", 1, at ? ACCENT : DIM, SET_ARROW_X, mid);
-		drawTextMid(value, 1, at ? ACCENT : TEXT, 490, mid, 196, 2);
-		drawTextMid(">", 1, at ? ACCENT : DIM, 608, mid, 0, 1);
+		ui.drawTextMid("<", 1, at ? ACCENT : DIM, SET_ARROW_X, mid);
+		ui.drawTextMid(value, 1, at ? ACCENT : TEXT, 490, mid, 196, 2);
+		ui.drawTextMid(">", 1, at ? ACCENT : DIM, 608, mid, 0, 1);
 	}
 
-	void Ui::drawSettings(const Player& p)
+	void Ui::SettingsPage::draw(const Player& p)
 	{
-		if (setGroup < 0)
+		if (ui.setGroup < 0)
 		{
 			// the groups as tiles, two to a row: a mark, a name, what's in it
 			static const Glyph* MARKS[GROUPS] = {&G_CC, &G_NOTE, &G_PICTURE, &G_BOOKMARK, &G_FOLDER, &G_SUN, &G_DOWNLOAD, &G_WEB};
 			for (int g = 0; g < GROUPS; g++)
 			{
 				Rect t = groupRect(g);
-				bool at = g == cursor;
-				drawBox(t, pressedBtn == 400 + g ? PRESSED : at ? BUTTON : SURFACE, R_TILE, at);
-				drawGlyphMid(*MARKS[g], t.x + 34, t.y + t.h / 2, at ? ACCENT : TEXT, 3);
-				drawTextMid(GROUP_NAMES[g].name, 1, at ? ACCENT : TEXT, t.x + 66, t.y + 27, t.w - 76);
+				bool at = g == ui.cursor;
+				ui.drawBox(t, ui.pressedBtn == 400 + g ? PRESSED : at ? BUTTON : SURFACE, R_TILE, at);
+				ui.drawGlyphMid(*MARKS[g], t.x + 34, t.y + t.h / 2, at ? ACCENT : TEXT, 3);
+				ui.drawTextMid(GROUP_NAMES[g].name, 1, at ? ACCENT : TEXT, t.x + 66, t.y + 27, t.w - 76);
 				std::string about = GROUP_NAMES[g].about;
 				if (g == GROUP_WEB)
 				{
-					int n = webClients();
+					int n = ui.webClients();
 					about = !p.settings.webDashboard ? "Off" : n == 0 ? "On \xC2\xB7 No browser yet"
 						: "On \xC2\xB7 " + std::to_string(n) + (n == 1 ? " browser" : " browsers");
 				}
-				drawTextMid(about, 0, at ? DIM_ON : DIM, t.x + 66, t.y + 52, t.w - 76);
+				ui.drawTextMid(about, 0, at ? DIM_ON : DIM, t.x + 66, t.y + 52, t.w - 76);
 			}
-			drawHints({{"D-PAD", "Move"}, {"A", "Open"}, {"B", "Close"}, {"L/R", "Tabs"}});
+			ui.drawHints({{"D-PAD", "Move"}, {"A", "Open"}, {"B", "Close"}, {"L/R", "Tabs"}});
 			return;
 		}
 		// the group in the middle, the ones before and after it either side: a tap (or X / Y) away
 		static const char* SHORT[GROUPS] = {"Subtitles", "Music", "Photos", "Remember", "Files", "Controls", "Updates", "Web"};
-		drawTextMid(GROUP_NAMES[setGroup].name, 1, ACCENT, W / 2, 73, 248, 2);
+		ui.drawTextMid(GROUP_NAMES[ui.setGroup].name, 1, ACCENT, W / 2, 73, 248, 2);
 		for (int k = 0; k < 2; k++)
 		{
-			Rect c = buttonRect(k ? GROUP_NEXT : GROUP_PREV);
-			int g = (setGroup + (k ? 1 : GROUPS - 1)) % GROUPS;
-			drawBox(c, pressedBtn == (k ? GROUP_NEXT : GROUP_PREV) ? PRESSED : SURFACE, R_BUTTON);
+			Rect c = ui.buttonRect(k ? GROUP_NEXT : GROUP_PREV);
+			int g = (ui.setGroup + (k ? 1 : GROUPS - 1)) % GROUPS;
+			ui.drawBox(c, ui.pressedBtn == (k ? GROUP_NEXT : GROUP_PREV) ? PRESSED : SURFACE, R_BUTTON);
 			const char* key = k ? "X" : "Y";	// Y is on the left of the buttons, as its chip is
-			int kw = (int)std::lround(textWidth(key, 0) / sx);
+			int kw = (int)std::lround(ui.textWidth(key, 0) / sx);
 			if (k)
 			{
-				drawTextMid(key, 0, ACCENT, c.x + c.w - 10 - kw, c.y + c.h / 2);
-				drawGlyphMid(G_RIGHT, c.x + c.w - 24 - kw, c.y + c.h / 2, TEXT);
-				drawTextMid(SHORT[g], 0, TEXT, c.x + 12, c.y + c.h / 2, c.w - 44 - kw);
+				ui.drawTextMid(key, 0, ACCENT, c.x + c.w - 10 - kw, c.y + c.h / 2);
+				ui.drawGlyphMid(G_RIGHT, c.x + c.w - 24 - kw, c.y + c.h / 2, TEXT);
+				ui.drawTextMid(SHORT[g], 0, TEXT, c.x + 12, c.y + c.h / 2, c.w - 44 - kw);
 			}
 			else
 			{
-				drawTextMid(key, 0, ACCENT, c.x + 10, c.y + c.h / 2);
-				drawGlyphMid(G_LEFT, c.x + 24 + kw, c.y + c.h / 2, TEXT);
-				drawTextMid(SHORT[g], 0, TEXT, c.x + c.w - 12, c.y + c.h / 2, c.w - 44 - kw, 1);
+				ui.drawTextMid(key, 0, ACCENT, c.x + 10, c.y + c.h / 2);
+				ui.drawGlyphMid(G_LEFT, c.x + 24 + kw, c.y + c.h / 2, TEXT);
+				ui.drawTextMid(SHORT[g], 0, TEXT, c.x + c.w - 12, c.y + c.h / 2, c.w - 44 - kw, 1);
 			}
 		}
 		auto rows = settingRows();
-		for (int i = scroll; i < (int)rows.size() && i < scroll + SET_SHOWN; i++)
-			drawSettingRow(rows[i], SET_Y + (i - scroll) * SET_H, i == cursor, p);
+		for (int i = ui.scroll; i < (int)rows.size() && i < ui.scroll + SET_SHOWN; i++)
+			drawSettingRow(rows[i], SET_Y + (i - ui.scroll) * SET_H, i == ui.cursor, p);
 		// more rows than the page holds (the handheld's Controls & screen with its brightness rows): a bar says so
-		if ((int)rows.size() > SET_SHOWN) drawScrollBar(SET_Y, SET_SHOWN * SET_H - 4, scroll, SET_SHOWN, (int)rows.size());
+		if ((int)rows.size() > SET_SHOWN) ui.drawScrollBar(SET_Y, SET_SHOWN * SET_H - 4, ui.scroll, SET_SHOWN, (int)rows.size());
 		// what the row under the cursor does, in a line or two above the footer
-		std::string help = cursor >= 0 && cursor < (int)rows.size() ? settingHelp(rows[cursor]) : "";
+		std::string help = ui.cursor >= 0 && ui.cursor < (int)rows.size() ? settingHelp(rows[ui.cursor]) : "";
 		SDL_Color helpInk = DIM;
 		// the style's rows: the preview under them, where the help would be (it says more), or for styled subtitles a
 		// line that says they keep their look; Text encoding: its help (the preview has nothing to show for it). The
 		// six rows end at 368, the mini bar starts at 422
-		if (setGroup == GROUP_SUBS && cursor >= 0 && cursor < (int)rows.size() && rows[cursor] != STYLE_ROW0 + ENCODING)
+		if (ui.setGroup == GROUP_SUBS && ui.cursor >= 0 && ui.cursor < (int)rows.size() && rows[ui.cursor] != STYLE_ROW0 + ENCODING)
 		{
 			const Track* s = p.selected(TrackType::Sub);
 			if (s && (s->codec == "ass" || s->codec == "ssa"))
@@ -357,36 +359,36 @@ namespace bp
 				help.clear();
 			}
 		}
-		if (setGroup == GROUP_UPDATES && updater && cursor < (int)rows.size() && (rows[cursor] == CHECK_ROW || rows[cursor] == INSTALL_ROW))
+		if (ui.setGroup == GROUP_UPDATES && ui.updater && ui.cursor < (int)rows.size() && (rows[ui.cursor] == CHECK_ROW || rows[ui.cursor] == INSTALL_ROW))
 		{
-			help = updater->fromStore() ? "Installed from the BananaOS Store: the Store updates it"
-				: updater->state() == Updater::State::Off ? "Updates are for the handheld's Ports install"
-				: updater->state() == Updater::State::Failed ? updater->message()
-				: updater->state() == Updater::State::Ready ? "Restart now, or it's put in place at the next start"
+			help = ui.updater->fromStore() ? "Installed from the BananaOS Store: the Store updates it"
+				: ui.updater->state() == Updater::State::Off ? "Updates are for the handheld's Ports install"
+				: ui.updater->state() == Updater::State::Failed ? ui.updater->message()
+				: ui.updater->state() == Updater::State::Ready ? "Restart now, or it's put in place at the next start"
 				: "Downloads from GitHub, checked before anything changes";
-			helpInk = updater->state() == Updater::State::Failed ? ACCENT : DIM;
+			helpInk = ui.updater->state() == Updater::State::Failed ? ACCENT : DIM;
 		}
 		// what the row under the cursor does, in a line or two above the footer (one line while the mini bar is there:
 		// its second would be under it)
-		auto lines = wrapText(help, 0, 592, miniUp ? 1 : 2);
-		for (size_t i = 0; i < lines.size(); i++) drawTextMid(lines[i], 0, helpInk, 24, HELP_Y + (int)i * 22, 592);
-		bool action = cursor < (int)rows.size() && (rows[cursor] == CHECK_ROW || rows[cursor] == INSTALL_ROW || rows[cursor] == CLEAR_ROW ||
-			rows[cursor] == SOUND_ROW);
+		auto lines = ui.wrapText(help, 0, 592, ui.miniUp ? 1 : 2);
+		for (size_t i = 0; i < lines.size(); i++) ui.drawTextMid(lines[i], 0, helpInk, 24, HELP_Y + (int)i * 22, 592);
+		bool action = ui.cursor < (int)rows.size() && (rows[ui.cursor] == CHECK_ROW || rows[ui.cursor] == INSTALL_ROW || rows[ui.cursor] == CLEAR_ROW ||
+			rows[ui.cursor] == SOUND_ROW);
 		if (action)
-			drawHints({{"A", rows[cursor] == CLEAR_ROW ? "Clear"
-				: rows[cursor] == CHECK_ROW ? "Check" : rows[cursor] == SOUND_ROW ? "Open" : "Update"},
+			ui.drawHints({{"A", rows[ui.cursor] == CLEAR_ROW ? "Clear"
+				: rows[ui.cursor] == CHECK_ROW ? "Check" : rows[ui.cursor] == SOUND_ROW ? "Open" : "Update"},
 				{"UP/DOWN", "Choose"}, {"Y/X", "Group"}, {"B", "Back"}});
-		else drawHints({{"UP/DOWN", "Choose"}, {"LEFT/RIGHT", "Change"}, {"Y/X", "Group"}, {"B", "Back"}});
+		else ui.drawHints({{"UP/DOWN", "Choose"}, {"LEFT/RIGHT", "Change"}, {"Y/X", "Group"}, {"B", "Back"}});
 	}
 
 	// a line in the chosen font, colour and border over a stand-in for the picture, at the size it has on the top
 	// panel (mpv's sizes are in pixels of a 720-line picture)
-	void Ui::drawPreview(const SubStyle& st, Rect box)
+	void Ui::SettingsPage::drawPreview(const SubStyle& st, Rect box)
 	{
-		fillRound(box, SCREEN, R_BUTTON);
+		ui.fillRound(box, SCREEN, R_BUTTON);
 		SubStyleLook look = subStyleLook(st);
 		double toPanel = H / 720.0 * sy;
-		std::string path = fontsDir + "/" + look.fontFile;
+		std::string path = ui.fontsDir + "/" + look.fontFile;
 		TTF_Font* f = TTF_OpenFont(path.c_str(), std::max(8, (int)std::lround(look.size * toPanel)));
 		if (!f) return;
 		const char* sample = "Subtitles look like this";
@@ -402,17 +404,129 @@ namespace bp
 		}
 		int cx = (int)((box.x + box.w / 2) * sx), cy = (int)((box.y + box.h / 2) * sy);
 		SDL_Rect clip{(int)(box.x * sx), (int)(box.y * sy), (int)(box.w * sx), (int)(box.h * sy)};
-		SDL_RenderSetClipRect(ren, &clip);
+		SDL_RenderSetClipRect(ui.ren, &clip);
 		for (SDL_Surface* surf : {edge, text})
 		{
 			if (!surf) continue;
-			SDL_Texture* t = SDL_CreateTextureFromSurface(ren, surf);
+			SDL_Texture* t = SDL_CreateTextureFromSurface(ui.ren, surf);
 			SDL_Rect dst{cx - surf->w / 2, cy - surf->h / 2, surf->w, surf->h};
-			SDL_RenderCopy(ren, t, nullptr, &dst);
+			SDL_RenderCopy(ui.ren, t, nullptr, &dst);
 			SDL_DestroyTexture(t);
 			SDL_FreeSurface(surf);
 		}
-		SDL_RenderSetClipRect(ren, nullptr);
+		SDL_RenderSetClipRect(ui.ren, nullptr);
 		TTF_CloseFont(f);
+	}
+
+	// B in START's menu on this page, taken before the menu's own B (which closes it)
+	bool Ui::SettingsPage::menuBack(Player& p)
+	{
+		// B in the subtitle style opened from the Subtitles list: back to that list
+		if (ui.setGroup == GROUP_SUBS && styleFromSubs)
+		{
+			styleFromSubs = false;
+			ui.inMenu = false;
+			ui.openTracks(TRACKS_SUBS, p);
+			ui.cursor = (int)ui.rows(p).size() - 1;	// on Subtitle style, where it was
+			ui.scroll = std::max(0, ui.cursor - ROWS_SHOWN + 1);
+			return true;
+		}
+		// B in a settings group: back to the groups
+		if (ui.setGroup >= 0)
+		{
+			ui.cursor = ui.setGroup;
+			ui.setGroup = -1;
+			return true;
+		}
+		return false;
+	}
+
+	bool Ui::SettingsPage::key(Button b, Player& p)
+	{
+		auto rows = settingRows();
+		int n = ui.setGroup < 0 ? GROUPS : (int)rows.size();
+		ui.cursor = std::min(ui.cursor, n - 1);	// a group's rows can change (the updater's)
+		// in a group: Y (the west button) to the one before, X to the one after (L/R are the menu's tabs)
+		if (ui.setGroup >= 0 && (b == Button::X || b == Button::Y))
+		{
+			stepGroup(b == Button::X ? 1 : -1);
+			return false;
+		}
+		// the groups: tiles two to a row, the cursor moved as on a grid
+		if (ui.setGroup < 0 && (b == Button::Up || b == Button::Down || b == Button::Left || b == Button::Right))
+		{
+			if (b == Button::Up && ui.cursor >= 2) ui.cursor -= 2;
+			else if (b == Button::Down) ui.cursor = ui.cursor + 2 < n ? ui.cursor + 2 : ui.cursor / 2 < (n - 1) / 2 ? n - 1 : ui.cursor;
+			else if (b == Button::Left && ui.cursor % 2 == 1) ui.cursor--;
+			else if (b == Button::Right && ui.cursor % 2 == 0 && ui.cursor + 1 < n) ui.cursor++;
+			return false;
+		}
+		switch (b)
+		{
+		case Button::Up: ui.cursor = (ui.cursor + n - 1) % n; break;
+		case Button::Down: ui.cursor = (ui.cursor + 1) % n; break;
+		case Button::Left: if (ui.setGroup >= 0 && rows[ui.cursor] != SOUND_ROW) changeSetting(rows[ui.cursor], -1, p); break;
+		case Button::Right: case Button::A:
+			if (ui.setGroup < 0) openGroup(ui.cursor);
+			else if (rows[ui.cursor] == SOUND_ROW) { ui.sound->open(p, true); return false; }
+			else changeSetting(rows[ui.cursor], 1, p);
+			break;
+		// the mini bar's right end says SELECT: back to what plays (Settings has no SELECT of its own)
+		case Button::Select: if (ui.nowPlayable(ui.barPlayer(p))) ui.goNowPlaying(p); break;
+		case Button::B:
+			if (ui.setGroup >= 0) { ui.cursor = ui.setGroup; ui.setGroup = -1; }
+			else ui.page = ui.home(p);
+			break;
+		case Button::Start: ui.page = ui.home(p); break;
+		default: break;
+		}
+		if (ui.cursor < ui.scroll) ui.scroll = ui.cursor;
+		if (ui.cursor >= ui.scroll + SET_SHOWN) ui.scroll = ui.cursor - SET_SHOWN + 1;
+		return false;
+	}
+
+	// only a finger's down is the page's own (the group's neighbours, a row or a tile); its moves and lifts are the
+	// list's, in Ui::pointer
+	bool Ui::SettingsPage::pointer(const Pointer& pt, int x, int y, Player&)
+	{
+		if (pt.kind != Pointer::Down) return false;
+		if (ui.setGroup >= 0)
+			for (int id : {GROUP_PREV, GROUP_NEXT})
+				if (ui.buttonRect(id).hit(x, y)) { ui.pressedBtn = id; return false; }
+		return settingsDown(x, y);
+	}
+
+	std::string Ui::SettingsPage::signature(const Player&) const
+	{
+		// the backlights' levels while their rows show (the keys change them too)
+		return ui.setGroup == GROUP_CONTROLS
+			? "|bl" + std::to_string(ui.backlight.permille(Backlight::TOP)) + "," + std::to_string(ui.backlight.permille(Backlight::BOTTOM)) : "";
+	}
+
+	// a finger down on the settings' list (Settings' groups or a group's rows, the Manga settings' rows): the row it
+	// is on, and the list's touch begun (its lift acts, its moves scroll)
+	bool Ui::SettingsPage::settingsDown(int x, int y)
+	{
+		int top = SET_Y, h = SET_H;
+		bool groups = ui.page == Page::Settings && ui.setGroup < 0;
+		auto srows = groups ? std::vector<int>() : ui.page == Page::MangaSettings ? ui.manga->mangaSettingRows() : settingRows();
+		int n = groups ? GROUPS : (int)srows.size();
+		int row = ui.scroll + (y - top) / h;
+		if (groups)
+		{
+			// a tile
+			row = -1;
+			for (int g = 0; g < GROUPS; g++)
+				if (groupRect(g).hit(x, y)) row = g;
+			if (row < 0) return false;
+		}
+		else if (y < top || y >= top + SET_SHOWN * h || row >= n) return false;
+		ui.cursor = row;
+		ui.listTouch = true;
+		ui.listScrolled = false;
+		ui.touchStartY = y;
+		ui.touchX = x;
+		ui.scrollStart = ui.scroll;
+		return false;
 	}
 }

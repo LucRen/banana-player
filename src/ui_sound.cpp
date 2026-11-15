@@ -16,6 +16,7 @@
 #include <qrcodegen.hpp>
 #endif
 #include "ui_internal.h"
+#include "ui_settings.h"
 #include "ui_sound.h"
 
 namespace bp
@@ -175,7 +176,7 @@ namespace bp
 		soundFromSettings = fromSettings;
 		soundFromMenu = fromSettings && ui.inMenu;
 		ui.inMenu = false;
-		ui.styleFromSubs = false;
+		ui.settingsPage->styleFromSubs = false;
 		ui.page = Page::Sound;
 		eqDialog = EQD_NONE;
 		eqListTouch = false;
@@ -207,7 +208,7 @@ namespace bp
 		ui.inMenu = soundFromMenu;
 		if (ui.inMenu) ui.menuTab = TAB_SETTINGS;
 		ui.setGroup = GROUP_MUSIC;
-		ui.cursor = std::max(0, rowsIndexOf(ui.settingRows(), SOUND_ROW));
+		ui.cursor = std::max(0, rowsIndexOf(ui.settingsPage->settingRows(), SOUND_ROW));
 		ui.scroll = 0;
 	}
 

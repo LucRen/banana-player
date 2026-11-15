@@ -397,15 +397,16 @@ namespace bp
 		static constexpr int CHAPTER_Y = 126;
 		bool chapterLineShown(const Player& p) const;
 		void choose(int i, Player& p);
-		void changeSetting(int row, int dir, Player& p);
 		// Settings opens on its groups (setGroup -1); A or a tap opens one, B goes back to them
 		// (Web dashboard is a tile like the groups, but its own page: openGroup and stepGroup open Page::Web)
 		enum SetGroup { GROUP_SUBS, GROUP_MUSIC, GROUP_PHOTOS, GROUP_REMEMBER, GROUP_FILES, GROUP_CONTROLS, GROUP_UPDATES, GROUP_WEB,
 			GROUPS };
+		// the page is an area (SettingsPage, ui_settings.h): the rows, changeSetting, openGroup, its drawing and keys.
+		// Here stay: the groups' ids, the rows' ids and the list's measures (Manga's settings page and the tables use
+		// them) and setGroup, the open group, which showPlayer's, the dashboard's and Browse's way-back records keep
 		int setGroup = -1;
-		std::vector<int> settingRows() const;	// the open group's rows, by id
-		bool settingsDown(int x, int y);	// a finger down on the settings' list (Settings', Manga's): its row, the touch begun
-		void openGroup(int g);
+		struct SettingsPage;
+		std::unique_ptr<SettingsPage> settingsPage;
 		Page home(const Player& p) const { return playerShown(p) ? Page::Main : Page::Browse; }
 		// HOMEDIR Home, "" the cards (Files' top), RECENT the recent videos (All recent)
 		void enterFolder(std::string dir, Player& p);
@@ -1010,7 +1011,6 @@ namespace bp
 		int firstCursor() const;	// where a folder opened afresh puts the cursor
 		void doEmptyAction(Player& p);
 		static constexpr int FOOT_Y = 458, SUB_Y = 70;	// the footer's line, the browser's "where" line (their middles)
-		void drawSettings(const Player& p);
 		void drawInfo(const Player& p);
 		// the Media info page's lines: a row's value wrapped to the width, read again each second while it's open
 		struct InfoLine { std::string label, text; bool header; };
@@ -1020,7 +1020,6 @@ namespace bp
 		void setInfoLines(const std::vector<Player::InfoRow>& rows);	// wrapped to the page
 		void openAbout(const Player& p);
 		static constexpr int INFO_Y = 70, INFO_H = 26, INFO_SHOWN = 14, INFO_VALUE_X = 190;
-		void drawPreview(const SubStyle& st, Rect box);
 
 		SDL_Texture* text(const std::string& s, int size, SDL_Color c);
 		void drawText(const std::string& s, int size, SDL_Color c, int x, int y, int maxW = 0, int align = 0);
@@ -1196,12 +1195,6 @@ namespace bp
 		void setBrightness(Backlight::Panel panel, int permille, Player& p);
 		// (6 rows end at 368: the help's two lines at 400 stay clear of them; a longer group scrolls)
 		static constexpr int SET_Y = 92, SET_H = 46, SET_SHOWN = 6, HELP_Y = 400;
-		// a settings group's tile (Settings opens on them: two to a row)
-		Rect groupRect(int g) const { return {16 + g % 2 * 312, 70 + g / 2 * 86, 296, 78}; }
-		std::string settingHelp(int row) const;	// what a setting does, under its rows
-		// one settings row at y (at: the cursor's): its label, arrows and value, an action's or the note's own look.
-		// Shared by Settings (drawSettings) and the manga reader's own settings page (drawMangaSettings)
-		void drawSettingRow(int row, int y, bool at, const Player& p);
 		static constexpr int64_t STYLE_ROW = -2;	// the subtitle menu's last row: the settings page
 		static constexpr int QUIT_BTN = 10, SCREEN_BTN = 12, INFO_BTN = 13, LOCK_BTN = 14, EXIT_BTN = 15,
 			BACK_ICON = 16,	// "<" at the top left of every page: B
@@ -1219,8 +1212,6 @@ namespace bp
 		// popup's chips from CHIP_BTN (row * CHIP_STRIDE + chip, up to 664)
 		static constexpr int SOUND_TAB0 = 510, SOUND_TAB1 = 511, EQ_SWITCH = 520, EQ_PREV = 521, EQ_NEXT = 522, EQ_NAME_ZONE = 523,
 			EQ_RESET = 524, EQ_SAVE = 525, EQ_OPTIONS = 526, DLG_ROW = 700, CHIP_BTN = 600, FX_ROW = 800;
-		void stepGroup(int dir);	// to the settings group before (-1) or after (1), round
-		bool styleFromSubs = false;	// the subtitle style opened from the Subtitles list: B goes back to it
 		void drawBackIcon();
 		// the browser's rows' marks: what each row is
 		enum RowIcon { ICON_NONE, ICON_RECENT, ICON_PLACE, ICON_FOLDER, ICON_VIDEO, ICON_SONG, ICON_PHOTO, ICON_DOC, ICON_BOOK, ICON_FILE, ICON_PDF, ICON_EPUB, ICON_COMIC, ICON_NETWORK, ICON_REFRESH,

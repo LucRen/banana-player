@@ -16,6 +16,7 @@
 #include <qrcodegen.hpp>
 #endif
 #include "ui_internal.h"
+#include "ui_settings.h"
 #include "ui_web.h"
 
 namespace bp
@@ -140,7 +141,7 @@ namespace bp
 		// the page has a header of its own: the menu's tabs put away
 		ui.inMenu = false;
 		ui.ctxOpen = false;
-		ui.styleFromSubs = false;
+		ui.settingsPage->styleFromSubs = false;
 		ui.page = Page::Web;
 		ui.cursor = ui.scroll = 0;
 		ui.pressedBtn = -1;

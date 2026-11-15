@@ -17,6 +17,7 @@
 #include <qrcodegen.hpp>
 #endif
 #include "ui_internal.h"
+#include "ui_settings.h"
 #include "pagebook.h"
 #include <strings.h>
 #include "durations.h"
@@ -186,8 +187,8 @@ namespace bp
 		if (r[i].id == STYLE_ROW)
 		{
 			openMainMenu(p, TAB_SETTINGS);
-			openGroup(GROUP_SUBS);
-			styleFromSubs = true;
+			settingsPage->openGroup(GROUP_SUBS);
+			settingsPage->styleFromSubs = true;
 			return;
 		}
 		if (page == Page::UpNext)
@@ -249,7 +250,7 @@ namespace bp
 	void Ui::showTab(int tab, Player& p)
 	{
 		menuTab = tab;
-		styleFromSubs = false;
+		settingsPage->styleFromSubs = false;
 		cursor = scroll = 0;
 		switch (tab)
 		{
