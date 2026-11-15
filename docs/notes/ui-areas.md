@@ -492,3 +492,42 @@ the harness's state lines compared. `core-test` passes. Six scenarios, 130 shot 
 - A video paused behind: Tracks > Subtitle style... opens the Subtitles group (`styleFromSubs`), a row stepped, B back
   to the Tracks list on its last row, and Y/X away from the group, B to the player.
 - Music > Sound FX (A) and B back to its row, the Web dashboard tile (A) and B, X from the last group into the Web page.
+
+### Not verified (Settings)
+
+- The handheld and the Linux build (no Linux-only file changed). Settings' Updates group with a real updater (Check,
+  Update, its states): on the desktop the updater is off, so its rows were drawn but not driven. The Controls group's
+  brightness rows and `|bl` signature term (no backlight on the desktop; `BP_BACKLIGHT_DIR` was not used). The Manga
+  page's Clear cache and Extension support rows (the engine's download is never started in a test).
+
+## Playlists: stopped, not cut (2026-11-15)
+
+Not done, for the same kind of reason as Extensions was: there is no page to cut at, and the state is shared.
+
+1. **It is not a page.** A playlist's list and a playlist's items are `Page::Browse` with `browseDir` `PLROOT` or
+   `PLDIR` + its file (`isPlDir`), next to Home, Files, Network and Recent. `Area::has(Page)` and `Ui::area()` choose by
+   page, so an area cannot be asked "is this a playlist page"; and `Ui::press`/`pointer`/`draw` for Browse are
+   `ui_browse.cpp` (1,475 lines), where the playlist rows, the Edit mode's keys and the grip drags are interleaved
+   with the Files' and the tabs' (`plCur`, `plLoaded`, `plDrag`, `plSel`, `plMissing`: ~60 uses there, `ui_menus.cpp`,
+   `ui_draw.cpp`, `ui_home.cpp`).
+2. **Its rows are Browse's.** `plRows` fills `browseRows` from `plCur` and `plRefresh` keeps Browse's cursor and scroll,
+   so every playlist method reads or writes `browseRows`/`browseDir`/`browseTab` (31 places in `ui_playlists.cpp`
+   alone); the area would call `ui.` for most of its lines.
+3. **The select mode, the Add picker and the busy card serve more than playlists.** `selMode` (Edit, Add files, Pick a
+   folder) is also Files' and Network's way to tick files and add them, `pickerOpen` is opened from Main's Add square
+   (`ui.cpp`), the Playing tab, a Recent card, Files' Y menu and a folder's menu (`openAddOne`, `openPicker` from
+   `ui_menus.cpp`, `ui_browse.cpp`), `addPending` and `cancelAdd` are the long add's card, and `Ui::press`/`pointer`/
+   `tick`/`signature`/`animating` test `pickerOpen`, `selMode`, `plDrag` and `addPending` at six of their points as
+   overlays-before-the-page, which an area's one dispatch point does not model (the picker is drawn and keyed over any
+   page).
+4. **What must keep working crosses it:** `Ui::flushPlaylist` (main at quit and on a lid close, `SessionHost`, the
+   dashboard's routes), `plTellPlayer` -> `SessionHost::playlistEdited` (called from `plSaved`, `addTo`, the dashboard's
+   edits and `ui_menus.cpp`'s Remove), `plStore` (73 uses in 8 files and the dashboard's `api_playlists.cpp`,
+   `api_player.cpp`), `plOrder` (the dashboard's Now playing). Moving them is a rename of 100+ call sites with no page
+   dispatch to take out of `ui.h`; the gain would be about the 120 lines of members.
+
+The natural order is the one Extensions took: **Browse first** (one area for Home, Files, Playlists, Network, Recent
+and the drawer, which needs the late/early touch hooks and a dispatch by `browseDir`, not only by page), then Playlists as
+a plain owned struct inside it (as `PageReader` is), with the select mode and the picker as overlays (`Ui::Overlay`,
+docs/notes/overlay-stack.md) rather than flags: the picker is already a dialog, and the select mode's header and bar
+could be one. Nothing of that was started; `ui_playlists.cpp` and its members are unchanged.
