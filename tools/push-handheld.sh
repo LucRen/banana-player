@@ -4,7 +4,7 @@
 # the player is quit cleanly (SIGTERM, by its exact process name) and the folders swapped (the old one kept as
 # BananaPlayer.old). The owner reopens it from the shelf.
 #
-#   tools/push-handheld.sh [user@]host        (or BP_HANDHELD=root@192.168.1.34)
+#   tools/push-handheld.sh [user@]host        (or BP_HANDHELD=root@192.168.1.34; BP_PORTS_DIR=/run/sd2/roms/ports for a second card)
 set -euo pipefail
 HOST="${1:-${BP_HANDHELD:-}}"
 [ -n "$HOST" ] || { echo "usage: tools/push-handheld.sh root@<handheld address>" >&2; exit 2; }
@@ -13,7 +13,7 @@ HERE="$(cd "$(dirname "$0")/.." && pwd)"
 SRC="$HERE/dist/ports/BananaPlayer"
 [ -x "$SRC/bin/banana-player" ] || { echo "no bundle: run packaging/build-bundle.sh --quick first" >&2; exit 1; }
 SSH=(ssh -o BatchMode=yes -o ConnectTimeout=10 "$HOST")
-D=/data/roms/ports
+D="${BP_PORTS_DIR:-/data/roms/ports}"	# where the Ports shelf is: a second card is /run/sd2/roms/ports
 
 # what's installed: path and md5 of every file (BusyBox md5sum)
 remote=$("${SSH[@]}" "cd $D/BananaPlayer 2>/dev/null && find . -type f -exec md5sum {} + || true")
