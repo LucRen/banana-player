@@ -11,6 +11,7 @@
 #include "substyle.h"
 #include "tracks.h"
 #include "ui.h"
+#include "ui_sound.h"
 #include "session_host.h"
 #include "netpath.h"
 #include "webstate.h"
@@ -408,11 +409,11 @@ namespace bp
 			Settings s = p.settings;
 			if (s.eqGains == g && s.eqOn) return;
 			// the first edit of a preset: Custom, made from it (as a band moved on the handheld)
-			if (!u.eqCustom(p))
+			if (!u.sound->eqCustom(p))
 			{
 				s.eqOrigin = s.eqPreset;
 				s.eqPreset.clear();
-				u.stashOn = false;
+				u.sound->stashOn = false;
 			}
 			s.eqOn = true;
 			s.eqGains = g;
@@ -754,10 +755,10 @@ namespace bp
 						WebCall::setStatus(404);
 						return error("No preset called " + preset, "name");
 					}
-					u.eqPick(name, p);
+					u.sound->eqPick(name, p);
 				}
 				if (hasGains) WebPlayerGlue::eqGains(p, u, g);
-				if (hasOn && on != p.settings.eqOn) u.eqToggle(p);
+				if (hasOn && on != p.settings.eqOn) u.sound->eqToggle(p);
 				return WebPlayerGlue::eqJson(p);
 			}, 2000, status);
 			answer(res, body, status);
@@ -773,7 +774,7 @@ namespace bp
 			}
 			int status = 200;
 			std::string body = w->call([fx](Player& p, Ui& u) {
-				u.fxChoose((int)fx, p);
+				u.sound->fxChoose((int)fx, p);
 				return "{\"fx\":\"" + std::string(soundFxKey(fx)) + "\"}";
 			}, 2000, status);
 			answer(res, body, status);

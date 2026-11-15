@@ -18,6 +18,7 @@
 #endif
 #include "ui_internal.h"
 #include "ui_docs.h"
+#include "ui_sound.h"
 #include "durworker.h"
 
 namespace bp
@@ -80,6 +81,8 @@ namespace bp
 	{
 		docs = std::make_unique<Docs>(*this);
 		areas.push_back(docs.get());
+		sound = std::make_unique<Sound>(*this);
+		areas.push_back(sound.get());
 	}
 
 	Ui::Area* Ui::area() const
@@ -143,7 +146,7 @@ namespace bp
 		if (kbOpen)
 		{
 			kbPress(b);
-			if (eqNameSubmit) eqNameDone(p);
+			if (sound->eqNameSubmit) sound->nameDone(p);
 			if (plNameSubmit) plNameDone(p);
 			if (fileNameSubmit) fileRenameDone(p);
 			return false;
@@ -246,7 +249,6 @@ namespace bp
 		if (clipKey(b, p)) return false;
 		// an area's page (Files' document viewers): its own keys
 		if (Area* a = area()) return a->key(b, p);
-		if (page == Page::Sound) return soundKey(b, p);
 		if (page == Page::Web) return webKey(b, p);
 		if (page == Page::Playing) return playingKey(b, p);
 		// Manage extensions and the manga reader's pages: their own keys (the sheet over the first)
@@ -282,7 +284,7 @@ namespace bp
 			case Button::Left: if (setGroup >= 0 && rows[cursor] != SOUND_ROW) changeSetting(rows[cursor], -1, p); break;
 			case Button::Right: case Button::A:
 				if (setGroup < 0) openGroup(cursor);
-				else if (rows[cursor] == SOUND_ROW) { openSound(p, true); return false; }
+				else if (rows[cursor] == SOUND_ROW) { sound->open(p, true); return false; }
 				else changeSetting(rows[cursor], 1, p);
 				break;
 			// the mini bar's right end says SELECT: back to what plays (Settings has no SELECT of its own)
@@ -700,7 +702,7 @@ namespace bp
 		// a song's line under the buttons: the Sound page
 		if (page == Page::Main && p.playingAudio() && id == LINE1_BTN)
 		{
-			openSound(p, false);
+			sound->open(p, false);
 			return false;
 		}
 		// a video's lines and the chapter line: their tab of Tracks
@@ -786,7 +788,7 @@ namespace bp
 		if (kbOpen && panel.on())
 		{
 			kbPointer(pt, x, y);
-			if (eqNameSubmit) eqNameDone(p);
+			if (sound->eqNameSubmit) sound->nameDone(p);
 			if (plNameSubmit) plNameDone(p);
 			if (fileNameSubmit) fileRenameDone(p);
 			return false;
@@ -846,7 +848,7 @@ namespace bp
 			}
 			return false;
 		}
-		if (page == Page::Sound) return soundPointer(pt, x, y, p);
+		if (Area* a = area(); a && a->pointerFirst()) return a->pointer(pt, x, y, p);
 		if (page == Page::Web) return webPointer(pt, x, y, p);
 		// locked, over a video: Screen off goes through; a hold on the lock (draw() times it) releases it; nothing else
 		if (touchLocked && p.playing() && !p.playingPhoto() && page == Page::Main && pressedBtn != SCREEN_BTN)
@@ -927,7 +929,7 @@ namespace bp
 				// a setting: the left of its value (its arrow) steps back, the rest of the row on
 				int dir = touchX >= SET_ARROW_X - 12 && touchX < 490 ? -1 : 1;
 				if (groups) openGroup(cursor);
-				else if (set && page == Page::Settings && srows[cursor] == SOUND_ROW) openSound(p, true);	// a page, not a value
+				else if (set && page == Page::Settings && srows[cursor] == SOUND_ROW) sound->open(p, true);	// a page, not a value
 				else if (set) changeSetting(srows[cursor], dir, p);
 				else choose(cursor, p);
 			}
@@ -1215,14 +1217,9 @@ namespace bp
 			std::to_string(shownChapter(p)) + " t" + std::to_string(tracksTab);
 		// Up next: the list and the one playing (the Session's version moves with both)
 		if (page == Page::UpNext) photo += "|un" + std::to_string(SessionHost::get().version()) + " " + std::to_string((int)p.paths().size());
-		// Sound: its tab, the band, the effect under the cursor, its dialogs and the presets' list; the Display popup
-		if (page == Page::Sound || displayOpen)
-		{
-			char sb[160];
-			snprintf(sb, sizeof sb, "|snd%d %d %d %d %d %d %d %d %d %d %d", soundTab, fxCursor, eqBand, eqDialog, eqDlgCursor, eqListScroll,
-				displayShown(p) ? displayRow * 100 + displayPending + 1 : -1, p.eqPresetSerial(), p.playingAudio(), stashOn, (int)slideHeld(SL_EQ));
-			photo += sb;
-		}
+		// the Display popup over a song's page (the Sound page's own terms are its area's signature)
+		if (displayOpen)
+			photo += "|dsp" + std::to_string(displayShown(p) ? displayRow * 100 + displayPending + 1 : -1) + " " + std::to_string(p.playingAudio());
 		// the dots of "Loading..." go round
 		if (p.loading() || p.thumbPending()) photo += "|loading" + std::to_string(SDL_GetTicks() / 400 % 4);
 		// Playlists: the store, items found missing, a menu's title and line, a name refused
@@ -1359,6 +1356,6 @@ namespace bp
 			}
 		}
 		return buf + photo + overlaySignature(p) + "|me" + std::to_string((int)mangaErrOpen) + "|ld" + (loaderShown ? std::to_string(SDL_GetTicks() / 110) : std::string()) + "|xn" + extNoticeText() + "|" + p.title + "|" + p.error + "|" + serializeSettings(p.settings) + "|bat" + std::to_string(battery.percent) + (battery.charging ? "c" : "") + (inMenu ? "|menu" + std::to_string(menuTab) : "") + (ctxOpen ? "|ctx" + std::to_string(ctxCursor) + std::to_string(pressedBtn) + ctxStatus + (ctxArmed ? "!" : "") : "") + upd
-			+ (kbOpen ? "|kb" + eqNameNote + std::to_string(kbCursor) + "," + std::to_string(kbPressed) + "," + std::to_string((int)kbShift) + (kbSymbols ? "s" : "") + std::to_string(kbEdit.caret) + kbEdit.text + (kbCaretShown() ? "|" : "") : "");
+			+ (kbOpen ? "|kb" + sound->eqNameNote + std::to_string(kbCursor) + "," + std::to_string(kbPressed) + "," + std::to_string((int)kbShift) + (kbSymbols ? "s" : "") + std::to_string(kbEdit.caret) + kbEdit.text + (kbCaretShown() ? "|" : "") : "");
 	}
 }

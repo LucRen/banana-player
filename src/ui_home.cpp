@@ -17,6 +17,7 @@
 #include <qrcodegen.hpp>
 #endif
 #include "ui_internal.h"
+#include "ui_sound.h"
 #include "ui_docs.h"
 #include "pagebook.h"
 #include <strings.h>
@@ -727,7 +728,7 @@ namespace bp
 		if (page == Page::Browse)
 			return browseDir != FORMDIR && browseDir != FINDNET && !addPending.serial;
 		// the Sound page's dialogs (Options, presets, Delete) reach the panel's bottom
-		if (page == Page::Sound) return eqDialog == EQD_NONE;
+		if (page == Page::Sound) return !sound->dialogOpen();
 		if (page == Page::MangaRead)
 		{
 			// the pages grid and the Reading menu are sheets over the reader (the menu is a menu, as today); in

@@ -17,6 +17,7 @@
 #include <qrcodegen.hpp>
 #endif
 #include "ui_internal.h"
+#include "ui_sound.h"
 
 namespace bp
 {
@@ -240,7 +241,7 @@ namespace bp
 		if (id == LINE2_BTN) return {24, LINE2_Y - 12, 592, 24};
 		if (id == CHAPTER_BTN) return {24, CHAPTER_Y - 14, 592, 24};
 		// Sound's
-		if (id == SOUND_TAB0 || id == SOUND_TAB1) return soundTabRect(id - SOUND_TAB0);
+		if (id == SOUND_TAB0 || id == SOUND_TAB1) return sound->tabRect(id - SOUND_TAB0);
 		if (id == EQ_SWITCH) return {16, 70, 136, 52};
 		if (id == EQ_PREV) return {160, 70, 56, 52};
 		if (id == EQ_NEXT) return {568, 70, 56, 52};

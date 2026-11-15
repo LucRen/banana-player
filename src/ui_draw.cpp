@@ -457,7 +457,6 @@ namespace bp
 		else if (page == Page::Exit) drawExit(p);
 		else if (page == Page::Settings) drawSettings(p);
 		else if (page == Page::Chapters) drawChapters(p);
-		else if (page == Page::Sound) drawSound(p);
 		else if (page == Page::Playing) drawPlaying(p);
 		else if (page == Page::UpNext) drawUpNext(p);
 		else if (page == Page::Extensions) drawExtensions(p);
