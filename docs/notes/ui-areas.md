@@ -26,7 +26,7 @@ struct Area
 ```
 
 `Ui::area()` is the area whose page is shown (null: a page that is still `Ui`'s own). It is asked in six places, once
-each (seven since `pointerFirst`, below), and they name no area:
+each (seven since `pointerFirst`, eight since `pointerDownLate`, below), and they name no area:
 
 - `press`: `if (Area* a = area()) return a->key(b, p);` where the pages' own keys start, so everything global has
   had the key first (the dark panel, the overlays, the file job's card, quick settings, the keyboard, the Options
@@ -103,10 +103,9 @@ places, bookmarks, Find, the menus, the finger's state, the textures and the rec
   (`mangaListBegin/Pointer`);
 - the Brightness sheet's `openLight`, `lightNote`, `lightFilter` (all three readers), and `readFilterNow`.
 
-`Docs` uses them as `ui.readerStatus`, `ui.mangaPagesOpen(p)`… Splitting them now would have meant either two copies
-or a third struct invented before the Manga reader's own shape is known. When Manga becomes an area, these are the
-natural **`Ui::PageReader`** (the top reader's channel plus the grid, fullscreen and zoom), used by both `Docs` and
-the Manga area; until then the `ui.` prefixes in `ui_docs.cpp` on `reader*`/`manga*` names are the exact list.
+`Docs` used them as `ui.readerStatus`, `ui.mangaPagesOpen(p)`… Splitting them then would have meant either two copies
+or a third struct invented before the Manga reader's own shape was known. They became **`Ui::PageReader`** when Manga
+became an area (below, "PageReader and Manga").
 
 DocPages-only, so in `Docs`: `DocPan`/`docPan` and its texture (main fills it only for a document),
 `docPagesFilter`, the single page's grid of buttons and the strip view's row, the bar, the pad.
@@ -201,7 +200,7 @@ the eight runs of the new build after that all passed. bpcore is untouched by th
 - Rename/Move of an open or bookmarked document (`docs->pathMoved`), Recent's "Open from the start"
   (`docs->forgetPlace`) and the dashboard's places (`docs->placeOf`): the bodies are the old lines moved, not driven.
 
-## Sound and Web (the second and third areas), and Extensions (not done)
+## Sound and Web (the second and third areas), and Extensions (not done then)
 
 Same pattern, `ui.h` 2,601 → 2,550 (Sound) → 2,542 (Web). Two things the first area did not need:
 
@@ -242,9 +241,9 @@ Custom, the effect cursor, `closeSound`'s way back to Settings or Home. 56 lines
   page draws from state `webSig` and `Ui`'s own signature already cover. `Ui::openWeb()` stays as the one way in and
   forwards to `webPage->open()` (Home's menu, a settings group, the globe, the quick settings, the manga sources).
 
-### Extensions: stopped, left in `ui.h` (~30 lines)
+### Extensions: stopped then, done with Manga since (below, "PageReader and Manga")
 
-Not cut, because a clean split is not possible yet, for three reasons the code shows:
+Not cut alone, because a clean split was not possible, for three reasons the code shows:
 
 1. **The page is one of three that share its state.** `extSheet`, `extCursor`, `extPressed` and the touch ids serve
    Manage extensions (`Page::Extensions`), the Extensions **drawer** on Home (a pseudo-folder of `Page::Browse`:
@@ -296,22 +295,142 @@ nothing moves; `core-test` passes after each commit).
   playing while its list is open by the dashboard; the dashboard's `/api/eq` and `/api/fx` (they now go through
   `sound->`; the web smoke was not run).
 
+## PageReader and Manga (with Extensions): the fourth and fifth
+
+Two commits, `ui.h` 2,542 → 2,403 (PageReader) → 1,356 (Manga and Extensions; the manga headers' `#include`s went
+with it, so `ui.h` no longer pulls `javaext.h`, `manga*.h`, `pagecache.h`, `coverworker.h` into its 35 files).
+`ui_manga.h` is 1,099 lines, `ui_reader.h` 169.
+
+### PageReader (`src/ui_reader.h`, `src/ui_reader.cpp`): a plain struct, not an area
+
+`Ui::PageReader` is nested in `Ui` with a `Ui&` (as an area is) and owned by `Ui::pageReader`, but it is **not** an
+`Area`: it has no page of its own (`Page::DocPages` is `Docs`', `Page::MangaRead` is Manga's). Nothing in `press`,
+`pointer` or `renderPage` dispatches to it; the two areas call its views from theirs (the grid's keys, touches and
+drawing, fullscreen's drawing). It has no `signature()` either: what it draws was already in the two pages' terms
+(`Docs::signature` for DocPages; `|rs`, `|pg`, `|full` in Manga's for MangaRead), unchanged.
+
+- **Moved:** the channel (`MangaReadRequest`/`mangaRead`/`takeMangaRead`, `ReaderCmd`/`readerCmds`,
+  `ReaderStatus`/`readerStatus`, `ReaderBottom`, `ReaderThumbs`, `readerOpen`); the chapter shown
+  (`mangaReadSeriesId/ChapterId/ChapterTitle`: Docs clears the ids and names the document); the seek
+  (`mangaSliderPage`, `mangaSeek`); the zoom (`mangaZoomAsked/Step/Toggle/To`); Try again (`mangaRetry`,
+  `mangaRetryRect`, `drawMangaRetry`); fullscreen's pages (`FullTex`, `mfTex`, `mfGen`, `mfWaiting`, `mfTagUntil`,
+  `mfLastPage`, `drawMangaFull`, `mfFree`, and `readFilterNow`/`readDimNow`, which only it reads); the pages grid
+  (`mangaPages*`, `ThumbTex`, `mpTex`, `mpGen`, `mpMade`, `drawMangaPages`, `mangaPagesOpen/Close/Key/Pointer`,
+  `mpFree`, `MPG_*`, `mangaPageRect`); the dragged lists (`MangaListDrag`, `mlist`, `mangaListBegin/Pointer`,
+  `MG_LIST_SLOP`), which Docs' menus use too.
+- **Stayed `Ui`'s:** the Brightness sheet's `openLight`, `lightFilter`, `lightNote`: they are the `LightSheet`
+  overlay's and serve the text viewer as well, which is not a page reader.
+- **What it reaches outside itself**, besides `ui.`'s drawing: two things that are the Manga reader's, through
+  `ui.manga->`: `takeMangaRead` fills the request's Book and place from the store (`mangaBookFor`, `mangaWithinFor`),
+  and `drawMangaFull` times out and draws Manga's controls sheet, Book tag and first-time toast over the pages. They
+  were one function; the order (pages, tag, Try again, controls, toast) is kept by leaving it so.
+- **main** takes the channel as `ui.pageReader->takeMangaRead`, `->readerCmds`, `->readerStatus`, `->readerBottom`,
+  `->readerThumbs`; the types are `Ui::PageReader::ReaderCmd`… Docs uses `ui.pageReader->`.
+
+### Manga (`src/ui_manga.h`; `ui_ext.cpp`, `ui_manga*.cpp`): one area for extensions and what they host
+
+`has()`: `Extensions`, `Manga`, `MangaSeries`, `MangaRead`, `MangaSettings`, `MangaSources`. **One struct**, not one
+per page or per file: the switch, its sheet and the touch ids are shared by Manage extensions, the drawer and the
+app (above, "Extensions: stopped"); the app's tabs, a source's grid and series, a server's pages, the Downloads tab
+and the Download sheet share the store, the worker's jobs and serials, the covers and the finger (`mangaPressed`,
+`mangaView`: a source's page and a server's are views of `Page::Manga`, not pages). Splitting reader / browse+sources
+/ downloads / servers would have cut through all of those; the files stay split as they were.
+
+- **Moved:** everything `ui.h` had from "extensions (ui_ext.cpp)" to "the manga reader's settings" (~980 lines), and
+  the public part main and the dashboard use: `MangaFilterSession`, `mangaWithinFor`, `MangaWebChapter/Series`,
+  `mangaWebChapters`, `mangaWebDownload`, `mangaDlQueueChapters`, `mangaNet`, `mangaStorePublic`,
+  `mangaPageCacheRef`, `mangaCoverCacheRef`, `coverWorker`, `coversReady`.
+- **Stayed `Ui`'s:** `mangaOn` (Home's tile reads it), `stateDirPath` (the readers' places and the playlists use it
+  too), `drawLoader`/`loaderShown` (every page's loading mark; `Ui::animating`), `alert`, the keyboard's field numbers
+  (`SRC_URL_FIELD`…), Settings' row ids (`EXT_NOTE`, `MANGA_CLEAR_ROW`, `MANGA_JAVA_ROW`), and the page lists in
+  `Ui::repeats` and `press`'s L2/R2 rule.
+- **Every page's parts are the area's state, called by `Ui` where they were:** the browser-check dialog
+  (`manga->mangaErrOpen`, `drawMangaErr`), the extensions' notice pill (`drawExtNotice`, `extNoticeText` in the
+  signature), `mangaVideoGuard` and `mangaEngineWatch` in `tick`, the workers' answers while it's on
+  (`mangaBrowsePoll`, `mangaDlAskPump`, `mangaNotesTick`), the covers freed in `~Ui`, `act`'s `EXT_*` ids.
+- **Home's drawer** stays Browse's (`browseDir == EXTDIR`): `press` calls `manga->extDrawerKey`, `ui_browse.cpp`
+  `manga->drawExtensionsDrawer`, `pointer` `manga->extPointer` at its two places (the lift early, the down late, as
+  before), and `signature` adds `manga->extSignature()` when Browse is on it and the page isn't the area's (the area
+  adds the same term on its own pages, for `Extensions`/`Manga` or `browseDir == EXTDIR`, as the one old term did).
+- **Touch order: `Area::pointerDownLate()`** (new, default false). `Ui::pointer` asks `area()` where the readers' were
+  for every event but a late down, and again after "<" and the empty page's button for the late down. Manga answers
+  true on every page but the reader's (whose down always came early). `Manga::pointer` is the old sequence: a late
+  down goes to `extPointer` (Extensions, Manga), `mangaPointer` (MangaSeries, MangaSources) or the settings list
+  (MangaSettings); otherwise the reader's page to `mangaPointer`, a source grid's moves and lift to `mangaPointer`, a
+  lift on Extensions or Manga to `extPointer`, and false for the rest (the old `if (pt.kind != Down) return false`).
+  What lay between the two points for these pages was only "<" and the empty page's button (the menu's tabs and
+  Exit/Playing are other pages), so the order is the same.
+- **`Ui::settingsDown(x, y)`**: the Manga settings page's rows are Settings' list (`settingRows`/`changeSetting`/
+  `drawSettingRow`, `listTouch`); its down was the Settings block's in `pointer`. The block's lines became this
+  method, called by Settings and by `Manga::pointer`, at the same point of the order.
+- `key`: the five old lines, at the area's point (`Page::Playing`'s check, between, is another page). `draw`: the six
+  page draws. `signature`: the `|mg`/`|ms`/`|rs`/`|pg`/`|full` block, `|ext` on its pages and the Manga settings'
+  `|mc`/`|mj` moved from `Ui::signature` unchanged; `Ui` keeps `|me`, `|xn`, `|ld` (every page's).
+- `tick`: the three page ticks (`mangaTick` on the reader, `mangaSourcesTick`, `mangaDownloadsTick`) now run at the
+  area's point of `Ui::tick`, before `fileJobTick`, `rootsCheck`, `mangaEngineWatch` and the playlist's flush instead
+  of after them. None of those reads or writes what the three touch.
+- Names inside are unchanged: the diff is `ui.` in the area's files (placed by a script from the compiler's errors,
+  as before: 1,087), `manga->` in `Ui`'s files (84), `u.manga->` in `api_manga.cpp` (79), `ui.manga->` in main
+  (`mangaNet`, `coverWorker`, `coversReady`, `mangaPageCacheRef`). `ui_manga.h` is included by the area's 11 files,
+  main, `api_manga.cpp`, `ui_reader.cpp` and the 7 files of `Ui` that call into it (`ui.cpp`, `ui_draw.cpp`,
+  `ui_browse.cpp`, `ui_home.cpp`, `ui_settings.cpp`, `ui_forms.cpp`, `ui_fileops.cpp`).
+
+### Checked (PageReader, Manga)
+
+Desktop build (macOS, pdfium on) against a build of `main` (bbdc026), each commit, with the scripted harness: a fresh
+`--state-dir` per run (`settings.conf` with `manga-reader = yes`, touched to a fixed time), `BP_BROWSE` a generated
+library (a Manga folder with two series of CBZ chapters of numbered pages, `doc.txt`, `paper.pdf`), the network denied
+to the process (`sandbox-exec`, localhost only), both panels shot and compared byte for byte (the header's clock
+masked), and the harness's state lines compared. `core-test` passes after each commit.
+
+- **Scenarios** (keys and touch): the drawer and Manage extensions (the switch by its chip and its row, the
+  first-time sheet's Done, the empty drawer and its button, "<"); entering Manga (the engine's offer declined with B
+  or Down: never A); the four tabs by L/R and by taps; Browse's rows (On this handheld's list, Manage sources: the
+  Sources page, its Available/Repositories segments by R and by a tap, its Filter menu; Add server's form; Network
+  folders); Downloads and its drag; History; the Library's covers, a drag on the grid, a series' page and its rows;
+  the reader: fullscreen and back (SELECT, the button), the pages grid (Y, moved, A), the zoom (Up, A), the Reading
+  menu (START, rows stepped), the Brightness sheet (its button), the reading mode (X), a page (R), the next and the
+  previous chapter (R2/L2), the controls over fullscreen by a tap, a double tap's zoom; the Manga settings page (START
+  on the Library: rows stepped by keys, a tap, a drag); and Files' readers: `doc.txt` (Options, Bookmarks, Book mode),
+  `paper.pdf` (Options, Pages and its cursor, the next page, Vertical scroll, the bar held, fullscreen, closed and
+  opened again) and a CBZ from Files (the PDF/comic viewer, the Manga reader on: the grid, fullscreen, Options).
+- **PageReader commit**: 5 scenarios, 202 shots: identical but one top-panel shot (the text reader opened again at
+  its place, `d16`): `main` against itself gives the same difference (the place lands a frame early or late).
+- **Manga commit**: 7 scenarios, 294 shots, identical; the same `d16` pair again, and its bottom panel once ("0%" or
+  "1%" under the title, the same race). The final build after a header reorder: five of the scenarios again, the same.
+- `tools/web-smoke.sh` against the Manga commit's build, `api_manga.cpp` having changed (localhost, `BP_WEB_FORCE=1
+  BP_WEB_PIN=ACDE BP_WEB_PORT=8093`, a generated `Music/Yellow Album`): the reader on, 207 passed; off, 202 passed;
+  none failed. (Its seek and hand-off checks need songs longer than 30 s: a first run with 20 s ones failed those three.)
+
+### Not verified (PageReader, Manga)
+
+- **The manga engine (Java/Suwayomi)**: never started. It isn't on this machine's state, its download was declined
+  at every entry, and nothing was fetched: a Java source's page, the relink, the engine's check, the lighter
+  runtime's offer, the engine's notice pill, `mangaVideoGuard` with a video playing, all as the old lines moved.
+- **Anything that needs the network**: a repository's sources (none added), a source's grid and series, filters,
+  the Download sheet and a running download queue, a saved server (the form opened, nothing tested or saved), a
+  network folder (none saved), the dashboard's manga routes beyond what the smoke test asks, Find on the network.
+- Book mode (the handheld held sideways), a reader error's dialog (`mangaErrOpen`), History with entries, the
+  Library's options sheet and On this handheld's delete.
+- The handheld, and the Linux build: `ui.h`'s `#include`s changed (the manga headers moved to `ui_manga.h`; every
+  file compiles on macOS), but the arm64 Docker check installs its packages from the network, so it was not run.
+
 ## The other areas: order, and what `ui.h` loses
 
-`ui.h` is 2,542 lines now (2,608 when this table was drawn; Sound and Web are done, Extensions was stopped). Roughly what each area holds there (counted by its section or its members' prefixes):
+`ui.h` is 1,356 lines now (2,608 when this table was drawn; Sound, Web, PageReader and Manga with Extensions are done). Roughly what each area held there (counted by its section or its members' prefixes):
 
 | # | Area | Pages | In `ui.h` | Notes |
 |---|---|---|---|---|
 | 1 | **Sound** (`ui_sound.cpp`) (done) | `Sound` | ~50 | The easiest: one page, already dispatched beside the readers in `press` and `pointer`, its state only its own (`eq*`, `fx*`, the preset's name). The Display popup in the same file is not the page's: it becomes an overlay (it needs the stack's `alive()` hook) or stays. |
 | 2 | **Web** (`ui_web.cpp`) (done) | `Web` | ~20 | One page. The header's globe (`webInd`) is every page's: it stays `Ui`'s. |
-| 3 | **Extensions** (`ui_ext.cpp`) (stopped: see above) | `Extensions` | ~30 | Shares its state with the drawer on Home and the manga pages, and its touches are split across `Ui::pointer`: do it together with Manga. |
-| 4 | **Manga** (`ui_manga*.cpp`, 10 files) | `Manga`, `MangaSeries`, `MangaRead`, `MangaSettings`, `MangaSources` | ~1,100 | The big one: lines 1488–2525 and the public channel at 184–265. Not one struct: first **`PageReader`** (the top reader's channel, the pages grid, fullscreen, zoom: what `Docs` shares, see above), then **`MangaRead`** (the reader's page), then the library (`Manga`, `MangaSeries`), then Sources/Java/Servers/Downloads/Net folders, which are already a file each and mostly modal sheets: those go on the overlay stack first (overlay-stack.md, item 4), which empties much of their state before the area is cut. The dashboard's glue (`api_manga.cpp`) reads the store and the downloads through `Ui`: it needs the area's header, as `api_playlists.cpp` needed `ui_docs.h`. |
+| 3 | **Extensions** (`ui_ext.cpp`) (done, in Manga's area) | `Extensions` | ~30 | Shares its state with the drawer on Home and the manga pages, and its touches are split across `Ui::pointer`: done together with Manga (`Area::pointerDownLate`). |
+| 4 | **Manga** (`ui_manga*.cpp`, 10 files) (done: `ui_manga.h`, one area; `PageReader` first, `ui_reader.h`) | `Manga`, `MangaSeries`, `MangaRead`, `MangaSettings`, `MangaSources` | ~1,100 | Planned as several structs (`PageReader`, then `MangaRead`, the library, then Sources/Java/Servers/Downloads/Net folders after their sheets went on the overlay stack). Done as `PageReader` plus **one** `Manga` area: the pages share the store, the worker's jobs, the covers and the finger, and a source's and a server's pages are views of `Page::Manga`. Their modal sheets are still flags inside the area (overlay-stack.md, item 4, is still to do, now inside `ui_manga.h`). The dashboard's glue (`api_manga.cpp`) includes `ui_manga.h`. |
 | 5 | **Settings** (`ui_settings.cpp`) | `Settings` | ~60 | `settingRows`/`changeSetting`/`drawSettingRow` are shared with Manga's settings page and START's menu tab: the area exposes those; `inMenu`/`menuTab` stay `Ui`'s. After Manga, so the shared row drawing has one more user known. |
 | 6 | **Playlists** (`ui_playlists.cpp`) | (pseudo-folders of `Browse`) | ~90 | Not pages: `browseDir` `PLROOT`/`PLDIR`. `has()` can't tell by page, so this is a **helper struct** owned by the browser's area rather than an `Area`, or `has()` grows to "page and folder". The picker is an overlay first (overlay-stack.md, item 6). |
 | 7 | **Browse + Home + Files' operations** (`ui_browse.cpp`, `ui_home.cpp`, `ui_fileops.cpp`, `ui_forms.cpp`) | `Browse` | ~350 | The most entangled: the list, Home, the sections, the network form and found servers (pseudo-folders), the clip, the file job, the mini bar. Cut inside it by pseudo-folder (Home, the form) once Playlists has shown how. The mini bar and what plays behind (`bgPlay`, lines 2526 on) are every page's: `Ui`'s. |
 | 8 | **Player** (`ui_main.cpp`, `ui_menus.cpp`) | `Main`, `Tracks`, `Chapters`, `UpNext`, `Info`, `About`, `Exit`, `Playing` | ~400 | Last: `press` and `pointer` are mostly this area's special cases today (the hold to play here, predicted position, L2/R2, the photo's pan and flick, START's menu over any of them). What remains in `Ui::press` after the others have left **is** the player; it moves when that code is short enough to read as one area's `key()`. |
 
-Expected: after 1–3 `ui.h` is about 2,500; after Manga about 1,400; after Settings, Playlists and Browse about 900;
+Expected: after 1–3 `ui.h` is about 2,500; after Manga about 1,400 (it is 1,356); after Settings, Playlists and Browse about 900;
 with the player out, `ui.h` is the frame (pages, areas, overlays, sliders, drawing helpers, the mini bar, the
 keyboard, quick settings): 500–600 lines, and an edit inside any area recompiles that area's files.
 
@@ -321,6 +440,7 @@ column: the readers' 277 were placed by a script from that list, none by hand), 
 methods, and before/after screenshots of every page of the area.
 
 **An area's position in `press`/`pointer`** is where the readers' was. Sound, Web, Playing, Extensions and the Manga
-pages are dispatched in the lines right after it today, so they move there without a change of order; a page that is
+pages were dispatched in the lines right after it, so they moved there without a change of order (Manga's late downs
+with `pointerDownLate`); a page that is
 handled earlier in `press` today (Exit's dialog, Settings' B, the menu's tabs) must keep what runs before it, so
 check that page's special cases above the dispatch before moving it.

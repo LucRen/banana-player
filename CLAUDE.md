@@ -11,7 +11,7 @@ constraints this repo can't show), `docs/workflow.md` (harness, tests, bundle, r
 feature, control and setting: grep for yours; a new one gets its entry), `DEVELOPMENT.md` (detail, roadmap),
 `docs/notes/` (one note per investigation: read the one your brief names; an agent finishing one adds a note).
 `src/ui.h` is large: grep it, and work in the area's own header where there is one (`ui_docs.h`, `ui_sound.h`,
-`ui_web.h`).
+`ui_web.h`, `ui_manga.h`; the page reader Docs and Manga share: `ui_reader.h`).
 
 ## Commands
 
@@ -48,6 +48,9 @@ tools/make-sprite.py                                 # web/sprite.svg from the G
 - Books and documents: `pagebook.*` (a chapter in one file: CBZ, CBR via libarchive, PDF via pdfium, a comic EPUB),
   `epub.*`, `textdoc.*` (a TXT mapped, read only around the place shown), `textsource.*`, `textreader.*` (the text
   viewer on the top panel), `ui_docs.h` + `ui_docs.cpp` (Files' TXT/EPUB/PDF viewers: the area `Ui::Docs`).
+- Manga and extensions: `ui_manga.h` + `ui_manga*.cpp`, `ui_ext.cpp` (Manage extensions, Home's drawer, the Manga
+  pages: the area `Ui::Manga`); `ui_reader.h` + `ui_reader.cpp` (`Ui::PageReader`: the top panel's page reader's channel
+  and the views Docs and Manga share); `manga*.*` (store, sources, workers), `reader.*` (the top panel's MangaReader).
 - Network: `net*.cpp`, `netstore`, `networker`, `netstream`, `discovery`. Updater: `updater.*`, `update.cpp`.
   Durations: `durations.*`, `durprobe.*`, `durworker.*`.
 
