@@ -1,6 +1,7 @@
 #include "player.h"
 #include "filesave.h"
 #include "format.h"
+#include "levelcard.h"
 #include "webmedia.h"
 #include "logo.h"
 #include "pagedecode.h"
@@ -63,6 +64,8 @@ namespace bp
 	static const uint64_t EQ_REPLY = 1ull << 40;
 	// loadfile's answers (the playlist entry it made), plus the load's serial
 	static const uint64_t LOAD_REPLY = 1ull << 41;
+	// the level card's overlay-add and overlay-remove answers, plus its serial (between EQ_REPLY and LOAD_REPLY)
+	static const uint64_t LEVEL_REPLY = (1ull << 40) + (1ull << 32);
 	// the panels' shape (both are 4:3)
 	static const double PANEL_ASPECT = 4.0 / 3;
 	// the thumbnail's largest size: the pan area's on the Plus's 1024x768 panel
@@ -862,6 +865,11 @@ namespace bp
 								loadEntry = r->u.list->values[i].u.int64;
 					// (it starts after the answer, but as a safeguard)
 					if (loadEntry >= 0 && startedEntry == loadEntry) tracksMine = true;
+					break;
+				}
+				if (ev->reply_userdata > LEVEL_REPLY)
+				{
+					levelReplied(ev->reply_userdata - LEVEL_REPLY);
 					break;
 				}
 				if (ev->reply_userdata == EQ_REPLY)
@@ -1664,47 +1672,37 @@ namespace bp
 
 	void Player::showLevel(const std::string& label, int percent)
 	{
-		// an ASS card in the middle of a 960x720 canvas (the panel's 4:3; the title is at the top, subtitles at the
-		// bottom): a dark box, the label and percent, a bar in yellow on teal.
-		// ASS colours are &HBBGGRR&
-		// the volume past 100% (Max volume 120 or 150): the bar's whole is that top, a mark at 100, the part above it
-		// yellow, red past 120
-		bool vol = label == "Volume";
-		int top = vol ? std::max(100, settings.volumeMax) : 100;
-		percent = std::max(0, std::min(top, percent));
-		int fill = 260 * percent / top;
-		// with nothing playing, under the icon and the name rather than over them
-		int dy = playing() ? 0 : 250;
-		char ev[2048];
-		snprintf(ev, sizeof ev,
-			"{\\an7\\pos(330,%d)\\bord0\\shad0\\1c%s\\1a&H20&\\p1}%s{\\p0}\n"
-			"{\\an7\\pos(350,%d)\\bord0\\shad0\\fs30\\1c%s}%s  %d%%\n"
-			"{\\an7\\pos(350,%d)\\bord0\\shad0\\1c%s\\p1}%s{\\p0}\n"
-			"{\\an7\\pos(350,%d)\\bord0\\shad0\\1c%s\\p1}%s{\\p0}",
-			318 + dy, ass(TOP_CARD).c_str(), roundBox(300, 84, R_TOP_CARD).c_str(), 328 + dy, ass(TEXT).c_str(), label.c_str(), percent,
-			372 + dy, ass(TOP_TRACK).c_str(), roundBox(260, 12, R_TOP_BAR).c_str(), 372 + dy, ass(TOP_TITLE).c_str(),
-			roundBox(std::max(fill, 1), 12, R_TOP_BAR).c_str());
-		if (top > 100)
-		{
-			// the mark at 100, and the loud part's colour
-			int at = 260 * 100 / top;
-			char more[512];
-			snprintf(more, sizeof more, "\n{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c%s\\p1}m 0 0 l 3 0 3 20 0 20{\\p0}",
-				350 + at - 1, 368 + dy, ass(TEXT).c_str());
-			std::string e = ev;
-			e += more;
-			if (percent > 100)
-			{
-				snprintf(more, sizeof more, "\n{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c%s\\p1}%s{\\p0}", 350 + at, 372 + dy,
-					ass(percent > 120 ? DANGER : ACCENT).c_str(), roundBox(std::max(fill - at, 1), 12, R_TOP_BAR).c_str());
-				e += more;
-			}
-			const char* cmd2[] = {"osd-overlay", "2", "ass-events", e.c_str(), "960", "720", "10", "no", "no", nullptr};
-			mpv_command_async(mpv, 0, cmd2);
-			return;
-		}
-		const char* cmd[] = {"osd-overlay", "2", "ass-events", ev, "960", "720", "10", "no", "no", nullptr};
-		mpv_command_async(mpv, 0, cmd);
+		// the one level card (levelcard.h: the readers show the same picture over their pages), as an mpv image
+		// overlay at the panel's own pixels: in the middle over what plays, lower with nothing playing (under the
+		// icon and the name)
+		const int pw = topW > 0 ? topW : 960, ph = topH > 0 ? topH : 720;
+		LevelCardImage card = drawLevelCard(opts.fontsDir, ph, label, percent, levelTop(label, settings.volumeMax));
+		if (!card.ok()) return;
+		// it takes the place of a chapter, equalizer or note card (they share the spot)
+		const char* none[] = {"osd-overlay", "2", "none", "", nullptr};
+		mpv_command_async(mpv, 0, none);
+		// overlay-add reads premultiplied BGRA from our memory ("&" and its address) when the command runs, which
+		// is later (async: never a wait on mpv here): the pixels are kept till its answer, and the ones shown till
+		// the card is replaced or removed
+		auto px = std::make_shared<std::vector<uint8_t>>(premultipliedBgra(card));
+		uint64_t serial = ++levelSerial;
+		levelPixels[serial] = px;
+		levelShownSerial = serial;
+		int x = (pw - card.w) / 2, y = (int)std::lround(ph * levelCardMiddle(playing()) - card.h / 2.0);
+		std::string id = std::to_string(LEVEL_OVERLAY), xs = std::to_string(x), ys = std::to_string(y),
+			src = "&" + std::to_string((uintptr_t)px->data()), ws = std::to_string(card.w), hs = std::to_string(card.h),
+			st = std::to_string(card.w * 4);
+		const char* add[] = {"overlay-add", id.c_str(), xs.c_str(), ys.c_str(), src.c_str(), "0", "bgra", ws.c_str(), hs.c_str(),
+			st.c_str(), nullptr};
+		mpv_command_async(mpv, LEVEL_REPLY + serial, add);
+	}
+
+	void Player::levelReplied(uint64_t serial)
+	{
+		// the core has run every command up to this one: the pixels of earlier cards aren't read any more (the one
+		// shown is kept: it may be read again till it's replaced or removed)
+		for (auto it = levelPixels.begin(); it != levelPixels.end() && it->first <= serial;)
+			it = it->first == levelShownSerial ? std::next(it) : levelPixels.erase(it);
 	}
 
 	void Player::showIdle(bool on)
@@ -1992,6 +1990,7 @@ namespace bp
 			ev += "{\\an7\\pos(208,398)\\bord0\\shad0\\1c" + ass(TOP_TRACK) + "\\p1}" + teal + "{\\p0}\n";
 			ev += "{\\an7\\pos(208,398)\\bord0\\shad0\\1c" + ass(TOP_TITLE) + "\\p1}" + yellow + "{\\p0}";
 		}
+		dropLevelCard();	// (the spot is this card's now)
 		const char* cmd[] = {"osd-overlay", "2", "ass-events", ev.c_str(), "960", "720", "10", "no", "no", nullptr};
 		mpv_command_async(mpv, 0, cmd);
 		cardMs = 2000;
@@ -2028,6 +2027,7 @@ namespace bp
 				334 + 30 * i, g > 0 ? 392 + dy - h : 394 + dy, ass(on ? TOP_TITLE : TOP_SUB).c_str(), h, h);
 			ev += e;
 		}
+		dropLevelCard();	// (the spot is this card's now)
 		const char* cmd[] = {"osd-overlay", "2", "ass-events", ev.c_str(), "960", "720", "10", "no", "no", nullptr};
 		mpv_command_async(mpv, 0, cmd);
 		cardMs = 1500;
@@ -2061,6 +2061,7 @@ namespace bp
 		ev += e + cardText(line1, 30) + "\n";
 		snprintf(e, sizeof e, "{\\an4\\pos(382,%d)\\bord0\\shad0\\fnInter\\fs22\\q2\\clip(280,%d,668,%d)\\1c%s}", 384 + dy, 300 + dy, 424 + dy, ass(TOP_SUB).c_str());
 		ev += e + cardText(line2, 30);
+		dropLevelCard();	// (the spot is this card's now)
 		const char* cmd[] = {"osd-overlay", "2", "ass-events", ev.c_str(), "960", "720", "10", "no", "no", nullptr};
 		mpv_command_async(mpv, 0, cmd);
 		cardMs = 1500;
@@ -2070,6 +2071,18 @@ namespace bp
 	{
 		const char* cmd[] = {"osd-overlay", "2", "none", "", nullptr};
 		mpv_command_async(mpv, 0, cmd);
+		dropLevelCard();
+	}
+
+	void Player::dropLevelCard()
+	{
+		if (!levelShownSerial) return;
+		std::string id = std::to_string(LEVEL_OVERLAY);
+		const char* rm[] = {"overlay-remove", id.c_str(), nullptr};
+		// (its pixels go with this command's answer: an add still queued before it may read them)
+		uint64_t serial = ++levelSerial;
+		levelShownSerial = 0;
+		mpv_command_async(mpv, LEVEL_REPLY + serial, rm);
 	}
 
 	void Player::osd(const std::string& text, int ms)

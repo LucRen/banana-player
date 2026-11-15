@@ -11,6 +11,7 @@
 #include "png.h"
 #include "sleepwatch.h"
 #include "levelwatch.h"
+#include "levelcard.h"
 #include "ampwatch.h"
 #include "touch.h"
 #include "reader_proto.h"
@@ -596,14 +597,16 @@ int main(int argc, char** argv)
 		bool running = true;
 		// the videos beside it are the playlist; with no file, the browser first
 		ui.browserMode = browserMode;
+		{
+			// the top panel's pixels: the idle icon and the level card are drawn at that size, whole pixels
+			int tw = 0, th = 0;
+			SDL_GL_GetDrawableSize(top, &tw, &th);
+			player.setTopSize(tw, th);
+			photos.setTopSize(tw, th);
+		}
 		if (browserMode)
 		{
 			ui.startBrowser(player, startFolder);
-			{
-				int tw = 0, th = 0;
-				SDL_GL_GetDrawableSize(top, &tw, &th);
-				player.setTopSize(tw, th);	// (the idle icon in whole panel pixels)
-			}
 			player.showIdle(true);
 			player.wakeOutput();
 		}
@@ -728,6 +731,29 @@ int main(int argc, char** argv)
 		const Uint32 evReader = SDL_RegisterEvents(1);	// a page decoded: the loop wakes and takes it
 		// a reader open, its pages on the top panel; not while the player's own pages show (they show what plays)
 		auto readerOnTop = [&] { return (reader.isOpen() || textReader.isOpen()) && !ui.topShowsPlayer(); };
+		// The level card (levelcard.h: one picture, the same on every screen) on whatever the top panel shows: mpv's
+		// (what plays, a photo, the idle screen), and over a reader's pages when a reader draws the panel (mpv's
+		// would be under them). Every volume, brightness and zoom card comes through here. percent < 0: the label
+		// alone (the reader's zoom), on the reader only
+		auto showLevelCard = [&](const std::string& label, int percent, int ms) {
+			bool bar = percent >= 0;
+			if (bar) shown().showLevel(label, percent);
+			if (haveUi && readerOnTop())
+			{
+				int tw = 0, th = 0;
+				SDL_GL_GetDrawableSize(top, &tw, &th);
+				LevelCardImage c = drawLevelCard(opts.fontsDir, th, label, percent, bar ? levelTop(label, player.settings.volumeMax) : 0);
+				SDL_GL_MakeCurrent(top, gl);
+				// (a reader's page isn't something playing: the card sits low, clear of the text being read)
+				float mid = levelCardMiddle(false);
+				int64_t until = (int64_t)SDL_GetTicks() + ms;
+				if (c.ok() && reader.isOpen()) reader.showOverlay(c.rgba, c.w, c.h, mid, until);
+				else if (c.ok()) textReader.showOverlay(c.rgba, c.w, c.h, mid, until);
+			}
+			if (!bar) return;
+			levelUntil = SDL_GetTicks() + ms;
+			renderPending = true;
+		};
 		auto drainUnder = [&] {
 			if ((!photos.playing() && !readerOnTop()) || !player.playing() || !player.frameDue()) return;
 			SDL_GL_MakeCurrent(top, gl);
@@ -906,9 +932,7 @@ int main(int argc, char** argv)
 						webServer->notify("volume", "{\"tab\":\"" + ss.out.tab + "\",\"v\":" + std::to_string(bv) + "}");
 						if (!(SDL_GetTicks() < browserVolUntil)) handheldVolKept = ui.volumeLevel();
 						browserVolUntil = SDL_GetTicks() + 1500;
-						shown().showLevel("Browser volume", bv);
-						levelUntil = SDL_GetTicks() + 1500;
-						renderPending = true;
+						showLevelCard("Browser volume", bv, 1500);
 						fprintf(stderr, "level: the browser's volume %d (its tab told; the handheld's kept at %d)\n", bv, handheldVolKept);
 						volKey = false;
 					}
@@ -1023,22 +1047,11 @@ int main(int argc, char** argv)
 						int heard = SDL_GetTicks() < volumeOverrideUntil ? volumeOverride : player.boost;
 						if (heard >= 100) e.user.code = heard;
 					}
-					shown().showLevel(*what == "brightness" ? "Brightness" : "Volume", e.user.code);
-					// the manga reader draws the top panel itself: mpv's card would be under its pages, so the card
-					// goes over them as a picture of its own
-					if (reader.isOpen() && readerOnTop() && haveUi)
-					{
-						int cw = 0, ch = 0;
-						auto card = ui.levelCard(*what == "brightness" ? "Brightness" : "Volume", e.user.code, cw, ch);
-						SDL_GL_MakeCurrent(top, gl);
-						reader.showOverlay(card, cw, ch, (int64_t)SDL_GetTicks() + 1500);
-					}
+					showLevelCard(*what == "brightness" ? "Brightness" : "Volume", e.user.code, 1500);
 					if (haveUi) ui.levelChanged(*what, e.user.code);	// the quick settings' bar follows the keys
 					fprintf(stderr, "level: %s %d (at %u ms)\n", what->c_str(), e.user.code, SDL_GetTicks());
 					logNextTop = true;
 					if (fHeld) fCombo = true;	// F + volume: bananad's brightness
-					levelUntil = SDL_GetTicks() + 1500;
-					renderPending = true;
 					delete what;
 				}
 				else if (e.type == evNet) ui.netListed((NetListing*)e.user.data1, player);
@@ -1170,10 +1183,10 @@ int main(int argc, char** argv)
 				ui.showPlayer();
 				renderPending = true;
 			}
-			if (int ms = ui.takeLevelShown())
 			{
-				levelUntil = SDL_GetTicks() + ms;
-				renderPending = true;
+				std::string label;
+				int pct = 0;
+				if (int ms = ui.takeLevelShown(label, pct)) showLevelCard(label, pct, ms);
 			}
 			if (updateCheckAt && SDL_GetTicks() >= updateCheckAt)
 			{
@@ -1843,10 +1856,7 @@ int main(int argc, char** argv)
 					// a zoom changed (keys, the menu, a double-tap): its percent on the pages a moment, fading out
 					if (reader.zoomPct() != ui.pageReader->readerStatus.zoomPct && reader.chapterGen() == zoomShownGen && haveUi)
 					{
-						int cw = 0, ch = 0;
-						auto card = ui.levelCard(std::to_string(reader.zoomPct()) + "%", -1, cw, ch);
-						SDL_GL_MakeCurrent(top, gl);
-						reader.showOverlay(card, cw, ch, (int64_t)SDL_GetTicks() + 1200);
+						showLevelCard(std::to_string(reader.zoomPct()) + "%", -1, 1200);
 					}
 					zoomShownGen = reader.chapterGen();
 					ui.pageReader->readerStatus.zoomPct = reader.zoomPct();

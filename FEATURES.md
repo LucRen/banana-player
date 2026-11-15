@@ -1250,7 +1250,10 @@ combination instead.)
   the file's tags.
 - **Battery:** an icon on the bottom screen, red when it's low, with a bolt while charging (and its percent, if you
   turn that on in Settings).
-- **Volume and brightness:** the keys show a level card on the top screen.
+- **Volume and brightness:** the keys show a level card on the top screen, the same card on every screen (a video,
+  music, a photo, nothing playing, the manga reader, a document): in the middle over what plays, lower otherwise.
+  With Max volume at 120 or 150 its bar runs to that top, with a mark at 100 and the part above it yellow (red past
+  120). The manga reader's zoom shows its percent in the same card.
 - **Loading:** a file that takes a moment to open (a big photo, a slow card) shows a spinner on the top screen.
 - **Lock:** locks the touch screen while playing; Screen off still works. Hold the lock for a second to unlock.
 - **Screen off:** turns the bottom screen off to save battery. While the player is showing, the playback buttons

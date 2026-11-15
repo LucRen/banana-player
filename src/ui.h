@@ -215,8 +215,9 @@ namespace bp
 		bool webPageShown() const { return page == Page::Web; }
 		// a folder changed from the web (an upload, a delete): listed again if the browser shows it
 		void folderChanged(const std::string& dir, Player& p);
-		// the volume card shown by a change from the web: how long main keeps it up (as takeCardShown), once
-		int takeLevelShown() { int ms = levelMs; levelMs = 0; return ms; }
+		// a volume change made here (the web's, the quick settings'): how long main shows the level card (as
+		// takeCardShown), once, with its label and percent; main puts it on whatever the top panel shows
+		int takeLevelShown(std::string& label, int& percent) { int ms = levelMs; levelMs = 0; label = levelLabel; percent = levelPct; return ms; }
 		// the web's Stop: main closes what plays (back to the browser), once
 		bool takeStopRequest() { bool r = stopRequest; stopRequest = false; return r; }
 		// the handheld's volume, percent (-1 unknown): read once, then followed (bananad's keys, the quick settings, the web)
@@ -253,10 +254,6 @@ namespace bp
 		// how this page can take a page's playback back, for the top panel's card: 1 hold A (the player), 2 elsewhere
 		// (A does something else there: the card says the player can)
 		int takeOverHint(const Player& p) const;
-		// the top panel's level card (Volume / Brightness, as Player::showLevel has mpv draw it) as RGBA pixels, at the
-		// panels' scale: for a top panel mpv doesn't draw (the manga reader's pages)
-		// percent < 0: a small card of the label alone, without the bar (the reader's zoom)
-		std::shared_ptr<const std::vector<uint8_t>> levelCard(const std::string& label, int percent, int& w, int& h);
 		std::string outputName() const;	// where it plays now: "Handheld", or the page's name ("Chrome on Mac")
 		std::string pageName() const;	// the output page's name, as it gave it ("Browser" unknown)
 		// while a page plays the file, the paused copy here stays where it was (no seek per report: that decodes a frame):
@@ -967,6 +964,8 @@ namespace bp
 		bool webIndicatorShown(const Player& p) const;
 		std::string webSig(const Player& p) const;	// for signature()
 		int levelMs = 0;
+		std::string levelLabel;
+		int levelPct = 0;
 		bool stopRequest = false;
 
 		// ---- every page's loading mark and message dialog (the Manga pages use them most; the area is ui_manga.h) ----

@@ -9,6 +9,7 @@
 #include <mpv/client.h>
 #include <mpv/render_gl.h>
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -179,7 +180,8 @@ namespace bp
 		// under it a dim one (the title it was for). 1.5 s, see takeCardShown
 		void showNoteCard(const char* const* rows, int h, const char* ink, const std::string& line1, const std::string& line2);
 		void osd(const std::string& text, int ms = 1500);
-		// the volume/brightness card over the top panel ("Volume", 85), till hideLevel
+		// the level card over the top panel ("Volume", 85; levelcard.h's picture as an mpv image overlay), till
+		// hideLevel. The bar's top is the Max volume setting for "Volume", 100 for the rest
 		void showLevel(const std::string& label, int percent);
 		void hideLevel();
 
@@ -340,6 +342,13 @@ namespace bp
 		void refreshTracks(mpv_node* trackList);
 		void clearChapters();
 		int cardMs = 0;
+		// the level card's pixels by the serial of the command that took them: mpv reads them when the command runs
+		// (and again while shown), so they live till its answer, the shown one till it's replaced or removed
+		static constexpr int LEVEL_OVERLAY = 1;	// (overlay-add's id: the idle icon has 0)
+		std::map<uint64_t, std::shared_ptr<std::vector<uint8_t>>> levelPixels;
+		uint64_t levelSerial = 0, levelShownSerial = 0;
+		void levelReplied(uint64_t serial);
+		void dropLevelCard();	// the level card's overlay removed (another card takes its spot, or its time is up)
 		bool pendingOn = false;		// a chapter jump made, mpv's answer not in yet
 		int pendingChapter = -1;
 		uint64_t pendingAt = 0;

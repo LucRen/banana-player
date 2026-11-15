@@ -3,6 +3,7 @@
 // the top window's own context (the one mpv draws with), placed by a Strip. Main thread only; it loads its GL calls
 // at runtime as main.cpp does (no GL headers), and leaves the context as mpv expects it after each draw.
 #include "strip.h"
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
@@ -31,7 +32,9 @@ namespace bp
 		bool draw(const Strip& strip, int w, int h);
 		// the same for any layout: each page's rectangle in view pixels (the paged modes)
 		// spin: a page still on its way (not one that failed): its grey place shows a ring of dots turning
-		struct Placed { int page; float x, y, w, h; bool spin = false; bool blend = false; float alpha = 1; };	// blend: a card over the pages (alpha: its fade)
+		// blend: a card over the pages (alpha: its fade); plain: drawn as it is, not through the reading filter's tint
+		// (the level card looks the same on every screen)
+		struct Placed { int page; float x, y, w, h; bool spin = false; bool blend = false; float alpha = 1; bool plain = false; };
 		bool draw(const std::vector<Placed>& placed, int w, int h);
 		size_t textureBytes() const { return bytes; }
 		// every pixel times this colour (a reading filter: warm, dim); 1,1,1 is none
@@ -85,5 +88,50 @@ namespace bp
 		std::deque<Page> pages;
 		size_t bytes = 0;
 		std::vector<unsigned> dead;	// textures to delete at the next draw, in the top window's context
+	};
+
+	// A card over a renderer's pages for a while (the level card, levelcard.h: the manga and text readers draw the top
+	// panel themselves, so mpv's card would be under them), fading out over its last moments. The reader that holds
+	// it keeps KEY among its textures while it's up
+	struct CardOverlay
+	{
+		static constexpr int KEY = 0x7ffffff0;	// its texture among the pages' (no page, band or row has it)
+		static constexpr int FADE_MS = 400;
+		int w = 0, h = 0;
+		float middle = 0.5f;	// its middle, as a fraction of the panel's height
+		int64_t until = 0;
+		bool drawn = false;	// the last draw showed it
+		void show(PageRenderer& pr, std::shared_ptr<const std::vector<uint8_t>> rgba, int cw, int ch, float mid, int64_t untilMs)
+		{
+			if (!rgba || cw <= 0 || ch <= 0) return;
+			w = cw;
+			h = ch;
+			middle = mid;
+			until = untilMs;
+			pr.addPage(KEY, cw, ch, std::move(rgba));
+		}
+		bool up() const { return until != 0; }
+		// a pass of the loop: true when the panel needs a frame (it went up, it fades, or it's just down: then
+		// `ended` is set, for the reader to let its texture go)
+		bool frame(int64_t now, bool& ended)
+		{
+			ended = false;
+			if (!until || (drawn && now < until - FADE_MS)) return false;
+			if (now >= until)
+			{
+				until = 0;
+				ended = true;
+			}
+			return true;
+		}
+		// placed over the rest, at whole pixels (the picture is drawn at the panel's size: 1:1, sharp)
+		void place(const PageRenderer& pr, std::vector<PageRenderer::Placed>& placed, int vw, int vh, int64_t now)
+		{
+			drawn = until && now < until && pr.has(KEY);
+			if (!drawn) return;
+			float a = std::min(1.f, std::max(0.f, (float)(until - now) / FADE_MS));
+			float x = (float)((vw - w) / 2), y = (float)(int)(vh * middle - h / 2.f + 0.5f);
+			placed.push_back({KEY, x, y, (float)w, (float)h, false, true, a, true});
+		}
 	};
 }

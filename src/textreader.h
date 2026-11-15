@@ -93,6 +93,9 @@ namespace bp
 		void draw(int w, int h);
 		bool busy() const { return flingV != 0 || glideLeft != 0 || forceFrames > 0; }
 		void redrawSoon(int n = 3) { forceFrames = std::max(forceFrames, n); }
+		// a card over the text (the level card, levelcard.h: the volume or brightness while reading), RGBA, until
+		// untilMs; its middle at `middle` of the panel's height. The manga reader's own, the same way
+		void showOverlay(std::shared_ptr<const std::vector<uint8_t>> rgba, int w, int h, float middle, int64_t untilMs);
 
 		// where it is: the top block (kept as the file's place) and how far through (0..1); at the end; the
 		// source's own (the contents, the encoding, the title)
@@ -162,6 +165,9 @@ namespace bp
 		int64_t lastMs = 0;
 		int forceFrames = 0;
 		static constexpr int BG_KEY = 0;
+		CardOverlay card;	// the level card over the text
+		void placeCard(std::vector<PageRenderer::Placed>& placed, std::set<int>& shown, int w, int h);
+		int64_t cardNow = 0;	// frame()'s clock, for draw's fade
 		// Book
 		int bookHold = 0;
 		Pos spread;	// the first row of the left page

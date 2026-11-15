@@ -59,6 +59,7 @@ namespace bp
 		F(void, Disable, unsigned)
 		F(void, Enable, unsigned)
 		F(void, BlendFunc, unsigned, unsigned)
+		F(void, BlendFuncSeparate, unsigned, unsigned, unsigned, unsigned)
 		F(void, GetIntegerv, unsigned, int*)
 		F(unsigned, GetError)
 		F(void, BindFramebuffer, unsigned, unsigned)
@@ -120,6 +121,7 @@ namespace bp
 		load(gl->Disable, "glDisable");
 		load(gl->Enable, "glEnable");
 		load(gl->BlendFunc, "glBlendFunc");
+		load(gl->BlendFuncSeparate, "glBlendFuncSeparate", false);
 		load(gl->GetIntegerv, "glGetIntegerv");
 		load(gl->BindFramebuffer, "glBindFramebuffer");
 		load(gl->GenVertexArrays, "glGenVertexArrays", !gles);
@@ -432,8 +434,12 @@ namespace bp
 			if (pl.blend && gl->Enable && gl->BlendFunc)
 			{
 				gl->Enable(BLEND);
-				gl->BlendFunc(0x0302 /* GL_SRC_ALPHA */, 0x0303 /* GL_ONE_MINUS_SRC_ALPHA */);
-				if (pl.alpha < 1) gl->Uniform4f(uTint, tint[0], tint[1], tint[2], std::max(0.f, pl.alpha));
+				// the colour blended; the panel's alpha left whole (a card's own alpha written into it would show the
+				// panel see-through wherever its pixels are taken as they are: a shot, a compositor)
+				if (gl->BlendFuncSeparate) gl->BlendFuncSeparate(0x0302 /* GL_SRC_ALPHA */, 0x0303 /* GL_ONE_MINUS_SRC_ALPHA */, 0 /* GL_ZERO */, 1 /* GL_ONE */);
+				else gl->BlendFunc(0x0302 /* GL_SRC_ALPHA */, 0x0303 /* GL_ONE_MINUS_SRC_ALPHA */);
+				if (pl.plain) gl->Uniform4f(uTint, 1, 1, 1, std::max(0.f, pl.alpha));
+				else if (pl.alpha < 1) gl->Uniform4f(uTint, tint[0], tint[1], tint[2], std::max(0.f, pl.alpha));
 			}
 			for (auto& t : p->tiles)
 			{

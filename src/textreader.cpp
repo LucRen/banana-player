@@ -355,6 +355,7 @@ namespace bp
 	void TextReader::close()
 	{
 		src.reset();
+		card = CardOverlay{};
 		cache.clear();
 		cacheOrder.clear();
 		keys.clear();
@@ -501,6 +502,10 @@ namespace bp
 	bool TextReader::frame(int64_t now)
 	{
 		if (!src) return false;
+		// the level card: up, fading, or just down (one frame more without it: draw lets its texture go)
+		cardNow = now;
+		bool ended = false;
+		bool cardNeed = card.frame(now, ended);
 		if (bookHold && spreadDirty && viewW > 0)
 		{
 			buildSpread();
@@ -536,7 +541,7 @@ namespace bp
 			scrollBy(step);
 			moved = true;
 		}
-		bool need = moved || forceFrames > 0;
+		bool need = moved || forceFrames > 0 || cardNeed;
 		return need;
 	}
 
@@ -659,6 +664,20 @@ namespace bp
 		return px;
 	}
 
+	void TextReader::showOverlay(std::shared_ptr<const std::vector<uint8_t>> rgba, int w, int h, float middle, int64_t untilMs)
+	{
+		if (!src) return;
+		card.show(pr, std::move(rgba), w, h, middle, untilMs);
+		redrawSoon(2);	// (a card replaced while one is fully up: frame() alone wouldn't ask)
+	}
+
+	void TextReader::placeCard(std::vector<PageRenderer::Placed>& placed, std::set<int>& shown, int w, int h)
+	{
+		// (its texture kept while it's up, even before it's on the GPU: keepOnly would drop it)
+		if (card.up()) shown.insert(CardOverlay::KEY);
+		card.place(pr, placed, w, h, cardNow);
+	}
+
 	void TextReader::draw(int w, int h)
 	{
 		if (!src) return;
@@ -712,6 +731,7 @@ namespace bp
 			}
 			else if (topKey >= 0) at(topKey, 1);
 			keys.clear();
+			placeCard(placed, shown, w, h);
 			pr.keepOnly(shown);
 			pr.draw(placed, w, h);
 			if (forceFrames > 0) forceFrames--;
@@ -737,6 +757,7 @@ namespace bp
 		}
 		// the rows gone from view are let go (they're quick to draw again)
 		keys = std::move(keep);
+		placeCard(placed, shown, w, h);
 		pr.keepOnly(shown);
 		pr.draw(placed, w, h);
 		if (forceFrames > 0) forceFrames--;
@@ -902,7 +923,7 @@ namespace bp
 		// a turn: the spread before it stays, to fold away as the new one comes (a jump, a restyle, the fold off: no turn)
 		if (pendingTurn && fold && topKey >= 0 && bottomPx)
 		{
-			if (topOldKey >= 0 && topOldKey != topKey) pr.keepOnly({BG_KEY, topKey});
+			if (topOldKey >= 0 && topOldKey != topKey) pr.keepOnly({BG_KEY, topKey, CardOverlay::KEY});	// (the level card, if up, stays)
 			topOldKey = topKey;
 			bottomOld = bottomPx;
 			turnWay = pendingTurn;

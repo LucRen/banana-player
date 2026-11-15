@@ -1065,7 +1065,8 @@ namespace bp
 		if ((force || volumePct != sys) && volume.present()) volume.set(sys);
 		volumePct = sys;
 		p.setBoost(v > 100 ? v : 100);
-		p.showLevel("Volume", v);
+		levelLabel = "Volume";	// (main shows it: on mpv's top panel or over a reader's pages)
+		levelPct = v;
 		levelMs = 1500;
 		if (v > 120 && !loudWarned)
 		{
