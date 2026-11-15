@@ -26,7 +26,7 @@ struct Area
 ```
 
 `Ui::area()` is the area whose page is shown (null: a page that is still `Ui`'s own). It is asked in six places, once
-each, and they name no area:
+each (seven since `pointerFirst`, below), and they name no area:
 
 - `press`: `if (Area* a = area()) return a->key(b, p);` where the pages' own keys start, so everything global has
   had the key first (the dark panel, the overlays, the file job's card, quick settings, the keyboard, the Options
@@ -201,15 +201,110 @@ the eight runs of the new build after that all passed. bpcore is untouched by th
 - Rename/Move of an open or bookmarked document (`docs->pathMoved`), Recent's "Open from the start"
   (`docs->forgetPlace`) and the dashboard's places (`docs->placeOf`): the bodies are the old lines moved, not driven.
 
+## Sound and Web (the second and third areas), and Extensions (not done)
+
+Same pattern, `ui.h` 2,601 → 2,550 (Sound) → 2,542 (Web). Two things the first area did not need:
+
+- **`Area::pointerFirst()`**: Sound and Web have always taken their touches before the updater's pop-up, the lock, the
+  mini bar and the list/home touches (the mini bar is drawn on Sound with no dialog open, and the page's own taps come
+  first), while the readers' come after the mini bar. `Ui::pointer` asks `area()` twice: where the Sound and Web pages
+  were dispatched, for an area that says `pointerFirst()`; and where the readers' were, for the rest. Default false:
+  `Docs` is unchanged. An area whose page is dispatched early in `pointer` today sets it.
+- **An area with a global part**: both pages have a part every page shows, and it stayed `Ui`'s.
+
+### Sound (`src/ui_sound.h`, `src/ui_sound.cpp`)
+
+`Page::Sound`: the two tabs, the band cursor, the preset list/Options/Delete dialogs, naming a preset, the stash of
+Custom, the effect cursor, `closeSound`'s way back to Settings or Home. 56 lines of members left `ui.h`.
+
+- **Callers elsewhere**: `sound->open(p, fromSettings)` (Settings' Music row, the song's line), `sound->nameDone(p)` and
+  `sound->eqNameSubmit/eqNameNote` (the keyboard, `ui_forms.cpp`), `sound->dialogOpen()` (the mini bar is not under a
+  dialog), `sound->tabRect(t)` (`buttonRect`), `sound->eqPick/eqToggle/fxChoose/eqCustom/stashOn` (the dashboard's
+  `/api/eq`, `/api/fx`, `web/api_player.cpp`).
+- **Stayed `Ui`'s**: the **Display popup** (SELECT over a song's page, `page == Main`: `displayOpen`, its chips, its
+  keys), still in `ui_sound.cpp`; the equalizer's touch ids (`SOUND_TAB0`, `EQ_*`, `DLG_ROW`, `FX_ROW`, which
+  `buttonRect` and `act` share with the grid), the slider (`ui.slideGrab(SL_EQ…)` and `slide`), `eqWebDirtyAt` (the
+  dashboard writes it, `tick` commits the curve a second later), the keyboard's `EQ_NAME` field. The signature's `|snd`
+  term split in two: the area's (tab, band, cursor, dialogs, list, preset serial, stash, slider held) and Ui's `|dsp`
+  for the Display popup. Key repeat and L2/R2 are page lists in `Ui::repeats`/`press` and did not change.
+
+### Web (`src/ui_web.h`, `src/ui_web.cpp`)
+
+`Page::Web`: keys, touches, the drawing (QR code, address, PIN boxes, the empty views), where it was opened from
+(`webBack`), New PIN's two presses and the empty page's button. 8 lines left `ui.h` (the area is named `webPage`:
+`web` is main's server). Its tick (the address read every 10 s, the panel dark after 90 s without a touch) is
+`Web::tick`.
+
+- **Stayed `Ui`'s**: everything every page shows of the dashboard: the header's globe (`webInd`, `drawWebIndicator`,
+  `webIndicatorShown`), `webView/webClients/webPin/webAddress`, `webTurn` (the quick settings' row), `webIp`,
+  `readWebIp`, `webInputAt` and `pinArmed` (the screen-off timer and the draw loop use them), `pinFont` (loaded
+  with the other fonts), and `webSig`, which is every page's signature term. `Web::signature` is therefore empty: the
+  page draws from state `webSig` and `Ui`'s own signature already cover. `Ui::openWeb()` stays as the one way in and
+  forwards to `webPage->open()` (Home's menu, a settings group, the globe, the quick settings, the manga sources).
+
+### Extensions: stopped, left in `ui.h` (~30 lines)
+
+Not cut, because a clean split is not possible yet, for three reasons the code shows:
+
+1. **The page is one of three that share its state.** `extSheet`, `extCursor`, `extPressed` and the touch ids serve
+   Manage extensions (`Page::Extensions`), the Extensions **drawer** on Home (a pseudo-folder of `Page::Browse`:
+   `browseDir == EXTDIR`, drawn from `ui_browse.cpp`, keyed in `Ui::press` before the Browse keys) and the manga
+   reader's page (`extKey` and `extPointer` hand `Page::Manga` to `mangaKey`/`mangaPointer`; `openManga` clears
+   `extPressed`). `has(Page)` can name only the first.
+2. **Its touches are split across `Ui::pointer`.** The lift is taken early (after the manga reader's drag, before the
+   header) and the down late (after the header, "<" and the mini bar), for all three of those pages at once. An area's
+   `pointer` is called for every kind of event at one point, so it would take the down before the header and the
+   mini bar. It needs a third dispatch point (`pointerDown`) and the drawer as part of the area, and it hands over
+   to Manga's pointer.
+3. **`signature` and `act`**: the `|ext` term is shared by the three pages (`mangaOn` is in the settings too), and
+   `Ui::act` forwards the ids `EXT_TILE..EXT_DONE` to `extAct`.
+
+So it belongs with Manga: the natural unit is one area for "extensions and what they host" (the drawer, Manage
+extensions and the manga reader's pages), cut after `PageReader` (the table's #4). Cutting only `Page::Extensions`
+today would leave `ui.h` with the same members and a struct that calls back into `Ui` for the rest.
+
+### Checked (Sound, Web)
+
+Desktop build (macOS), against a build of `main` (42cd748) with the scripted harness (`--press`, `BP_SHOTS`, a fresh
+`--state-dir` per run, `settings.conf` touched to a fixed time, a generated song and clip, the player paused so
+nothing moves; `core-test` passes after each commit).
+
+- **Sound**, four runs, 51 bottom-panel shots: the song's page and the Display popup before and over it; a tap on the
+  song's line opens Sound; bands stepped and edited by keys, Custom made, the presets before/after (Y/X), On/Off
+  (SELECT), the tab to Effects and back, an effect chosen, B out; Options (START), Save as new preset on the
+  keyboard (a letter typed, Done), Rename, Delete (the question, Cancel/Delete), All presets (the list, scrolled,
+  one picked); by touch: both tabs, the previous/next preset, the preset name (the list, a drag, a row), a band dragged
+  with `down:`/`move:`/`up:` shot mid-drag, a double tap on a band, Reset, Options, a tap outside a dialog, the back
+  icon; and Settings > Music > Sound FX (through START's menu) in, B back to its row, in by a tap, B, B.
+- **Web**, four runs, 21 pairs (bottom and top, 42 shots): Settings > Web dashboard opens the page (on, with the
+  QR code and PIN), New PIN armed (Y), Turn off (X), Turn on (A), B out; by touch: the header's globe, New PIN, Turn
+  off, Turn on, "<", the globe again; the No Wi-Fi view (`BP_WEB_IP=none`) and the Couldn't start view
+  (`BP_WEB_FAIL=1`) with "Try again". localhost only, `BP_WEB_FORCE=1 BP_WEB_PIN=ACDE BP_WEB_PORT=8093`.
+- A song's page carries a paused clock and the mini bar's progress sliver that differ by a pixel or two between two
+  runs of the same build (the pause lands a few ms apart), and the header's clock by the minute. The Sound
+  comparison masks the mini bar's strip and the clock (and the song page's header and progress rows for the shots of
+  the song's own page), and checks the strip separately (a mini bar that appeared or vanished would differ by
+  thousands of pixels, not by a few); with that every Sound shot is identical to `main`'s, and so is every Web shot
+  without any mask (top panel included). Two runs of `main` against each other give the same result.
+
+### Not verified (Sound, Web)
+
+- The handheld and the Linux build (no Linux-only file changed; `ui.h`'s includes are as they were).
+- The Web page's tick: the address read again after 10 s, the panel dark after 90 s (the body is the old lines
+  moved, not waited for). A second browser connected (the "N browsers" line, the globe turning yellow).
+- Sound opened from Settings outside START's menu (`soundFromMenu` false) and the Rename of a preset that is the one
+  playing while its list is open by the dashboard; the dashboard's `/api/eq` and `/api/fx` (they now go through
+  `sound->`; the web smoke was not run).
+
 ## The other areas: order, and what `ui.h` loses
 
-`ui.h` is 2,608 lines now. Roughly what each area holds there (counted by its section or its members' prefixes):
+`ui.h` is 2,542 lines now (2,608 when this table was drawn; Sound and Web are done, Extensions was stopped). Roughly what each area holds there (counted by its section or its members' prefixes):
 
 | # | Area | Pages | In `ui.h` | Notes |
 |---|---|---|---|---|
-| 1 | **Sound** (`ui_sound.cpp`) | `Sound` | ~50 | The easiest: one page, already dispatched beside the readers in `press` and `pointer`, its state only its own (`eq*`, `fx*`, the preset's name). The Display popup in the same file is not the page's: it becomes an overlay (it needs the stack's `alive()` hook) or stays. |
-| 2 | **Web** (`ui_web.cpp`) | `Web` | ~20 | One page. The header's globe (`webInd`) is every page's: it stays `Ui`'s. |
-| 3 | **Extensions** (`ui_ext.cpp`) | `Extensions` | ~30 | Small; `mangaOn` and the drawer on Home stay shared. Do it before Manga, which it hands over to. |
+| 1 | **Sound** (`ui_sound.cpp`) (done) | `Sound` | ~50 | The easiest: one page, already dispatched beside the readers in `press` and `pointer`, its state only its own (`eq*`, `fx*`, the preset's name). The Display popup in the same file is not the page's: it becomes an overlay (it needs the stack's `alive()` hook) or stays. |
+| 2 | **Web** (`ui_web.cpp`) (done) | `Web` | ~20 | One page. The header's globe (`webInd`) is every page's: it stays `Ui`'s. |
+| 3 | **Extensions** (`ui_ext.cpp`) (stopped: see above) | `Extensions` | ~30 | Shares its state with the drawer on Home and the manga pages, and its touches are split across `Ui::pointer`: do it together with Manga. |
 | 4 | **Manga** (`ui_manga*.cpp`, 10 files) | `Manga`, `MangaSeries`, `MangaRead`, `MangaSettings`, `MangaSources` | ~1,100 | The big one: lines 1488–2525 and the public channel at 184–265. Not one struct: first **`PageReader`** (the top reader's channel, the pages grid, fullscreen, zoom: what `Docs` shares, see above), then **`MangaRead`** (the reader's page), then the library (`Manga`, `MangaSeries`), then Sources/Java/Servers/Downloads/Net folders, which are already a file each and mostly modal sheets: those go on the overlay stack first (overlay-stack.md, item 4), which empties much of their state before the area is cut. The dashboard's glue (`api_manga.cpp`) reads the store and the downloads through `Ui`: it needs the area's header, as `api_playlists.cpp` needed `ui_docs.h`. |
 | 5 | **Settings** (`ui_settings.cpp`) | `Settings` | ~60 | `settingRows`/`changeSetting`/`drawSettingRow` are shared with Manga's settings page and START's menu tab: the area exposes those; `inMenu`/`menuTab` stay `Ui`'s. After Manga, so the shared row drawing has one more user known. |
 | 6 | **Playlists** (`ui_playlists.cpp`) | (pseudo-folders of `Browse`) | ~90 | Not pages: `browseDir` `PLROOT`/`PLDIR`. `has()` can't tell by page, so this is a **helper struct** owned by the browser's area rather than an `Area`, or `has()` grows to "page and folder". The picker is an overlay first (overlay-stack.md, item 6). |
