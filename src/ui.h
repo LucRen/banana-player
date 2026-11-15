@@ -252,6 +252,8 @@ namespace bp
 			std::string* dropped = nullptr);
 		bool plIsLiked(const std::string& file) const { return plStore && plStore->isBuiltinFile(file); }
 		// a page in a browser plays what plays here (the Session's output is that tab): the handheld holds it paused
+		// a file job (copy, move, delete, a network copy of a book) is running: the idle sleep waits for it
+		bool fileJobActive() const { return (bool)fileJob; }
 		bool pageIsOut() const;
 		// how this page can take a page's playback back, for the top panel's card: 1 hold A (the player), 2 elsewhere
 		// (A does something else there: the card says the player can)

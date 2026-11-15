@@ -7,6 +7,9 @@
 
 namespace bp
 {
+	// bananad (found in /proc by name) gets a SIGHUP: the volume changed, or a sleep was asked for (sleep-now)
+	void pokeBananad();
+
 	// The volume, as BananaOS's own menu sets it: its script (/usr/libexec/banana/volume get | set N) puts the percent
 	// the ear hears on whichever card plays now (the speakers' table, the jack's curve, a Bluetooth headset), then
 	// bananad gets a SIGHUP and keeps the level across reboots. A set runs on a thread of its own, the latest one only

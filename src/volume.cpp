@@ -35,7 +35,7 @@ namespace bp
 	}
 
 	// bananad, told that the level changed: it keeps it (alsactl store, two seconds on), as after BananaOS's menu
-	static void pokeBananad()
+	void pokeBananad()
 	{
 		DIR* d = opendir("/proc");
 		if (!d) return;

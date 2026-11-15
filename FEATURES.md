@@ -1259,3 +1259,11 @@ combination instead.)
   while a song or video plays and nothing is touched (Settings › Controls & screen › **Screen off (music)** and
   **Screen off (video)**).
 - **Lid:** closing it pauses; opening it keeps it paused until you press play.
+- **Sleep:** when nothing plays, the handheld sleeps after BananaOS's idle minutes (its `autosleep_minutes`, 10 unless
+  changed in `/data/banana/bananad.conf`; 0 is never), counted from the last button, touch or page turn in the player.
+  The player asks bananad for the sleep as the menu's Sleep does. It stays awake while: a song or video plays (paused
+  is not playing), a dashboard page plays, a file job runs (copy, move, delete, a book fetched from the network),
+  Manga chapters download, the Manga extension engine starts or installs, the dashboard was used in the last 2
+  minutes (a request or an upload), an update downloads, or the charger is in. `log.txt` says why it slept
+  (`idle sleep: asking bananad…`) or what kept it awake (`idle sleep: … kept awake: …`, once per change). Waking
+  leaves a paused video paused.

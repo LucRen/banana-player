@@ -3,6 +3,7 @@
 #include "filesave.h"
 #include "aspect.h"
 #include "battery.h"
+#include "idlesleep.h"
 #include "comicinfo.h"
 #include "cbz.h"
 #include "pagebook.h"
@@ -6185,6 +6186,43 @@ static void testHistory()
 	CHECK_EQ(back.items().empty(), true);
 }
 
+static void testIdleSleep()
+{
+	IdleHolds none;
+	// not yet: under the setting's minutes
+	CHECK_EQ((int)idleDecide(599, 10, none).verdict, (int)IdleVerdict::NotYet);
+	// due and nothing holds: sleep
+	CHECK_EQ((int)idleDecide(600, 10, none).verdict, (int)IdleVerdict::Sleep);
+	// 0: never; negative the same
+	CHECK_EQ((int)idleDecide(99999, 0, none).verdict, (int)IdleVerdict::Off);
+	CHECK_EQ((int)idleDecide(99999, -1, none).verdict, (int)IdleVerdict::Off);
+	// each hold blocks it, and says why
+	bool IdleHolds::* all[] = {&IdleHolds::playing, &IdleHolds::browserOut, &IdleHolds::fileJob, &IdleHolds::mangaDownloads,
+		&IdleHolds::mangaEngine, &IdleHolds::webActive, &IdleHolds::updating, &IdleHolds::charging};
+	for (auto m : all)
+	{
+		IdleHolds h;
+		h.*m = true;
+		IdleDecision d = idleDecide(601, 10, h);
+		CHECK_EQ((int)d.verdict, (int)IdleVerdict::Held);
+		CHECK_EQ(d.why.empty(), false);
+		// a hold before the time: just not yet
+		CHECK_EQ((int)idleDecide(10, 10, h).verdict, (int)IdleVerdict::NotYet);
+	}
+	// fractions of a minute
+	CHECK_EQ((int)idleDecide(30, 0.5, none).verdict, (int)IdleVerdict::Sleep);
+	// the conf: the last line wins, comments and spaces are fine, a missing key isn't found
+	bool f = true;
+	CHECK_EQ(parseAutosleepMinutes("# x\nlid_sleep = yes\n", f), 0.0);
+	CHECK_EQ(f, false);
+	CHECK_EQ(parseAutosleepMinutes("autosleep_minutes = 10\n  autosleep_minutes=3.5 \r\n", f), 3.5);
+	CHECK_EQ(f, true);
+	CHECK_EQ(parseAutosleepMinutes("autosleep_minutes = 0\n", f), 0.0);
+	CHECK_EQ(f, true);
+	CHECK_EQ(parseAutosleepMinutes("# autosleep_minutes = 5\n", f), 0.0);
+	CHECK_EQ(f, false);
+}
+
 static void testBattery()
 {
 	char dir[] = "/tmp/bp-power-XXXXXX";
@@ -10408,6 +10446,7 @@ int main()
 	testHistory();
 	testClock();
 	testBattery();
+	testIdleSleep();
 	testAspect();
 	testTime();
 	testDurations();

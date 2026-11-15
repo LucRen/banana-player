@@ -335,6 +335,21 @@ namespace bp
 
 	// ---- the gate: before any route, and before a request's body is read ----
 
+	// the dashboard in use, for the idle sleep: its SSE stream and the ping are an open page, not someone using it
+	void WebServer::stamp(const std::string& path)
+	{
+		if (path == "/api/events" || path == "/api/ping") return;
+		lastActiveMs = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+	}
+
+	bool WebServer::activeWithin(int ms) const
+	{
+		int64_t t = lastActiveMs;
+		if (!t) return false;
+		int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+		return now - t < ms;
+	}
+
 	bool WebServer::gate(const httplib::Request& req, httplib::Response& res)
 	{
 		securityHeaders(res);
@@ -824,8 +839,12 @@ namespace bp
 	{
 		httplib::Server& s = *svr;
 		s.set_pre_routing_handler([this](const httplib::Request& req, httplib::Response& res) {
-			return gate(req, res) ? httplib::Server::HandlerResponse::Handled : httplib::Server::HandlerResponse::Unhandled;
+			if (gate(req, res)) return httplib::Server::HandlerResponse::Handled;
+			stamp(req.path);
+			return httplib::Server::HandlerResponse::Unhandled;
 		});
+		// a long request (an upload, a stream) counts again as it ends
+		s.set_logger([this](const httplib::Request& req, const httplib::Response&) { stamp(req.path); });
 		s.Post("/api/login", [this](const httplib::Request& req, httplib::Response& res) { login(req, res); });
 		s.Post("/api/logout", [this](const httplib::Request& req, httplib::Response& res) { logout(req, res); });
 		// alive and here: 204, nothing cached, and which run of the player answered (no sign-in needed: the gate lets

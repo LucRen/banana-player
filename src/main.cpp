@@ -27,6 +27,8 @@
 #include "ui_manga.h"
 #include "session_host.h"
 #include "updater.h"
+#include "idlesleep_host.h"
+#include "battery.h"
 #include "netstore.h"
 #include "networker.h"
 #include "durworker.h"
@@ -559,6 +561,7 @@ int main(int argc, char** argv)
 
 		// the lid closed, the handheld slept: paused at once (from the watch's thread), and the place kept
 		static std::atomic<bool> slept{false};
+		IdleSleep idleSleep;
 		SleepWatch sleepWatch;
 		sleepWatch.start([&player, &photos](bool lid) {
 			player.pauseNow();
@@ -868,6 +871,11 @@ int main(int argc, char** argv)
 			bool got = SDL_WaitEventTimeout(&e, (reader.isOpen() && reader.busy()) || (textReader.isOpen() && textReader.busy()) ? 1 : reader.isOpen() && reader.seekPending() ? 16 : reader.spinning() ? MangaReader::SPIN_MS / 2 : ui.animating() ? 16 : ui.typing() ? 50 : held != Button::None || player.loading() ? 20 : SDL_GetTicks() < freshUntil || levelUntil ? 50 : ui.markMoving() ? 80 : 250);
 			while (got)
 			{
+				// a button, a touch or the stick moved (past drift): the idle sleep's clock starts again
+				if (e.type == SDL_CONTROLLERBUTTONDOWN || e.type == SDL_KEYDOWN || e.type == SDL_JOYBUTTONDOWN || e.type == SDL_JOYHATMOTION ||
+					e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_FINGERDOWN || e.type == SDL_FINGERMOTION || e.type == SDL_MOUSEWHEEL ||
+					(e.type == SDL_CONTROLLERAXISMOTION && std::abs((int)e.caxis.value) > 12000))
+					idleSleep.input(SDL_GetTicks());
 				// every button in the log (home/.config/banana-player/log.txt on the card), mapped or not: what the
 				// handheld's keys send, found by pressing them
 				if (e.type == SDL_CONTROLLERBUTTONDOWN)
@@ -1548,6 +1556,43 @@ int main(int argc, char** argv)
 				holdIdleSleep();
 			}
 #endif
+			// the player's own idle sleep, once a second (the pure rule and its logging: idlesleep.h)
+			{
+				static Uint32 idleTickAt = 0, powerAt = 0;
+				static bool charging = false;
+				if (now - idleTickAt >= 1000)
+				{
+					idleTickAt = now;
+					if (!powerAt || now - powerAt >= 10000)
+					{
+						powerAt = now;
+						const char* base = getenv("BP_POWER_SUPPLY");
+						charging = readBattery(base ? base : "/sys/class/power_supply").charging;
+					}
+					IdleHolds h;
+					h.charging = charging;
+					h.playing = player.playing() && !player.paused;
+					h.fileJob = ui.fileJobActive();
+					{
+						auto& q = mangaNet->queue();
+						bool running = false;
+						for (const auto& it : q.items()) if (it.state == DlItem::Running) running = true;
+						h.mangaDownloads = running || q.next() != nullptr;
+						if (mangaNet->started())
+						{
+							auto js = mangaNet->javaExt().state();
+							h.mangaEngine = js == JavaExtHost::State::Starting || js == JavaExtHost::State::Downloading;
+						}
+					}
+					Updater::State us = updater.state();
+					h.updating = us == Updater::State::Downloading;
+#ifdef BP_WEB
+					h.browserOut = webServer && webServer->running() && ui.pageIsOut() && ui.pagePlaying();
+					h.webActive = webServer && webServer->running() && webServer->activeWithin(120000);
+#endif
+					idleSleep.tick(now, h);
+				}
+			}
 			// a chapter or equalizer card shown: it goes the way the volume card does, after its time
 			if (int ms = std::max(player.takeCardShown(), photos.takeCardShown()))
 			{

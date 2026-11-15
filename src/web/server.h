@@ -111,6 +111,8 @@ namespace bp
 		std::string newPin();
 		// open SSE streams: the browsers watching
 		int clients() const { return streams; }
+		// a request (not the SSE stream, not the ping) came, or one finished, in the last ms: the idle sleep waits for it
+		bool activeWithin(int ms) const;
 		// that tab's stream is open (its ?tab= id, any session); "" asks for any stream at all
 		bool tabConnected(const std::string& tab) const;
 		// that tab said goodbye as it closed (POST /api/bye) and hasn't connected since
@@ -180,6 +182,8 @@ namespace bp
 		std::atomic<bool> quitting{false};
 		std::atomic<int> boundPort{0};
 		std::atomic<int> streams{0};
+		std::atomic<int64_t> lastActiveMs{0};	// steady clock, ms; 0: none yet
+		void stamp(const std::string& path);
 		int keepaliveS = 15;
 		std::string webVersion;			// X-BP-Version: the app's files as served, hashed at start
 
