@@ -1,5 +1,6 @@
 #include "viz_more.h"
 #include "settings.h"
+#include "vizcache.h"
 #include <cmath>
 #include <fstream>
 #include <sys/stat.h>
@@ -74,8 +75,7 @@ namespace bp
 		const int hs[2] = {H_ALONE, H_STRIP};
 		auto header = [](int h) { return "P5\n" + std::to_string(W) + " " + std::to_string(h) + "\n255\n"; };
 		auto ready = [&](int k) {
-			struct stat st;
-			return stat((dir + "/" + MASKS[k]).c_str(), &st) == 0 && (size_t)st.st_size == header(hs[k]).size() + (size_t)W * hs[k];
+			return pgmFileOk((dir + "/" + MASKS[k]), header(hs[k]).size() + (size_t)W * hs[k]);
 		};
 		if (ready(0) && ready(1)) return true;
 		mkdir(dir.c_str(), 0755);

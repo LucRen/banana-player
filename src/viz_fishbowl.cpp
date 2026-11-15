@@ -17,6 +17,7 @@
 // over the art, which shows through everywhere else (no bowl).
 #include "viz_more.h"
 #include "settings.h"
+#include "vizcache.h"
 
 #include <algorithm>
 #include <cmath>
@@ -115,8 +116,7 @@ namespace bp
 		for (int k = 0; k < FB_COUNT; k++)
 		{
 			p[k] = dir + "/" + FB_FILES[k];
-			struct stat st;
-			ready = ready && stat(p[k].c_str(), &st) == 0 && (size_t)st.st_size == fbPgmSize(FB_DIMS[k][0], FB_DIMS[k][1]);
+			ready = ready && pgmFileOk(p[k], fbPgmSize(FB_DIMS[k][0], FB_DIMS[k][1]));
 		}
 		if (ready) return true;
 		mkdir(dir.c_str(), 0755);

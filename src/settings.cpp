@@ -104,8 +104,7 @@ namespace bp
 		size_t bytes = (size_t)w * h * 2;
 		std::string header = "P5\n" + std::to_string(w) + " " + std::to_string(h) + "\n65535\n";
 		auto ready = [&](const std::string& path) {
-			struct stat st;
-			return stat(path.c_str(), &st) == 0 && (size_t)st.st_size == header.size() + bytes;
+			return pgmFileOk(path, header.size() + bytes);
 		};
 		if (ready(dir + "/" + CIRCLE_MAPS[0]) && ready(dir + "/" + CIRCLE_MAPS[1])) return true;
 		std::vector<unsigned char> xs(bytes), ys(bytes);

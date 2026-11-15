@@ -21,6 +21,7 @@
 // along its bottom and the jelly on it at half the size; the art shows through everywhere else.
 #include "viz_more.h"
 #include "settings.h"
+#include "vizcache.h"
 
 #include <algorithm>
 #include <cmath>
@@ -198,8 +199,7 @@ namespace bp
 		auto ready = [&](int k) {
 			int w, h;
 			dims(k, w, h);
-			struct stat st;
-			return stat(path(k).c_str(), &st) == 0 && (size_t)st.st_size == header(w, h).size() + (size_t)w * h;
+			return pgmFileOk(path(k), header(w, h).size() + (size_t)w * h);
 		};
 		if (ready(0) && ready(1) && ready(2)) return true;
 		mkdir(dir.c_str(), 0755);

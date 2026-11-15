@@ -24,6 +24,7 @@
 // across, the plant and the cat on it with its notes; the art shows through everywhere else (a note fades into it).
 #include "viz_more.h"
 #include "settings.h"
+#include "vizcache.h"
 
 #include <algorithm>
 #include <cmath>
@@ -310,8 +311,7 @@ namespace bp
 		auto ready = [&](int k) {
 			int w, h;
 			dims(k, w, h);
-			struct stat st;
-			return stat(path(k).c_str(), &st) == 0 && (size_t)st.st_size == header(w, h).size() + (size_t)w * h;
+			return pgmFileOk(path(k), header(w, h).size() + (size_t)w * h);
 		};
 		bool all = true;
 		for (int k = 0; k < 9; k++) all = all && ready(k);

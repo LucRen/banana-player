@@ -14,6 +14,7 @@
 // art's bottom (the art above the waterline, the water a little translucent below, the boat on it).
 #include "viz_more.h"
 #include "settings.h"
+#include "vizcache.h"
 
 #include <algorithm>
 #include <cmath>
@@ -72,8 +73,7 @@ namespace bp
 		for (int k = 0; k < 9; k++)
 		{
 			p[k] = dir + "/" + SEA_FILES[k];
-			struct stat st;
-			ready = ready && stat(p[k].c_str(), &st) == 0 && (size_t)st.st_size == seaPgmSize(dims[k][0], dims[k][1]);
+			ready = ready && pgmFileOk(p[k], seaPgmSize(dims[k][0], dims[k][1]));
 		}
 		if (ready) return true;
 		mkdir(dir.c_str(), 0755);

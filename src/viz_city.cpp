@@ -12,6 +12,7 @@
 // Over the art the same skyline, shorter, stands in the 640x200 strip under the art's top, the art its sky.
 #include "viz_more.h"
 #include "settings.h"
+#include "vizcache.h"
 
 #include <cmath>
 #include <cstdint>
@@ -138,8 +139,7 @@ namespace bp
 		bool ready = true;
 		for (int k = 0; k < 8 && ready; k++)
 		{
-			struct stat st;
-			ready = stat(p[k].c_str(), &st) == 0 && (size_t)st.st_size == sizes[k];
+			ready = pgmFileOk(p[k], sizes[k]);
 		}
 		if (ready) return true;
 		mkdir(dir.c_str(), 0755);

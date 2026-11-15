@@ -15,6 +15,7 @@
 // hopping lower (x7); the art shows through where the sky would be.
 #include "viz_more.h"
 #include "settings.h"
+#include "vizcache.h"
 
 #include <cmath>
 #include <cstdio>
@@ -113,8 +114,7 @@ namespace bp
 		for (int k = 0; k < 5; k++)
 		{
 			p[k] = dir + "/" + BUN_FILES[k];
-			struct stat st;
-			ready = ready && stat(p[k].c_str(), &st) == 0 && (size_t)st.st_size == bunPgmSize(dims[k][0], dims[k][1]);
+			ready = ready && pgmFileOk(p[k], bunPgmSize(dims[k][0], dims[k][1]));
 		}
 		if (ready) return true;
 		mkdir(dir.c_str(), 0755);

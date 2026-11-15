@@ -19,6 +19,7 @@
 // round each) bouncing out of a thin layer of tea at the bottom; the art shows through everywhere else.
 #include "viz_more.h"
 #include "settings.h"
+#include "vizcache.h"
 #include <cmath>
 #include <cstdint>
 #include <fstream>
@@ -136,9 +137,8 @@ namespace bp
 		bool ready = true;
 		for (int k = 0; k < 4; k++)
 		{
-			struct stat st;
 			size_t want = ("P5\n" + std::to_string(dims[k][0]) + " " + std::to_string(dims[k][1]) + "\n255\n").size() + (size_t)dims[k][0] * dims[k][1];
-			ready = ready && stat((dir + "/" + BOBA_FILES[k]).c_str(), &st) == 0 && (size_t)st.st_size == want;
+			ready = ready && pgmFileOk((dir + "/" + BOBA_FILES[k]), want);
 		}
 		if (ready) return true;
 		mkdir(dir.c_str(), 0755);

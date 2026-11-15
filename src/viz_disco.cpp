@@ -35,6 +35,7 @@
 // added over it.
 #include "viz_more.h"
 #include "settings.h"
+#include "vizcache.h"
 
 #include <algorithm>
 #include <cmath>
@@ -123,8 +124,7 @@ namespace bp
 		bool ready = true;
 		for (int k = 0; k < FILES && ready; k++)
 		{
-			struct stat st;
-			ready = stat(p[k].c_str(), &st) == 0 && (size_t)st.st_size == sizes[k];
+			ready = pgmFileOk(p[k], sizes[k]);
 		}
 		if (ready) return true;
 		mkdir(dir.c_str(), 0755);

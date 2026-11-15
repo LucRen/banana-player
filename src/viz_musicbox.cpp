@@ -22,6 +22,7 @@
 // YUV and gray only, nothing converted, no geq per frame (the fade's still is made once by geq).
 #include "viz_more.h"
 #include "settings.h"
+#include "vizcache.h"
 
 #include <cmath>
 #include <fstream>
@@ -169,9 +170,8 @@ namespace bp
 		bool ready = true;
 		for (int k = 0; k < 6 && ready; k++)
 		{
-			struct stat st;
 			const std::string header = "P5\n" + std::to_string(ws[k]) + " " + std::to_string(hs[k]) + "\n255\n";
-			ready = stat((dir + "/" + MB_FILES[k]).c_str(), &st) == 0 && (size_t)st.st_size == header.size() + (size_t)ws[k] * hs[k];
+			ready = pgmFileOk((dir + "/" + MB_FILES[k]), header.size() + (size_t)ws[k] * hs[k]);
 		}
 		if (ready) return true;
 		mkdir(dir.c_str(), 0755);

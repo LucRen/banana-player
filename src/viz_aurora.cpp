@@ -20,6 +20,7 @@
 // stars or ridge: each plane of the art's strip is blended toward the curtain's colour by its glow (a lut2 a plane).
 #include "viz_more.h"
 #include "settings.h"
+#include "vizcache.h"
 
 #include <cmath>
 #include <cstdint>
@@ -106,8 +107,7 @@ namespace bp
 		bool ready = true;
 		for (int k = 0; k < 3 && ready; k++)
 		{
-			struct stat st;
-			ready = stat(p[k].c_str(), &st) == 0 && (size_t)st.st_size == sizes[k];
+			ready = pgmFileOk(p[k], sizes[k]);
 		}
 		if (ready) return true;
 		mkdir(dir.c_str(), 0755);

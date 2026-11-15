@@ -27,6 +27,7 @@
 // pixel one unit), in a row, their halos blended over the art, the art itself everywhere else.
 #include "viz_more.h"
 #include "settings.h"
+#include "vizcache.h"
 
 #include <algorithm>
 #include <cmath>
@@ -204,8 +205,7 @@ namespace bp
 		for (int k = 0; k < 12; k++)
 		{
 			p[k] = dir + "/" + JELLY_FILES[k];
-			struct stat st;
-			ready = ready && stat(p[k].c_str(), &st) == 0 && (size_t)st.st_size == sizes[k];
+			ready = ready && pgmFileOk(p[k], sizes[k]);
 		}
 		if (ready) return true;
 		mkdir(dir.c_str(), 0755);

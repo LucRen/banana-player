@@ -23,6 +23,7 @@
 // Stills are one frame each (movie=), never looped. YUV and gray only, nothing converted, no geq per frame.
 #include "viz_more.h"
 #include "settings.h"
+#include "vizcache.h"
 
 #include <cmath>
 #include <cstdint>
@@ -207,9 +208,8 @@ namespace bp
 		{
 			int w, h;
 			sizes(k, w, h);
-			struct stat st;
 			const std::string header = "P5\n" + std::to_string(w) + " " + std::to_string(h) + "\n255\n";
-			ready = stat((dir + "/" + PC_FILES[k]).c_str(), &st) == 0 && (size_t)st.st_size == header.size() + (size_t)w * h;
+			ready = pgmFileOk((dir + "/" + PC_FILES[k]), header.size() + (size_t)w * h);
 		}
 		if (ready) return true;
 		mkdir(dir.c_str(), 0755);

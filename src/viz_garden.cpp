@@ -18,6 +18,7 @@
 // dots, as Pocket console's LCD)
 #include "viz_more.h"
 #include "settings.h"
+#include "vizcache.h"
 #include <cmath>
 #include <fstream>
 #include <sys/stat.h>
@@ -91,8 +92,7 @@ namespace bp
 		const int ws[3] = {W, W, BW}, hs[3] = {ROWS_ALONE, ROWS_STRIP, BH * BEES};
 		auto header = [&](int k) { return "P5\n" + std::to_string(ws[k]) + " " + std::to_string(hs[k]) + "\n255\n"; };
 		auto ready = [&](int k) {
-			struct stat st;
-			return stat((dir + "/" + FILES[k]).c_str(), &st) == 0 && (size_t)st.st_size == header(k).size() + (size_t)ws[k] * hs[k];
+			return pgmFileOk((dir + "/" + FILES[k]), header(k).size() + (size_t)ws[k] * hs[k]);
 		};
 		if (ready(0) && ready(1) && ready(2)) return true;
 		mkdir(dir.c_str(), 0755);

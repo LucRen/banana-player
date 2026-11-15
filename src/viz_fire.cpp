@@ -18,6 +18,7 @@
 // YUV and gray only, no geq per frame (the grid's still is made once by geq, as Pocket console's).
 #include "viz_more.h"
 #include "settings.h"
+#include "vizcache.h"
 
 #include <cmath>
 #include <cstdint>
@@ -110,8 +111,7 @@ namespace bp
 		bool ready = true;
 		for (int k = 0; k < 7 && ready; k++)
 		{
-			struct stat st;
-			ready = stat(p[k].c_str(), &st) == 0 && (size_t)st.st_size == sizes[k];
+			ready = pgmFileOk(p[k], sizes[k]);
 		}
 		if (ready) return true;
 		mkdir(dir.c_str(), 0755);

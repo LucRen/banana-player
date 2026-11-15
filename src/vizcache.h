@@ -17,6 +17,12 @@
 
 namespace bp
 {
+	// true when path is a P5 (or P6) file of exactly `size` bytes whose header is whole and agrees with that size
+	// (header + width x height x channels x bytes per value). The size alone isn't proof: a corrupt SD card has left
+	// files of the right size holding other files' bytes, which a style then never made again and mpv's movie
+	// source couldn't read ("Could not find codec parameters ... pgm"), so every song with visuals failed. Reads
+	// only the first bytes
+	bool pgmFileOk(const std::string& path, size_t size);
 	// written in place of "lut2=" and "lut=" (always followed by c0='...')
 	constexpr const char* VIZ_LUT2 = "bplut2=";
 	constexpr const char* VIZ_LUT = "bplut=";

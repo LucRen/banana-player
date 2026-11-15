@@ -202,6 +202,34 @@ namespace bp
 		return best;
 	}
 
+	bool pgmFileOk(const std::string& path, size_t size)
+	{
+		struct stat st;
+		if (stat(path.c_str(), &st) != 0 || (size_t)st.st_size != size) return false;
+		char b[48];
+		FILE* f = fopen(path.c_str(), "rb");
+		if (!f) return false;
+		size_t n = fread(b, 1, sizeof b, f);
+		fclose(f);
+		if (n < 8 || b[0] != 'P' || (b[1] != '5' && b[1] != '6') || b[2] != '\n') return false;
+		// "W H\nMAXVAL\n", digits and single separators only, as the styles write it
+		size_t i = 3;
+		unsigned long v[3];
+		for (int k = 0; k < 3; k++)
+		{
+			size_t d = i;
+			unsigned long x = 0;
+			while (i < n && b[i] >= '0' && b[i] <= '9' && i - d < 6) x = x * 10 + (b[i++] - '0');
+			char sep = k == 0 ? ' ' : '\n';
+			if (i == d || i >= n || b[i] != sep) return false;
+			v[k] = x;
+			i++;
+		}
+		if (!v[0] || !v[1] || !v[2] || v[2] > 65535) return false;
+		size_t data = (size_t)v[0] * v[1] * (b[1] == '6' ? 3 : 1) * (v[2] > 255 ? 2 : 1);
+		return i + data == size;
+	}
+
 	static bool ready(const std::string& path)
 	{
 		struct stat st;
@@ -216,11 +244,25 @@ namespace bp
 		return s.str();
 	}
 
+	// a key's file that is there and a lookup the filter can read (or "="). The card can hand back other bytes under
+	// the same name, and the text goes into the graph as it is, so a bad one would fail every graph with it for good:
+	// it is removed, and counts as not made yet (made again)
+	static bool lutReady(const std::string& path, bool two)
+	{
+		if (!ready(path)) return false;
+		std::string t = readFile(path);
+		if (t == "=") return true;
+		AVExpr* e = t.find_first_of("\n\r'\"") == std::string::npos ? parse(two, t) : nullptr;
+		if (e) av_expr_free(e);
+		else unlink(path.c_str());
+		return e != nullptr;
+	}
+
 	// the file for a key: its lookup, or "=" (the expression is as quick as it gets, or can't be a table)
 	static bool writeLut(const std::string& key, const std::string& mapsDir)
 	{
 		std::string path = mapsDir + "/" + vizLutFile(key);
-		if (ready(path)) return true;
+		if (lutReady(path, key[0] == '2')) return true;
 		std::string text = "=";
 		std::vector<unsigned char> t;
 		double seconds = 0;
@@ -322,7 +364,7 @@ namespace bp
 			if (worth(s))
 			{
 				std::string path = mapsDir + "/" + vizLutFile(s.key);
-				if (!ready(path))
+				if (!lutReady(path, s.key[0] == '2'))
 				{
 					if (missing) missing->push_back(s.key);
 					else writeLut(s.key, mapsDir);

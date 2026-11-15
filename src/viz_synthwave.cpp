@@ -1,5 +1,6 @@
 #include "viz_more.h"
 #include "settings.h"
+#include "vizcache.h"
 
 #include <algorithm>
 #include <cmath>
@@ -109,8 +110,7 @@ namespace bp
 		std::string header = "P6\n" + n(SW_W) + " " + n(SW_H) + "\n255\n";
 		size_t bytes = (size_t)SW_W * SW_H * 3;
 		std::string path = dir + "/" + SW_SCENE;
-		struct stat st;
-		if (stat(path.c_str(), &st) == 0 && (size_t)st.st_size == header.size() + bytes) return true;
+		if (pgmFileOk(path, header.size() + bytes)) return true;
 		std::vector<unsigned char> px(bytes);
 		// 2x2 samples a pixel (the sun's edge, the grid's lines)
 		for (int y = 0; y < SW_H; y++)

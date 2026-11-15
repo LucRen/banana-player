@@ -10140,6 +10140,34 @@ static void testTarX()
 
 // the visualizers' lut and lut2 lookups (src/vizcache.h): made once, named by the expression, giving the same
 // values as the expression; what can't or needn't be one stays as it was; the frame rate's rewrite
+// pgmFileOk: a pattern file is ready only if its size and its header both say so (a corrupt card left files of the
+// right size holding other bytes, and the style never made them again)
+static void testPgmFileOk()
+{
+	char dir[] = "/tmp/bp-pgmok-XXXXXX";
+	if (!mkdtemp(dir)) return;
+	const std::string d = dir;
+	auto put = [&](const std::string& n, const std::string& s) {
+		std::ofstream(d + "/" + n, std::ios::binary) << s;
+		return d + "/" + n;
+	};
+	const std::string head = "P5\n4 3\n255\n";
+	const std::string good = head + std::string(12, 'x');
+	CHECK_EQ(pgmFileOk(put("good.pgm", good), good.size()), true);
+	CHECK_EQ(pgmFileOk(put("good16.pgm", "P5\n4 3\n65535\n" + std::string(24, 'x')), 13 + 24), true);
+	CHECK_EQ(pgmFileOk(put("ppm.pgm", "P6\n2 2\n255\n" + std::string(12, 'x')), 11 + 12), true);
+	// right size, other bytes
+	CHECK_EQ(pgmFileOk(put("junk.pgm", std::string(good.size(), 'A')), good.size()), false);
+	CHECK_EQ(pgmFileOk(put("text.pgm", "Apache License Version 2.0, January 2004"), 41), false);
+	// a header that doesn't match the size it should have
+	CHECK_EQ(pgmFileOk(put("liar.pgm", "P5\n4 4\n255\n" + std::string(12, 'x')), good.size()), false);
+	// short, and missing
+	CHECK_EQ(pgmFileOk(put("short.pgm", good.substr(0, 10)), good.size()), false);
+	CHECK_EQ(pgmFileOk(d + "/none.pgm", good.size()), false);
+	for (const char* n : {"good.pgm", "good16.pgm", "ppm.pgm", "junk.pgm", "text.pgm", "liar.pgm", "short.pgm"}) unlink((d + "/" + n).c_str());
+	rmdir(d.c_str());
+}
+
 static void testVizCache()
 {
 	char dir[] = "/tmp/bp-vizcache-XXXXXX";
@@ -10416,6 +10444,7 @@ int main()
 	testSlider();
 	testFileSave();
 	testImageSize();
+	testPgmFileOk();
 	testVizCache();
 	testPicSubs();
 	testTarX();
