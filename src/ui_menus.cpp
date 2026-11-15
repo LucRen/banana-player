@@ -17,6 +17,7 @@
 #include <qrcodegen.hpp>
 #endif
 #include "ui_internal.h"
+#include "ui_browse.h"
 #include "ui_settings.h"
 #include "pagebook.h"
 #include <strings.h>
@@ -26,7 +27,7 @@ namespace bp
 {
 	std::vector<Ui::Row> Ui::rows(const Player& p) const
 	{
-		if (page == Page::Browse) return browseRows;
+		if (page == Page::Browse) return browse->browseRows;
 		std::vector<Row> out;
 		if (page == Page::UpNext)
 		{
@@ -124,13 +125,13 @@ namespace bp
 	void Ui::choose(int i, Player& p)
 	{
 		// ".." (row -1): up a folder: as B and "<" go, selecting or not
-		if (page == Page::Browse && i < 0 && upRow()) { browseUp(p); return; }
+		if (page == Page::Browse && i < 0 && browse->upRow()) { browse->browseUp(p); return; }
 		auto r = rows(p);
 		if (i < 0 || i >= (int)r.size()) return;
 		if (page == Page::Browse)
 		{
 			// no connections yet: A adds one (as the page's button does); no playlists, New playlist
-			if (emptyAction()) { doEmptyAction(p); return; }
+			if (browse->emptyAction()) { browse->doEmptyAction(p); return; }
 			if (r[i].id < 0) return;
 			// selecting: a row ticked (a folder still opens)
 			if (selMode != SEL_NONE && selChoose(i, p)) return;
@@ -138,8 +139,8 @@ namespace bp
 			if (r[i].id == PL_ROW)
 			{
 				// a playlist: its items (and the one kept for the next launch, as a folder gone into is)
-				std::string file = browsePaths[i];
-				enterFolder(plDirFor(file), p);
+				std::string file = browse->browsePaths[i];
+				browse->enterFolder(plDirFor(file), p);
 				p.setLastFolder(file);
 				return;
 			}
@@ -152,34 +153,34 @@ namespace bp
 				plPlay(plCur, i, false, p);
 				return;
 			}
-			if (browseDir == FORMDIR) { formChoose(r[i].id, p); return; }
-			if (browseDir == FINDNET)
+			if (browse->browseDir == FORMDIR) { browse->formChoose(r[i].id, p); return; }
+			if (browse->browseDir == FINDNET)
 			{
-				if (r[i].id == R_FOUND && i < (int)found.size()) { FoundHost h = found[i]; openForm(nullptr, &h, p); }
-				else if (r[i].id == R_SEARCH) enterFolder(FINDNET, p);
-				else if (r[i].id == R_TYPE_ADDRESS) openForm(nullptr, nullptr, p);
+				if (r[i].id == R_FOUND && i < (int)browse->found.size()) { FoundHost h = browse->found[i]; browse->openForm(nullptr, &h, p); }
+				else if (r[i].id == R_SEARCH) browse->enterFolder(FINDNET, p);
+				else if (r[i].id == R_TYPE_ADDRESS) browse->openForm(nullptr, nullptr, p);
 				return;
 			}
 			if (r[i].id == 4 || r[i].id == 6)
 			{
 				// a connection (its start folder), or Try again
-				std::string path = browsePaths[i];
+				std::string path = browse->browsePaths[i];
 				NetPath np;
 				if (r[i].id == 4 && netStore && parseNetPath(path, np)) netStore->touch(np.server);
-				enterFolder(path, p);
+				browse->enterFolder(path, p);
 				return;
 			}
-			std::string path = browsePaths[i];	// a copy: entering a folder rebuilds the list
+			std::string path = browse->browsePaths[i];	// a copy: entering a folder rebuilds the list
 			// the folder last gone into, or a video opened from, is the one kept (Remember last folder): backing out
 			// to the first page to quit leaves it as it was
 			if (r[i].id == 1)
 			{
-				enterFolder(path, p);
+				browse->enterFolder(path, p);
 				if (path != RECENT) p.setLastFolder(path);
 			}
 			else
 			{
-				if (browseDir != RECENT) p.setLastFolder(browseDir);
+				if (browse->browseDir != RECENT) p.setLastFolder(browse->browseDir);
 				openFile(path, p);
 			}
 			return;
@@ -238,7 +239,7 @@ namespace bp
 	{
 		if (!inMenu)
 		{
-			menuReturnDir = browseDir;
+			menuReturnDir = browse->browseDir;
 			menuReturnCursor = cursor;
 			menuReturnScroll = scroll;
 			menuReturnPage = page == Page::Extensions ? page : Page::Browse;
@@ -280,7 +281,7 @@ namespace bp
 		page = Page::Browse;
 		cursor = menuReturnCursor;
 		scroll = menuReturnScroll;
-		enterFolder(menuReturnDir, p);
+		browse->enterFolder(menuReturnDir, p);
 	}
 
 	std::vector<int> Ui::quickRows() const
@@ -644,10 +645,10 @@ namespace bp
 		// its title: the connection, the folder Hide is for, else the place it's over
 		const NetServer* sv = netStore && !ctxServer.empty() ? netStore->find(ctxServer) : nullptr;
 		std::string name = !ctxTitle.empty() ? ctxTitle : sv ? serverName(*sv) : !ctxPath.empty() ? baseName(ctxPath)
-			: browseDir.empty() ? std::string("Your cards") : browseDir == NETROOT ? std::string("Your connections")
-			: browseDir == RECENT ? std::string("Recent")
-			: isNetPath(browseDir) && netBaseName(browseDir).empty() ? std::string("Shares")
-			: isNetPath(browseDir) ? netBaseName(browseDir) : baseName(browseDir);
+			: browse->browseDir.empty() ? std::string("Your cards") : browse->browseDir == NETROOT ? std::string("Your connections")
+			: browse->browseDir == RECENT ? std::string("Recent")
+			: isNetPath(browse->browseDir) && netBaseName(browse->browseDir).empty() ? std::string("Shares")
+			: isNetPath(browse->browseDir) ? netBaseName(browse->browseDir) : baseName(browse->browseDir);
 		drawDialog(box, name);
 		// a playlist's Delete, pressed once: what it doesn't do
 		bool plArmed = ctxArmed && ctxCursor < (int)ctxItems.size() && ctxItems[ctxCursor] == CTX_PL_DELETE;
@@ -693,7 +694,7 @@ namespace bp
 				: it == CTX_REFRESH ? "Refresh" : it == CTX_ADD ? "Add connection" : it == CTX_FIND ? "Find on the network"
 				: it == CTX_EDIT ? "Edit connection" : it == CTX_TEST ? "Test connection"
 				: armed ? "Press again to delete" : it == CTX_DELETE ? "Delete connection" : it == CTX_PL_DELETE ? "Delete playlist"
-				: it == CTX_PL_NEW ? "New playlist\xE2\x80\xA6" : it == CTX_PL_PLAY ? (isPlDir(browseDir) ? "Play all" : "Play")
+				: it == CTX_PL_NEW ? "New playlist\xE2\x80\xA6" : it == CTX_PL_PLAY ? (isPlDir(browse->browseDir) ? "Play all" : "Play")
 				: it == CTX_PL_SHUFFLE ? "Shuffle play" : it == CTX_PL_RENAME ? "Rename\xE2\x80\xA6" : it == CTX_PL_DEDUP ? "Remove duplicates" : it == CTX_PL_MISSING ? "Remove missing"
 				: it == CTX_PL_HERE ? "Play from here" : it == CTX_PL_REMOVE ? (inLiked ? "Unlike" : "Remove from playlist") : it == CTX_PL_SHOW ? "Show in folder"
 				: it == CTX_PL_ADD_FILES ? "Add files\xE2\x80\xA6" : it == CTX_PL_ADD_FOLDER ? "Add folder\xE2\x80\xA6"
@@ -733,7 +734,7 @@ namespace bp
 				continue;
 			}
 			// a read-only network folder's Move, Rename, Delete: dim, and why on the right
-			bool ro = isNetPath(ctxPath) && !netWritable && (it == CTX_F_MOVE || it == CTX_F_RENAME || it == CTX_F_DELETE);
+			bool ro = isNetPath(ctxPath) && !browse->netWritable && (it == CTX_F_MOVE || it == CTX_F_RENAME || it == CTX_F_DELETE);
 			if (ro) { note = "Read only"; noteInk = DIM; }
 			drawDialogRow(ctxRow(i), g, label, i == ctxCursor, pressedBtn == 100 + i, ro ? DIM : del ? (armed ? ACCENT : DANGER) : it == CTX_CANCEL ? DIM
 				: it == CTX_R_LIKE && likedR ? ACCENT : TEXT, note, noteInk);	// (the heart lit only when it is liked)
@@ -780,14 +781,14 @@ namespace bp
 
 	Ui::RowIcon Ui::rowIcon(int i) const
 	{
-		if (i < 0 || i >= (int)browseRows.size() || i >= (int)browsePaths.size()) return ICON_NONE;
-		const std::string& path = browsePaths[i];
+		if (i < 0 || i >= (int)browse->browseRows.size() || i >= (int)browse->browsePaths.size()) return ICON_NONE;
+		const std::string& path = browse->browsePaths[i];
 		// the form's actions (its ids are its own: they meet the found servers')
-		if (browseDir == FORMDIR) return browseRows[i].id == FORM_TEST ? ICON_TEST : browseRows[i].id == FORM_SAVE ? ICON_SAVE : ICON_NONE;
-		if (browseDir == FINDNET)
-			return browseRows[i].id == R_FOUND ? ICON_NETWORK : browseRows[i].id == R_SEARCH ? ICON_REFRESH
-				: browseRows[i].id == R_TYPE_ADDRESS ? ICON_TYPE : ICON_NONE;
-		switch (browseRows[i].id)
+		if (browse->browseDir == FORMDIR) return browse->browseRows[i].id == FORM_TEST ? ICON_TEST : browse->browseRows[i].id == FORM_SAVE ? ICON_SAVE : ICON_NONE;
+		if (browse->browseDir == FINDNET)
+			return browse->browseRows[i].id == R_FOUND ? ICON_NETWORK : browse->browseRows[i].id == R_SEARCH ? ICON_REFRESH
+				: browse->browseRows[i].id == R_TYPE_ADDRESS ? ICON_TYPE : ICON_NONE;
+		switch (browse->browseRows[i].id)
 		{
 		case PL_ROW: return plIsLiked(path) ? ICON_LIKED : ICON_PLAYLIST;
 		case PL_NEW: return ICON_NEW;
@@ -795,7 +796,7 @@ namespace bp
 		case 6: return ICON_REFRESH;
 		case 1:
 			if (path == RECENT) return ICON_RECENT;
-			return browseDir.empty() ? ICON_PLACE : ICON_FOLDER;	// the first page's: the places (this card...)
+			return browse->browseDir.empty() ? ICON_PLACE : ICON_FOLDER;	// the first page's: the places (this card...)
 		case 2:
 			if (isComicName(path)) return ICON_COMIC;
 			if (isPdfName(path)) return ICON_PDF;
@@ -1435,7 +1436,7 @@ namespace bp
 			}
 			// the pages that show Liked (the list's count, its items) read it again
 			selSerial++;
-			if (browseDir == plDirFor(plStore->likedFile()))
+			if (browse->browseDir == plDirFor(plStore->likedFile()))
 			{
 				plCur = Playlist();
 				plLoaded = plStore->load(plStore->likedFile(), plCur, skipped);

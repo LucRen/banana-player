@@ -3,6 +3,7 @@
 // or the Ui; the Ui reads its progress each pass), and the panel shows it, with Cancel, until it ends. The copying
 // itself is treecopy.h's: measured first, written out of sight, put in place last, so nothing half-copied is left.
 #include "ui_internal.h"
+#include "ui_browse.h"
 #include "ui_docs.h"
 #include "ui_manga.h"
 #include "treecopy.h"
@@ -186,7 +187,7 @@ namespace bp
 			j->finished = true;
 	}
 
-	bool Ui::fileOpsOn(int row) const
+	bool Ui::Browse::fileOpsOn(int row) const
 	{
 		// a file or folder inside a card's folder (not a place itself, not Home's, Recent's or the network's)
 		if (row < 0 || row >= (int)browsePaths.size() || row >= (int)browseRows.size()) return false;
@@ -196,32 +197,32 @@ namespace bp
 		return (id == 1 || id == 2) && browsePaths[row] != ".." && browsePaths[row].rfind(browseDir + "/", 0) == 0;
 	}
 
-	bool Ui::netOpsHere() const
+	bool Ui::Browse::netOpsHere() const
 	{
 		NetPath np;
-		if (!isNetPath(browseDir) || !parseNetPath(browseDir, np) || !netStore) return false;
-		const NetServer* sv = netStore->find(np.server);
+		if (!isNetPath(browseDir) || !parseNetPath(browseDir, np) || !ui.netStore) return false;
+		const NetServer* sv = ui.netStore->find(np.server);
 		return sv && (sv->type != NetType::Smb || np.path != "/");
 	}
 
-	bool Ui::netReadOnlySaid(const std::string& path, Player& p)
+	bool Ui::Browse::netReadOnlySaid(const std::string& path, Player& p)
 	{
 		if (!isNetPath(path) || netWritable) return false;
-		alert("This folder is read only", "This account can\xE2\x80\x99t change anything in this network folder: you can copy from it, not into it.");
+		ui.alert("This folder is read only", "This account can\xE2\x80\x99t change anything in this network folder: you can copy from it, not into it.");
 		return true;
 	}
 
-	void Ui::startNetJob(int op, const std::string& src, const std::string& dest, const std::string& name, Player& p)
+	void Ui::Browse::startNetJob(int op, const std::string& src, const std::string& dest, const std::string& name, Player& p)
 	{
 		auto end = [&](const std::string& path, XferEnd& e) {
 			e = XferEnd();
 			if (!isNetPath(path)) { e.path = path; return true; }
 			NetPath np;
-			const NetServer* sv = netStore && parseNetPath(path, np) ? netStore->find(np.server) : nullptr;
+			const NetServer* sv = ui.netStore && parseNetPath(path, np) ? ui.netStore->find(np.server) : nullptr;
 			if (!sv) return false;
 			e.net = true;
 			e.server = *sv;
-			e.password = netStore->password(*sv);
+			e.password = ui.netStore->password(*sv);
 			e.path = np.path;
 			return true;
 		};
@@ -231,15 +232,15 @@ namespace bp
 		j->src = src;
 		j->dest = dest;
 		j->name = name;
-		if (!end(src, j->srcEnd) || (!dest.empty() && !end(dest, j->destEnd))) { alert("This connection is gone", "It was deleted. Add it again in Network.");; return; }
-		fileJob = j;
-		fileJobPressed = -1;
+		if (!end(src, j->srcEnd) || (!dest.empty() && !end(dest, j->destEnd))) { ui.alert("This connection is gone", "It was deleted. Add it again in Network.");; return; }
+		ui.fileJob = j;
+		ui.fileJobPressed = -1;
 		fprintf(stderr, "files: network job %d %s -> %s/%s\n", op, src.c_str(), dest.c_str(), name.c_str());
 		FileJob* raw = j.get();
 		j->t = std::thread([raw] { runFileJob(raw); });
 	}
 
-	void Ui::netOpenCopy(const std::string& path, Player& p)
+	void Ui::Browse::netOpenCopy(const std::string& path, Player& p)
 	{
 		// the copy kept by the file's address: opened again at once when it's still there whole
 		std::string name = nameOf(netDecode(path));
@@ -247,16 +248,16 @@ namespace bp
 		for (unsigned char c : path) { h ^= c; h *= 16777619u; }
 		char hex[12];
 		snprintf(hex, sizeof hex, "%08x", h);
-		std::string root = stateDirPath + "/netdocs", dir = root + "/" + hex, local = dir + "/" + name;
+		std::string root = ui.stateDirPath + "/netdocs", dir = root + "/" + hex, local = dir + "/" + name;
 		struct stat st;
 		auto size = netSizes.find(path);
 		if (stat(local.c_str(), &st) == 0 && size != netSizes.end() && size->second == (int64_t)st.st_size)
 		{
 			utimes(dir.c_str(), nullptr);
-			openFile(local, p);
+			ui.openFile(local, p);
 			return;
 		}
-		if (stateDirPath.empty()) { alert("Can\xE2\x80\x99t open it", "There\xE2\x80\x99s no folder on the card to copy it to.");; return; }
+		if (ui.stateDirPath.empty()) { ui.alert("Can\xE2\x80\x99t open it", "There\xE2\x80\x99s no folder on the card to copy it to.");; return; }
 		removeTree(dir);
 		mkdir(root.c_str(), 0755);
 		mkdir(dir.c_str(), 0755);
@@ -266,10 +267,10 @@ namespace bp
 		uint64_t coming = size != netSizes.end() && size->second > 0 ? (uint64_t)size->second : 0;
 		trimCacheFolder(root, coming < cap ? cap - coming : 0, dir);
 		startNetJob(JOB_FETCH, path, dir, name, p);
-		if (fileJob) fileJob->openAfter = local;
+		if (ui.fileJob) ui.fileJob->openAfter = local;
 	}
 
-	void Ui::fileOpsAct(int what, const std::string& path, Player& p)
+	void Ui::Browse::fileOpsAct(int what, const std::string& path, Player& p)
 	{
 		std::string name = nameOf(path);
 		bool net = isNetPath(path);
@@ -282,36 +283,36 @@ namespace bp
 		{
 		case CTX_F_COPY:
 		case CTX_F_MOVE:
-			if (what == CTX_F_MOVE && playing) { alert("It\xE2\x80\x99s playing", "Stop it first, then try again."); return; }
+			if (what == CTX_F_MOVE && playing) { ui.alert("It\xE2\x80\x99s playing", "Stop it first, then try again."); return; }
 			clipOp = what == CTX_F_COPY ? CLIP_COPY : CLIP_MOVE;
 			clipPath = path;
-			ctxOpen = false;
+			ui.ctxOpen = false;
 			p.osd(std::string(clipOp == CLIP_COPY ? "Copy" : "Move") + ": open the folder it goes in, then SELECT", 2500);
 			return;
 		case CTX_F_RENAME:
-			if (playing) { alert("It\xE2\x80\x99s playing", "Stop it first, then try again."); return; }
-			ctxOpen = false;
+			if (playing) { ui.alert("It\xE2\x80\x99s playing", "Stop it first, then try again."); return; }
+			ui.ctxOpen = false;
 			fileRenamePath = path;
 			fileNameNote.clear();
-			openKeyboard(FILE_NAME, name);	// (a network name decoded: what the server shows)
+			ui.openKeyboard(FILE_NAME, name);	// (a network name decoded: what the server shows)
 			return;
 		case CTX_F_DELETE:
-			if (playing) { alert("It\xE2\x80\x99s playing", "Stop it first, then try again."); return; }
+			if (playing) { ui.alert("It\xE2\x80\x99s playing", "Stop it first, then try again."); return; }
 			// twice: it's gone for good
-			if (!ctxArmed) { ctxArmed = true; return; }
-			ctxOpen = false;
+			if (!ui.ctxArmed) { ui.ctxArmed = true; return; }
+			ui.ctxOpen = false;
 			if (net) { startNetJob(JOB_DELETE, path, "", name, p); return; }
 			removeTree(path);
 			{
 				struct stat st;
-				if (lstat(path.c_str(), &st) == 0) alert("Couldn\xE2\x80\x99t delete it", "\"" + name + "\" (or something in it) couldn\xE2\x80\x99t be deleted. Is the card read only?");
+				if (lstat(path.c_str(), &st) == 0) ui.alert("Couldn\xE2\x80\x99t delete it", "\"" + name + "\" (or something in it) couldn\xE2\x80\x99t be deleted. Is the card read only?");
 				else p.osd("Deleted \"" + name + "\"", 2000);
 			}
 			{
-				int c = cursor, s = scroll;
+				int c = ui.cursor, s = ui.scroll;
 				enterFolder(browseDir, p);
-				cursor = std::min(c, std::max(0, (int)browsePaths.size() - 1));
-				scroll = s;
+				ui.cursor = std::min(c, std::max(0, (int)browsePaths.size() - 1));
+				ui.scroll = s;
 				fitList();
 			}
 			return;
@@ -319,10 +320,10 @@ namespace bp
 		}
 	}
 
-	void Ui::fileRenameDone(Player& p)
+	void Ui::Browse::fileRenameDone(Player& p)
 	{
 		fileNameSubmit = false;
-		std::string name = trimmed(kbEdit.text);
+		std::string name = trimmed(ui.kbEdit.text);
 		bool net = isNetPath(fileRenamePath);
 		std::string dir = net ? netParent(fileRenamePath) : parentFolder(fileRenamePath);
 		if (name.empty() || name == "." || name == ".." || name.find('/') != std::string::npos)
@@ -337,8 +338,8 @@ namespace bp
 		}
 		if (name == (net ? netBaseName(fileRenamePath) : nameOf(fileRenamePath)))
 		{
-			kbOpen = false;
-			kbPressed = -1;
+			ui.kbOpen = false;
+			ui.kbPressed = -1;
 			return;
 		}
 		// a network one: on the job's thread (the server answers when it does), the list read again after
@@ -346,15 +347,15 @@ namespace bp
 		{
 			for (const std::string& o : browsePaths)
 				if (o == netJoin(dir, name)) { fileNameNote = "Something here already has that name"; return; }
-			kbOpen = false;
-			kbPressed = -1;
+			ui.kbOpen = false;
+			ui.kbPressed = -1;
 			fileNameNote.clear();
 			startNetJob(JOB_RENAME, fileRenamePath, dir, name, p);
-			if (fileJob) fileJob->newName = name;
+			if (ui.fileJob) ui.fileJob->newName = name;
 			return;
 		}
 		int r = renameNoReplace(fileRenamePath, dir + "/" + name);
-		if (r == 0) pathMoved(fileRenamePath, dir + "/" + name, p);
+		if (r == 0) ui.pathMoved(fileRenamePath, dir + "/" + name, p);
 		if (r == EEXIST)
 		{
 			fileNameNote = "Something here already has that name";
@@ -365,27 +366,27 @@ namespace bp
 			fileNameNote = std::string("It couldn't be renamed: ") + strerror(r);
 			return;
 		}
-		kbOpen = false;
-		kbPressed = -1;
+		ui.kbOpen = false;
+		ui.kbPressed = -1;
 		fileNameNote.clear();
 		enterFolder(browseDir, p);
 		for (size_t i = 0; i < browsePaths.size(); i++)
-			if (browsePaths[i] == dir + "/" + name) cursor = (int)i;
+			if (browsePaths[i] == dir + "/" + name) ui.cursor = (int)i;
 		fitList();
 	}
 
 	// ---- the clip: what Copy or Move holds while you go to its folder ----
 
-	bool Ui::clipCanPaste() const
+	bool Ui::Browse::clipCanPaste() const
 	{
-		if (clipOp == CLIP_NONE || page != Page::Browse || browseDir.empty()) return false;
+		if (clipOp == CLIP_NONE || ui.page != Page::Browse || browseDir.empty()) return false;
 		if (isNetPath(browseDir)) return netOpsHere() && netWritable && !netLoading;
 		return !pseudoDir(browseDir) && isDirPath(browseDir);
 	}
 
-	bool Ui::clipKey(Button b, Player& p)
+	bool Ui::Browse::clipKey(Button b, Player& p)
 	{
-		if (clipOp == CLIP_NONE || page != Page::Browse || inMenu || ctxOpen || kbOpen) return false;
+		if (clipOp == CLIP_NONE || ui.page != Page::Browse || ui.inMenu || ui.ctxOpen || ui.kbOpen) return false;
 		if (b == Button::Select && clipCanPaste()) { filePaste(p); return true; }
 		if (b == Button::X)
 		{
@@ -397,9 +398,9 @@ namespace bp
 		return false;
 	}
 
-	bool Ui::clipPointer(const Pointer& pt, int x, int y, Player& p)
+	bool Ui::Browse::clipPointer(const Pointer& pt, int x, int y, Player& p)
 	{
-		if (clipOp == CLIP_NONE || page != Page::Browse || inMenu || ctxOpen || kbOpen) return false;
+		if (clipOp == CLIP_NONE || ui.page != Page::Browse || ui.inMenu || ui.ctxOpen || ui.kbOpen) return false;
 		if (!clipBtn(0).hit(x, y) && !clipBtn(1).hit(x, y)) return false;
 		if (pt.kind == Pointer::Up)
 		{
@@ -409,26 +410,26 @@ namespace bp
 		return true;
 	}
 
-	void Ui::filePaste(Player& p)
+	void Ui::Browse::filePaste(Player& p)
 	{
 		std::string src = clipPath, dest = browseDir;
-		if (cardOut(dest)) { alert("The second card is out", "Put it back in, then try again.");; return; }
+		if (cardOut(dest)) { ui.alert("The second card is out", "Put it back in, then try again.");; return; }
 		// a network folder at one end (or both): xfer.h's job
 		if (isNetPath(src) || isNetPath(dest))
 		{
 			bool srcNet = isNetPath(src);
-			if (dest == src || dest.rfind(src + "/", 0) == 0) { alert("Can\xE2\x80\x99t put it there", "A folder can\xE2\x80\x99t go into itself.");; return; }
+			if (dest == src || dest.rfind(src + "/", 0) == 0) { ui.alert("Can\xE2\x80\x99t put it there", "A folder can\xE2\x80\x99t go into itself.");; return; }
 			std::string parent = srcNet ? netParent(src) : parentFolder(src);
 			if (clipOp == CLIP_MOVE && parent == dest) { p.osd("It's already here", 1500); clipOp = CLIP_NONE; return; }
 			if (clipOp == CLIP_MOVE && p.playing() && (p.currentPath() == src || p.currentPath().rfind(src + "/", 0) == 0))
 			{
-				alert("It\xE2\x80\x99s playing", "Stop it first, then try again.");
+				ui.alert("It\xE2\x80\x99s playing", "Stop it first, then try again.");
 				return;
 			}
 			if (!srcNet)
 			{
 				struct stat st;
-				if (lstat(src.c_str(), &st) != 0) { alert("It isn\xE2\x80\x99t there any more", "It was moved or deleted meanwhile.");; clipOp = CLIP_NONE; return; }
+				if (lstat(src.c_str(), &st) != 0) { ui.alert("It isn\xE2\x80\x99t there any more", "It was moved or deleted meanwhile.");; clipOp = CLIP_NONE; return; }
 			}
 			int op = clipOp;
 			clipOp = CLIP_NONE;
@@ -438,12 +439,12 @@ namespace bp
 		}
 		bool folder = isDirPath(src);
 		struct stat st;
-		if (lstat(src.c_str(), &st) != 0) { alert("It isn\xE2\x80\x99t there any more", "It was moved or deleted meanwhile.");; clipOp = CLIP_NONE; return; }
-		if (folder && (dest == src || dest.rfind(src + "/", 0) == 0)) { alert("Can\xE2\x80\x99t put it there", "A folder can\xE2\x80\x99t go into itself.");; return; }
+		if (lstat(src.c_str(), &st) != 0) { ui.alert("It isn\xE2\x80\x99t there any more", "It was moved or deleted meanwhile.");; clipOp = CLIP_NONE; return; }
+		if (folder && (dest == src || dest.rfind(src + "/", 0) == 0)) { ui.alert("Can\xE2\x80\x99t put it there", "A folder can\xE2\x80\x99t go into itself.");; return; }
 		if (clipOp == CLIP_MOVE && parentFolder(src) == dest) { p.osd("It's already here", 1500); clipOp = CLIP_NONE; return; }
 		if (clipOp == CLIP_MOVE && p.playing() && (p.currentPath() == src || p.currentPath().rfind(src + "/", 0) == 0))
 		{
-			alert("It\xE2\x80\x99s playing", "Stop it first, then try again.");
+			ui.alert("It\xE2\x80\x99s playing", "Stop it first, then try again.");
 			return;
 		}
 		auto j = std::make_shared<FileJob>();
@@ -451,11 +452,11 @@ namespace bp
 		j->src = src;
 		j->dest = dest;
 		j->name = freeName(dest, nameOf(src), folder);	// (a copy in its own folder: "name (2)")
-		if (j->name.empty()) { alert("Can\xE2\x80\x99t put it here", "There\xE2\x80\x99s no free name for it in this folder.");; return; }
+		if (j->name.empty()) { ui.alert("Can\xE2\x80\x99t put it here", "There\xE2\x80\x99s no free name for it in this folder.");; return; }
 		clipOp = CLIP_NONE;
 		clipPath.clear();
-		fileJob = j;
-		fileJobPressed = -1;
+		ui.fileJob = j;
+		ui.fileJobPressed = -1;
 		fprintf(stderr, "files: %s %s -> %s/%s\n", j->op == CLIP_COPY ? "copy" : "move", src.c_str(), dest.c_str(), j->name.c_str());
 		FileJob* raw = j.get();
 		j->t = std::thread([raw] { runFileJob(raw); });
@@ -487,11 +488,11 @@ namespace bp
 			if (err.empty() && j->op == JOB_RENAME) pathMoved(j->src, renamed, p);
 			if (!err.empty()) alert(j->op == JOB_RENAME ? "Couldn\xE2\x80\x99t rename it" : "Couldn\xE2\x80\x99t delete it", err);
 			else p.osd(j->op == JOB_RENAME ? "Renamed to \"" + j->newName + "\"" : "Deleted \"" + j->name + "\"", 2500);
-			if (page == Page::Browse && isNetPath(browseDir))
+			if (page == Page::Browse && isNetPath(browse->browseDir))
 			{
 				int c = cursor, s = scroll;
-				netSelect = renamed;
-				enterFolder(browseDir, p);
+				browse->netSelect = renamed;
+				browse->enterFolder(browse->browseDir, p);
 				if (renamed.empty()) { cursor = c; scroll = s; }
 			}
 			return;
@@ -505,13 +506,13 @@ namespace bp
 		else if (err.rfind("Cancelled", 0) == 0) p.osd(err, 2000);
 		else alert(copy ? "Couldn\xE2\x80\x99t copy it" : "Couldn\xE2\x80\x99t move it", err);
 		// the folder listed again, the cursor on what came
-		if (page == Page::Browse && browseDir == j->dest)
+		if (page == Page::Browse && browse->browseDir == j->dest)
 		{
-			if (isNetPath(browseDir)) netSelect = landed;	// (listed again on the network's worker: the cursor then)
-			enterFolder(browseDir, p);
-			for (size_t i = 0; i < browsePaths.size(); i++)
-				if (browsePaths[i] == landed) cursor = (int)i;
-			fitList();
+			if (isNetPath(browse->browseDir)) browse->netSelect = landed;	// (listed again on the network's worker: the cursor then)
+			browse->enterFolder(browse->browseDir, p);
+			for (size_t i = 0; i < browse->browsePaths.size(); i++)
+				if (browse->browsePaths[i] == landed) cursor = (int)i;
+			browse->fitList();
 		}
 	}
 
@@ -577,21 +578,21 @@ namespace bp
 		drawTextMid(stopping ? "Stopping\xE2\x80\xA6" : "Cancel (B)", 1, stopping ? DIM : TEXT, c.x + c.w / 2, c.y + c.h / 2, c.w - 10, 2);
 	}
 
-	void Ui::drawClipBar()
+	void Ui::Browse::drawClipBar()
 	{
-		if (clipOp == CLIP_NONE || page != Page::Browse || inMenu) return;
+		if (clipOp == CLIP_NONE || ui.page != Page::Browse || ui.inMenu) return;
 		// along the foot: what's held, and Cancel / Paste here
-		fill({0, 376, W, H - 376}, BG);
-		fill({0, 376, W, 2}, RULE);
+		ui.fill({0, 376, W, H - 376}, BG);
+		ui.fill({0, 376, W, 2}, RULE);
 		std::string what = std::string(clipOp == CLIP_COPY ? "Copy" : "Move") + " \"" + nameOf(clipPath) + "\"";
-		drawTextMid(what, 0, TEXT, 24, 400, W - 48);
+		ui.drawTextMid(what, 0, TEXT, 24, 400, W - 48);
 		bool can = clipCanPaste();
 		const char* labels[2] = {"Cancel (X)", clipOp == CLIP_COPY ? "Copy here (SELECT)" : "Move here (SELECT)"};
 		for (int i = 0; i < 2; i++)
 		{
 			Rect b = clipBtn(i);
-			drawBox(b, BUTTON, R_BUTTON);
-			drawTextMid(labels[i], 0, i == 1 && !can ? DIM : TEXT, b.x + b.w / 2, b.y + b.h / 2, b.w - 10, 2);
+			ui.drawBox(b, BUTTON, R_BUTTON);
+			ui.drawTextMid(labels[i], 0, i == 1 && !can ? DIM : TEXT, b.x + b.w / 2, b.y + b.h / 2, b.w - 10, 2);
 		}
 	}
 
@@ -614,15 +615,15 @@ namespace bp
 			// a network file or folder: what its folder's listing said
 			std::string name = netBaseName(path);
 			infoTitle = title.empty() ? name : title;
-			bool folder = netSizes.find(path) == netSizes.end();
+			bool folder = browse->netSizes.find(path) == browse->netSizes.end();
 			std::string kind = folder ? "Folder" : isVideoFile(name) ? "Video" : isAudioFile(name) ? "Song" : isPhotoFile(name) ? "Photo"
 				: isComicName(name) ? "Comic" : isPdfName(name) ? "PDF" : isDocumentName(name) ? (strcasecmp(name.c_str() + name.size() - 5, ".epub") == 0 ? "Book (EPUB)" : "Text") : "File";
 			infoRows.push_back({"Name", name});
 			infoRows.push_back({"Kind", kind});
-			if (!folder && netSizes[path] >= 0) infoRows.push_back({"Size", sizeText((uint64_t)netSizes[path])});
+			if (!folder && browse->netSizes[path] >= 0) infoRows.push_back({"Size", sizeText((uint64_t)browse->netSizes[path])});
 			for (auto& e : extra) infoRows.push_back(e);
 			infoRows.push_back({"Where", whereOf(netParent(path))});
-			infoRows.push_back({"Access", netWritable ? "Read and write" : "Read only (for this account)"});
+			infoRows.push_back({"Access", browse->netWritable ? "Read and write" : "Read only (for this account)"});
 			NetPath np;
 			if (parseNetPath(path, np)) infoRows.push_back({"Path", np.path});
 			infoOpen = true;
@@ -739,6 +740,6 @@ namespace bp
 		manga->mangaSave();
 		fprintf(stderr, "files: %s moved to %s: its places, playlists and series follow (%d stores)\n", from.c_str(), to.c_str(), moved);
 		// Home's Recent shows the new names
-		if (browseDir == HOMEDIR || browseDir == RECENT) recentEdited(p);
+		if (browse->browseDir == HOMEDIR || browse->browseDir == RECENT) recentEdited(p);
 	}
 }

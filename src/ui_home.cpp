@@ -17,6 +17,7 @@
 #include <qrcodegen.hpp>
 #endif
 #include "ui_internal.h"
+#include "ui_browse.h"
 #include "ui_sound.h"
 #include "ui_docs.h"
 #include "ui_reader.h"
@@ -132,10 +133,10 @@ namespace bp
 			recentTab = (recentTab + dir + 4) % 4;
 			if (!recentTab || recentCounts[recentTab]) break;
 		}
-		enterFolder(RECENT, p);
-		cursor = firstCursor();
+		browse->enterFolder(RECENT, p);
+		cursor = browse->firstCursor();
 		scroll = 0;
-		fitList();
+		browse->fitList();
 	}
 
 	void Ui::recentInOrder(const std::vector<std::string>& before)
@@ -152,15 +153,15 @@ namespace bp
 
 	void Ui::recentEdited(Player& p)
 	{
-		if (browseDir != HOMEDIR && browseDir != RECENT) return;
+		if (browse->browseDir != HOMEDIR && browse->browseDir != RECENT) return;
 		recentKeepOrder = true;
 		int c = cursor, s = scroll;
-		enterFolder(browseDir, p);
-		if (browseDir == RECENT)
+		browse->enterFolder(browse->browseDir, p);
+		if (browse->browseDir == RECENT)
 		{
 			cursor = c;
 			scroll = s;
-			fitList();
+			browse->fitList();
 		}
 	}
 
@@ -247,7 +248,7 @@ namespace bp
 
 	void Ui::goHome(int zone, int idx, Player& p)
 	{
-		enterFolder(HOMEDIR, p);
+		browse->enterFolder(HOMEDIR, p);
 		if (zone == HOME_GRID || recent.empty())
 		{
 			homeZone = HOME_GRID;
@@ -270,22 +271,22 @@ namespace bp
 		{
 			// Playlists from Home: the list of them, the cursor on the one left open (a playlist reopened from Home read
 			// as a wrong turn; L/R and the markers still go back to it)
-			std::string was = homeGrid == TAB_PLAYLISTS ? tabDir[TAB_PLAYLISTS] : std::string();
+			std::string was = homeGrid == TAB_PLAYLISTS ? browse->tabDir[TAB_PLAYLISTS] : std::string();
 			if (isPlDir(was))
 			{
-				tabDir[TAB_PLAYLISTS] = PLROOT;
-				openSection(homeGrid, p);
+				browse->tabDir[TAB_PLAYLISTS] = PLROOT;
+				browse->openSection(homeGrid, p);
 				std::string file = plFileOf(was);
-				for (size_t i = 0; i < browsePaths.size(); i++)
-					if (browsePaths[i] == file) { cursor = (int)i; fitList(); break; }
+				for (size_t i = 0; i < browse->browsePaths.size(); i++)
+					if (browse->browsePaths[i] == file) { cursor = (int)i; browse->fitList(); break; }
 				return;
 			}
-			openSection(homeGrid, p);
+			browse->openSection(homeGrid, p);
 			return;
 		}
 		if (homeStrip < stripCards()) { openFile(recent[homeStrip].path, p); return; }
 		// All recent: the list, from its top
-		enterFolder(RECENT, p);
+		browse->enterFolder(RECENT, p);
 	}
 
 	bool Ui::homeKey(Button b, Player& p)
@@ -459,7 +460,7 @@ namespace bp
 		{
 			std::string n = netBaseName(path);
 			if (isComicName(n) && !p.settings.mangaOn) { alert("Comics need the Manga reader", "Turn it on in Extensions to read CBZ and CBR files."); return; }
-			if (isDocumentName(n) || isComicName(n)) { netOpenCopy(path, p); return; }
+			if (isDocumentName(n) || isComicName(n)) { browse->netOpenCopy(path, p); return; }
 			alert("Can\xE2\x80\x99t open this file", "\"" + n + "\" isn\xE2\x80\x99t a video, song, photo, book or document the player can open.");
 			return;
 		}
@@ -475,10 +476,10 @@ namespace bp
 		// its subtitles and its cover (netListed opens it)
 		NetPath np;
 		const NetServer* sv = isNetPath(path) && parseNetPath(path, np) && netStore ? netStore->find(np.server) : nullptr;
-		if (sv && netWorker && netNames.find(netParent(path)) == netNames.end())
+		if (sv && netWorker && browse->netNames.find(netParent(path)) == browse->netNames.end())
 		{
-			netOpenPending = path;
-			netWorker->list(++netSerial, *sv, netStore->password(*sv), netParent(path));
+			browse->netOpenPending = path;
+			netWorker->list(++browse->netSerial, *sv, netStore->password(*sv), netParent(path));
 		}
 		else openRequest = path;
 	}
@@ -488,16 +489,16 @@ namespace bp
 		// its folder, in Files or Network, the cursor on it (a network one's once the listing comes)
 		if (isNetPath(path))
 		{
-			setSection(TAB_NETWORK);
-			netSelect = path;
-			enterFolder(netParent(path), p);
+			browse->setSection(TAB_NETWORK);
+			browse->netSelect = path;
+			browse->enterFolder(netParent(path), p);
 			return;
 		}
-		setSection(TAB_LOCAL);
-		enterFolder(parentFolder(path), p);
-		for (size_t i = 0; i < browsePaths.size(); i++)
-			if (browsePaths[i] == path) cursor = (int)i;
-		fitList();
+		browse->setSection(TAB_LOCAL);
+		browse->enterFolder(parentFolder(path), p);
+		for (size_t i = 0; i < browse->browsePaths.size(); i++)
+			if (browse->browsePaths[i] == path) cursor = (int)i;
+		browse->fitList();
 	}
 
 	void Ui::openRecentMenu(const std::string& path)
@@ -672,34 +673,34 @@ namespace bp
 		drawHints({{"UP/DOWN", "Choose"}, {"A", "OK"}, {"B", "Cancel"}});
 	}
 
-	Ui::Rect Ui::pipRect(int k, const Player& p) const
+	Ui::Rect Ui::Browse::pipRect(int k, const Player& p) const
 	{
 		// as the mock-up has them (x 344..500, R at 508), moved left only when the battery, the web's globe and the
 		// clock need it
-		int left = statusLeft(p);
-		int rw = (int)std::lround(textWidth("R", 0) / sx);
+		int left = ui.statusLeft(p);
+		int rw = (int)std::lround(ui.textWidth("R", 0) / sx);
 		int x0 = std::min(344, left - 8 - rw - 8 - 156);
 		return {x0 + k * 40, 14, 36, 36};
 	}
 
-	void Ui::drawSectionHeader(const Player& p)
+	void Ui::Browse::drawSectionHeader(const Player& p)
 	{
 		// "<", the section's name, its markers (L, Files Playlists Network Extensions, R: this one lit), the battery
-		drawBackIcon();
+		ui.drawBackIcon();
 		Rect first = pipRect(0, p);
 		// (inside Liked: its name, as its line has no place to say it)
-		bool liked = isPlDir(browseDir) && plIsLiked(plFileOf(browseDir));
-		drawTextMid(liked ? PlaylistStore::LIKED_NAME : SECTION_NAMES[browseTab], 2, TEXT, 72, 32, std::max(40, first.x - 22 - 72));
-		drawTextMid("L", 0, ACCENT, first.x - 10, 32, 0, 1);
+		bool liked = isPlDir(browseDir) && ui.plIsLiked(plFileOf(browseDir));
+		ui.drawTextMid(liked ? PlaylistStore::LIKED_NAME : SECTION_NAMES[browseTab], 2, TEXT, 72, 32, std::max(40, first.x - 22 - 72));
+		ui.drawTextMid("L", 0, ACCENT, first.x - 10, 32, 0, 1);
 		for (int k = 0; k < BROWSE_TABS; k++)
 		{
 			Rect r = pipRect(k, p);
 			bool on = k == browseTab;
-			drawBox(r, on ? ACCENT : SURFACE, R_BUTTON);
-			drawGlyphMid(*SECTION_GLYPHS[k], r.x + r.w / 2, r.y + r.h / 2, on ? ON_ACCENT : DIM);
+			ui.drawBox(r, on ? ACCENT : SURFACE, R_BUTTON);
+			ui.drawGlyphMid(*SECTION_GLYPHS[k], r.x + r.w / 2, r.y + r.h / 2, on ? ON_ACCENT : DIM);
 		}
-		drawTextMid("R", 0, ACCENT, first.x + 164, 32);
-		drawBattery(616, 24, p);
+		ui.drawTextMid("R", 0, ACCENT, first.x + 164, 32);
+		ui.drawBattery(616, 24, p);
 	}
 
 	// ---- what plays behind the browser: the mini bar, the playing row's chip, what a photo stopped ----
@@ -728,7 +729,7 @@ namespace bp
 		// over a photo this is the photo viewer's page (drawPhoto), not the player's
 		if (page == Page::Main) return p.playingPhoto();
 		if (page == Page::Browse)
-			return browseDir != FORMDIR && browseDir != FINDNET && !addPending.serial;
+			return browse->browseDir != FORMDIR && browse->browseDir != FINDNET && !addPending.serial;
 		// the Sound page's dialogs (Options, presets, Delete) reach the panel's bottom
 		if (page == Page::Sound) return !sound->dialogOpen();
 		if (page == Page::MangaRead)
@@ -795,10 +796,10 @@ namespace bp
 
 	int Ui::rowChip(int i) const
 	{
-		if (!chipKind || i < 0 || i >= (int)browsePaths.size() || i >= (int)browseRows.size() || browsePaths[i] != chipPath) return 0;
+		if (!chipKind || i < 0 || i >= (int)browse->browsePaths.size() || i >= (int)browse->browseRows.size() || browse->browsePaths[i] != chipPath) return 0;
 		// in a playlist's page only when it plays from that playlist; in a folder (or All recent) wherever it's from
-		if (browseRows[i].id == PL_ITEM) return browseDir == chipPlDir ? chipKind : 0;
-		return browseRows[i].id == 2 ? chipKind : 0;
+		if (browse->browseRows[i].id == PL_ITEM) return browse->browseDir == chipPlDir ? chipKind : 0;
+		return browse->browseRows[i].id == 2 ? chipKind : 0;
 	}
 
 	int Ui::drawChip(int right, int mid, int kind, bool card)

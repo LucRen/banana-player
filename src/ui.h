@@ -88,17 +88,7 @@ namespace bp
 		// the row the browser's cursor is on (Home: the card or the tile it's on), for test runs
 		std::string browseSelection() const;
 		// the player shown (a pick, Now playing, SELECT, a photo...): where it was opened from is kept, for the way back
-		void showPlayer()
-		{
-			if (!onPlayer) playerBack = {true, page, inMenu, menuTab, setGroup, cursor, scroll, menuReturnDir, menuReturnCursor, menuReturnScroll, browseDir, browseTab};
-			if (!onPlayer) listPulseArm = true;	// (a playlist's song: the List key glows twice, drawMain)
-			onPlayer = true;
-			page = Page::Main;
-			inMenu = false;
-			bgPlay = false;
-			ctxOpen = false;
-			dropTouch();
-		}
+		void showPlayer();
 		// what plays (a song or a video) has its screen as the bottom panel's base: Main, or a page or the menu over it.
 		// False while it plays behind the browser (the player left with B, "<" or Back)
 		bool playerShown(const Player& p) const { return p.playing() && !bgPlay; }
@@ -127,7 +117,7 @@ namespace bp
 		// opened behind the browser (a PlayRequest's stay): the browser stays the base page
 		void playBehind() { bgPlay = true; }
 		bool browsing() const { return page == Page::Browse; }
-		std::string browseFolder() const { return browseDir; }
+		std::string browseFolder() const;
 		// a video picked in the browser, once: the caller opens it
 		// the browser's rows as they are listed (label, then note; Home: the Recent cards, then the tiles), for test runs
 		std::vector<std::string> browseLabels() const;
@@ -163,6 +153,11 @@ namespace bp
 		// (public: main talks to it for the top panel's text viewer and the PDF viewer's pan area)
 		struct Docs;
 		std::unique_ptr<Docs> docs;
+		// ---- the browser (Home, Files, Playlists, Network, All recent): an area (Area), ui_browse.h; its code in
+		// ui_browse.cpp, ui_fileops.cpp, ui_forms.cpp ----
+		// (public: the dashboard's routes reach its folder, rows and form)
+		struct Browse;
+		std::unique_ptr<Browse> browse;
 		// a document from Files: opened in its viewer; false when the path isn't one
 		bool openDocument(const std::string& path, Player& p);
 		// started with no file: the video's Quit closes it (back to the browser)
@@ -189,11 +184,7 @@ namespace bp
 		void hostFound(const FoundHost& h, Player& p);
 		// a network folder's file names, as last listed (none if it wasn't): where a file picked there finds its
 		// subtitles, its cover and the files that play after it
-		std::vector<std::string> netFolderNames(const std::string& dir) const
-		{
-			auto it = netNames.find(dir);
-			return it == netNames.end() ? std::vector<std::string>() : it->second;
-		}
+		std::vector<std::string> netFolderNames(const std::string& dir) const;
 		// F alone: quick settings over whatever's on the bottom panel (volume, brightness, Same for both screens, Quit);
 		// F again, B or a tap outside closes them
 		void toggleQuick(Player& p);
@@ -360,6 +351,11 @@ namespace bp
 		struct Row { int64_t id; std::string label; bool selected; std::string note = ""; };
 
 		std::vector<Row> rows(const Player& p) const;
+		// a list page's own keys (the tracks, Up next, the browser): UP/DOWN, a page with LEFT/RIGHT, A chooses, B home
+		bool listKey(Button b, Player& p);
+		// a finger down on a list page's rows: the row under it the cursor, the touch begun (the drag or the tap is
+		// Ui::pointer's)
+		bool listDown(int x, int y, Player& p);
 		void openMenu(Page pg, const Player& p);
 		// Tracks: one page, four tabs in this order, those that apply (tracksTabs): Chapters (a file with chapters; the
 		// Chapters page, Page::Chapters), Subtitles, Audio and Picture (Fit, Fill, Stretch) (a video; Page::Tracks).
@@ -410,23 +406,11 @@ namespace bp
 		struct SettingsPage;
 		std::unique_ptr<SettingsPage> settingsPage;
 		Page home(const Player& p) const { return playerShown(p) ? Page::Main : Page::Browse; }
-		// HOMEDIR Home, "" the cards (Files' top), RECENT the recent videos (All recent)
-		void enterFolder(std::string dir, Player& p);
 		// the browser's four sections, opened from Home's tiles: Files (the cards), Playlists (the saved ones, then their
 		// items), Network (the saved connections, then their folders) and Extensions (a placeholder). L/R step to the
 		// one before or after (no wrap), at its top; the header's markers by touch. tabDir: where each was left (the
 		// select mode goes between Files and Network keeping its place)
 		enum BrowseTab { TAB_LOCAL, TAB_PLAYLISTS, TAB_NETWORK, TAB_EXT, BROWSE_TABS };
-		int browseTab = TAB_LOCAL;
-		std::string tabDir[BROWSE_TABS];
-		void switchTab(int tab, Player& p);	// to where the section was left
-		void openSection(int tab, Player& p);	// to its top
-		void setSection(int tab);	// the section a page about to be entered is in (where this one was kept)
-		bool atFirstPage() const;	// a section's top (or All recent): B goes Home from it
-		bool atHome() const;
-		// the section markers in a section's header (L, four marks, R), left of the battery (and the web's globe)
-		Rect pipRect(int k, const Player& p) const;
-		void drawSectionHeader(const Player& p);
 
 		// Home (browseDir HOMEDIR), the browser's first page: the Recent strip (a card a recent file, then All recent)
 		// over the four sections' tiles, two by two. The focus is on the strip or the tiles; UP/DOWN go between them
@@ -518,9 +502,7 @@ namespace bp
 		// Copy / Move: the item is held (clip) while you go to the folder it goes in, and pasted there (SELECT, or the
 		// bar's button); a copy, or a move to the other card, runs on a thread of its own with this panel showing
 		// its progress until it ends (nothing else answers meanwhile but Cancel)
-		enum { CLIP_NONE, CLIP_COPY, CLIP_MOVE };
-		int clipOp = CLIP_NONE;
-		std::string clipPath;
+		enum { CLIP_NONE, CLIP_COPY, CLIP_MOVE };	// what the clip holds (Browse::clipOp), what a job does
 		struct FileJob;
 		std::shared_ptr<FileJob> fileJob;
 		static void runFileJob(FileJob* j);	// on the job's thread
@@ -532,37 +514,16 @@ namespace bp
 		std::vector<std::pair<std::string, std::string>> infoRows;
 		void openFileInfo(const std::string& path, const std::string& title, std::vector<std::pair<std::string, std::string>> extra = {});
 		void drawFileInfo();
-		bool fileNameSubmit = false;
-		std::string fileNameNote, fileRenamePath;
-		bool fileOpsOn(int row) const;	// the row is a file or folder of the cards that can be copied, moved...
-		// a network folder's: the file actions there (inside a share; not an SMB server's list of shares), whether
-		// the account can write in it (the listing tried), and the files' sizes for Info
-		bool netOpsHere() const;
-		bool netWritable = false;
-		std::unordered_map<std::string, int64_t> netSizes;
-		bool netReadOnlySaid(const std::string& path, Player& p);	// a change in a read-only network folder: said, true
-		// a network document or comic: copied to <state>/netdocs first (a progress sheet), then opened from there, so
-		// a network that drops while reading takes nothing away
-		void netOpenCopy(const std::string& path, Player& p);
-		void startNetJob(int op, const std::string& src, const std::string& dest, const std::string& name, Player& p);
 	public:
 		// a file or folder moved (Files' Rename or Move here, the dashboard's): everything kept of it follows it, it and
 		// what's inside it — Recent and places to resume, playlists and Liked, a document's place and bookmarks, the
 		// manga reader's series and their read marks (main thread: the dashboard's come through WebServer::call)
 		void pathMoved(const std::string& from, const std::string& to, Player& p);
 	private:
-		void fileOpsAct(int what, const std::string& path, Player& p);
-		bool clipKey(Button b, Player& p);	// SELECT pastes here, X lets the clip go
-		bool clipPointer(const Pointer& pt, int x, int y, Player& p);
-		bool clipCanPaste() const;
-		void filePaste(Player& p);
 		void fileJobTick(Player& p);
 		bool fileJobKey(Button b);
 		bool fileJobPointer(const Pointer& pt, int x, int y);
 		void drawFileJob();
-		void drawClipBar();
-		void fileRenameDone(Player& p);
-		Rect clipBtn(int i) const { return {i ? 328 : 24, 428, 288, 44}; }
 		Rect fileJobCancelRect() const { return {200, 300, 240, 52}; }
 		Playlist plCur;
 		bool plLoaded = false;	// plCur read (false: the file couldn't be)
@@ -681,7 +642,6 @@ namespace bp
 		void drawSelHeader(const Player& p);
 		void drawSelBar();
 		void drawBarButton(int id, const Glyph* g, const std::string& label, const char* key, SDL_Color ink, bool filled, bool off);
-		void drawWhere(int x, int maxW);	// the browser's where line: its end kept, the last folder brighter
 		std::string whereOf(const std::string& dir) const;	// "Videos / Shows", "MY-PC / Media / Movies"
 		// the Main page's line under the title: what plays from (a folder, a network folder, a playlist)
 		void drawSource(const Player& p);
@@ -697,29 +657,11 @@ namespace bp
 		std::string ctxPlFile;
 		int ctxPlItem = -1;
 		std::string ctxTitle, ctxNote;	// a playlist's menu: its title, and the line under it ("12 items", why it's missing)
-		bool holdRow(int row) const;	// a finger held on it opens its menu
 		// a playlist's network items: their folders listed for their subtitles and covers (Player::netFolderWanted),
 		// each once a play; the answers by serial
 		std::set<std::string> sideAsked;
 		std::map<int, std::string> sidePending;
 		int sideSerial = 1 << 30;
-		// a network folder listing: what's asked of the worker now, and what went wrong last
-		int netSerial = 0;
-		int durSerial = 0, durLo = -1;	// the worker's list (one a listing) and the rows on screen it was last told
-		bool netLoading = false;
-		std::string netSelect;	// a file to put the cursor on once its folder is listed (back from playing it)
-		std::map<std::string, std::vector<std::string>> netNames;	// netFolderNames'
-		std::string netOpenPending;	// a network file to open once its folder is listed
-		void browseUp(Player& p);
-		// a folder below a section's top (a card's folder, a server's, a playlist): a ".." row (up a folder) above the
-		// list. It isn't one of browseRows (a playlist's rows are its items' indices): it's row -1, where the cursor and
-		// the scroll can be (listFirst()), so nothing that counts, selects or plays rows ever sees it
-		bool upRow() const;
-		int listFirst() const { return upRow() ? -1 : 0; }
-		void drawUpRow(int y, bool at);
-		// the browser's cursor on a row and its window as full as the list allows (a list that came back shorter:
-		// a scroll from before would show its last rows only)
-		void fitList();
 		void dropTouch();
 		// the browser's menu: X anywhere (or a finger held on a folder). On a card's folder Hide folder / Unhide
 		// folder (a ".hidden" file in it); everywhere Refresh (the list read again: a file copied in meanwhile); Cancel
@@ -763,6 +705,7 @@ namespace bp
 		bool popupClosed = false, popupFollow = false;
 		int popupCursor = 0;
 		bool popupShown(const Player& p) const;
+		bool popupKey(Button b, Player& p);	// its keys (Browse's: the pop-up is over the file list)
 		std::vector<const char*> popupItems() const;
 		void choosePopup(int item, Player& p);
 		void drawUpdatePopup();
@@ -779,7 +722,6 @@ namespace bp
 		std::string clockText(const Player& p) const;
 		int statusLeft(const Player& p) const;
 		static constexpr int BATTERY_W = 110;	// what a title leaves for it
-		bool folderRow(int row) const;
 		// the menu's box, in the middle of the panel, as tall as its items
 		// (a connection's has a line under its title for Test's answer)
 		// A long menu (a playlist's eight) steps its rows closer, 52, 48 or 44 apart, to fit above the footer; one that
@@ -810,27 +752,6 @@ namespace bp
 			return {b.x + inset, b.y + 62 + ctxExtra() + item * ctxStep(), b.w - 2 * inset, ctxStep() - 6};
 		}
 
-		// the Network tab's other pages, as the browser's (browseDir FORMDIR, FINDNET). A connection's form: its
-		// rows (form*), each opening the keyboard or stepping through its choices
-		NetServer form;
-		std::string formId;			// the connection edited, "" a new one
-		std::string formPassword;	// typed this time
-		bool formPasswordTyped = false;
-		std::string formNote;		// Save's complaint (no server yet)
-		void openForm(const NetServer* existing, const FoundHost* found, Player& p);
-		void formRows();			// browseRows from form
-		void formChoose(int64_t id, Player& p);
-		void formChange(int64_t id, int dir);
-		void formSave(Player& p);
-		NetServer formServer() const;	// the form as a server (the port filled in)
-		// Test connection (the form's row, a connection's menu): the answer comes as a NetListing (test)
-		int testSerial = 0;
-		std::string testText;
-		void startTest(const NetServer& s, const std::string& password);
-		// the servers found on the network (Find on the network)
-		std::vector<FoundHost> found;
-		bool findWasRunning = false;
-		void findRows();
 
 		// the on-screen keyboard, over the bottom panel: a form's field typed in
 		bool kbOpen = false, kbSymbols = false;
@@ -982,7 +903,6 @@ namespace bp
 		// btn: the button's glyph (G_PLUS when none); sub: a line, or two apart by '\n'
 		void drawEmpty(const Glyph& g, const std::string& title, const std::string& sub, const char* action, const Glyph* btn = nullptr);
 		std::string elideLeft(const std::string& s, int size, int maxW) const;
-		std::string browseWhere() const;
 		// a dialog over the page (the Options menu, the update, quick settings), and one of its rows
 		void drawDialog(Rect box, const std::string& title);
 		// note: a value on the row's right ("On", "Press twice")
@@ -1008,10 +928,6 @@ namespace bp
 		void drawKeyedLabel(Rect b, const std::string& label, const std::string& key, bool off = false, int labelW = 0, int keyW = 0);
 		void drawButton(Rect b, const Glyph* g, const std::string& label, const char* key, bool off, int size, bool lit = false);	// lit: the glyph and label in yellow (on, as the heart once liked)
 		static constexpr int STATUS_Y = 100, LINE1_Y = 378, LINE2_Y = 403;	// the player's status line, its two track lines
-		// the Network tab with no connections: its page offers Add connection; Playlists with none, New playlist
-		bool emptyAction() const;
-		int firstCursor() const;	// where a folder opened afresh puts the cursor
-		void doEmptyAction(Player& p);
 		static constexpr int FOOT_Y = 458, SUB_Y = 70;	// the footer's line, the browser's "where" line (their middles)
 		void drawInfo(const Player& p);
 		// the Media info page's lines: a row's value wrapped to the width, read again each second while it's open
@@ -1138,9 +1054,7 @@ namespace bp
 		int touchStartY = 0, touchX = 0, scrollStart = 0;
 		Uint32 clearArmed = 0;		// Clear play history chosen once: again within 2 s clears it
 
-		std::string browseDir, openRequest;
-		std::vector<Row> browseRows;
-		std::vector<std::string> browsePaths;	// beside browseRows: what each row opens
+		std::string openRequest;
 		std::vector<BrowseRoot> roots;
 		// the cards looked at again every few seconds: one put in or taken out shows at once (rootsSerial: main hands
 		// the dashboard its places again)
@@ -1151,8 +1065,6 @@ namespace bp
 		int rootsSerial() const { return rootsChanged; }
 		const std::vector<BrowseRoot>& places() const { return roots; }
 	private:
-		std::map<std::string, std::pair<int, int>> placeIn;	// each folder's cursor and scroll, for coming back
-		int browseVersion = 0;
 
 		static constexpr Rect BAR{24, 150, 592, 24};
 		static constexpr int BTN_W = 108, BTN_H = 60, BTN_STEP = 121, ROW1_Y = 228, ROW2_Y = 300;
@@ -1221,7 +1133,7 @@ namespace bp
 		RowIcon rowIcon(int row) const;
 		void drawRowIcon(RowIcon icon, int x, int y, SDL_Color c);
 		// every page has it but Home (nowhere to go back to; B there asks to quit, START has Quit)
-		bool backIconShown(const Player&) const { return !(page == Page::Browse && !inMenu && atHome()); }
+		bool backIconShown(const Player&) const;
 		static constexpr Uint32 UNLOCK_HOLD_MS = 1000;	// buttonRect's ids beside the grid's 0..9
 		static constexpr int SET_ARROW_X = 372;	// a settings row's left arrow: a tap left of the value's middle steps back
 

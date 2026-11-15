@@ -16,6 +16,7 @@
 #include <qrcodegen.hpp>
 #endif
 #include "ui_internal.h"
+#include "ui_browse.h"
 #include "ui_sound.h"
 #include "ui_docs.h"
 #include "ui_manga.h"
@@ -50,7 +51,7 @@ namespace bp
 		}
 	}
 
-	void Ui::openForm(const NetServer* existing, const FoundHost* host, Player& p)
+	void Ui::Browse::openForm(const NetServer* existing, const FoundHost* host, Player& p)
 	{
 		form = existing ? *existing : NetServer();
 		formId = existing ? existing->id : "";
@@ -72,11 +73,11 @@ namespace bp
 		// on the first thing to fill in
 		int want = host ? FORM_USER : existing ? FORM_NAME : FORM_HOST;
 		for (size_t i = 0; i < browseRows.size(); i++)
-			if (browseRows[i].id == want) cursor = (int)i;
+			if (browseRows[i].id == want) ui.cursor = (int)i;
 		fitList();
 	}
 
-	NetServer Ui::formServer() const
+	NetServer Ui::Browse::formServer() const
 	{
 		NetServer s = form;
 		s.host = trimmed(s.host);
@@ -84,7 +85,7 @@ namespace bp
 		return s;
 	}
 
-	void Ui::formRows()
+	void Ui::Browse::formRows()
 	{
 		browseRows.clear();
 		browsePaths.clear();
@@ -116,7 +117,7 @@ namespace bp
 		browseVersion++;
 	}
 
-	void Ui::formChange(int64_t id, int)
+	void Ui::Browse::formChange(int64_t id, int)
 	{
 		if (id == FORM_TYPE)
 		{
@@ -132,24 +133,24 @@ namespace bp
 		formRows();
 	}
 
-	void Ui::formChoose(int64_t id, Player& p)
+	void Ui::Browse::formChoose(int64_t id, Player& p)
 	{
 		switch (id)
 		{
 		case FORM_TYPE: case FORM_SIGNIN: case FORM_FTPS: formChange(id, 1); break;
-		case FORM_NAME: openKeyboard(FORM_NAME, form.name); break;
-		case FORM_HOST: openKeyboard(FORM_HOST, form.host); break;
-		case FORM_PORT: openKeyboard(FORM_PORT, form.port > 0 && form.port != defaultPort(form.type) ? std::to_string(form.port) : ""); break;
-		case FORM_SHARE: openKeyboard(FORM_SHARE, form.share); break;
-		case FORM_FOLDER: openKeyboard(FORM_FOLDER, form.folder); break;
-		case FORM_USER: openKeyboard(FORM_USER, form.user); break;
-		case FORM_PASS: openKeyboard(FORM_PASS, formPasswordTyped ? formPassword : ""); break;
+		case FORM_NAME: ui.openKeyboard(FORM_NAME, form.name); break;
+		case FORM_HOST: ui.openKeyboard(FORM_HOST, form.host); break;
+		case FORM_PORT: ui.openKeyboard(FORM_PORT, form.port > 0 && form.port != defaultPort(form.type) ? std::to_string(form.port) : ""); break;
+		case FORM_SHARE: ui.openKeyboard(FORM_SHARE, form.share); break;
+		case FORM_FOLDER: ui.openKeyboard(FORM_FOLDER, form.folder); break;
+		case FORM_USER: ui.openKeyboard(FORM_USER, form.user); break;
+		case FORM_PASS: ui.openKeyboard(FORM_PASS, formPasswordTyped ? formPassword : ""); break;
 		case FORM_TEST:
 		{
 			NetServer s = formServer();
 			if (s.host.empty()) { testText = "Type the server first"; formRows(); break; }
-			const NetServer* saved = netStore && !formId.empty() ? netStore->find(formId) : nullptr;
-			startTest(s, formPasswordTyped ? formPassword : saved ? netStore->password(*saved) : "");
+			const NetServer* saved = ui.netStore && !formId.empty() ? ui.netStore->find(formId) : nullptr;
+			startTest(s, formPasswordTyped ? formPassword : saved ? ui.netStore->password(*saved) : "");
 			formRows();
 			break;
 		}
@@ -158,7 +159,7 @@ namespace bp
 		}
 	}
 
-	void Ui::formSave(Player& p)
+	void Ui::Browse::formSave(Player& p)
 	{
 		NetServer s = formServer();
 		if (s.host.empty())
@@ -166,28 +167,28 @@ namespace bp
 			formNote = "Type the server first";
 			formRows();
 			for (size_t i = 0; i < browseRows.size(); i++)
-				if (browseRows[i].id == FORM_HOST) cursor = (int)i;
+				if (browseRows[i].id == FORM_HOST) ui.cursor = (int)i;
 			fitList();
 			return;
 		}
-		if (!netStore) return;
+		if (!ui.netStore) return;
 		s.lastUsed = (long long)time(nullptr);	// the top of the list: the one just made
-		std::string id = netStore->put(s, formPassword, !formId.empty() && !formPasswordTyped);
-		if (netWorker) netWorker->forget(id);	// its kept connection was for what it was
+		std::string id = ui.netStore->put(s, formPassword, !formId.empty() && !formPasswordTyped);
+		if (ui.netWorker) ui.netWorker->forget(id);	// its kept connection was for what it was
 		enterFolder(NETROOT, p);
 		for (size_t i = 0; i < browsePaths.size(); i++)
 		{
 			NetPath np;
-			if (parseNetPath(browsePaths[i], np) && np.server == id) cursor = (int)i;
+			if (parseNetPath(browsePaths[i], np) && np.server == id) ui.cursor = (int)i;
 		}
 		fitList();
 	}
 
-	void Ui::startTest(const NetServer& s, const std::string& password)
+	void Ui::Browse::startTest(const NetServer& s, const std::string& password)
 	{
-		if (!netWorker) { testText = "No network support in this build"; return; }
+		if (!ui.netWorker) { testText = "No network support in this build"; return; }
 		testText = "Testing...";
-		netWorker->test(++testSerial, s, password);
+		ui.netWorker->test(++testSerial, s, password);
 	}
 
 	// ---- the servers found on the network ----
@@ -196,16 +197,16 @@ namespace bp
 	{
 		// one per address (a better name comes later for some)
 		bool known = false;
-		for (auto& f : found)
+		for (auto& f : browse->found)
 			if (f.ip == h.ip) { f = h; known = true; }
-		if (!known) found.push_back(h);
-		if (browseDir == FINDNET && page == Page::Browse) findRows();
+		if (!known) browse->found.push_back(h);
+		if (browse->browseDir == FINDNET && page == Page::Browse) browse->findRows();
 	}
 
-	void Ui::findRows()
+	void Ui::Browse::findRows()
 	{
 		// the cursor stays on its host as others come in above it
-		std::string at = cursor >= 0 && cursor < (int)found.size() ? found[cursor].ip : "";
+		std::string at = ui.cursor >= 0 && ui.cursor < (int)found.size() ? found[ui.cursor].ip : "";
 		std::sort(found.begin(), found.end(), [](const FoundHost& a, const FoundHost& b) {
 			return naturalLess(a.name.empty() ? a.ip : a.name, b.name.empty() ? b.ip : b.name);
 		});
@@ -218,13 +219,13 @@ namespace bp
 		for (size_t i = 0; i < found.size(); i++)
 		{
 			add(R_FOUND, found[i].name.empty() ? found[i].ip : found[i].name, found[i].ip);
-			if (found[i].ip == at) cursor = (int)i;
+			if (found[i].ip == at) ui.cursor = (int)i;
 		}
-		bool running = discovery && discovery->running();
+		bool running = ui.discovery && ui.discovery->running();
 		if (running) add(-1, "Searching...", "");
 		else
 		{
-			if (found.empty()) add(-1, discovery ? "No servers found" : "No network support in this build", "");
+			if (found.empty()) add(-1, ui.discovery ? "No servers found" : "No network support in this build", "");
 			add(R_SEARCH, "Search again", "");
 		}
 		add(R_TYPE_ADDRESS, "Type the address instead", "");
@@ -272,8 +273,8 @@ namespace bp
 		if (kbField == FILE_NAME)
 		{
 			// a file's new name: checked and done by fileRenameDone, which closes it or says what's wrong
-			if (keep) { fileNameSubmit = true; return; }
-			fileNameNote.clear();
+			if (keep) { browse->fileNameSubmit = true; return; }
+			browse->fileNameNote.clear();
 		}
 		if (kbField == PL_NAME)
 		{
@@ -288,7 +289,7 @@ namespace bp
 			kbOpen = false;
 			kbPressed = -1;
 			if (keep) manga->mangaSourceSearch(kbEdit.text);
-			else browseVersion++;
+			else browse->browseVersion++;
 			return;
 		}
 		if (kbField == MANGA_FILTER_FIELD)
@@ -297,30 +298,30 @@ namespace bp
 			kbOpen = false;
 			kbPressed = -1;
 			if (keep) manga->mangaFilterTextTyped(kbEdit.text);
-			else browseVersion++;
+			else browse->browseVersion++;
 			return;
 		}
 		kbOpen = false;
 		kbPressed = -1;
-		if (!keep) { browseVersion++; return; }
+		if (!keep) { browse->browseVersion++; return; }
 		std::string t = kbEdit.text;
 		switch (kbField)
 		{
-		case FORM_NAME: form.name = trimmed(t); break;
-		case FORM_HOST: form.host = trimmed(t); break;
-		case FORM_PORT: form.port = atoi(t.c_str()); if (form.port <= 0 || form.port > 65535) form.port = defaultPort(form.type); break;
+		case FORM_NAME: browse->form.name = trimmed(t); break;
+		case FORM_HOST: browse->form.host = trimmed(t); break;
+		case FORM_PORT: browse->form.port = atoi(t.c_str()); if (browse->form.port <= 0 || browse->form.port > 65535) browse->form.port = defaultPort(browse->form.type); break;
 		case FORM_SHARE:
 			// "Media", "/Media/", "\\Media": the share's name (a path after it is the start folder)
 			for (char& c : t) if (c == '\\') c = '/';
 			t = trimmed(t);
 			while (!t.empty() && t[0] == '/') t.erase(0, 1);
 			while (!t.empty() && t.back() == '/') t.pop_back();
-			if (size_t slash = t.find('/'); slash != std::string::npos) { form.folder = t.substr(slash + 1); t = t.substr(0, slash); }
-			form.share = t;
+			if (size_t slash = t.find('/'); slash != std::string::npos) { browse->form.folder = t.substr(slash + 1); t = t.substr(0, slash); }
+			browse->form.share = t;
 			break;
-		case FORM_FOLDER: form.folder = trimmed(t); break;
-		case FORM_USER: form.user = trimmed(t); break;
-		case FORM_PASS: formPassword = t; formPasswordTyped = true; break;	// (spaces kept: they can be a password's)
+		case FORM_FOLDER: browse->form.folder = trimmed(t); break;
+		case FORM_USER: browse->form.user = trimmed(t); break;
+		case FORM_PASS: browse->formPassword = t; browse->formPasswordTyped = true; break;	// (spaces kept: they can be a password's)
 		// the Sources page's repository URL: added by the next tick, which has the Player for the answer's toast
 		case SRC_URL_FIELD: manga->mangaSourcesUrlTyped(trimmed(t)); return;
 		// a saved server's form (ui_manga_servers.cpp): the page's own, never a plain password kept anywhere else
@@ -330,9 +331,9 @@ namespace bp
 		case MGSRV_PASS_FIELD: manga->mangaServerFieldTyped(kbField, t); return;
 		default: break;
 		}
-		formNote.clear();
-		testText.clear();
-		formRows();
+		browse->formNote.clear();
+		browse->testText.clear();
+		browse->formRows();
 	}
 
 	bool Ui::kbCaretShown() const
@@ -444,7 +445,7 @@ namespace bp
 		if (!after.empty()) drawTextMid(after, 1, TEXT, caretX + 5, 124, std::max(0, 580 - (caretX + 5 - 32)));
 		if (kbField == EQ_NAME && !sound->eqNameNote.empty()) drawTextMid(sound->eqNameNote, 0, ACCENT, 24, 176, 592);
 		if (kbField == PL_NAME && !plNameNote.empty()) drawTextMid(plNameNote, 0, ACCENT, 24, 176, 592);
-		if (kbField == FILE_NAME && !fileNameNote.empty()) drawTextMid(fileNameNote, 0, ACCENT, 24, 176, 592);
+		if (kbField == FILE_NAME && !browse->fileNameNote.empty()) drawTextMid(browse->fileNameNote, 0, ACCENT, 24, 176, 592);
 		// both kinds of repository take a plain address: a Lua one's, or an extensions' index (index.pb, index.min.json)
 		if (kbField == SRC_URL_FIELD)
 			drawTextMid("Any repository URL, including ones ending in index.pb or index.min.json", 0, DIM, 24, 176, 592);

@@ -3,6 +3,7 @@
 #include "pagedecode.h"
 #include "ui_internal.h"
 #include "ui_manga.h"
+#include "ui_browse.h"
 
 namespace bp
 {
@@ -42,8 +43,8 @@ namespace bp
 		extSheet = false;
 		ui.page = Page::Browse;
 		ui.inMenu = false;
-		ui.setSection(TAB_EXT);
-		ui.enterFolder(EXTDIR, p);
+		ui.browse->setSection(TAB_EXT);
+		ui.browse->enterFolder(EXTDIR, p);
 		ui.cursor = ui.scroll = 0;
 		extPressed = ui.pressedBtn = -1;
 	}

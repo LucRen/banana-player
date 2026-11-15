@@ -17,6 +17,7 @@
 #include <qrcodegen.hpp>
 #endif
 #include "ui_internal.h"
+#include "ui_browse.h"
 #include "ui_sound.h"
 
 namespace bp
@@ -263,7 +264,7 @@ namespace bp
 		if (id == MINI_BAR) return {MINI_BOX.x + 44, MINI_BOX.y, MINI_BOX.w - 44, MINI_BOX.h};
 		if (id >= PHOTO_BTN) return {0, 0, 0, 0};	// photoBtn's: they move with the pan area
 		if (id == QUIT_BTN) return {468, miniUp ? 376 : 428, 148, 44};	// (a photo's Close: above the mini bar too)
-		if (id == EMPTY_BTN) return page == Page::Browse && browseDir == NETROOT ? Rect{160, 300, 320, 52} : Rect{200, 300, 240, 52};	// (Find on the network: a longer label)
+		if (id == EMPTY_BTN) return page == Page::Browse && browse->browseDir == NETROOT ? Rect{160, 300, 320, 52} : Rect{200, 300, 240, 52};	// (Find on the network: a longer label)
 		if (id == GROUP_PREV) return {16, 58, 172, 30};
 		if (id == GROUP_NEXT) return {452, 58, 172, 30};
 		if (id == SCREEN_BTN) return {320, 428, 140, 44};

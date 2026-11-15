@@ -5,6 +5,7 @@
 #include "ui_settings.h"
 #include "ui_reader.h"
 #include "ui_manga.h"
+#include "ui_browse.h"
 #include "pagebook.h"
 #include "manga_ui_logic.h"
 #include <algorithm>
@@ -1489,7 +1490,7 @@ namespace bp
 				"|mj" + std::to_string(mangaJavaSerial()) + " " + std::to_string(mangaJavaAt != 0);
 		// Extensions: the drawer's tile and the note's focus, the switch (its lines and rows say it), a finger's button
 		// down on them (mangaOn is in the settings too: a change redraws anywhere)
-		if (ui.page == Page::Extensions || ui.page == Page::Manga || ui.browseDir == EXTDIR) sig += extSignature();
+		if (ui.page == Page::Extensions || ui.page == Page::Manga || ui.browse->browseDir == EXTDIR) sig += extSignature();
 		// Manga: the tab, each page's cursors and scrolls, the store and the card's scan, the finger's article, the
 		// History's Clear armed; the reader's page when it shows (its status is main's answer)
 		if (ui.page == Page::Manga || ui.page == Page::MangaSeries || ui.page == Page::MangaRead || ui.page == Page::MangaSources)

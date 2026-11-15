@@ -16,6 +16,7 @@
 #include <qrcodegen.hpp>
 #endif
 #include "ui_internal.h"
+#include "ui_browse.h"
 #include "ui_reader.h"
 #include "ui_manga.h"
 
@@ -387,10 +388,10 @@ namespace bp
 			scroll = std::min(scroll, std::max(0, (int)infoLines.size() - INFO_SHOWN));
 		}
 		// the search for servers over: its rows say so (Search again)
-		if (browseDir == FINDNET && page == Page::Browse && discovery && findWasRunning && !discovery->running())
+		if (browse->browseDir == FINDNET && page == Page::Browse && discovery && browse->findWasRunning && !discovery->running())
 		{
-			findWasRunning = false;
-			findRows();
+			browse->findWasRunning = false;
+			browse->findRows();
 		}
 		if (dropArmed && SDL_GetTicks() - dropArmed >= QUIT_WINDOW_MS) dropArmed = 0;
 		if (pinArmed && SDL_GetTicks() - pinArmed >= QUIT_WINDOW_MS) pinArmed = 0;
@@ -401,8 +402,8 @@ namespace bp
 			holdAt = 0;
 			listTouch = false;
 			swallowTouch = true;
-			bool item = isPlDir(browseDir) && cursor >= 0 && cursor < (int)browseRows.size() && browseRows[cursor].id == PL_ITEM;
-			bool file = !isPlDir(browseDir) && cursor >= 0 && cursor < (int)browseRows.size() && browseRows[cursor].id == 2;
+			bool item = isPlDir(browse->browseDir) && cursor >= 0 && cursor < (int)browse->browseRows.size() && browse->browseRows[cursor].id == PL_ITEM;
+			bool file = !isPlDir(browse->browseDir) && cursor >= 0 && cursor < (int)browse->browseRows.size() && browse->browseRows[cursor].id == 2;
 			if ((item || file) && plStore)
 			{
 				selStart(item ? SEL_EDIT : SEL_ADD, "");
@@ -410,8 +411,8 @@ namespace bp
 				if (item) plSel.insert(cursor);
 				else
 				{
-					picked.insert(browsePaths[cursor]);
-					pickOrder.push_back(browsePaths[cursor]);
+					picked.insert(browse->browsePaths[cursor]);
+					pickOrder.push_back(browse->browsePaths[cursor]);
 				}
 			}
 			else openBrowseMenu(cursor, MENU_HOLD);
@@ -463,7 +464,7 @@ namespace bp
 		else if (page != Page::Main) drawTracks(p);
 		else drawMain(p);
 		if (miniUp) drawMiniBar(p);
-		drawClipBar();
+		browse->drawClipBar();
 		if (displayShown(p)) drawDisplay(p);
 		if (inMenu) drawTabs(p);
 		if (ctxOpen) drawBrowseMenu(p);	// (the mini bar's hold menu opens on pages of its own too)

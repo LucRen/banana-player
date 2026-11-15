@@ -17,6 +17,7 @@
 #include <qrcodegen.hpp>
 #endif
 #include "ui_internal.h"
+#include "ui_browse.h"
 #include "ui_settings.h"
 #include "ui_docs.h"
 #include "ui_reader.h"
@@ -94,6 +95,8 @@ namespace bp
 		areas.push_back(manga.get());
 		settingsPage = std::make_unique<SettingsPage>(*this);
 		areas.push_back(settingsPage.get());
+		browse = std::make_unique<Browse>(*this);
+		areas.push_back(browse.get());
 	}
 
 	Ui::Area* Ui::area() const
@@ -159,7 +162,7 @@ namespace bp
 			kbPress(b);
 			if (sound->eqNameSubmit) sound->nameDone(p);
 			if (plNameSubmit) plNameDone(p);
-			if (fileNameSubmit) fileRenameDone(p);
+			if (browse->fileNameSubmit) browse->fileRenameDone(p);
 			return false;
 		}
 		// Add to... over what plays (or the Playing tab); the browser's is taken below, in its turn
@@ -242,7 +245,7 @@ namespace bp
 			// the tab's page takes the rest (Recent's list, the settings' rows, About's scrolling)
 		}
 		// Files' Copy / Move held: SELECT pastes in this folder, X lets go
-		if (clipKey(b, p)) return false;
+		if (browse->clipKey(b, p)) return false;
 		// an area's page (Files' document viewers): its own keys
 		if (Area* a = area()) return a->key(b, p);
 		if (page == Page::Playing) return playingKey(b, p);
@@ -265,90 +268,6 @@ namespace bp
 			}
 			return false;
 		}
-		if (popupShown(p))
-		{
-			int n = (int)popupItems().size();
-			popupCursor = std::min(popupCursor, n - 1);
-			switch (b)
-			{
-			case Button::Up: popupCursor = (popupCursor + n - 1) % n; break;
-			case Button::Down: popupCursor = (popupCursor + 1) % n; break;
-			case Button::A: choosePopup(popupCursor, p); break;
-			case Button::B: choosePopup(n > 1 ? 1 : 0, p); break;	// Later (or Hide, OK)
-			default: break;
-			}
-			return false;
-		}
-		// a network folder read before it's added: B cancels, nothing else
-		if (page == Page::Browse && addPending.serial)
-		{
-			if (b == Button::B) cancelAdd(p);
-			return false;
-		}
-		if (page == Page::Browse && pickerOpen)
-		{
-			pickerKey(b, p);
-			return false;
-		}
-		// something playing behind the browser: SELECT goes back to it, L3 likes it (a page's own keys don't use them)
-		if (page == Page::Browse && !inMenu && selMode == SEL_NONE && browseDir != FORMDIR)
-		{
-			if (b == Button::Select && nowPlayable(p)) { goNowPlaying(p); return false; }
-			if (b == Button::L3 && p.playing() && !p.playingPhoto()) { likeNow(p); return false; }
-		}
-		if (page == Page::Browse && !inMenu && selMode != SEL_NONE && selKey(b, p)) return false;
-		if (page == Page::Browse && !inMenu && atHome()) return homeKey(b, p);
-		// All recent: X Home's options, Y a file's menu (as on its card)
-		if (page == Page::Browse && !inMenu && browseDir == RECENT && b == Button::X) { openHomeOptions(); return false; }
-		if (page == Page::Browse && !inMenu && browseDir == RECENT && b == Button::Y)
-		{
-			if (cursor >= 0 && cursor < (int)browseRows.size() && browseRows[cursor].id == 2) openRecentMenu(browsePaths[cursor]);
-			return false;
-		}
-		if (page == Page::Browse && !inMenu && b == Button::X) { openBrowseMenu(cursor, MENU_X); return false; }
-		// no connections yet: Y adds one by hand (A, the page's button, finds them)
-		if (page == Page::Browse && !inMenu && b == Button::Y && emptyAction() && browseDir == NETROOT) { openForm(nullptr, nullptr, p); return false; }
-		if (page == Page::Browse && !inMenu && b == Button::Y) { openBrowseMenu(cursor, MENU_Y); return false; }
-		// the form: LEFT/RIGHT step a choice (Type, Sign in, FTPS); L/R don't leave it for the other tab
-		if (page == Page::Browse && !inMenu && browseDir == FORMDIR)
-		{
-			if (b == Button::L || b == Button::R) return false;
-			if ((b == Button::Left || b == Button::Right) && cursor >= 0 && cursor < (int)browseRows.size())
-			{
-				formChange(browseRows[cursor].id, b == Button::Left ? -1 : 1);
-				return false;
-			}
-		}
-		if (page == Page::Browse && !inMenu && browseDir == FINDNET && (b == Button::L || b == Button::R)) return false;
-		if (page == Page::Browse && !inMenu && (b == Button::L || b == Button::R))
-		{
-			// All recent: its tabs (All, Videos, Music, Books)
-			if (browseDir == RECENT)
-			{
-				if (p.settings.keepHistory && recentCounts[0]) stepRecentTab(b == Button::R ? 1 : -1, p);
-				return false;
-			}
-			// a section each way, no wrap, at its top (All recent is none's)
-			int t = browseTab + (b == Button::R ? 1 : -1);
-			if (browseDir != RECENT && t >= 0 && t < BROWSE_TABS) openSection(t, p);
-			return false;
-		}
-		// the Extensions drawer: A opens what's on (or Manage extensions with none on), START Manage extensions
-		if (page == Page::Browse && !inMenu && browseDir == EXTDIR && manga->extDrawerKey(b, p)) return false;
-		if (page == Page::Browse && b == Button::B)
-		{
-			// a section's top: Home, on its tile (All recent: on its card)
-			if (atFirstPage())
-			{
-				if (browseDir == RECENT) goHome(HOME_STRIP, stripCards(), p);
-				else goHome(HOME_GRID, browseTab, p);
-				return false;
-			}
-			browseUp(p);
-			return false;
-		}
-		// (on what plays behind it, as over the player)
-		if (page == Page::Browse && b == Button::Start) { openMainMenu(p, playingTabShown(p) ? TAB_PLAYING : TAB_SETTINGS); return false; }
 		if (page == Page::Tracks || (page == Page::Chapters && !p.chapters.empty()))
 		{
 			// the tabs: L the one before, R the one after, as the browser's sections go; Y and X as well (the west and
@@ -362,26 +281,7 @@ namespace bp
 			if (b == Button::B) page = home(p);
 			return false;
 		}
-		if (page != Page::Main)
-		{
-			// (the browser's Up row is row -1: first; n counts it)
-			int first = listFirst(), n = (int)rows(p).size() - first;
-			cursor = std::min(cursor, n - 1 + first);
-			switch (b)
-			{
-			case Button::Up: cursor = (cursor - first + n - 1) % n + first; break;
-			case Button::Down: cursor = (cursor - first + 1) % n + first; break;
-			// a page at a time (the browser): LEFT/RIGHT, and L/R as BananaOS's lists jump
-			case Button::Left: cursor = std::max(first, cursor - ROWS_SHOWN); break;
-			case Button::Right: cursor = std::min(n - 1 + first, cursor + ROWS_SHOWN); break;
-			case Button::A: choose(cursor, p); break;
-			case Button::B: page = home(p); break;
-			default: break;
-			}
-			if (cursor < scroll) scroll = cursor;
-			if (cursor >= scroll + ROWS_SHOWN) scroll = cursor - ROWS_SHOWN + 1;
-			return false;
-		}
+		if (page != Page::Main) return listKey(b, p);
 		if (p.playingPhoto() && photoKey(b, p)) return false;
 		// the network dropped it: A tries again, from where it stopped (the session reloads it there)
 		if (!p.error.empty() && p.errorNet && b == Button::A)
@@ -454,6 +354,42 @@ namespace bp
 		return false;
 	}
 
+	bool Ui::popupKey(Button b, Player& p)
+	{
+		int n = (int)popupItems().size();
+		popupCursor = std::min(popupCursor, n - 1);
+		switch (b)
+		{
+		case Button::Up: popupCursor = (popupCursor + n - 1) % n; break;
+		case Button::Down: popupCursor = (popupCursor + 1) % n; break;
+		case Button::A: choosePopup(popupCursor, p); break;
+		case Button::B: choosePopup(n > 1 ? 1 : 0, p); break;	// Later (or Hide, OK)
+		default: break;
+		}
+		return false;
+	}
+
+	bool Ui::listKey(Button b, Player& p)
+	{
+		// (the browser's Up row is row -1: first; n counts it)
+		int first = browse->listFirst(), n = (int)rows(p).size() - first;
+		cursor = std::min(cursor, n - 1 + first);
+		switch (b)
+		{
+		case Button::Up: cursor = (cursor - first + n - 1) % n + first; break;
+		case Button::Down: cursor = (cursor - first + 1) % n + first; break;
+		// a page at a time (the browser): LEFT/RIGHT, and L/R as BananaOS's lists jump
+		case Button::Left: cursor = std::max(first, cursor - ROWS_SHOWN); break;
+		case Button::Right: cursor = std::min(n - 1 + first, cursor + ROWS_SHOWN); break;
+		case Button::A: choose(cursor, p); break;
+		case Button::B: page = home(p); break;
+		default: break;
+		}
+		if (cursor < scroll) scroll = cursor;
+		if (cursor >= scroll + ROWS_SHOWN) scroll = cursor - ROWS_SHOWN + 1;
+		return false;
+	}
+
 	void Ui::tick(Player& p)
 	{
 		// the Display popup's arrows have rested on a style: it's applied now (displayKey)
@@ -473,9 +409,9 @@ namespace bp
 		if (durWorker)
 		{
 			durWorker->setBusy(p.loading());
-			if (page == Page::Browse && scroll != durLo)
+			if (page == Page::Browse && scroll != browse->durLo)
 			{
-				durLo = scroll;
+				browse->durLo = scroll;
 				durWorker->focus(scroll, scroll + ROWS_SHOWN);
 			}
 		}
@@ -519,10 +455,10 @@ namespace bp
 		if (landFlashUntil && SDL_GetTicks() >= landFlashUntil) landFlashUntil = 0;
 		if (listPulseAt && SDL_GetTicks() - listPulseAt >= LIST_PULSE_MS) listPulseAt = 0;
 		// Home's Recent: listed again when what plays changes (the next song started by itself: its card comes first)
-		if (page == Page::Browse && !inMenu && atHome() && !homeTouch && !ctxOpen && p.currentPath() != homeListedFor)
+		if (page == Page::Browse && !inMenu && browse->atHome() && !homeTouch && !ctxOpen && p.currentPath() != homeListedFor)
 		{
 			recentKeepOrder = true;	// (its progress anew, its order as shown)
-			enterFolder(HOMEDIR, p);
+			browse->enterFolder(HOMEDIR, p);
 		}
 		// the hand-off from a browser: its position, once the file it opened knows its length (5 s at most)
 		if (!seekPath.empty())
@@ -549,9 +485,9 @@ namespace bp
 			!kbOpen && !quickOpen && !popupShown(p) && !slide.on && SDL_GetTicks() - webInputAt >= (Uint32)offSecs * 1000)
 			panel.set(false);
 		// a dragged row near the list's top or bottom: the list scrolls under it, a row each 150 ms
-		if (plDrag.on && page == Page::Browse && isPlDir(browseDir) && SDL_GetTicks() - plDrag.scrollAt >= 150)
+		if (plDrag.on && page == Page::Browse && isPlDir(browse->browseDir) && SDL_GetTicks() - plDrag.scrollAt >= 150)
 		{
-			int n = (int)browseRows.size();
+			int n = (int)browse->browseRows.size();
 			int was = scroll;
 			if (plDrag.y < ROW_Y + 24) scroll = std::max(0, scroll - 1);
 			else if (plDrag.y > ROW_Y + ROWS_SHOWN * ROW_H - 24) scroll = std::min(std::max(0, n - ROWS_SHOWN), scroll + 1);
@@ -614,7 +550,7 @@ namespace bp
 		// the mini bar: the player, or its play mark
 		if (id == MINI_BAR) { goNowPlaying(p); return false; }
 		if (id == MINI_PP) { miniToggle(p); return false; }
-		if (id == EMPTY_BTN) { doEmptyAction(p); return false; }
+		if (id == EMPTY_BTN) { browse->doEmptyAction(p); return false; }
 		// the select mode's bar: its keys' (Cancel leaves from any folder)
 		if (id == SEL_ALL) { selKey(Button::Select, p); return false; }
 		if (id == SEL_MOVE) { selKey(Button::Y, p); return false; }
@@ -700,9 +636,9 @@ namespace bp
 		mangaOn = p.settings.mangaOn;
 		if (fileJob) return fileJobPointer(pt, x, y);
 		if (infoOpen) { if (pt.kind == Pointer::Up) infoOpen = false; return false; }
-		if (clipPointer(pt, x, y, p)) return false;
+		if (browse->clipPointer(pt, x, y, p)) return false;
 		// All recent's tabs: a tap on one shows that kind
-		if (page == Page::Browse && browseDir == RECENT && !inMenu && !ctxOpen && p.settings.keepHistory && recentCounts[0] && y < ROW_Y)
+		if (page == Page::Browse && browse->browseDir == RECENT && !inMenu && !ctxOpen && p.settings.keepHistory && recentCounts[0] && y < ROW_Y)
 		{
 			for (int i = 0; i < 4; i++)
 				if (recentTabRect[i].hit(x, y))
@@ -710,10 +646,10 @@ namespace bp
 					if (pt.kind == Pointer::Up && i != recentTab && (i == 0 || recentCounts[i]))
 					{
 						recentTab = i;
-						enterFolder(RECENT, p);
-						cursor = firstCursor();
+						browse->enterFolder(RECENT, p);
+						cursor = browse->firstCursor();
 						scroll = 0;
-						fitList();
+						browse->fitList();
 					}
 					return false;
 				}
@@ -723,7 +659,7 @@ namespace bp
 			kbPointer(pt, x, y);
 			if (sound->eqNameSubmit) sound->nameDone(p);
 			if (plNameSubmit) plNameDone(p);
-			if (fileNameSubmit) fileRenameDone(p);
+			if (browse->fileNameSubmit) browse->fileRenameDone(p);
 			return false;
 		}
 		// dark: a touch anywhere brings the panel back, and does nothing else (the finger can't see what's there)
@@ -749,7 +685,7 @@ namespace bp
 		displayOpen = displayOpen && displayShown(p);
 		if (displayOpen) return displayPointer(pt, x, y, p);
 		// Home's quit dialog takes every finger: a row chooses as it lifts, outside it cancels
-		if (page == Page::Browse && !inMenu && atHome() && quitOpen && !popupShown(p)) return homePointer(pt, x, y, p);
+		if (page == Page::Browse && !inMenu && browse->atHome() && quitOpen && !popupShown(p)) return homePointer(pt, x, y, p);
 		// the header's web dashboard mark: its page, as the finger lifts on it
 		if (webIndDown || (pt.kind == Pointer::Down && webInd.w && webInd.hit(x, y) && !ctxOpen && !pickerOpen && !popupShown(p)))
 		{
@@ -849,7 +785,7 @@ namespace bp
 				listScrolled = true;
 				holdAt = 0;
 				int rowsMoved = (int)std::lround((touchStartY - y) / (double)rowH);
-				int first = set || info ? 0 : listFirst();
+				int first = set || info ? 0 : browse->listFirst();
 				scroll = std::clamp(scrollStart + rowsMoved, first, std::max(first, n - shown));
 				cursor = std::clamp(cursor, scroll, scroll + shown - 1);
 			}
@@ -917,9 +853,6 @@ namespace bp
 		// an area's page (the readers, the Manga pages): its own touches; the mini bar's taken above. An area whose
 		// downs come late (Manga's pages but the reader) has them below, after "<"
 		if (Area* a = area(); a && !(pt.kind == Pointer::Down && a->pointerDownLate())) return a->pointer(pt, x, y, p);
-		// the Extensions drawer: its own taps. A tile acts as the finger lifts (as Home's do), so the lift is taken
-		// before the down-only pages below; the down is taken after the header and mini bar.
-		if (pt.kind == Pointer::Up && page == Page::Browse && !inMenu && browseDir == EXTDIR) return manga->extPointer(pt, x, y, p);
 		if (pt.kind != Pointer::Down) return false;
 		if (inMenu && y < 60)
 		{
@@ -946,10 +879,9 @@ namespace bp
 
 		// "<": B (up a folder; twice, out of what plays or, from the first page, out of the player)
 		if (backIconShown(p) && buttonRect(BACK_ICON).hit(x, y)) { pressedBtn = BACK_ICON; return false; }
-		if (emptyAction() && buttonRect(EMPTY_BTN).hit(x, y)) { pressedBtn = EMPTY_BTN; return false; }
-		// the drawer, and an area whose downs come late (the Manga pages): their own taps (the mini bar's, the
-		// header's and "<" taken above)
-		if (page == Page::Browse && !inMenu && browseDir == EXTDIR) return manga->extPointer(pt, x, y, p);
+		if (browse->emptyAction() && buttonRect(EMPTY_BTN).hit(x, y)) { pressedBtn = EMPTY_BTN; return false; }
+		// the Extensions drawer's and the browser's (Browse::pointer), and an area whose downs come late (the Manga pages):
+		// their own taps (the mini bar's, the header's and "<" taken above)
 		if (Area* a = area(); a && a->pointerDownLate()) return a->pointer(pt, x, y, p);
 		if (page == Page::Info || page == Page::About)
 		{
@@ -958,39 +890,6 @@ namespace bp
 			listScrolled = false;
 			touchStartY = y;
 			scrollStart = scroll;
-			return false;
-		}
-		if (page == Page::Browse && !inMenu && selMode != SEL_NONE)
-		{
-			// selecting: no tabs (the header's "<" was taken above); the bar's buttons, those that can act now
-			if (y < 60) return false;
-			if (y >= 424)
-			{
-				int n = selCount(), ticked = 0, files = selFolderFiles(ticked);
-				std::vector<std::pair<int, bool>> ids;
-				if (moving) ids = {{MOVE_CANCEL, true}, {MOVE_DONE, true}};
-				else if (selMode == SEL_EDIT) ids = {{SEL_ALL, !plCur.entries.empty()}, {SEL_MOVE, n > 0 && !plIsLiked(plCur.file)}, {SEL_ACT, n > 0}};
-				else if (selMode == SEL_ADD) ids = {{SEL_ALL, files > 0}, {SEL_CANCEL, true}, {SEL_ACT, n > 0}};
-				else ids = {{SEL_CANCEL, true}, {SEL_ACT, pickable()}};
-				for (auto& id : ids)
-					if (id.second && buttonRect(id.first).hit(x, y)) pressedBtn = id.first;
-				return false;
-			}
-			if (moving) return false;
-			// Edit: a finger on a row's grip drags it at once
-			if (selMode == SEL_EDIT && x >= 576 && y >= ROW_Y && y < ROW_Y + ROWS_SHOWN * ROW_H)
-			{
-				int i = scroll + (y - ROW_Y) / ROW_H;
-				if (selTickable(i)) { dragBegin(i, y, p); return false; }
-			}
-		}
-		if (page == Page::Browse && !inMenu && atHome()) return homePointer(pt, x, y, p);
-		if (page == Page::Browse && !inMenu && y < 60)
-		{
-			// a section's marker: that section (Home and All recent have none)
-			if (browseDir != RECENT)
-				for (int t = 0; t < BROWSE_TABS; t++)
-					if (pipRect(t, p).hit(x, y)) openSection(t, p);
 			return false;
 		}
 		if ((page == Page::Tracks || page == Page::Chapters) && y < 60)
@@ -1002,19 +901,7 @@ namespace bp
 				if (tracksTabRect(i, (int)tabs.size()).hit(x, y) && tabs[i] != cur) openTracks(tabs[i], p);
 			return false;
 		}
-		if (page != Page::Main)
-		{
-			if (y < ROW_Y || y >= ROW_Y + ROWS_SHOWN * ROW_H) return false;
-			int i = scroll + (y - ROW_Y) / ROW_H;
-			if (i >= (int)rows(p).size() || i < listFirst()) return false;
-			cursor = i;
-			listTouch = true;
-			listScrolled = false;
-			touchStartY = y;
-			scrollStart = scroll;
-			holdAt = page == Page::Browse && !inMenu && selMode == SEL_NONE && holdRow(i) ? SDL_GetTicks() : 0;
-			return false;
-		}
+		if (page != Page::Main) return listDown(x, y, p);
 		if (p.playingPhoto())
 		{
 			if (panRect(p).hit(x, y))
@@ -1076,6 +963,20 @@ namespace bp
 		return false;
 	}
 
+	bool Ui::listDown(int x, int y, Player& p)
+	{
+		if (y < ROW_Y || y >= ROW_Y + ROWS_SHOWN * ROW_H) return false;
+		int i = scroll + (y - ROW_Y) / ROW_H;
+		if (i >= (int)rows(p).size() || i < browse->listFirst()) return false;
+		cursor = i;
+		listTouch = true;
+		listScrolled = false;
+		touchStartY = y;
+		scrollStart = scroll;
+		holdAt = page == Page::Browse && !inMenu && selMode == SEL_NONE && browse->holdRow(i) ? SDL_GetTicks() : 0;
+		return false;
+	}
+
 	std::string Ui::signature(const Player& p) const
 	{
 		const Track* a = p.selected(TrackType::Audio);
@@ -1084,8 +985,8 @@ namespace bp
 		snprintf(buf, sizeof buf, "%d %d %d %d %ld %ld %d %d %lld %lld %zu %d %d %.2f %d %d %d %d|", (int)page, cursor, scroll,
 			p.paused + setGroup * 2 + 2, (long)std::floor(shownPosition(p)) * 2 + (predicting(p) && pagePlaying()), (long)p.duration, (int)p.aspect, p.loaded, a ? (long long)a->id : 0LL,
 			s ? (long long)s->id : 0LL, p.tracks.size(), slideHeld(SL_SEEK) + 2 * (seekHeld >= 0), slideHeld(SL_SEEK) ? (int)(slide.value * 1000) : 0, p.speed,
-			p.index(), p.count(), pressedBtn + touchLocked * 100 + (lockHoldAt != 0) * 1000, listTouch * 1000 + browseVersion + (clearArmed != 0) * 100000 + (int)p.history().items().size() * 1000000);
-		std::string photo = "|tab" + std::to_string(browseTab) + (netLoading ? "L" : "");
+			p.index(), p.count(), pressedBtn + touchLocked * 100 + (lockHoldAt != 0) * 1000, listTouch * 1000 + browse->browseVersion + (clearArmed != 0) * 100000 + (int)p.history().items().size() * 1000000);
+		std::string photo;	// (the browser's section and its listing: Browse::signature)
 		// a slider under a finger: which, and where the finger has it (what draws differently while held reads these)
 		if (slide.on) photo += "|sl" + std::to_string(slide.id) + "." + std::to_string(slide.sub) + ":" + std::to_string(slide.value);
 		if (touchLocked && lockHoldAt) photo += "|hold" + std::to_string((SDL_GetTicks() - lockHoldAt) / 100);
@@ -1170,7 +1071,7 @@ namespace bp
 			photo += std::string(nb) + bp.title + "|" + bp.currentPath();
 		}
 		// Home: the focus, the strip's scroll, a finger on a card or a tile, the tiles' lines (the connections)
-		if (atHome())
+		if (browse->atHome())
 		{
 			char hb[120];
 			snprintf(hb, sizeof hb, "|home%d %d %d %ld %d %zu %d", homeZone, homeStrip, homeGrid, std::lround(stripOff), homePress,
@@ -1181,11 +1082,10 @@ namespace bp
 		}
 		// Extensions: the drawer's tile and the note's focus, the switch, a finger's button down on them (the area's
 		// pages add it in their signature; here, the drawer and any other page while Browse is on it)
-		if (browseDir == EXTDIR && area() != manga.get()) photo += manga->extSignature();
+		if (browse->browseDir == EXTDIR && area() != manga.get()) photo += manga->extSignature();
 		// Files' copy or move: how far, and the file on its way; what's held for Copy / Move
 		photo += fileJobSignature();
 		if (infoOpen) photo += "|info" + infoTitle + std::to_string(infoRows.size());
-		if (clipOp != CLIP_NONE) photo += "|clip" + std::to_string(clipOp) + clipPath + (clipCanPaste() ? "p" : "");
 		if (Area* a = area()) photo += a->signature(p);
 		return buf + photo + overlaySignature(p) + "|me" + std::to_string((int)manga->mangaErrOpen) + "|ld" + (loaderShown ? std::to_string(SDL_GetTicks() / 110) : std::string()) + "|xn" + manga->extNoticeText() + "|" + p.title + "|" + p.error + "|" + serializeSettings(p.settings) + "|bat" + std::to_string(battery.percent) + (battery.charging ? "c" : "") + (inMenu ? "|menu" + std::to_string(menuTab) : "") + (ctxOpen ? "|ctx" + std::to_string(ctxCursor) + std::to_string(pressedBtn) + ctxStatus + (ctxArmed ? "!" : "") : "") + upd
 			+ (kbOpen ? "|kb" + sound->eqNameNote + std::to_string(kbCursor) + "," + std::to_string(kbPressed) + "," + std::to_string((int)kbShift) + (kbSymbols ? "s" : "") + std::to_string(kbEdit.caret) + kbEdit.text + (kbCaretShown() ? "|" : "") : "");
