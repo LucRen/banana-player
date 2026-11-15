@@ -19,6 +19,7 @@
 #include "ui_internal.h"
 #include "ui_browse.h"
 #include "ui_playlists.h"
+#include "ui_home.h"
 #include "ui_settings.h"
 #include "ui_docs.h"
 #include "ui_reader.h"
@@ -456,9 +457,9 @@ namespace bp
 		if (landFlashUntil && SDL_GetTicks() >= landFlashUntil) landFlashUntil = 0;
 		if (listPulseAt && SDL_GetTicks() - listPulseAt >= LIST_PULSE_MS) listPulseAt = 0;
 		// Home's Recent: listed again when what plays changes (the next song started by itself: its card comes first)
-		if (page == Page::Browse && !inMenu && browse->atHome() && !homeTouch && !ctxOpen && p.currentPath() != homeListedFor)
+		if (page == Page::Browse && !inMenu && browse->atHome() && !browse->homeView->homeTouch && !ctxOpen && p.currentPath() != browse->homeView->homeListedFor)
 		{
-			recentKeepOrder = true;	// (its progress anew, its order as shown)
+			browse->homeView->recentKeepOrder = true;	// (its progress anew, its order as shown)
 			browse->enterFolder(HOMEDIR, p);
 		}
 		// the hand-off from a browser: its position, once the file it opened knows its length (5 s at most)
@@ -507,7 +508,7 @@ namespace bp
 			}
 			else p.netFolderListed(dir, {}, false);
 		}
-		stripStep();
+		browse->homeView->stripStep();
 		if (likePopAt && SDL_GetTicks() - likePopAt >= 200) likePopAt = 0;
 		if (addFlashUntil && SDL_GetTicks() >= addFlashUntil) addFlashUntil = 0;
 		if (!flickAt) return;
@@ -639,14 +640,14 @@ namespace bp
 		if (infoOpen) { if (pt.kind == Pointer::Up) infoOpen = false; return false; }
 		if (browse->clipPointer(pt, x, y, p)) return false;
 		// All recent's tabs: a tap on one shows that kind
-		if (page == Page::Browse && browse->browseDir == RECENT && !inMenu && !ctxOpen && p.settings.keepHistory && recentCounts[0] && y < ROW_Y)
+		if (page == Page::Browse && browse->browseDir == RECENT && !inMenu && !ctxOpen && p.settings.keepHistory && browse->homeView->recentCounts[0] && y < ROW_Y)
 		{
 			for (int i = 0; i < 4; i++)
-				if (recentTabRect[i].hit(x, y))
+				if (browse->homeView->recentTabRect[i].hit(x, y))
 				{
-					if (pt.kind == Pointer::Up && i != recentTab && (i == 0 || recentCounts[i]))
+					if (pt.kind == Pointer::Up && i != browse->homeView->recentTab && (i == 0 || browse->homeView->recentCounts[i]))
 					{
-						recentTab = i;
+						browse->homeView->recentTab = i;
 						browse->enterFolder(RECENT, p);
 						cursor = browse->firstCursor();
 						scroll = 0;
@@ -686,7 +687,7 @@ namespace bp
 		displayOpen = displayOpen && displayShown(p);
 		if (displayOpen) return displayPointer(pt, x, y, p);
 		// Home's quit dialog takes every finger: a row chooses as it lifts, outside it cancels
-		if (page == Page::Browse && !inMenu && browse->atHome() && quitOpen && !popupShown(p)) return homePointer(pt, x, y, p);
+		if (page == Page::Browse && !inMenu && browse->atHome() && browse->homeView->quitOpen && !popupShown(p)) return browse->homeView->homePointer(pt, x, y, p);
 		// the header's web dashboard mark: its page, as the finger lifts on it
 		if (webIndDown || (pt.kind == Pointer::Down && webInd.w && webInd.hit(x, y) && !ctxOpen && !browse->playlists->pickerOpen && !popupShown(p)))
 		{
@@ -771,7 +772,7 @@ namespace bp
 			return false;
 		}
 		if (panTouch) return photoPointer(pt, x, y, p);
-		if (homeTouch) return homePointer(pt, x, y, p);
+		if (browse->homeView->homeTouch) return browse->homeView->homePointer(pt, x, y, p);
 		if (listTouch)
 		{
 			// a list (the tracks, the browser, the settings, the manga's): a drag scrolls it, a tap acts as the finger
@@ -1070,16 +1071,6 @@ namespace bp
 			snprintf(nb, sizeof nb, "|np%d %d %d %ld %ld %d %d", bp.paused, (int)bp.loading(), bp.error.empty() ? 0 : 1,
 				(long)std::floor(shownPosition(bp)), (long)bp.duration, (int)bp.playingAudio(), (int)bp.playing());
 			photo += std::string(nb) + bp.title + "|" + bp.currentPath();
-		}
-		// Home: the focus, the strip's scroll, a finger on a card or a tile, the tiles' lines (the connections)
-		if (browse->atHome())
-		{
-			char hb[120];
-			snprintf(hb, sizeof hb, "|home%d %d %d %ld %d %zu %d", homeZone, homeStrip, homeGrid, std::lround(stripOff), homePress,
-				recent.size(), netStore ? netStore->version() : -1);
-			photo += hb;
-			// B's quit dialog over it, and the row it has the focus on
-			photo += std::string("|quit") + std::to_string(quitOpen) + std::to_string(quitCursor);
 		}
 		// Extensions: the drawer's tile and the note's focus, the switch, a finger's button down on them (the area's
 		// pages add it in their signature; here, the drawer and any other page while Browse is on it)

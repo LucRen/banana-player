@@ -417,7 +417,7 @@ masked), and the harness's state lines compared. `core-test` passes after each c
 
 ## The other areas: order, and what `ui.h` loses
 
-`ui.h` is 1,356 lines now (2,608 when this table was drawn; Sound, Web, PageReader and Manga with Extensions are done). Roughly what each area held there (counted by its section or its members' prefixes):
+`ui.h` is 1,058 lines now (2,608 when this table was drawn; Sound, Web, PageReader, Manga with Extensions, Settings, Browse with Playlists and Home are done: only the player, #8, is left). Roughly what each area held there (counted by its section or its members' prefixes):
 
 | # | Area | Pages | In `ui.h` | Notes |
 |---|---|---|---|---|
@@ -425,9 +425,9 @@ masked), and the harness's state lines compared. `core-test` passes after each c
 | 2 | **Web** (`ui_web.cpp`) (done) | `Web` | ~20 | One page. The header's globe (`webInd`) is every page's: it stays `Ui`'s. |
 | 3 | **Extensions** (`ui_ext.cpp`) (done, in Manga's area) | `Extensions` | ~30 | Shares its state with the drawer on Home and the manga pages, and its touches are split across `Ui::pointer`: done together with Manga (`Area::pointerDownLate`). |
 | 4 | **Manga** (`ui_manga*.cpp`, 10 files) (done: `ui_manga.h`, one area; `PageReader` first, `ui_reader.h`) | `Manga`, `MangaSeries`, `MangaRead`, `MangaSettings`, `MangaSources` | ~1,100 | Planned as several structs (`PageReader`, then `MangaRead`, the library, then Sources/Java/Servers/Downloads/Net folders after their sheets went on the overlay stack). Done as `PageReader` plus **one** `Manga` area: the pages share the store, the worker's jobs, the covers and the finger, and a source's and a server's pages are views of `Page::Manga`. Their modal sheets are still flags inside the area (overlay-stack.md, item 4, is still to do, now inside `ui_manga.h`). The dashboard's glue (`api_manga.cpp`) includes `ui_manga.h`. |
-| 5 | **Settings** (`ui_settings.cpp`) | `Settings` | ~60 | `settingRows`/`changeSetting`/`drawSettingRow` are shared with Manga's settings page and START's menu tab: the area exposes those; `inMenu`/`menuTab` stay `Ui`'s. After Manga, so the shared row drawing has one more user known. |
-| 6 | **Playlists** (`ui_playlists.cpp`) | (pseudo-folders of `Browse`) | ~90 | Not pages: `browseDir` `PLROOT`/`PLDIR`. `has()` can't tell by page, so this is a **helper struct** owned by the browser's area rather than an `Area`, or `has()` grows to "page and folder". The picker is an overlay first (overlay-stack.md, item 6). |
-| 7 | **Browse + Home + Files' operations** (`ui_browse.cpp`, `ui_home.cpp`, `ui_fileops.cpp`, `ui_forms.cpp`) | `Browse` | ~350 | The most entangled: the list, Home, the sections, the network form and found servers (pseudo-folders), the clip, the file job, the mini bar. Cut inside it by pseudo-folder (Home, the form) once Playlists has shown how. The mini bar and what plays behind (`bgPlay`, lines 2526 on) are every page's: `Ui`'s. |
+| 5 | **Settings** (`ui_settings.cpp`) (done: `ui_settings.h`) | `Settings` | ~60 | `settingRows`/`changeSetting`/`drawSettingRow` are shared with Manga's settings page and START's menu tab: the area exposes those; `inMenu`/`menuTab` stay `Ui`'s. After Manga, so the shared row drawing has one more user known. |
+| 6 | **Playlists** (`ui_playlists.cpp`) (done: `ui_playlists.h`, a plain struct the browser owns) | (pseudo-folders of `Browse`) | ~90 | Not pages: `browseDir` `PLROOT`/`PLDIR`. `has()` can't tell by page, so this is a **helper struct** owned by the browser's area rather than an `Area`, or `has()` grows to "page and folder". The picker is an overlay first (overlay-stack.md, item 6). |
+| 7 | **Browse + Home + Files' operations** (`ui_browse.cpp`, `ui_home.cpp`, `ui_fileops.cpp`, `ui_forms.cpp`) (done: `ui_browse.h`, the area; Home a plain struct, `ui_home.h`) | `Browse` | ~350 | The most entangled: the list, Home, the sections, the network form and found servers (pseudo-folders), the clip, the file job, the mini bar. Cut inside it by pseudo-folder (Home, the form) once Playlists has shown how. The mini bar and what plays behind (`bgPlay`, lines 2526 on) are every page's: `Ui`'s. |
 | 8 | **Player** (`ui_main.cpp`, `ui_menus.cpp`) | `Main`, `Tracks`, `Chapters`, `UpNext`, `Info`, `About`, `Exit`, `Playing` | ~400 | Last: `press` and `pointer` are mostly this area's special cases today (the hold to play here, predicted position, L2/R2, the photo's pan and flick, START's menu over any of them). What remains in `Ui::press` after the others have left **is** the player; it moves when that code is short enough to read as one area's `key()`. |
 
 Expected: after 1–3 `ui.h` is about 2,500; after Manga about 1,400 (it is 1,356); after Settings, Playlists and Browse about 900;
@@ -500,9 +500,12 @@ the harness's state lines compared. `core-test` passes. Six scenarios, 130 shot 
   brightness rows and `|bl` signature term (no backlight on the desktop; `BP_BACKLIGHT_DIR` was not used). The Manga
   page's Clear cache and Extension support rows (the engine's download is never started in a test).
 
-## Playlists: stopped, not cut (2026-11-15)
+## Playlists: stopped at first, then done after Browse (2026-11-15)
 
-Not done, for the same kind of reason as Extensions was: there is no page to cut at, and the state is shared.
+The first attempt stopped (the reasons below, kept); the order it proposed (Browse first, then Playlists inside it) is
+what was done next, in the section after this one.
+
+Not done then, for the same kind of reason as Extensions was: there is no page to cut at, and the state is shared.
 
 1. **It is not a page.** A playlist's list and a playlist's items are `Page::Browse` with `browseDir` `PLROOT` or
    `PLDIR` + its file (`isPlDir`), next to Home, Files, Network and Recent. `Area::has(Page)` and `Ui::area()` choose by
@@ -530,4 +533,116 @@ The natural order is the one Extensions took: **Browse first** (one area for Hom
 and the drawer, which needs the late/early touch hooks and a dispatch by `browseDir`, not only by page), then Playlists as
 a plain owned struct inside it (as `PageReader` is), with the select mode and the picker as overlays (`Ui::Overlay`,
 docs/notes/overlay-stack.md) rather than flags: the picker is already a dialog, and the select mode's header and bar
-could be one. Nothing of that was started; `ui_playlists.cpp` and its members are unchanged.
+could be one. The first two were done (below); the overlays were not.
+
+## Browse, then Playlists and Home inside it: the seventh (2026-11-15)
+
+Three commits, `ui.h` 1,349 → 1,261 (Browse) → 1,127 (Playlists) → 1,058 (Home). `ui_browse.h` is 132 lines,
+`ui_playlists.h` 168, `ui_home.h` 97.
+
+### Browse (`src/ui_browse.h`; `ui_browse.cpp`, `ui_fileops.cpp`, `ui_forms.cpp`): the area
+
+`Ui::Browse` (`has()`: `Page::Browse`), owned as `browse`. Home, Files, Playlists, Network, All recent and the
+Extensions drawer are folders of this one page (`browseDir`), so they are one area; what is told apart by folder is
+told apart inside it, as before.
+
+- **Moved:** the folder shown and its rows (`browseDir`, `browseRows`, `browsePaths`, `placeIn`, `enterFolder`,
+  `browseUp`, the ".." row, `fitList`, the empty pages' action), the sections (`browseTab`, `tabDir`, `switchTab`,
+  `openSection`, the header's markers), the network listing's serials and state, Files' own operations (the clip and
+  its bar, Rename, the network folders' actions and copies) and the Network tab's form and found servers.
+- **Dispatch:** `key` is the old Browse block of `press` at the area's point (the updater's pop-up over the list, the
+  busy card, the picker, SELECT/L3 over what plays, the select mode, Home, All recent, the list's keys);
+  `pointerDownLate()` is true (its downs were after the header's "<" and the empty page's button), its lifts go where
+  the readers' do (only the drawer's lift was Browse's). Three blocks shared with other list pages were cut out of
+  `press`/`pointer` into `Ui` methods so both call the same lines: `popupKey` (the updater's pop-up), `listKey` (a list
+  page's keys) and `listDown` (a finger down on a list's rows).
+- **Stayed `Ui`'s:** the shared list's drawing and keys (`drawTracks`, `rows`, `choose`, `listKey`, `listDown`: the
+  track lists use them), the cursor and the scroll (every list page's), the Options menu (`ctx*`: the mini bar's hold
+  opens it on any page), the updater's pop-up, the file job's card and Info's sheet (over any page; `fileJobActive()`,
+  which main's idle sleep reads, is unchanged), the places (`roots`, `rootsCheck`), and the Browse touches that
+  `Ui::pointer` takes before the area's point (All recent's tabs, Home's quit dialog, the busy card, the picker, a
+  grip's drag, a finger on Home): they call into `browse->` where they always were.
+
+### Playlists (`src/ui_playlists.h`, `ui_playlists.cpp`): a plain struct of the browser's
+
+`Ui::Playlists`, owned by the area (`browse->playlists`), not an `Area` (as `PageReader` isn't): a playlist is a
+folder of `Page::Browse`, so nothing dispatches to it by page; Browse and `Ui` call in.
+
+- **Moved:** the store (`plStore`, Liked built in), the playlist open (`plCur`, `plLoaded`, `plOrder`) and its rows,
+  its edits and how they reach the session (`plSaved`, `plTellPlayer` → `SessionHost::playlistEdited`, `plFlush`),
+  the select mode (Edit, Add files, Pick a folder: `selMode`, `selKey`, its header and bar), Move and the grip's drag
+  (`plDrag`), the Add to... picker and the busy card of a network folder being added (`pickerOpen`, `addPending`),
+  naming a playlist, and the dashboard's edits (`plWeb*`).
+- **Stayed `Ui`'s:** `flushPlaylist`, `playlistSerial`, `plIsLiked` (main, `SessionHost`, the dashboard call them;
+  they forward), Like (`setLikedNow`, `setLikedPath`: the heart over any page), the Options menu that names a playlist
+  (`ctxTitle`, `ctxNote`), `playRequest`, `SelMode`'s values, the Main page's source line, `whereOf`; and the `|pl` and
+  select-mode terms of `Ui::signature` (the picker and the busy card are drawn over other pages).
+- **Not overlays yet:** the picker's keys are taken at two points of `press` (over the player before the keyboard's
+  turn is over; on the browser after the updater's pop-up and the busy card), its New playlist... opens the keyboard
+  over it, and the select mode is the list's own header and bar. Moving them onto the stack (overlay-stack.md, item 6)
+  is a behaviour-sensitive change of its own, not part of a pure move.
+
+### Home (`src/ui_home.h`, `ui_home.cpp`): a plain struct of the browser's, not the shell
+
+Home is not the shell: the frame every page shares (the header, the mini bar, quick settings, the overlays) is `Ui`'s
+and stayed there. Home is the browser's first folder (`browseDir == HOMEDIR`) and All recent (`RECENT`), so it is a
+plain struct owned by the area (`browse->homeView`; `home` is `Ui::home()`, the page to go back to), like Playlists.
+
+- **Moved:** the Recent list (`RecentItem`, `recent`, `listRecent`, `recentKeepOrder`, `recentInOrder`,
+  `recentEdited`, `homeListedFor`), All recent's tabs, the focus (`homeZone/Strip/Grid/Col`, `homeFresh`), the strip
+  and its easing (`stripOff`, `stripT0`, `setStrip`, `stripStep`), the tiles (`tileRect`, `tileSub` and its cache), the
+  keys (`homeKey`, `goHome`, `homeOpen`), a finger on a card or a tile (`homePointer`, `homeTouch`, `homePress`,
+  `homeHoldAt`), B's quit dialog (`quitOpen`, `quitCursor`, `drawQuitDialog`), the card's menu and Home's Options
+  (`ctxRecent`, `openRecentMenu`, `openHomeOptions`) and `drawHome`.
+- **Signature:** Home's `|home…|quit…` term moved from `Ui::signature` into `Browse::signature` (asked only while
+  `page == Browse`, the only page that draws Home: `drawTracks` draws it when `!inMenu`, and that is still in the
+  string the same way).
+- **Stayed `Ui`'s:** `openFile` and `showInFolder` (the dashboard and the Playing tab use them), the mini bar and the
+  playing file's chip (every page's; their code is still in `ui_home.cpp`), `showHidden` and `mangaOn` (mirrored for
+  drawing), and the calls in from `Ui`: the quit dialog taking every finger and a card's drag in progress
+  (`Ui::pointer`, before the area's point), the strip's easing and Recent listed again when what plays changes
+  (`Ui::tick`), the hold that opens a card's menu (`draw`'s timers), `stripT0` in `animating`, `recentEdited` from
+  the dashboard (`/api/recent/remove`, `/api/recent/clear`) and from Move/Rename. The Extensions drawer is still Browse's
+  (`browseDir == EXTDIR`, keyed and touched through `manga->`, as in the Manga section).
+- Names inside are unchanged: the diff is `homeView->` / `browse->homeView->` and `Home::` on the enum and constants.
+
+### Checked (Browse, Playlists, Home)
+
+The three commits rebased onto `main` (458ecd1, idle sleep: no conflict; `fileJobActive()` reads `Ui::fileJob`,
+which stayed `Ui`'s). Desktop build (macOS) against a build of 458ecd1 in a separate directory, the scripted harness
+(a fresh `--state-dir` per run, `settings.conf` touched to a fixed time, the network denied to the process by
+`sandbox-exec` with localhost only, a generated library: three 40 s tones, two 20 s clips, `doc.txt`), both panels
+compared byte for byte with the header's clock masked, and the state lines compared. `core-test` passes.
+Ten scenarios, 268 shot files (134 pairs):
+
+- **Home by keys** (a seeded history: four Recent cards), 72 identical: the strip stepped to All recent, All recent
+  and its tabs (L/R), a row's menu, Options, back to its card; the tiles walked in every direction and up to the
+  strip; a card's menu and Home's Options; B's quit dialog, its rows, Cancel; each tile opened (Files, Playlists,
+  Network, the Extensions drawer and Manage extensions) and B back; START's menu.
+- **Home by touch**, 30 and 30: the tiles by a tap, the strip dragged (shot mid-drag) and swiped back, a held card,
+  the quit dialog (a tap outside, a tap on Cancel), All recent's tabs tapped, a held row. Identical but a few pairs
+  where a song had started from a card: its progress on the card and the mini bar moved by a pixel or two (a run of
+  the base build against itself differs at the same shots).
+- **Files and the select mode**, 32: a folder's menu, Copy (the clip bar), carried to another folder, let go (X);
+  Select files, two ticked, Add to... (no playlists: the name's keyboard), Done; the new playlist, an item's menu, the
+  playlist's Options. Identical but the last two pairs: Shuffle play was chosen there (a random first song; the logs
+  differ only by it).
+- **Playlists**, four runs, 60: a three-item playlist played from its Options, paused; the heart (L3) on the player;
+  Liked with it; then, with the song paused behind, the playlist opened, an item moved (Move, Down, Done) and one
+  removed: `SessionHost` logs the two `Requeue`s in both builds; quit (the playlist flushed: both state folders' `.m3u`
+  identical, the reorder and the removal in it) and reopened from that state: the playlist, Delete playlist pressed
+  twice; Like from a Recent card's menu, then Liked. Identical but the first run's paused pairs: where the pause
+  landed (0.4 s or 0.6 s, in the state lines too) moves the progress bar and the mini bar's sliver.
+- **Network**: the empty page, Y's Add connection form, its rows stepped, B, B Home. **Files by touch**: rows
+  tapped, a ".." tap, a drag, a held row (its menu), the header's "<" back to Home. 28, identical.
+- `tools/web-smoke.sh` (localhost, `BP_WEB_FORCE=1 BP_WEB_PIN=ACDE BP_WEB_PORT=8093`, a generated
+  `Music/Yellow Album` of 60 s songs): the reader on, 207 passed; off, 202 passed; none failed.
+
+### Not verified (Browse, Playlists, Home)
+
+- The handheld and the Linux build (no Linux-only file changed; `ui.h`'s includes are as they were).
+- Anything on the network: a saved connection, a network folder (its listing, its file operations, a network folder
+  added to a playlist and the busy card), Find on the network.
+- A paste (Copy/Move carried out), Rename, Delete in Files, the file job's card: not driven (they write the library);
+  the bodies are the old lines with `browse->`. The grip's drag in Edit by touch, Add files and Pick a folder, the
+  picker opened from the player's Add square, the dashboard's playlist routes beyond the smoke test.

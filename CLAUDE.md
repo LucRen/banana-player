@@ -11,7 +11,8 @@ constraints this repo can't show), `docs/workflow.md` (harness, tests, bundle, r
 feature, control and setting: grep for yours; a new one gets its entry), `DEVELOPMENT.md` (detail, roadmap),
 `docs/notes/` (one note per investigation: read the one your brief names; an agent finishing one adds a note).
 `src/ui.h` is large: grep it, and work in the area's own header where there is one (`ui_docs.h`, `ui_sound.h`,
-`ui_web.h`, `ui_manga.h`, `ui_settings.h`; the page reader Docs and Manga share: `ui_reader.h`).
+`ui_web.h`, `ui_manga.h`, `ui_settings.h`, `ui_browse.h`; the browser's playlists and Home: `ui_playlists.h`,
+`ui_home.h`; the page reader Docs and Manga share: `ui_reader.h`).
 
 ## Commands
 
@@ -43,6 +44,9 @@ tools/make-sprite.py                                 # web/sprite.svg from the G
   `session_host.*` runs its effects on mpv once per loop pass. Every play/step/stop/output/track/shuffle/loop change,
   from the handheld or a page (`/api/intent`), goes through it.
 - **Ui** (`src/ui.h`, split by area over `ui_*.cpp`; shared names `ui_internal.h`, glyphs `ui_glyphs.h`): the bottom panel.
+  The browser (Home, Files, Playlists, Network, All recent): `ui_browse.h` (the area `Ui::Browse`; Files' operations
+  `ui_fileops.cpp`, the Network form `ui_forms.cpp`), `ui_playlists.h` (`Ui::Playlists`, owned by it: the store, edits
+  to the session, select mode, picker), `ui_home.h` (`Ui::Home`, owned by it: Home's strip and tiles, Recent).
 - **Web:** `src/web/` (server, API, probe, subs, picsubs, remux), `web/app.js` + `web/js/*.js` (ES modules, no build),
   `web/style.css` (copies `src/theme.h` by hand), embedded by `cmake/EmbedWeb.cmake`.
 - Books and documents: `pagebook.*` (a chapter in one file: CBZ, CBR via libarchive, PDF via pdfium, a comic EPUB),

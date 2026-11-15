@@ -17,6 +17,7 @@
 #include "ui_docs.h"
 #include "ui_browse.h"
 #include "ui_playlists.h"
+#include "ui_home.h"
 #include "webstate.h"
 #include <httplib.h>
 #include <algorithm>
@@ -573,7 +574,7 @@ namespace bp
 					return error("Not in Recent", "missing");
 				}
 				p.removeFromHistory(path);
-				u.recentEdited(p);
+				u.browse->homeView->recentEdited(p);
 				return JsonWriter().obj().key("ok").boolean(true).key("serial").num(p.recentSerial()).end().out();
 			}, 2000, status);
 			answer(res, body, status);
@@ -584,7 +585,7 @@ namespace bp
 			int status = 200;
 			std::string body = w->call([](Player& p, Ui& u) {
 				p.clearHistory();
-				u.recentEdited(p);
+				u.browse->homeView->recentEdited(p);
 				return JsonWriter().obj().key("ok").boolean(true).key("serial").num(p.recentSerial()).end().out();
 			}, 2000, status);
 			answer(res, body, status);

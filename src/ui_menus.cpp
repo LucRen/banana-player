@@ -19,6 +19,7 @@
 #include "ui_internal.h"
 #include "ui_browse.h"
 #include "ui_playlists.h"
+#include "ui_home.h"
 #include "ui_settings.h"
 #include "pagebook.h"
 #include <strings.h>
@@ -665,9 +666,9 @@ namespace bp
 			int it = ctxItems[i];
 			bool del = it == CTX_DELETE || it == CTX_PL_DELETE || it == CTX_F_DELETE;
 			bool armed = del && ctxArmed && i == ctxCursor;
-			const RecentItem* ri = nullptr;
-			for (auto& x : recent)
-				if (x.path == ctxRecent) ri = &x;
+			const Home::RecentItem* ri = nullptr;
+			for (auto& x : browse->homeView->recent)
+				if (x.path == browse->homeView->ctxRecent) ri = &x;
 			std::string note;
 			SDL_Color noteInk = i == ctxCursor ? DIM_ON : DIM;
 			if (it == CTX_R_SHOW && ri) note = ri->where;
@@ -680,12 +681,12 @@ namespace bp
 			if (it == CTX_CLEAR_RECENT)
 			{
 				bool armedClear = ctxArmed && i == ctxCursor;
-				note = recent.empty() ? "Empty" : armedClear ? "Press again to clear" : "Press twice";
+				note = browse->homeView->recent.empty() ? "Empty" : armedClear ? "Press again to clear" : "Press twice";
 				if (armedClear) noteInk = ACCENT;
 			}
-			bool docR = isDocumentName(ctxRecent) || isComicName(ctxRecent);	// (a document is read, at a page)
+			bool docR = isDocumentName(browse->homeView->ctxRecent) || isComicName(browse->homeView->ctxRecent);	// (a document is read, at a page)
 			std::string resume = ri && !ri->at.empty() ? (docR ? "Resume at " : "Resume from ") + ri->at : docR ? "Open" : "Play";
-			bool likedR = it == CTX_R_LIKE && browse->playlists->plStore && browse->playlists->plStore->isLiked(ctxRecent);
+			bool likedR = it == CTX_R_LIKE && browse->playlists->plStore && browse->playlists->plStore->isLiked(browse->homeView->ctxRecent);
 			bool inLiked = plIsLiked(browse->playlists->ctxPlFile);	// Liked's Remove is Unlike
 			const char* label = it == CTX_R_PLAY ? resume.c_str() : it == CTX_R_START ? (docR ? "Open from the start" : "Play from the start")
 				: it == CTX_R_SHOW ? "Show in folder" : it == CTX_R_ADD || it == CTX_PL_ADD_ONE ? "Add to playlist\xE2\x80\xA6"

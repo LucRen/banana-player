@@ -160,6 +160,8 @@ namespace bp
 		std::unique_ptr<Browse> browse;
 		// the playlists: a plain struct the browser owns (browse->playlists), ui_playlists.h / ui_playlists.cpp
 		struct Playlists;
+		// Home and All recent: a plain struct the browser owns (browse->homeView), ui_home.h / ui_home.cpp
+		struct Home;
 		// a document from Files: opened in its viewer; false when the path isn't one
 		bool openDocument(const std::string& path, Player& p);
 		// started with no file: the video's Quit closes it (back to the browser)
@@ -410,27 +412,10 @@ namespace bp
 		Page home(const Player& p) const { return playerShown(p) ? Page::Main : Page::Browse; }
 		// the browser's four sections, opened from Home's tiles: Files (the cards), Playlists (the saved ones, then their
 		// items), Network (the saved connections, then their folders) and Extensions (a placeholder). L/R step to the
-		// one before or after (no wrap), at its top; the header's markers by touch. tabDir: where each was left (the
-		// select mode goes between Files and Network keeping its place)
+		// one before or after (no wrap), at its top; the header's markers by touch. The section shown and where each
+		// was left are the browser's (Browse::browseTab, tabDir)
 		enum BrowseTab { TAB_LOCAL, TAB_PLAYLISTS, TAB_NETWORK, TAB_EXT, BROWSE_TABS };
 
-		// Home (browseDir HOMEDIR), the browser's first page: the Recent strip (a card a recent file, then All recent)
-		// over the four sections' tiles, two by two. The focus is on the strip or the tiles; UP/DOWN go between them
-		// (back to the card or the column left), LEFT/RIGHT along. The focused card is kept in the strip's second
-		// slot, the strip easing there over 120 ms (stripT0: tick moves it)
-		struct RecentItem
-		{
-			std::string path, name, sub, where, at;	// at: where it was left ("0:27"), "" from the start
-			const Glyph* kind;
-			double frac;	// the bar: how far into it (played through: 1)
-			bool net;
-		};
-		std::vector<RecentItem> recent;	// as listed with Home (or All recent)
-		void listRecent(Player& p);
-		// Home's Recent (and All recent) listed again where it's being looked at (the next song started, the web removed
-		// one): in the order it was shown, so nothing moves under the cursor; a newly played one comes when it's
-		// entered again (each entry lists it newest first)
-		bool recentKeepOrder = false;
 		// the readers' Brightness sheet (ui_light.cpp): the screens' backlight, Extra dim, the reader's filter
 		// (an overlay: LightSheet, pushed by openLight)
 		struct LightSheet;
@@ -438,64 +423,11 @@ namespace bp
 		int& lightFilter(Settings& s) const;	// the reader's own filter: the text viewer's, the PDF/comic viewer's, Manga's
 		// what the reader's Brightness button says while Extra dim or a filter is on ("Warm · 30%"); empty: neither
 		std::string lightNote(const Player& p) const;
-		// All recent's tabs: 0 everything, 1 videos, 2 music, 3 books and documents (L2/R2, or a tap on them); the counts
-		// as last listed, and where each tab was drawn (for a tap)
-		int recentTab = 0, recentCounts[4] = {0, 0, 0, 0};
-		Rect recentTabRect[4];
-		bool drawRecentTabs(int x, int mid, int right, bool counts = true);	// false (nothing drawn): they don't fit there
-		bool recentTabsUp = false;	// drawn on the title's line (else on the line under it)
-		void stepRecentTab(int dir, Player& p);
-		void recentInOrder(const std::vector<std::string>& before);
-		// the history changed from elsewhere (the web): Home or All recent listed again, the focus kept
-		void recentEdited(Player& p);
-		enum HomeZone { HOME_STRIP, HOME_GRID };
-		int homeZone = HOME_STRIP, homeStrip = 0, homeGrid = 0, homeCol = 0;
-		bool homeFresh = true;	// not yet shown this run: the focus starts on the newest card (Files with none)
-		static constexpr int CARD_W = 240, STRIDE = 250, CARD_Y = 84, CARD_H = 104, STRIP_TOP = 80, STRIP_H = 116;
-		// the strip: the newest few (the rest are in All recent, its last card)
-		static constexpr int HOME_RECENT_MAX = 5;
-		int stripCards() const { return std::min((int)recent.size(), HOME_RECENT_MAX); }
-		int stripCount() const { return stripCards() + 1; }	// (+ All recent)
-		int stripMax() const { return std::max(0, 16 + stripCount() * STRIDE - 10 + 16 - W); }
-		int stripTarget(int i) const { return std::clamp((i - 1) * STRIDE, 0, stripMax()); }
-		double stripOff = 0, stripFrom = 0, stripTo = 0;
-		Uint32 stripT0 = 0;
-		void setStrip(int i, bool animate = true);
-		void stripStep();	// the eased scroll, a frame
-		Rect tileRect(int g) const;
-		std::string tileSub(int g) const;
-		// the tiles' lines, made again when the playlists or the connections change
-		mutable std::string tileSubs[BROWSE_TABS];
-		mutable int tileSubsKey = -1;
-		bool homeKey(Button b, Player& p);	// true: Quit chosen in B's dialog, leave
-		void goHome(int zone, int idx, Player& p);	// back to Home, the focus there
-		void homeOpen(Player& p);	// A: the card's file, All recent, a tile's section
-		// a finger on Home: on a card (a tap plays, a hold opens its menu, a drag scrolls the strip) or a tile
-		bool homeTouch = false, homeMoved = false;
-		int homeDownX = 0, homePress = -1;	// homePress: a card's index, or HOME_TILE + a tile's
-		double homeDownOff = 0;
-		Uint32 homeHoldAt = 0;
-		static constexpr int HOME_TILE = 1000;
-		bool homePointer(const Pointer& pt, int x, int y, Player& p);
-		// B on Home with nothing playing asks first; the dialog is Home's, over the page (drawHome)
-		bool quitOpen = false;
-		int quitCursor = 1;	// Cancel first
-		// laid out as Quick settings (F) is: its panel, its rows, its red Quit button
-		static constexpr Rect QUIT_BOX{40, 119, 560, 198};
-		Rect quitRow(int i) const { return {56, QUIT_BOX.y + 56 + i * 62, 528, 54}; }
-		void drawQuitDialog(bool quitPlaying);	// (playing: it says quitting stops it)
-		void drawHome(const Player& p);
 		bool showHidden = false;	// the setting, kept here for drawBrowseMenu (no Player there)
 		bool mangaOn = false;		// the manga reader's switch, kept here for tileSub (no Player there)
 		// a recent file played (as All recent's rows play one), from its start, shown in its folder (Files or Network)
 		void openFile(const std::string& path, Player& p);
 		void showInFolder(const std::string& path, Player& p);
-		// Y on a card (or on All recent's row, a hold on a card): Resume from / Play, Play from the start, Show in
-		// folder, Add to playlist..., Remove from Recent; X on Home (and All recent): Clear Recent, Show hidden folders,
-		// Settings
-		std::string ctxRecent;	// the file the menu is for
-		void openRecentMenu(const std::string& path);
-		void openHomeOptions();
 		std::string stateDirPath;	// (setStateDir's) the manga store's, the readers' places and the playlists' folders are under it
 		// ---- Files' own file operations (ui_fileops.cpp) ----
 		// Copy / Move: the item is held (clip) while you go to the folder it goes in, and pasted there (SELECT, or the
@@ -1114,7 +1046,6 @@ namespace bp
 		int incognitoW() const { return incognito ? 18 + 10 : 0; }
 		bool markLive(const Player& p) const;	// it moves: what plays plays (a page's: as the page does)
 		void drawMark(int right, int cy, const Player& p);
-		std::string homeListedFor;	// what played as Home's Recent was listed (it's listed again when that changes)
 		// the equalizer changed from the web (a slider's run): written (commitEq) a second after the last change
 		Uint32 eqWebDirtyAt = 0;
 		// a seek waiting for its file to open (the hand-off from a browser: at that position): path, seconds

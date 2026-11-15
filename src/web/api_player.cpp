@@ -14,6 +14,7 @@
 #include "ui_sound.h"
 #include "ui_browse.h"
 #include "ui_playlists.h"
+#include "ui_home.h"
 #include "session_host.h"
 #include "netpath.h"
 #include "webstate.h"

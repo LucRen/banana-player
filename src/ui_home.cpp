@@ -19,6 +19,7 @@
 #include "ui_internal.h"
 #include "ui_browse.h"
 #include "ui_playlists.h"
+#include "ui_home.h"
 #include "ui_sound.h"
 #include "ui_docs.h"
 #include "ui_reader.h"
@@ -30,7 +31,7 @@ namespace bp
 {
 	// ---- Home: the Recent strip and the sections' tiles; a section's header ----
 
-	void Ui::listRecent(Player& p)
+	void Ui::Home::listRecent(Player& p)
 	{
 		recent.clear();
 		if (!p.settings.keepHistory) return;
@@ -40,7 +41,7 @@ namespace bp
 			// the file is there is only known by asking its server: when it's opened)
 			bool net = isNetPath(path);
 			NetPath np;
-			const NetServer* sv = net && netStore && parseNetPath(path, np) ? netStore->find(np.server) : nullptr;
+			const NetServer* sv = net && ui.netStore && parseNetPath(path, np) ? ui.netStore->find(np.server) : nullptr;
 			if (net ? !sv : !exists(path) || (!p.settings.showHiddenFolders && insideHiddenFolder(path))) continue;
 			RecentItem it;
 			it.path = path;
@@ -55,7 +56,7 @@ namespace bp
 				// a document: the page it's at (a PDF, a comic) or how far through (a TXT, a book), from its own places
 				bool epub = path.size() > 5 && strcasecmp(path.c_str() + path.size() - 5, ".epub") == 0;
 				it.kind = isComicName(path) ? &G_COMIC : epub ? &G_EPUB : isPdfName(path) ? &G_PDF : &G_PAGE;
-				const ResumeEntry* d = docs->placeOf(path);
+				const ResumeEntry* d = ui.docs->placeOf(path);
 				// a PDF's or a comic's place is a page of so many; a text's, a share of it (kept before the kind was: a
 				// share is at most 1, a page count at least 1)
 				bool pages = d && (d->aid == 2 || (d->aid != 1 && d->duration > 1));
@@ -70,7 +71,7 @@ namespace bp
 					it.sub = pages ? std::to_string((int)d->duration) + " pages" : "Not started";
 					it.frac = 0;
 				}
-				std::string w = whereOf(parentFolder(path));
+				std::string w = ui.whereOf(parentFolder(path));
 				it.where = w.substr(0, w.find(" / "));
 				recent.push_back(it);
 				continue;
@@ -93,21 +94,21 @@ namespace bp
 			if (sv) it.where = serverName(*sv);
 			else
 			{
-				std::string w = whereOf(parentFolder(path));
+				std::string w = ui.whereOf(parentFolder(path));
 				it.where = w.substr(0, w.find(" / "));
 			}
 			recent.push_back(it);
 		}
 	}
 
-	bool Ui::drawRecentTabs(int x, int mid, int right, bool counts)
+	bool Ui::Home::drawRecentTabs(int x, int mid, int right, bool counts)
 	{
 		// chips: the chosen one lit, each with its count; an empty kind dimmed. Measured first: all or none
 		static const char* NAMES[4] = {"All", "Videos", "Music", "Books"};
 		int ws[4], total = 0;
 		for (int i = 0; i < 4; i++)
 		{
-			ws[i] = (int)std::lround(textWidth(counts ? std::string(NAMES[i]) + " " + std::to_string(recentCounts[i]) : std::string(NAMES[i]), 0) / sx) + 20;
+			ws[i] = (int)std::lround(ui.textWidth(counts ? std::string(NAMES[i]) + " " + std::to_string(recentCounts[i]) : std::string(NAMES[i]), 0) / sx) + 20;
 			total += ws[i] + (i ? 6 : 0);
 		}
 		if (x + total > right) return false;
@@ -118,15 +119,15 @@ namespace bp
 			Rect r{x, mid - 14, w, 28};
 			recentTabRect[i] = r;
 			bool on = recentTab == i;
-			if (on) fillRound(r, ACCENT, 8);
-			else drawBox(r, BUTTON, 8);
-			drawTextMid(label, 0, on ? ON_ACCENT : recentCounts[i] || !i ? TEXT : DIM, r.x + 10, mid);
+			if (on) ui.fillRound(r, ACCENT, 8);
+			else ui.drawBox(r, BUTTON, 8);
+			ui.drawTextMid(label, 0, on ? ON_ACCENT : recentCounts[i] || !i ? TEXT : DIM, r.x + 10, mid);
 			x += w + 6;
 		}
 		return true;
 	}
 
-	void Ui::stepRecentTab(int dir, Player& p)
+	void Ui::Home::stepRecentTab(int dir, Player& p)
 	{
 		// round, past the empty kinds (All is never skipped)
 		for (int k = 0; k < 4; k++)
@@ -134,13 +135,13 @@ namespace bp
 			recentTab = (recentTab + dir + 4) % 4;
 			if (!recentTab || recentCounts[recentTab]) break;
 		}
-		browse->enterFolder(RECENT, p);
-		cursor = browse->firstCursor();
-		scroll = 0;
-		browse->fitList();
+		ui.browse->enterFolder(RECENT, p);
+		ui.cursor = ui.browse->firstCursor();
+		ui.scroll = 0;
+		ui.browse->fitList();
 	}
 
-	void Ui::recentInOrder(const std::vector<std::string>& before)
+	void Ui::Home::recentInOrder(const std::vector<std::string>& before)
 	{
 		if (before.empty()) return;
 		std::unordered_map<std::string, size_t> at;
@@ -152,21 +153,21 @@ namespace bp
 		recent = std::move(kept);
 	}
 
-	void Ui::recentEdited(Player& p)
+	void Ui::Home::recentEdited(Player& p)
 	{
-		if (browse->browseDir != HOMEDIR && browse->browseDir != RECENT) return;
+		if (ui.browse->browseDir != HOMEDIR && ui.browse->browseDir != RECENT) return;
 		recentKeepOrder = true;
-		int c = cursor, s = scroll;
-		browse->enterFolder(browse->browseDir, p);
-		if (browse->browseDir == RECENT)
+		int c = ui.cursor, s = ui.scroll;
+		ui.browse->enterFolder(ui.browse->browseDir, p);
+		if (ui.browse->browseDir == RECENT)
 		{
-			cursor = c;
-			scroll = s;
-			browse->fitList();
+			ui.cursor = c;
+			ui.scroll = s;
+			ui.browse->fitList();
 		}
 	}
 
-	void Ui::setStrip(int i, bool animate)
+	void Ui::Home::setStrip(int i, bool animate)
 	{
 		homeStrip = std::clamp(i, 0, stripCount() - 1);
 		double to = stripTarget(homeStrip);
@@ -181,7 +182,7 @@ namespace bp
 		stripT0 = std::max<Uint32>(1, SDL_GetTicks());
 	}
 
-	void Ui::stripStep()
+	void Ui::Home::stripStep()
 	{
 		if (!stripT0) return;
 		// eased out over 120 ms: quick to start, settling into place
@@ -194,20 +195,20 @@ namespace bp
 		}
 	}
 
-	Ui::Rect Ui::tileRect(int g) const
+	Ui::Rect Ui::Home::tileRect(int g) const
 	{
 		// two by two under the strip; taller with no Recent (a line in its place)
 		bool has = !recent.empty();
 		// (shorter over the mini bar)
-		int y0 = has ? 200 : 96, h = has ? (miniUp ? 100 : 110) : (miniUp ? 154 : 162);
+		int y0 = has ? 200 : 96, h = has ? (ui.miniUp ? 100 : 110) : (ui.miniUp ? 154 : 162);
 		return {16 + g % 2 * 312, y0 + g / 2 * (h + 8), 296, h};
 	}
 
-	std::string Ui::tileSub(int g) const
+	std::string Ui::Home::tileSub(int g) const
 	{
 		// made again when what they say changes: the playlists, the connections, the places
-		int key = (browse->playlists->plStore ? browse->playlists->plStore->serial() : -1) * 7919 + (netStore ? netStore->version() : -1) * 31 + (int)roots.size() +
-			(mangaOn ? 1 : 0) * 1000003;
+		int key = (ui.browse->playlists->plStore ? ui.browse->playlists->plStore->serial() : -1) * 7919 + (ui.netStore ? ui.netStore->version() : -1) * 31 + (int)ui.roots.size() +
+			(ui.mangaOn ? 1 : 0) * 1000003;
 		if (key != tileSubsKey)
 		{
 			tileSubsKey = key;
@@ -218,11 +219,11 @@ namespace bp
 			};
 			// Files: the places, two cards or more counted ("Videos · 2 cards")
 			int cards = 0;
-			for (auto& r : roots)
+			for (auto& r : ui.roots)
 				if (r.label.size() >= 4 && r.label.compare(r.label.size() - 4, 4, "card") == 0) cards++;
 			std::vector<std::string> parts;
 			bool counted = false;
-			for (auto& r : roots)
+			for (auto& r : ui.roots)
 			{
 				bool card = r.label.size() >= 4 && r.label.compare(r.label.size() - 4, 4, "card") == 0;
 				if (!card || cards < 2) parts.push_back(r.label);
@@ -233,23 +234,23 @@ namespace bp
 				}
 			}
 			tileSubs[TAB_LOCAL] = parts.empty() ? "No folders" : join(parts);
-			size_t n = browse->playlists->plStore ? browse->playlists->plStore->addTargets().size() : 0;	// the user's own (Liked is always there)
-			tileSubs[TAB_PLAYLISTS] = !browse->playlists->plStore ? "Not available" : n == 0 ? "Liked"
+			size_t n = ui.browse->playlists->plStore ? ui.browse->playlists->plStore->addTargets().size() : 0;	// the user's own (Liked is always there)
+			tileSubs[TAB_PLAYLISTS] = !ui.browse->playlists->plStore ? "Not available" : n == 0 ? "Liked"
 				: "Liked \xC2\xB7 " + std::to_string(n) + (n == 1 ? " playlist" : " playlists");
 			// Network: the connections by name, the most recently used first
-			std::vector<NetServer> list = netStore ? netStore->servers() : std::vector<NetServer>();
+			std::vector<NetServer> list = ui.netStore ? ui.netStore->servers() : std::vector<NetServer>();
 			std::stable_sort(list.begin(), list.end(), [](const NetServer& a, const NetServer& b) { return a.lastUsed > b.lastUsed; });
 			parts.clear();
 			for (auto& sv : list) parts.push_back(serverName(sv));
 			tileSubs[TAB_NETWORK] = parts.empty() ? "No connections yet" : join(parts);
-			tileSubs[TAB_EXT] = mangaOn ? "1 on \xC2\xB7 Manga reader" : "None on";
+			tileSubs[TAB_EXT] = ui.mangaOn ? "1 on \xC2\xB7 Manga reader" : "None on";
 		}
 		return g >= 0 && g < BROWSE_TABS ? tileSubs[g] : "";
 	}
 
-	void Ui::goHome(int zone, int idx, Player& p)
+	void Ui::Home::goHome(int zone, int idx, Player& p)
 	{
-		browse->enterFolder(HOMEDIR, p);
+		ui.browse->enterFolder(HOMEDIR, p);
 		if (zone == HOME_GRID || recent.empty())
 		{
 			homeZone = HOME_GRID;
@@ -266,31 +267,31 @@ namespace bp
 		setStrip(idx, false);
 	}
 
-	void Ui::homeOpen(Player& p)
+	void Ui::Home::homeOpen(Player& p)
 	{
 		if (homeZone == HOME_GRID)
 		{
 			// Playlists from Home: the list of them, the cursor on the one left open (a playlist reopened from Home read
 			// as a wrong turn; L/R and the markers still go back to it)
-			std::string was = homeGrid == TAB_PLAYLISTS ? browse->tabDir[TAB_PLAYLISTS] : std::string();
+			std::string was = homeGrid == TAB_PLAYLISTS ? ui.browse->tabDir[TAB_PLAYLISTS] : std::string();
 			if (isPlDir(was))
 			{
-				browse->tabDir[TAB_PLAYLISTS] = PLROOT;
-				browse->openSection(homeGrid, p);
+				ui.browse->tabDir[TAB_PLAYLISTS] = PLROOT;
+				ui.browse->openSection(homeGrid, p);
 				std::string file = plFileOf(was);
-				for (size_t i = 0; i < browse->browsePaths.size(); i++)
-					if (browse->browsePaths[i] == file) { cursor = (int)i; browse->fitList(); break; }
+				for (size_t i = 0; i < ui.browse->browsePaths.size(); i++)
+					if (ui.browse->browsePaths[i] == file) { ui.cursor = (int)i; ui.browse->fitList(); break; }
 				return;
 			}
-			browse->openSection(homeGrid, p);
+			ui.browse->openSection(homeGrid, p);
 			return;
 		}
-		if (homeStrip < stripCards()) { openFile(recent[homeStrip].path, p); return; }
+		if (homeStrip < stripCards()) { ui.openFile(recent[homeStrip].path, p); return; }
 		// All recent: the list, from its top
-		browse->enterFolder(RECENT, p);
+		ui.browse->enterFolder(RECENT, p);
 	}
 
-	bool Ui::homeKey(Button b, Player& p)
+	bool Ui::Home::homeKey(Button b, Player& p)
 	{
 		if (quitOpen)
 		{
@@ -300,7 +301,7 @@ namespace bp
 			case Button::Up: case Button::Down: quitCursor = (quitCursor + 1) % 2; break;
 			case Button::A:
 				// Quit quits, playing or not (as Quick settings' Quit: "leave" would only leave the player); Cancel closes
-				if (quitCursor == 0) quitRequested = true;
+				if (quitCursor == 0) ui.quitRequested = true;
 				quitOpen = false;
 				break;
 			case Button::B: case Button::Start: quitOpen = false; break;
@@ -316,7 +317,7 @@ namespace bp
 			quitCursor = 1;
 			return false;
 		}
-		if (b == Button::Start) { openMainMenu(p, playingTabShown(p) ? TAB_PLAYING : TAB_SETTINGS); return false; }
+		if (b == Button::Start) { ui.openMainMenu(p, ui.playingTabShown(p) ? TAB_PLAYING : TAB_SETTINGS); return false; }
 		if (b == Button::X) { openHomeOptions(); return false; }
 		bool has = !recent.empty();
 		if (homeZone == HOME_STRIP && has)
@@ -349,31 +350,31 @@ namespace bp
 		return false;
 	}
 
-	bool Ui::homePointer(const Pointer& pt, int x, int y, Player& p)
+	bool Ui::Home::homePointer(const Pointer& pt, int x, int y, Player& p)
 	{
 		if (quitOpen)
 		{
 			// its rows act as the finger lifts; anywhere else cancels as it lands (its lift presses nothing)
 			if (pt.kind == Pointer::Down)
 			{
-				pressedBtn = -1;
+				ui.pressedBtn = -1;
 				if (!QUIT_BOX.hit(x, y))
 				{
 					quitOpen = false;
-					swallowTouch = true;
+					ui.swallowTouch = true;
 					return false;
 				}
 				for (int i = 0; i < 2; i++)
-					if (quitRow(i).hit(x, y)) pressedBtn = DLG_ROW + i;
+					if (quitRow(i).hit(x, y)) ui.pressedBtn = DLG_ROW + i;
 			}
-			else if (pt.kind == Pointer::Up && pressedBtn >= DLG_ROW)
+			else if (pt.kind == Pointer::Up && ui.pressedBtn >= DLG_ROW)
 			{
-				int i = pressedBtn - DLG_ROW;
-				pressedBtn = -1;
+				int i = ui.pressedBtn - DLG_ROW;
+				ui.pressedBtn = -1;
 				if (i < 2 && quitRow(i).hit(x, y))
 				{
 					quitCursor = i;
-					if (i == 0) quitRequested = true;
+					if (i == 0) ui.quitRequested = true;
 					quitOpen = false;
 				}
 			}
@@ -502,7 +503,7 @@ namespace bp
 		browse->fitList();
 	}
 
-	void Ui::openRecentMenu(const std::string& path)
+	void Ui::Home::openRecentMenu(const std::string& path)
 	{
 		const RecentItem* it = nullptr;
 		for (auto& x : recent)
@@ -514,52 +515,52 @@ namespace bp
 		items.push_back(CTX_R_SHOW);
 		// (a document is read, not played: no Like, no playlist)
 		bool doc = isDocumentName(path) || isComicName(path);
-		if (!doc && browse->playlists->plStore && PlaylistStore::likable(path)) items.push_back(CTX_R_LIKE);
-		if (!doc && browse->playlists->plStore) items.push_back(CTX_R_ADD);
+		if (!doc && ui.browse->playlists->plStore && PlaylistStore::likable(path)) items.push_back(CTX_R_LIKE);
+		if (!doc && ui.browse->playlists->plStore) items.push_back(CTX_R_ADD);
 		items.push_back(CTX_R_REMOVE);
-		ctxOpen = true;
-		ctxCursor = 0;
-		ctxItems = items;
-		ctxServer.clear();
-		ctxStatus.clear();
-		ctxArmed = false;
-		ctxPath.clear();
-		ctxFolder.clear();
-		ctxTitle = it->name;
-		ctxNote.clear();
-		browse->playlists->ctxPlFile.clear();
-		browse->playlists->ctxPlItem = -1;
+		ui.ctxOpen = true;
+		ui.ctxCursor = 0;
+		ui.ctxItems = items;
+		ui.ctxServer.clear();
+		ui.ctxStatus.clear();
+		ui.ctxArmed = false;
+		ui.ctxPath.clear();
+		ui.ctxFolder.clear();
+		ui.ctxTitle = it->name;
+		ui.ctxNote.clear();
+		ui.browse->playlists->ctxPlFile.clear();
+		ui.browse->playlists->ctxPlItem = -1;
 	}
 
-	void Ui::openHomeOptions()
+	void Ui::Home::openHomeOptions()
 	{
 		ctxRecent.clear();
-		ctxOpen = true;
-		ctxCursor = 0;
-		ctxItems = {CTX_CLEAR_RECENT, CTX_HIDDEN, CTX_SETTINGS};
-		ctxServer.clear();
-		ctxStatus.clear();
-		ctxArmed = false;
-		ctxPath.clear();
-		ctxFolder.clear();
-		ctxTitle = "Options";
-		ctxNote.clear();
-		browse->playlists->ctxPlFile.clear();
-		browse->playlists->ctxPlItem = -1;
+		ui.ctxOpen = true;
+		ui.ctxCursor = 0;
+		ui.ctxItems = {CTX_CLEAR_RECENT, CTX_HIDDEN, CTX_SETTINGS};
+		ui.ctxServer.clear();
+		ui.ctxStatus.clear();
+		ui.ctxArmed = false;
+		ui.ctxPath.clear();
+		ui.ctxFolder.clear();
+		ui.ctxTitle = "Options";
+		ui.ctxNote.clear();
+		ui.browse->playlists->ctxPlFile.clear();
+		ui.browse->playlists->ctxPlItem = -1;
 	}
 
-	void Ui::drawHome(const Player& p)
+	void Ui::Home::drawHome(const Player& p)
 	{
-		drawHeader("Banana Player", p);
+		ui.drawHeader("Banana Player", p);
 		bool has = !recent.empty();
 		// the focus shows with nothing over the page
-		bool lit = !ctxOpen && !browse->playlists->pickerOpen && !kbOpen && !popupShown(p);
+		bool lit = !ui.ctxOpen && !ui.browse->playlists->pickerOpen && !ui.kbOpen && !ui.popupShown(p);
 		if (has)
 		{
-			drawTextMid("Recent", 0, DIM, 16, SUB_Y);
+			ui.drawTextMid("Recent", 0, DIM, 16, SUB_Y);
 			// the strip: cards side by side, cut at the panel's edges
 			SDL_Rect clip{0, (int)std::lround(STRIP_TOP * sy), (int)std::lround(W * sx), (int)std::lround(STRIP_H * sy)};
-			SDL_RenderSetClipRect(ren, &clip);
+			SDL_RenderSetClipRect(ui.ren, &clip);
 			int off = (int)std::lround(stripOff);
 			for (int i = 0; i < stripCount(); i++)
 			{
@@ -567,111 +568,111 @@ namespace bp
 				if (x + CARD_W < 0 || x > W) continue;
 				Rect r{x, CARD_Y, CARD_W, CARD_H};
 				bool at = lit && homeZone == HOME_STRIP && homeStrip == i;
-				drawBox(r, homePress == i ? PRESSED : at ? BUTTON : SURFACE, R_TILE, at);
+				ui.drawBox(r, homePress == i ? PRESSED : at ? BUTTON : SURFACE, R_TILE, at);
 				SDL_Color ink = at ? ACCENT : TEXT, soft = at ? DIM_ON : DIM;
 				if (i < stripCards())
 				{
 					// the name on up to two lines; under it, what kind, how far, and a network mark; a bar along the foot
 					const RecentItem& it = recent[i];
 					// what plays (or was stopped for a photo): a chip top right, its time and bar live
-					int chip = chipKind && it.path == chipPath ? chipKind : 0;
+					int chip = ui.chipKind && it.path == ui.chipPath ? ui.chipKind : 0;
 					std::string sub = it.sub;
 					double frac = it.frac;
 					bool lit = !it.at.empty();
 					if (chip && p.playing() && p.duration > 0)
 					{
-						double pos = std::max(0.0, shownPosition(p));
+						double pos = std::max(0.0, ui.shownPosition(p));
 						sub = formatTime(pos) + " / " + formatTime(p.duration);
 						frac = std::clamp(pos / p.duration, 0.0, 1.0);
 						lit = true;
 					}
-					int chipW = chip ? drawChip(x + CARD_W - 8, CARD_Y + 19, chip, true) + 8 : 0;
-					auto lines = wrapText(it.name, 1, CARD_W - 28 - chipW, 2);
+					int chipW = chip ? ui.drawChip(x + CARD_W - 8, CARD_Y + 19, chip, true) + 8 : 0;
+					auto lines = ui.wrapText(it.name, 1, CARD_W - 28 - chipW, 2);
 					for (size_t k = 0; k < lines.size(); k++)
-						drawTextMid(lines[k], 1, ink, x + 14, CARD_Y + (lines.size() == 1 ? 34 : 24) + (int)k * 26, CARD_W - 28 - (k ? 0 : chipW));
-					drawGlyphMid(*it.kind, x + 25, CARD_Y + 78, soft);
+						ui.drawTextMid(lines[k], 1, ink, x + 14, CARD_Y + (lines.size() == 1 ? 34 : 24) + (int)k * 26, CARD_W - 28 - (k ? 0 : chipW));
+					ui.drawGlyphMid(*it.kind, x + 25, CARD_Y + 78, soft);
 					// a liked one: a small heart, left of the network mark
-					bool liked = browse->playlists->plStore && browse->playlists->plStore->isLiked(it.path);
-					drawTextMid(sub, 0, soft, x + 44, CARD_Y + 78, CARD_W - 58 - (it.net ? 30 : 0) - (liked ? 22 : 0));
+					bool liked = ui.browse->playlists->plStore && ui.browse->playlists->plStore->isLiked(it.path);
+					ui.drawTextMid(sub, 0, soft, x + 44, CARD_Y + 78, CARD_W - 58 - (it.net ? 30 : 0) - (liked ? 22 : 0));
 					int mx = x + CARD_W - 22;
-					if (it.net) { drawGlyphMid(G_NETWORK, mx - 3, CARD_Y + 78, soft); mx -= 30; }
-					if (liked) drawGlyphMid(G_HEART_S, mx, CARD_Y + 78, ACCENT);
+					if (it.net) { ui.drawGlyphMid(G_NETWORK, mx - 3, CARD_Y + 78, soft); mx -= 30; }
+					if (liked) ui.drawGlyphMid(G_HEART_S, mx, CARD_Y + 78, ACCENT);
 					// along the card's foot, in its corners: over its edge, or inside the cursor's yellow one
 					int w = (int)std::lround(CARD_W * frac);
 					Rect in = at ? Rect{x + theme::EDGE, CARD_Y + theme::EDGE, CARD_W - 2 * theme::EDGE, CARD_H - 2 * theme::EDGE} : r;
 					if (w > 0)
-						fillRoundBand(in, at ? R_TILE - theme::EDGE : R_TILE, CARD_Y + CARD_H - 4, in.y + in.h, lit && chip != 4 ? ACCENT : DIM, x + w);
+						ui.fillRoundBand(in, at ? R_TILE - theme::EDGE : R_TILE, CARD_Y + CARD_H - 4, in.y + in.h, lit && chip != 4 ? ACCENT : DIM, x + w);
 				}
 				else
 				{
 					// the last: the whole list
-					drawGlyphMid(G_CLOCK, x + CARD_W / 2, CARD_Y + 30, at ? ACCENT : DIM, 3);
-					drawTextMid("All recent", 1, ink, x + CARD_W / 2, CARD_Y + 66, CARD_W - 20, 2);
-					drawTextMid(std::to_string(recent.size()) + " played", 0, soft, x + CARD_W / 2, CARD_Y + 88, CARD_W - 20, 2);
+					ui.drawGlyphMid(G_CLOCK, x + CARD_W / 2, CARD_Y + 30, at ? ACCENT : DIM, 3);
+					ui.drawTextMid("All recent", 1, ink, x + CARD_W / 2, CARD_Y + 66, CARD_W - 20, 2);
+					ui.drawTextMid(std::to_string(recent.size()) + " played", 0, soft, x + CARD_W / 2, CARD_Y + 88, CARD_W - 20, 2);
 				}
 			}
-			SDL_RenderSetClipRect(ren, nullptr);
+			SDL_RenderSetClipRect(ui.ren, nullptr);
 		}
 		else
 		{
 			// nothing played yet: a line in the strip's place, the tiles taller
-			drawGlyphMid(G_CLOCK, 30, SUB_Y + 4, DIM);
-			drawTextMid(p.settings.keepHistory ? "Nothing played yet \xC2\xB7 what you play shows up here"
+			ui.drawGlyphMid(G_CLOCK, 30, SUB_Y + 4, DIM);
+			ui.drawTextMid(p.settings.keepHistory ? "Nothing played yet \xC2\xB7 what you play shows up here"
 				: "Play history is off \xC2\xB7 Settings, Files", 0, DIM, 50, SUB_Y + 4, 570);
 		}
 		for (int g = 0; g < BROWSE_TABS; g++)
 		{
 			Rect t = tileRect(g);
 			bool at = lit && homeZone == HOME_GRID && homeGrid == g, soon = g == TAB_EXT;
-			drawBox(t, homePress == HOME_TILE + g ? PRESSED : at ? BUTTON : SURFACE, R_TILE, at);
+			ui.drawBox(t, homePress == HOME_TILE + g ? PRESSED : at ? BUTTON : SURFACE, R_TILE, at);
 			SDL_Color ink = at ? ACCENT : TEXT, soft = at ? DIM_ON : DIM, mark = at ? ACCENT : soon ? DIM : TEXT;
 			const Glyph& gl = *SECTION_GLYPHS[g];
 			if (has)
 			{
 				// side by side: the mark, then the name over what's in it
-				drawGlyphMid(gl, t.x + 54, t.y + t.h / 2, mark, 4);
-				drawTextMid(SECTION_NAMES[g], 2, ink, t.x + 104, t.y + t.h / 2 - 14, t.w - 114);
-				drawTextMid(tileSub(g), 0, soft, t.x + 104, t.y + t.h / 2 + 20, t.w - 114);
+				ui.drawGlyphMid(gl, t.x + 54, t.y + t.h / 2, mark, 4);
+				ui.drawTextMid(SECTION_NAMES[g], 2, ink, t.x + 104, t.y + t.h / 2 - 14, t.w - 114);
+				ui.drawTextMid(tileSub(g), 0, soft, t.x + 104, t.y + t.h / 2 + 20, t.w - 114);
 			}
 			else
 			{
 				// taller: stacked and centred
-				drawGlyphMid(gl, t.x + t.w / 2, t.y + 52, mark, 5);
-				drawTextMid(SECTION_NAMES[g], 2, ink, t.x + t.w / 2, t.y + 106, t.w - 20, 2);
-				drawTextMid(tileSub(g), 0, soft, t.x + t.w / 2, t.y + 138, t.w - 20, 2);
+				ui.drawGlyphMid(gl, t.x + t.w / 2, t.y + 52, mark, 5);
+				ui.drawTextMid(SECTION_NAMES[g], 2, ink, t.x + t.w / 2, t.y + 106, t.w - 20, 2);
+				ui.drawTextMid(tileSub(g), 0, soft, t.x + t.w / 2, t.y + 138, t.w - 20, 2);
 			}
 		}
 		std::vector<Hint> h;
 		if (homeZone == HOME_STRIP && has && homeStrip < stripCards())
-			h = {{"A", chipKind && recent[homeStrip].path == chipPath ? "Go to it" : "Play"}, {"Y", "Menu"}, {"X", "Options"}};
+			h = {{"A", ui.chipKind && recent[homeStrip].path == ui.chipPath ? "Go to it" : "Play"}, {"Y", "Menu"}, {"X", "Options"}};
 		else if (homeZone == HOME_STRIP && has) h = {{"A", "Open"}, {"X", "Options"}};
 		else h = {{"D-PAD", "Move"}, {"A", "Open"}, {"X", "Options"}};
 		h.push_back({"B", "Quit"});
 		h.push_back({"START", "Menu"});
-		drawHints(h);
-		if (quitOpen) drawQuitDialog(nowPlayable(p));
+		ui.drawHints(h);
+		if (quitOpen) drawQuitDialog(ui.nowPlayable(p));
 	}
 
-	void Ui::drawQuitDialog(bool quitPlaying)
+	void Ui::Home::drawQuitDialog(bool quitPlaying)
 	{
 		// the same sheet as Quick settings (F): its panel and title, Quit as its red button, Cancel a row as its rows
-		drawDialog(QUIT_BOX, "");
-		drawTextMid("Quit Banana Player?", 1, ACCENT, QUIT_BOX.x + 24, QUIT_BOX.y + 28);
+		ui.drawDialog(QUIT_BOX, "");
+		ui.drawTextMid("Quit Banana Player?", 1, ACCENT, QUIT_BOX.x + 24, QUIT_BOX.y + 28);
 		// something playing: quitting stops it, said where the choice is made
-		if (quitPlaying) drawTextMid("What's playing stops.", 0, DIM, QUIT_BOX.x + QUIT_BOX.w - 24, QUIT_BOX.y + 28, 0, 1);
+		if (quitPlaying) ui.drawTextMid("What's playing stops.", 0, DIM, QUIT_BOX.x + QUIT_BOX.w - 24, QUIT_BOX.y + 28, 0, 1);
 		Rect q = quitRow(0);
-		bool down = pressedBtn == DLG_ROW, at = quitCursor == 0;
-		drawBox(q, down ? PRESSED : DANGER, R_BUTTON, at);
+		bool down = ui.pressedBtn == DLG_ROW, at = quitCursor == 0;
+		ui.drawBox(q, down ? PRESSED : DANGER, R_BUTTON, at);
 		SDL_Color ink = down ? TEXT : ON_ACCENT;	// black on the red, as Quick settings' Quit
-		int tw = (int)std::lround(textWidth("Quit", 1) / sx), gw = glyphW(G_POWER), x = q.x + q.w / 2 - (tw + gw + 12) / 2;
-		drawGlyphMid(G_POWER, x + gw / 2, q.y + q.h / 2, ink);
-		drawTextMid("Quit", 1, ink, x + gw + 12, q.y + q.h / 2);
+		int tw = (int)std::lround(ui.textWidth("Quit", 1) / sx), gw = ui.glyphW(G_POWER), x = q.x + q.w / 2 - (tw + gw + 12) / 2;
+		ui.drawGlyphMid(G_POWER, x + gw / 2, q.y + q.h / 2, ink);
+		ui.drawTextMid("Quit", 1, ink, x + gw + 12, q.y + q.h / 2);
 		Rect c = quitRow(1);
 		at = quitCursor == 1;
-		if (pressedBtn == DLG_ROW + 1) drawBox(c, PRESSED, R_BUTTON);
-		else if (at) drawFocus(c);
-		drawTextMid("Cancel", 1, at ? ACCENT : TEXT, c.x + c.w / 2, c.y + c.h / 2, 0, 2);
-		drawHints({{"UP/DOWN", "Choose"}, {"A", "OK"}, {"B", "Cancel"}});
+		if (ui.pressedBtn == DLG_ROW + 1) ui.drawBox(c, PRESSED, R_BUTTON);
+		else if (at) ui.drawFocus(c);
+		ui.drawTextMid("Cancel", 1, at ? ACCENT : TEXT, c.x + c.w / 2, c.y + c.h / 2, 0, 2);
+		ui.drawHints({{"UP/DOWN", "Choose"}, {"A", "OK"}, {"B", "Cancel"}});
 	}
 
 	Ui::Rect Ui::Browse::pipRect(int k, const Player& p) const
@@ -765,7 +766,7 @@ namespace bp
 		if (live && browse->playlists->plStore && PlaylistStore::likable(bp.currentPath())) items.push_back(CTX_NP_ADD);
 		items.push_back(CTX_NP_SHOW);
 		items.push_back(CTX_NP_STOP);
-		ctxRecent.clear();
+		browse->homeView->ctxRecent.clear();
 		ctxOpen = true;
 		ctxCursor = 0;
 		ctxItems = items;

@@ -18,6 +18,7 @@
 #include "ui_internal.h"
 #include "ui_browse.h"
 #include "ui_playlists.h"
+#include "ui_home.h"
 #include "ui_reader.h"
 #include "ui_manga.h"
 
@@ -419,18 +420,18 @@ namespace bp
 			else openBrowseMenu(cursor, MENU_HOLD);
 		}
 		// a finger held on a Recent card: its menu (the lift that follows chooses nothing)
-		if (homeHoldAt && homeTouch && !homeMoved && SDL_GetTicks() - homeHoldAt >= 500)
+		if (browse->homeView->homeHoldAt && browse->homeView->homeTouch && !browse->homeView->homeMoved && SDL_GetTicks() - browse->homeView->homeHoldAt >= 500)
 		{
-			int i = homePress;
-			homeHoldAt = 0;
-			homeTouch = false;
-			homePress = -1;
+			int i = browse->homeView->homePress;
+			browse->homeView->homeHoldAt = 0;
+			browse->homeView->homeTouch = false;
+			browse->homeView->homePress = -1;
 			swallowTouch = true;
-			if (i >= 0 && i < stripCards())
+			if (i >= 0 && i < browse->homeView->stripCards())
 			{
-				homeZone = HOME_STRIP;
-				setStrip(i);
-				openRecentMenu(recent[i].path);
+				browse->homeView->homeZone = Home::HOME_STRIP;
+				browse->homeView->setStrip(i);
+				browse->homeView->openRecentMenu(browse->homeView->recent[i].path);
 			}
 		}
 		browse->playlists->plCheckShown();

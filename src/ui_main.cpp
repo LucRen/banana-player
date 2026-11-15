@@ -19,6 +19,7 @@
 #include "ui_internal.h"
 #include "ui_browse.h"
 #include "ui_playlists.h"
+#include "ui_home.h"
 #include "ui_sound.h"
 
 namespace bp

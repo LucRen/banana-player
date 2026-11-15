@@ -5,6 +5,7 @@
 #include "ui_internal.h"
 #include "ui_browse.h"
 #include "ui_playlists.h"
+#include "ui_home.h"
 #include "ui_docs.h"
 #include "ui_manga.h"
 #include "treecopy.h"
@@ -741,6 +742,6 @@ namespace bp
 		manga->mangaSave();
 		fprintf(stderr, "files: %s moved to %s: its places, playlists and series follow (%d stores)\n", from.c_str(), to.c_str(), moved);
 		// Home's Recent shows the new names
-		if (browse->browseDir == HOMEDIR || browse->browseDir == RECENT) recentEdited(p);
+		if (browse->browseDir == HOMEDIR || browse->browseDir == RECENT) browse->homeView->recentEdited(p);
 	}
 }

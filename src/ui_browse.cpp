@@ -18,6 +18,7 @@
 #include "ui_internal.h"
 #include "ui_browse.h"
 #include "ui_playlists.h"
+#include "ui_home.h"
 #include "ui_docs.h"
 #include "ui_manga.h"
 #include "pagebook.h"
@@ -200,11 +201,11 @@ namespace bp
 	void Ui::dropTouch()
 	{
 		// a finger still down on what's gone presses nothing on what comes (as it lifts); none down: nothing to drop
-		if (panTouch || listTouch || slide.on || pressedBtn >= 0 || homeTouch) swallowTouch = true;
-		panTouch = panMoved = listTouch = homeTouch = false;
+		if (panTouch || listTouch || slide.on || pressedBtn >= 0 || browse->homeView->homeTouch) swallowTouch = true;
+		panTouch = panMoved = listTouch = browse->homeView->homeTouch = false;
 		slideDrop();
-		pressedBtn = homePress = -1;
-		flickAt = tapAt = holdAt = homeHoldAt = 0;
+		pressedBtn = browse->homeView->homePress = -1;
+		flickAt = tapAt = holdAt = browse->homeView->homeHoldAt = 0;
 	}
 
 	void Ui::Browse::fitList()
@@ -245,37 +246,37 @@ namespace bp
 		playlists->plMissingSerial++;
 		if (dir == HOMEDIR)
 		{
-			ui.homeListedFor = p.currentPath();
+			homeView->homeListedFor = p.currentPath();
 			// the Recent strip listed again, the focus kept on the file it was on (gone: the card that took its place)
-			std::string was = ui.homeStrip < ui.stripCards() ? ui.recent[ui.homeStrip].path : "";
-			int wasAt = ui.homeStrip;
+			std::string was = homeView->homeStrip < homeView->stripCards() ? homeView->recent[homeView->homeStrip].path : "";
+			int wasAt = homeView->homeStrip;
 			std::vector<std::string> before;
-			if (ui.recentKeepOrder)
-				for (auto& r : ui.recent) before.push_back(r.path);
-			ui.listRecent(p);
-			if (ui.recentKeepOrder) ui.recentInOrder(before);
-			ui.recentKeepOrder = false;
-			if (ui.homeFresh)
+			if (homeView->recentKeepOrder)
+				for (auto& r : homeView->recent) before.push_back(r.path);
+			homeView->listRecent(p);
+			if (homeView->recentKeepOrder) homeView->recentInOrder(before);
+			homeView->recentKeepOrder = false;
+			if (homeView->homeFresh)
 			{
-				ui.homeFresh = false;
-				ui.homeZone = ui.recent.empty() ? HOME_GRID : HOME_STRIP;
-				ui.homeStrip = ui.homeGrid = ui.homeCol = 0;
+				homeView->homeFresh = false;
+				homeView->homeZone = homeView->recent.empty() ? Home::HOME_GRID : Home::HOME_STRIP;
+				homeView->homeStrip = homeView->homeGrid = homeView->homeCol = 0;
 			}
 			else
 			{
 				int found = -1;
-				for (size_t i = 0; i < ui.recent.size() && !was.empty(); i++)
-					if (ui.recent[i].path == was) found = (int)i;
-				ui.homeStrip = was.empty() ? ui.stripCount() - 1 : found >= 0 ? found : std::min(wasAt, std::max(0, ui.stripCards() - 1));
-				if (ui.recent.empty() && ui.homeZone == HOME_STRIP)
+				for (size_t i = 0; i < homeView->recent.size() && !was.empty(); i++)
+					if (homeView->recent[i].path == was) found = (int)i;
+				homeView->homeStrip = was.empty() ? homeView->stripCount() - 1 : found >= 0 ? found : std::min(wasAt, std::max(0, homeView->stripCards() - 1));
+				if (homeView->recent.empty() && homeView->homeZone == Home::HOME_STRIP)
 				{
-					ui.homeZone = HOME_GRID;
-					ui.homeGrid = ui.homeCol = 0;
+					homeView->homeZone = Home::HOME_GRID;
+					homeView->homeGrid = homeView->homeCol = 0;
 				}
 			}
-			ui.homeStrip = std::clamp(ui.homeStrip, 0, ui.stripCount() - 1);
-			ui.stripOff = ui.stripTarget(ui.homeStrip);
-			ui.stripT0 = 0;
+			homeView->homeStrip = std::clamp(homeView->homeStrip, 0, homeView->stripCount() - 1);
+			homeView->stripOff = homeView->stripTarget(homeView->homeStrip);
+			homeView->stripT0 = 0;
 		}
 		// the drawer draws itself (ui_ext.cpp): its one row only keeps the list's counts sane
 		else if (dir == EXTDIR) add(-1, ui.mangaOn ? "1 on" : "None on", "", "");
@@ -344,26 +345,26 @@ namespace bp
 		{
 			// All recent: the history (a file taken away or on a card taken out left out); X clears it
 			std::vector<std::string> before;
-			if (ui.recentKeepOrder)
-				for (auto& r : ui.recent) before.push_back(r.path);
-			ui.listRecent(p);
-			if (ui.recentKeepOrder) ui.recentInOrder(before);
-			ui.recentKeepOrder = false;
+			if (homeView->recentKeepOrder)
+				for (auto& r : homeView->recent) before.push_back(r.path);
+			homeView->listRecent(p);
+			if (homeView->recentKeepOrder) homeView->recentInOrder(before);
+			homeView->recentKeepOrder = false;
 			// the tabs: how many of each, and only the chosen kind listed (PlayHistory keeps 30 of each)
-			for (int& c : ui.recentCounts) c = 0;
-			for (auto& it : ui.recent)
+			for (int& c : homeView->recentCounts) c = 0;
+			for (auto& it : homeView->recent)
 			{
-				ui.recentCounts[0]++;
-				ui.recentCounts[PlayHistory::kindOf(it.path) + 1]++;
+				homeView->recentCounts[0]++;
+				homeView->recentCounts[PlayHistory::kindOf(it.path) + 1]++;
 			}
 			// (a kind emptied meanwhile, its last one removed: back to All rather than an empty tab)
-			if (ui.recentTab && !ui.recentCounts[ui.recentTab]) ui.recentTab = 0;
-			for (auto& it : ui.recent)
+			if (homeView->recentTab && !homeView->recentCounts[homeView->recentTab]) homeView->recentTab = 0;
+			for (auto& it : homeView->recent)
 			{
-				if (ui.recentTab && ui.recentTab != PlayHistory::kindOf(it.path) + 1) continue;
+				if (homeView->recentTab && homeView->recentTab != PlayHistory::kindOf(it.path) + 1) continue;
 				add(2, baseName(it.path), it.path, it.net ? fileNote(at(it.path), -1) : localNote(it.path));
 			}
-			if (ui.recent.empty()) add(-1, "Nothing played yet", "", "");
+			if (homeView->recent.empty()) add(-1, "Nothing played yet", "", "");
 		}
 		else
 		{
@@ -591,8 +592,8 @@ namespace bp
 	{
 		if (browse->atHome())
 		{
-			if (homeZone == HOME_GRID) return SECTION_NAMES[homeGrid];
-			return homeStrip < stripCards() ? recent[homeStrip].path : "All recent";
+			if (browse->homeView->homeZone == Home::HOME_GRID) return SECTION_NAMES[browse->homeView->homeGrid];
+			return browse->homeView->homeStrip < browse->homeView->stripCards() ? browse->homeView->recent[browse->homeView->homeStrip].path : "All recent";
 		}
 		if (cursor < 0) return browse->upRow() ? ".." : "";
 		return cursor < (int)browse->browsePaths.size() ? browse->browsePaths[cursor] : "";
@@ -604,21 +605,21 @@ namespace bp
 		if (browse->atHome())
 		{
 			// the Recent cards (shown: in the strip's view now), then the tiles: "card" or "tile", its name, its line
-			int off = (int)std::lround(stripOff);
-			if (recent.empty()) out.push_back("shown    (no Recent: a line instead of the strip)");
-			for (int i = 0; !recent.empty() && i < stripCount(); i++)
+			int off = (int)std::lround(browse->homeView->stripOff);
+			if (browse->homeView->recent.empty()) out.push_back("shown    (no Recent: a line instead of the strip)");
+			for (int i = 0; !browse->homeView->recent.empty() && i < browse->homeView->stripCount(); i++)
 			{
-				int x = 16 + i * STRIDE - off;
-				bool at = homeZone == HOME_STRIP && homeStrip == i;
-				std::string l = std::string(x + CARD_W > 0 && x < W ? "shown  " : "hidden ") + (at ? "> " : "  ") + "card ";
-				if (i < stripCards())
-					l += recent[i].name + "  | " + recent[i].sub + (recent[i].net ? " [net]" : "") + " \xC2\xB7 " + recent[i].where;
-				else l += "All recent  | " + std::to_string(recent.size()) + " played";
+				int x = 16 + i * Home::STRIDE - off;
+				bool at = browse->homeView->homeZone == Home::HOME_STRIP && browse->homeView->homeStrip == i;
+				std::string l = std::string(x + Home::CARD_W > 0 && x < W ? "shown  " : "hidden ") + (at ? "> " : "  ") + "card ";
+				if (i < browse->homeView->stripCards())
+					l += browse->homeView->recent[i].name + "  | " + browse->homeView->recent[i].sub + (browse->homeView->recent[i].net ? " [net]" : "") + " \xC2\xB7 " + browse->homeView->recent[i].where;
+				else l += "All recent  | " + std::to_string(browse->homeView->recent.size()) + " played";
 				out.push_back(l);
 			}
 			for (int g = 0; g < BROWSE_TABS; g++)
-				out.push_back(std::string("shown  ") + (homeZone == HOME_GRID && homeGrid == g ? "> " : "  ") + "tile " + SECTION_NAMES[g] +
-					"  | " + tileSub(g));
+				out.push_back(std::string("shown  ") + (browse->homeView->homeZone == Home::HOME_GRID && browse->homeView->homeGrid == g ? "> " : "  ") + "tile " + SECTION_NAMES[g] +
+					"  | " + browse->homeView->tileSub(g));
 			return out;
 		}
 		if (browse->upRow())
@@ -803,16 +804,16 @@ namespace bp
 		if (what == CTX_WEB) { ctxOpen = false; openWeb(); return; }
 		if (what >= CTX_R_PLAY)
 		{
-			std::string path = ctxRecent;
+			std::string path = browse->homeView->ctxRecent;
 			if (what == CTX_CLEAR_RECENT)
 			{
 				// twice; nothing to clear, nothing
-				if (recent.empty()) return;
+				if (browse->homeView->recent.empty()) return;
 				if (!ctxArmed) { ctxArmed = true; return; }
 				ctxOpen = false;
 				p.clearHistory();
 				p.osd("Recent cleared");
-				goHome(HOME_GRID, 0, p);
+				browse->homeView->goHome(Home::HOME_GRID, 0, p);
 				return;
 			}
 			if (what == CTX_HIDDEN)
@@ -876,7 +877,7 @@ namespace bp
 			{
 				// the one file: the playlists to add it to (none yet: a new one)
 				std::string title;
-				for (auto& x : recent)
+				for (auto& x : browse->homeView->recent)
 					if (x.path == path) title = x.name;
 				browse->playlists->openAddOne(path, title, -1, p);
 				break;
@@ -884,7 +885,7 @@ namespace bp
 			case CTX_R_LIKE:
 			{
 				std::string title;
-				for (auto& x : recent)
+				for (auto& x : browse->homeView->recent)
 					if (x.path == path) title = x.name;
 				bool was = browse->playlists->plStore && browse->playlists->plStore->isLiked(path);
 				if (setLikedPath(p, path, title, -1, !was) != was) likeCard(p, !was, title);
@@ -1131,7 +1132,7 @@ namespace bp
 	{
 		bool inBrowse = page == Page::Browse;
 		bool sel = inBrowse && !inMenu && browse->playlists->selMode != SEL_NONE;
-		if (inBrowse && !inMenu && !sel && browse->atHome()) { drawHome(p); return; }
+		if (inBrowse && !inMenu && !sel && browse->atHome()) { browse->homeView->drawHome(p); return; }
 		if (sel) browse->playlists->drawSelHeader(p);
 		else if (inBrowse && !inMenu)
 		{
@@ -1143,7 +1144,7 @@ namespace bp
 				drawHeader("Recent", p, 72 + titleW + 20);
 				// (with the counts, else without them: a battery and two-digit counts don't leave room for both)
 				int tx = 72 + titleW + 20, right = statusLeft(p) - 12;
-				recentTabsUp = p.settings.keepHistory && recentCounts[0] && (drawRecentTabs(tx, 32, right) || drawRecentTabs(tx, 32, right, false));
+				browse->homeView->recentTabsUp = p.settings.keepHistory && browse->homeView->recentCounts[0] && (browse->homeView->drawRecentTabs(tx, 32, right) || browse->homeView->drawRecentTabs(tx, 32, right, false));
 			}
 			else browse->drawSectionHeader(p);
 			if (browse->browseDir == EXTDIR)
@@ -1164,7 +1165,7 @@ namespace bp
 					cards = cards || (rt.label.size() >= 4 && rt.label.compare(rt.label.size() - 4, 4, "card") == 0);
 					videos = videos || rt.label == "Videos";
 				}
-				if (browse->browseDir == RECENT && p.settings.keepHistory && recentCounts[0] && !recentTabsUp) drawRecentTabs(16, SUB_Y, 624);
+				if (browse->browseDir == RECENT && p.settings.keepHistory && browse->homeView->recentCounts[0] && !browse->homeView->recentTabsUp) browse->homeView->drawRecentTabs(16, SUB_Y, 624);
 				std::string top = browse->browseDir == RECENT ? ""
 					: browse->browseDir.empty() ? (videos && cards ? "Videos and your cards" : cards ? "Your cards" : "Your folders")
 					: browse->browseDir == PLROOT ? (!browse->playlists->plStore ? "" : n <= 1 ? "Liked"
@@ -1499,12 +1500,12 @@ namespace bp
 			if (b == Button::L3 && p.playing() && !p.playingPhoto()) { ui.likeNow(p); return false; }
 		}
 		if (!ui.inMenu && playlists->selMode != SEL_NONE && playlists->selKey(b, p)) return false;
-		if (!ui.inMenu && atHome()) return ui.homeKey(b, p);
+		if (!ui.inMenu && atHome()) return homeView->homeKey(b, p);
 		// All recent: X Home's options, Y a file's menu (as on its card)
-		if (!ui.inMenu && browseDir == RECENT && b == Button::X) { ui.openHomeOptions(); return false; }
+		if (!ui.inMenu && browseDir == RECENT && b == Button::X) { homeView->openHomeOptions(); return false; }
 		if (!ui.inMenu && browseDir == RECENT && b == Button::Y)
 		{
-			if (ui.cursor >= 0 && ui.cursor < (int)browseRows.size() && browseRows[ui.cursor].id == 2) ui.openRecentMenu(browsePaths[ui.cursor]);
+			if (ui.cursor >= 0 && ui.cursor < (int)browseRows.size() && browseRows[ui.cursor].id == 2) homeView->openRecentMenu(browsePaths[ui.cursor]);
 			return false;
 		}
 		if (!ui.inMenu && b == Button::X) { ui.openBrowseMenu(ui.cursor, MENU_X); return false; }
@@ -1527,7 +1528,7 @@ namespace bp
 			// All recent: its tabs (All, Videos, Music, Books)
 			if (browseDir == RECENT)
 			{
-				if (p.settings.keepHistory && ui.recentCounts[0]) ui.stepRecentTab(b == Button::R ? 1 : -1, p);
+				if (p.settings.keepHistory && homeView->recentCounts[0]) homeView->stepRecentTab(b == Button::R ? 1 : -1, p);
 				return false;
 			}
 			// a section each way, no wrap, at its top (All recent is none's)
@@ -1542,8 +1543,8 @@ namespace bp
 			// a section's top: Home, on its tile (All recent: on its card)
 			if (atFirstPage())
 			{
-				if (browseDir == RECENT) ui.goHome(HOME_STRIP, ui.stripCards(), p);
-				else ui.goHome(HOME_GRID, browseTab, p);
+				if (browseDir == RECENT) homeView->goHome(Home::HOME_STRIP, homeView->stripCards(), p);
+				else homeView->goHome(Home::HOME_GRID, browseTab, p);
 				return false;
 			}
 			browseUp(p);
@@ -1590,7 +1591,7 @@ namespace bp
 				if (playlists->selTickable(i)) { playlists->dragBegin(i, y, p); return false; }
 			}
 		}
-		if (!ui.inMenu && atHome()) return ui.homePointer(pt, x, y, p);
+		if (!ui.inMenu && atHome()) return homeView->homePointer(pt, x, y, p);
 		if (!ui.inMenu && y < 60)
 		{
 			// a section's marker: that section (Home and All recent have none)
@@ -1611,9 +1612,19 @@ namespace bp
 
 	std::string Ui::Browse::signature(const Player&) const
 	{
-		// the section and its listing; what Copy / Move holds (the bar along the foot)
+		// the section and its listing; what Copy / Move holds (the bar along the foot); Home's focus and strip
 		std::string s = "|tab" + std::to_string(browseTab) + (netLoading ? "L" : "");
 		if (clipOp != CLIP_NONE) s += "|clip" + std::to_string(clipOp) + clipPath + (clipCanPaste() ? "p" : "");
+		// Home: the focus, the strip's scroll, a finger on a card or a tile, the tiles' lines (the connections)
+		if (atHome())
+		{
+			char hb[120];
+			snprintf(hb, sizeof hb, "|home%d %d %d %ld %d %zu %d", homeView->homeZone, homeView->homeStrip, homeView->homeGrid, std::lround(homeView->stripOff), homeView->homePress,
+				homeView->recent.size(), ui.netStore ? ui.netStore->version() : -1);
+			s += hb;
+			// B's quit dialog over it, and the row it has the focus on
+			s += std::string("|quit") + std::to_string(homeView->quitOpen) + std::to_string(homeView->quitCursor);
+		}
 		return s;
 	}
 

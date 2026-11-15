@@ -18,6 +18,7 @@
 #include "ui_internal.h"
 #include "ui_browse.h"
 #include "ui_playlists.h"
+#include "ui_home.h"
 #include "ui_sound.h"
 #include "ui_docs.h"
 #include "ui_manga.h"

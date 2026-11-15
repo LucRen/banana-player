@@ -19,6 +19,7 @@
 #include "ui_internal.h"
 #include "ui_browse.h"
 #include "ui_playlists.h"
+#include "ui_home.h"
 
 namespace bp
 {
@@ -1296,12 +1297,12 @@ namespace bp
 
 	// ---- the browser owns the playlists ----
 
-	Ui::Browse::Browse(Ui& u) : Area(u), playlists(std::make_unique<Playlists>(u)) {}
+	Ui::Browse::Browse(Ui& u) : Area(u), playlists(std::make_unique<Playlists>(u)), homeView(std::make_unique<Home>(u)) {}
 	Ui::Browse::~Browse() = default;
 
 	// ---- Ui's, out of ui.h (they read the playlists' state) ----
 
-	bool Ui::animating() const { return (area() && area()->animating()) || loaderShown || playHoldAt != 0 || flickAt != 0 || browse->playlists->plDrag.on || slideWaiting() || stripT0 != 0 || likePopAt != 0 || addFlashUntil != 0 || landFlashUntil != 0 || listPulseAt != 0; }
+	bool Ui::animating() const { return (area() && area()->animating()) || loaderShown || playHoldAt != 0 || flickAt != 0 || browse->playlists->plDrag.on || slideWaiting() || browse->homeView->stripT0 != 0 || likePopAt != 0 || addFlashUntil != 0 || landFlashUntil != 0 || listPulseAt != 0; }
 	void Ui::flushPlaylist(Player& p) { browse->playlists->plFlush(p); }
 	int Ui::playlistSerial() const { return browse->playlists->plStore ? browse->playlists->plStore->serial() : -1; }
 	bool Ui::plIsLiked(const std::string& file) const { return browse->playlists->plStore && browse->playlists->plStore->isBuiltinFile(file); }

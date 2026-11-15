@@ -126,5 +126,7 @@ namespace bp
 
 		// ---- the playlists: a plain struct of the browser's (Ui::Playlists, ui_playlists.h) ----
 		std::unique_ptr<Playlists> playlists;
+		// ---- Home and All recent: a plain struct of the browser's (Ui::Home, ui_home.h) ----
+		std::unique_ptr<Home> homeView;
 	};
 }
