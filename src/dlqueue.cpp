@@ -1,5 +1,5 @@
 #include "dlqueue.h"
-#include "playlists.h"	// writeFileAtomic: the tmp-then-rename the other stores write with
+#include "playlists.h"	// writeFileDurable: the tmp-then-rename the other stores write with
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
@@ -186,7 +186,7 @@ namespace bp
 		std::string dir = dir_ + "/manga";
 		mkdir(dir_.c_str(), 0755);
 		mkdir(dir.c_str(), 0755);
-		return writeFileAtomic(dir + "/downloads-queue.tsv", serialize());
+		return writeFileDurable(dir + "/downloads-queue.tsv", serialize());
 	}
 
 	void DownloadQueue::parse(const std::string& text)

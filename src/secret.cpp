@@ -1,4 +1,5 @@
 #include "secret.h"
+#include "filesave.h"
 #include <cstdio>
 #include <fcntl.h>
 #include <fstream>
@@ -26,12 +27,8 @@ namespace bp
 		if (k.size() == 32) { key32 = k; return true; }
 		unsigned char buf[32];
 		if (RAND_bytes(buf, 32) != 1) return false;
-		std::string tmp = keyFile + ".tmp";
-		int fd = open(tmp.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600);
-		if (fd < 0) return false;
-		bool ok = write(fd, buf, 32) == 32;
-		ok = (close(fd) == 0) && ok;
-		if (!ok || rename(tmp.c_str(), keyFile.c_str()) != 0) { unlink(tmp.c_str()); return false; }
+		// durable: a key lost to a power cut would leave every sealed password unreadable
+		if (!writeFileDurable(keyFile, std::string((const char*)buf, 32), 0600)) return false;
 		key32.assign((const char*)buf, 32);
 		return true;
 	}

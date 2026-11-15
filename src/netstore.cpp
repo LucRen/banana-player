@@ -1,4 +1,5 @@
 #include "netstore.h"
+#include "filesave.h"
 #include "netpath.h"
 #include "secret.h"
 #include <algorithm>
@@ -84,13 +85,6 @@ namespace bp
 		if (dir.empty()) return;
 		// written beside and renamed over, readable by its owner only (the passwords are sealed, the rest needn't be
 		// seen either)
-		std::string path = dir + "/servers.conf", tmp = path + ".tmp";
-		{
-			std::ofstream out(tmp, std::ios::trunc);
-			out << serializeServers(list);
-			if (!out.flush()) return;
-		}
-		chmod(tmp.c_str(), 0600);
-		rename(tmp.c_str(), path.c_str());
+		writeFileDurable(dir + "/servers.conf", serializeServers(list), 0600);
 	}
 }

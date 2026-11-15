@@ -152,6 +152,8 @@ namespace bp
 		void setSettings(const Settings& s, bool persist = true);
 		// called each turn of the loop: the music display's graph, once its changes have settled
 		void checkDisplay();
+		// called each turn of the loop (and with all=true at shutdown): the saves that waited out their second
+		void flushWrites(bool all = false);
 		// called each turn of the loop: with BP_CPU_LOG=1, the player's CPU use in the log every 30 s while playing
 		void checkCpu();
 
@@ -416,7 +418,11 @@ namespace bp
 		bool thumbAsked = false, thumbTurnedByMpv = false;
 		void takeThumb(mpv_node* result);
 		std::string get(const char* name) const;	// "" where mpv has none
-		void writeFile(const std::string& path, const std::string& text);
+		void writeFile(const std::string& path, const std::string& text);	// durable, at most one sync a second per file
+		struct PendingWrite { std::string text; uint64_t dueAt; };
+		std::map<std::string, PendingWrite> pendingWrites;	// saved again within WRITE_GAP_MS: the last value waits here
+		std::map<std::string, uint64_t> lastWritten;
+		static constexpr uint64_t WRITE_GAP_MS = 1000;
 
 		mpv_handle* mpv = nullptr;
 		mpv_render_context* rc = nullptr;

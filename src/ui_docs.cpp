@@ -4,6 +4,7 @@
 // doc-places.conf (the state folder), so it opens where it was left.
 #include "ui_internal.h"
 #include "ui_docs.h"
+#include "filesave.h"
 #include "epub.h"
 #include "pagebook.h"
 #include "substyle.h"
@@ -180,12 +181,8 @@ namespace bp
 	{
 		if (!docPlaces || !docPlacesDirty || ui.stateDirPath.empty()) return;
 		if (!now && SDL_GetTicks() - docSavedAt < 2000) return;
-		std::string tmp = ui.stateDirPath + "/doc-places.conf.tmp";
-		{
-			std::ofstream f(tmp);
-			f << docPlaces->serialize();
-		}
-		std::rename(tmp.c_str(), (ui.stateDirPath + "/doc-places.conf").c_str());
+		// durable (a cut mid-write once left font bytes in the bookmarks file); throttled above to one per 2 s
+		writeFileDurable(ui.stateDirPath + "/doc-places.conf", docPlaces->serialize());
 		docPlacesDirty = false;
 		docSavedAt = SDL_GetTicks();
 	}
@@ -381,12 +378,8 @@ namespace bp
 			snprintf(head, sizeof head, "%llu\t%.4f\t", (unsigned long long)m.id, m.frac);
 			out += head + m.path + "\t" + label + "\n";
 		}
-		std::string tmp = ui.stateDirPath + "/doc-bookmarks.conf.tmp";
-		{
-			std::ofstream f(tmp);
-			f << out;
-		}
-		std::rename(tmp.c_str(), (ui.stateDirPath + "/doc-bookmarks.conf").c_str());
+		// one write per bookmark added, renamed or removed by the user: durable
+		writeFileDurable(ui.stateDirPath + "/doc-bookmarks.conf", out);
 	}
 
 	std::vector<int> Ui::Docs::docMarksHere() const

@@ -1,6 +1,7 @@
 // Saved playlists: extended M3U files in the state folder, and the edits the browser makes on them.
 // No window or mpv here; tests/core_test.cpp covers it.
 #pragma once
+#include "filesave.h"	// writeFileAtomic / writeFileDurable (they lived here)
 #include <cstdint>
 #include <set>
 #include <string>
@@ -51,9 +52,6 @@ namespace bp
 	std::vector<int> shuffleOrder(int n, int first, uint64_t seed);	// a permutation with `first` first (any, if out of range)
 	// dot names skipped; isVideoFile||isAudioFile kept; photos counted; others ignored; naturalLess; netJoin for bpnet
 	std::vector<PlaylistEntry> folderEntries(const std::string& dir, const std::vector<std::string>& names, int& skippedPhotos);
-
-	bool writeFileAtomic(const std::string& path, const std::string& text);	// tmp + rename; false on failure
-	bool writeFileDurable(const std::string& path, const std::string& text);	// the same, synced to the card (fsync)
 
 	class PlaylistStore
 	{

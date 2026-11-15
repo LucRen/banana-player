@@ -1,5 +1,5 @@
 #include "mangastore.h"
-#include "playlists.h"	// writeFileAtomic: the tmp-then-rename the other stores write with
+#include "playlists.h"	// writeFileDurable: the tmp-then-rename the other stores write with
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
@@ -246,7 +246,7 @@ namespace bp
 			ok = writeFileDurable(dir + "/library.tsv", lib);
 			if (ok) savedLibrary_ = lib;
 		}
-		ok = writeFileAtomic(dir + "/progress.tsv", serializeProgress()) && ok;
+		ok = writeFileDurable(dir + "/progress.tsv", serializeProgress()) && ok;
 		return ok;
 	}
 

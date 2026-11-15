@@ -3,7 +3,7 @@
 // is the cheap half of design 5.3's install rule: the size and the SHA-256 against the index. The script's own shape
 // is the injected validator's business (design 5.4).
 #include "mangarepos.h"
-#include "playlists.h"	// writeFileAtomic: the tmp-then-rename every store writes with
+#include "playlists.h"	// writeFileDurable: the tmp-then-rename every store writes with
 #include <algorithm>
 #include <cctype>
 #include <cstdio>
@@ -313,18 +313,18 @@ namespace bp
 			reposText += buf;
 			reposText += "\n";
 		}
-		bool ok = writeFileAtomic(mangaDir() + "/repos.tsv", reposText);
+		bool ok = writeFileDurable(mangaDir() + "/repos.tsv", reposText);
 
 		// the indexes are separate files: a failed fetch never has to rewrite a repository list to keep the cache
 		for (const auto& r : repos_)
-			if (r.haveIndex) ok = writeFileAtomic(stateDirForIndex(repoHash(r.url)), r.indexJson) && ok;
+			if (r.haveIndex) ok = writeFileDurable(stateDirForIndex(repoHash(r.url)), r.indexJson) && ok;
 
 		std::string sourcesText = std::string(SOURCES_HEADER) + "\n";
 		for (const auto& e : installed_)
 			sourcesText += escapeField(e.repoHash) + "\t" + escapeField(e.id) + "\t" + escapeField(e.version) + "\t" +
 				escapeField(e.name) + "\t" + escapeField(e.lang) + "\t" + (e.adult ? "1" : "0") + "\t" +
 				escapeField(e.file) + "\n";
-		ok = writeFileAtomic(sourcesDir() + "/installed.tsv", sourcesText) && ok;
+		ok = writeFileDurable(sourcesDir() + "/installed.tsv", sourcesText) && ok;
 		return ok;
 	}
 
@@ -730,7 +730,7 @@ namespace bp
 			return;
 		}
 		std::string path = dir + "/" + src->id + ".lua";
-		if (!writeFileAtomic(path, text))
+		if (!writeFileDurable(path, text))
 		{
 			addEvent(Event::InstallFailed, p.repo, fid, "couldn't write " + path);
 			return;

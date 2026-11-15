@@ -1122,6 +1122,7 @@ int main(int argc, char** argv)
 			player.checkAudio();
 			player.checkSongEnd();
 			player.checkDisplay();
+			player.flushWrites();
 			player.checkCpu();
 			player.checkNet();
 			player.checkLoading();

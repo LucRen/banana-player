@@ -1,4 +1,5 @@
 #include "player.h"
+#include "filesave.h"
 #include "format.h"
 #include "webmedia.h"
 #include "logo.h"
@@ -233,6 +234,7 @@ namespace bp
 
 	void Player::shutdown()
 	{
+		flushWrites(true);	// (the last of a burst of saves waits at most a second; not past the quit)
 		// the render context goes first, while its GL context is still current
 		if (rc) mpv_render_context_free(rc);
 		rc = nullptr;
@@ -1409,14 +1411,33 @@ namespace bp
 
 	void Player::writeFile(const std::string& path, const std::string& text)
 	{
-		// written beside and renamed over: a power cut never leaves half a file
-		std::string tmp = path + ".tmp";
+		// Durable (synced to the card: a power cut leaves the old file or the new one whole). A sync can take tens
+		// of ms on an SD card and this runs on the main thread, so a file written again within a second waits for
+		// the loop's flushWrites (and for shutdown): the first save of a burst goes at once, the last value of the
+		// burst always lands. Settings flicked through, Next pressed over and over: at most one sync a second each.
+		uint64_t now = ticks();
+		auto last = lastWritten.find(path);
+		if (last != lastWritten.end() && now - last->second < WRITE_GAP_MS)
 		{
-			std::ofstream out(tmp, std::ios::trunc);
-			out << text;
-			if (!out.flush()) return;
+			pendingWrites[path] = {text, last->second + WRITE_GAP_MS};
+			return;
 		}
-		rename(tmp.c_str(), path.c_str());
+		pendingWrites.erase(path);
+		writeFileDurable(path, text);
+		lastWritten[path] = now;
+	}
+
+	void Player::flushWrites(bool all)
+	{
+		if (pendingWrites.empty()) return;
+		uint64_t now = ticks();
+		for (auto it = pendingWrites.begin(); it != pendingWrites.end();)
+		{
+			if (!all && now < it->second.dueAt) { ++it; continue; }
+			writeFileDurable(it->first, it->second.text);
+			lastWritten[it->first] = now;
+			it = pendingWrites.erase(it);
+		}
 	}
 
 	void Player::setSettings(const Settings& s, bool persist)
@@ -1521,7 +1542,7 @@ namespace bp
 		if (readFile(path) != wav)
 		{
 			mkdir(dir.c_str(), 0755);
-			writeFile(path, wav);
+			writeFileAtomic(path, wav);	// (read back at once, and made again if lost: no sync, no wait)
 			if (readFile(path) != wav)
 			{
 				// an af that can't open its file would take the sound with it: the music plays dry
@@ -2128,7 +2149,11 @@ namespace bp
 	{
 		played.clear();
 		recentSer++;
-		if (!opts.stateDir.empty()) unlink((opts.stateDir + "/history.tsv").c_str());
+		if (!opts.stateDir.empty())
+		{
+			pendingWrites.erase(opts.stateDir + "/history.tsv");	// (a save waiting would bring it back)
+			unlink((opts.stateDir + "/history.tsv").c_str());
+		}
 	}
 
 	void Player::removeFromHistory(const std::string& path)

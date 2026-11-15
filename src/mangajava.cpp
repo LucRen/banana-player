@@ -1,6 +1,7 @@
 // The Java extensions' repositories, extensions and sources (see mangajava.h). Pure: every answer is a string the
 // host took from Suwayomi, and every request body comes from suwayomi.*.
 #include "mangajava.h"
+#include "filesave.h"
 #include <iterator>
 #include "mangarepo.h"	// validRepoUrl
 #include <algorithm>
@@ -156,19 +157,7 @@ namespace bp
 	bool MangaJava::save()
 	{
 		if (dir().empty() || !ensureDir(dir())) return false;
-		auto writeFile = [](const std::string& path, const std::string& text) {
-			std::string tmp = path + ".tmp";
-			FILE* f = fopen(tmp.c_str(), "wb");
-			if (!f) return false;
-			bool ok = fwrite(text.data(), 1, text.size(), f) == text.size();
-			if (fclose(f) != 0) ok = false;
-			if (!ok || rename(tmp.c_str(), path.c_str()) != 0)
-			{
-				unlink(tmp.c_str());
-				return false;
-			}
-			return true;
-		};
+		auto writeFile = [](const std::string& path, const std::string& text) { return writeFileDurable(path, text); };
 		std::string repos;
 		for (const Repo& r : repos_)
 			if (r.added || r.queued) repos += field(r.url) + "\t" + field(r.name) + (r.queued ? "\tqueued" : "") + "\n";
@@ -476,13 +465,7 @@ namespace bp
 			extensionsKnown_ = true;
 			// kept on the card: the next start lists them before the manga engine is up (installing still waits for it)
 			{
-				std::string path = dir() + "/extensions.json", tmp = path + ".tmp";
-				if (FILE* f = fopen(tmp.c_str(), "wb"))
-				{
-					bool ok = fwrite(body.data(), 1, body.size(), f) == body.size();
-					if (fclose(f) != 0) ok = false;
-					if (!ok || rename(tmp.c_str(), path.c_str()) != 0) unlink(tmp.c_str());
-				}
+				writeFileAtomic(dir() + "/extensions.json", body);	// (a list fetched again: not worth a sync)
 			}
 			adoptSources(extensions_, false);
 			// an adult extension's sources are all adult, even when the source nodes don't repeat the flag

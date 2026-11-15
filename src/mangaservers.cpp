@@ -1,4 +1,5 @@
 #include "mangaservers.h"
+#include "filesave.h"
 #include "netpath.h"	// newServerId: the ids the network folders use
 #include "secret.h"
 #include <algorithm>
@@ -205,25 +206,7 @@ namespace bp
 		// Written beside and renamed over, readable by its owner only: the file holds sealed passwords.
 		bool writePrivate(const std::string& path, const std::string& text)
 		{
-			std::string tmp = path + ".tmp";
-			{
-				std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-				if (!out) return false;
-				out.write(text.data(), std::streamsize(text.size()));
-				out.flush();
-				if (!out)
-				{
-					unlink(tmp.c_str());
-					return false;
-				}
-			}
-			chmod(tmp.c_str(), 0600);
-			if (rename(tmp.c_str(), path.c_str()) != 0)
-			{
-				unlink(tmp.c_str());
-				return false;
-			}
-			return true;
+			return writeFileDurable(path, text, 0600);
 		}
 	}
 

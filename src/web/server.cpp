@@ -1,6 +1,7 @@
 // The web dashboard's server: lifecycle, the gate, the PIN sign-in and sessions, the static app, live updates (SSE)
 // and the bridge to the main thread. See server.h.
 #include "web/server.h"
+#include "filesave.h"
 #include "web/assets.h"
 #include "web/subs.h"
 #include "json.h"
@@ -89,21 +90,10 @@ namespace bp
 			return true;
 		}
 
-		// whole or not at all, never readable by others: the PIN and the session hashes
+		// whole or not at all (synced), never readable by others: the PIN and the session hashes
 		bool writePrivate(const std::string& path, const std::string& text)
 		{
-			std::string tmp = path + ".tmp";
-			FILE* f = fopen(tmp.c_str(), "wb");
-			if (!f) return false;
-			chmod(tmp.c_str(), 0600);
-			bool ok = fwrite(text.data(), 1, text.size(), f) == text.size();
-			ok = fclose(f) == 0 && ok;
-			if (!ok || rename(tmp.c_str(), path.c_str()) != 0)
-			{
-				remove(tmp.c_str());
-				return false;
-			}
-			return true;
+			return writeFileDurable(path, text, 0600);
 		}
 
 		std::string lower(std::string s)

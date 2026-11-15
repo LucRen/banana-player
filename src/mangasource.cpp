@@ -1,4 +1,5 @@
 #include "mangasource.h"
+#include "filesave.h"
 #include "htmldoc.h"	// bp.html's document; lexbor stays behind it (src/htmldoc.h), so this host needs nothing else
 extern "C"
 {
@@ -1902,24 +1903,9 @@ namespace bp
 		}
 		std::string text;
 		encodeJson(v, text);
-		std::string tmp = prefsPath + ".tmp";
+		if (!writeFileDurable(prefsPath, text))
 		{
-			std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-			if (!out)
-			{
-				error = "can't write " + tmp;
-				return false;
-			}
-			out.write(text.data(), (std::streamsize)text.size());
-			if (!out)
-			{
-				error = "can't write " + tmp;
-				return false;
-			}
-		}
-		if (std::rename(tmp.c_str(), prefsPath.c_str()) != 0)
-		{
-			error = "can't move the prefs file into place";
+			error = "can't write " + prefsPath;
 			return false;
 		}
 		return true;

@@ -1,5 +1,6 @@
 // The parts without a window: aspect modes, track labels, mpv's track-list, times.
 #include "slider.h"
+#include "filesave.h"
 #include "aspect.h"
 #include "battery.h"
 #include "comicinfo.h"
@@ -10210,6 +10211,42 @@ static void testVizCache()
 }
 
 // an image's size from its header (the reader's strip sizes a long page's place before decoding it)
+// the whole-file saves: written, written over, a missing folder fails with no .tmp left, the mode asked for
+static void testFileSave()
+{
+	char tmpl[] = "/tmp/bp-filesave-XXXXXX";
+	char* made = mkdtemp(tmpl);
+	if (!made) { failures++; return; }
+	std::string dir = made;
+	auto slurp = [](const std::string& p) {
+		std::ifstream in(p, std::ios::binary);
+		return std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+	};
+	auto exists = [](const std::string& p) { struct stat st; return stat(p.c_str(), &st) == 0; };
+	for (int durable = 0; durable < 2; durable++)
+	{
+		auto save = [&](const std::string& p, const std::string& t) { return durable ? writeFileDurable(p, t) : writeFileAtomic(p, t); };
+		std::string f = dir + (durable ? "/d.conf" : "/a.conf");
+		CHECK_EQ(save(f, "one\n"), true);
+		CHECK_EQ(slurp(f), std::string("one\n"));
+		CHECK_EQ(save(f, std::string(100000, 'x')), true);
+		CHECK_EQ(slurp(f).size(), size_t(100000));
+		CHECK_EQ(save(f, "short"), true);	// shorter over longer: nothing of the old left
+		CHECK_EQ(slurp(f), std::string("short"));
+		CHECK_EQ(exists(f + ".tmp"), false);
+		std::string bad = dir + "/nope/x.conf";
+		CHECK_EQ(save(bad, "x"), false);
+		CHECK_EQ(exists(bad + ".tmp"), false);
+		CHECK_EQ(slurp(f), std::string("short"));	// (the others untouched)
+	}
+	CHECK_EQ(writeFileDurable(dir + "/secret", "k", 0600), true);
+	struct stat st;
+	CHECK_EQ(stat((dir + "/secret").c_str(), &st), 0);
+	CHECK_EQ(int(st.st_mode & 0777), 0600);
+	std::string cmd = "rm -rf " + dir;
+	if (system(cmd.c_str())) {}
+}
+
 static void testImageSize()
 {
 	for (const char* ext : {"jpg", "png", "gif"})
@@ -10339,6 +10376,7 @@ static void testSlider()
 int main()
 {
 	testSlider();
+	testFileSave();
 	testImageSize();
 	testVizCache();
 	testPicSubs();
