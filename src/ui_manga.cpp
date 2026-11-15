@@ -918,10 +918,9 @@ namespace bp
 						mangaTapDismiss = false;
 						mangaCtrlUntil = 0;
 					}
-					// still a maybe-tap: the touch point stays where the finger went down, so the first drag step
-					// carries the whole way since (a short swipe on a zoomed page moves it its full length, #11)
-					if (mangaTap) return false;
-					// the finger's own y is already 0..1: its step goes as it is
+					// the finger's own y is already 0..1: its step goes as it is. The touch point follows the finger
+					// through the slop too, so a drag starts from where the finger is when it becomes one: the page
+					// doesn't jump the slop's way to catch up (as the PDF viewer's drag starts)
 					double dy = pt.y - mangaTouchY, dx = pt.x - mangaTouchX;
 					mangaTouchY = pt.y;
 					mangaTouchX = pt.x;
