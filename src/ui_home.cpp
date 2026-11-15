@@ -18,6 +18,7 @@
 #endif
 #include "ui_internal.h"
 #include "ui_browse.h"
+#include "ui_playlists.h"
 #include "ui_sound.h"
 #include "ui_docs.h"
 #include "ui_reader.h"
@@ -205,7 +206,7 @@ namespace bp
 	std::string Ui::tileSub(int g) const
 	{
 		// made again when what they say changes: the playlists, the connections, the places
-		int key = (plStore ? plStore->serial() : -1) * 7919 + (netStore ? netStore->version() : -1) * 31 + (int)roots.size() +
+		int key = (browse->playlists->plStore ? browse->playlists->plStore->serial() : -1) * 7919 + (netStore ? netStore->version() : -1) * 31 + (int)roots.size() +
 			(mangaOn ? 1 : 0) * 1000003;
 		if (key != tileSubsKey)
 		{
@@ -232,8 +233,8 @@ namespace bp
 				}
 			}
 			tileSubs[TAB_LOCAL] = parts.empty() ? "No folders" : join(parts);
-			size_t n = plStore ? plStore->addTargets().size() : 0;	// the user's own (Liked is always there)
-			tileSubs[TAB_PLAYLISTS] = !plStore ? "Not available" : n == 0 ? "Liked"
+			size_t n = browse->playlists->plStore ? browse->playlists->plStore->addTargets().size() : 0;	// the user's own (Liked is always there)
+			tileSubs[TAB_PLAYLISTS] = !browse->playlists->plStore ? "Not available" : n == 0 ? "Liked"
 				: "Liked \xC2\xB7 " + std::to_string(n) + (n == 1 ? " playlist" : " playlists");
 			// Network: the connections by name, the most recently used first
 			std::vector<NetServer> list = netStore ? netStore->servers() : std::vector<NetServer>();
@@ -513,8 +514,8 @@ namespace bp
 		items.push_back(CTX_R_SHOW);
 		// (a document is read, not played: no Like, no playlist)
 		bool doc = isDocumentName(path) || isComicName(path);
-		if (!doc && plStore && PlaylistStore::likable(path)) items.push_back(CTX_R_LIKE);
-		if (!doc && plStore) items.push_back(CTX_R_ADD);
+		if (!doc && browse->playlists->plStore && PlaylistStore::likable(path)) items.push_back(CTX_R_LIKE);
+		if (!doc && browse->playlists->plStore) items.push_back(CTX_R_ADD);
 		items.push_back(CTX_R_REMOVE);
 		ctxOpen = true;
 		ctxCursor = 0;
@@ -526,8 +527,8 @@ namespace bp
 		ctxFolder.clear();
 		ctxTitle = it->name;
 		ctxNote.clear();
-		ctxPlFile.clear();
-		ctxPlItem = -1;
+		browse->playlists->ctxPlFile.clear();
+		browse->playlists->ctxPlItem = -1;
 	}
 
 	void Ui::openHomeOptions()
@@ -543,8 +544,8 @@ namespace bp
 		ctxFolder.clear();
 		ctxTitle = "Options";
 		ctxNote.clear();
-		ctxPlFile.clear();
-		ctxPlItem = -1;
+		browse->playlists->ctxPlFile.clear();
+		browse->playlists->ctxPlItem = -1;
 	}
 
 	void Ui::drawHome(const Player& p)
@@ -552,7 +553,7 @@ namespace bp
 		drawHeader("Banana Player", p);
 		bool has = !recent.empty();
 		// the focus shows with nothing over the page
-		bool lit = !ctxOpen && !pickerOpen && !kbOpen && !popupShown(p);
+		bool lit = !ctxOpen && !browse->playlists->pickerOpen && !kbOpen && !popupShown(p);
 		if (has)
 		{
 			drawTextMid("Recent", 0, DIM, 16, SUB_Y);
@@ -590,7 +591,7 @@ namespace bp
 						drawTextMid(lines[k], 1, ink, x + 14, CARD_Y + (lines.size() == 1 ? 34 : 24) + (int)k * 26, CARD_W - 28 - (k ? 0 : chipW));
 					drawGlyphMid(*it.kind, x + 25, CARD_Y + 78, soft);
 					// a liked one: a small heart, left of the network mark
-					bool liked = plStore && plStore->isLiked(it.path);
+					bool liked = browse->playlists->plStore && browse->playlists->plStore->isLiked(it.path);
 					drawTextMid(sub, 0, soft, x + 44, CARD_Y + 78, CARD_W - 58 - (it.net ? 30 : 0) - (liked ? 22 : 0));
 					int mx = x + CARD_W - 22;
 					if (it.net) { drawGlyphMid(G_NETWORK, mx - 3, CARD_Y + 78, soft); mx -= 30; }
@@ -723,13 +724,13 @@ namespace bp
 		// shows there too. Still not while typing, selecting, or in START's menu: Settings is a page with room for it
 		const Player& bp = barPlayer(p);
 		if (!bp.playing() || bp.playingPhoto()) return false;
-		if (kbOpen || selMode != SEL_NONE) return false;
+		if (kbOpen || browse->playlists->selMode != SEL_NONE) return false;
 		if (inMenu && page != Page::Settings) return false;
 		if (page == Page::Tracks || page == Page::Chapters || page == Page::Info || page == Page::UpNext) return false;
 		// over a photo this is the photo viewer's page (drawPhoto), not the player's
 		if (page == Page::Main) return p.playingPhoto();
 		if (page == Page::Browse)
-			return browse->browseDir != FORMDIR && browse->browseDir != FINDNET && !addPending.serial;
+			return browse->browseDir != FORMDIR && browse->browseDir != FINDNET && !browse->playlists->addPending.serial;
 		// the Sound page's dialogs (Options, presets, Delete) reach the panel's bottom
 		if (page == Page::Sound) return !sound->dialogOpen();
 		if (page == Page::MangaRead)
@@ -761,7 +762,7 @@ namespace bp
 		bool live = bp.playing() && !bp.playingPhoto();
 		std::vector<int> items = {CTX_NP_NOW, CTX_NP_PLAY};
 		if (live && likeable(bp)) items.push_back(CTX_NP_LIKE);
-		if (live && plStore && PlaylistStore::likable(bp.currentPath())) items.push_back(CTX_NP_ADD);
+		if (live && browse->playlists->plStore && PlaylistStore::likable(bp.currentPath())) items.push_back(CTX_NP_ADD);
 		items.push_back(CTX_NP_SHOW);
 		items.push_back(CTX_NP_STOP);
 		ctxRecent.clear();
@@ -775,8 +776,8 @@ namespace bp
 		ctxFolder.clear();
 		ctxTitle = live ? (!bp.title.empty() ? bp.title : entryTitle(bp.currentPath())) : "";
 		ctxNote.clear();
-		ctxPlFile.clear();
-		ctxPlItem = -1;
+		browse->playlists->ctxPlFile.clear();
+		browse->playlists->ctxPlItem = -1;
 	}
 
 	void Ui::setChip(const Player& p)

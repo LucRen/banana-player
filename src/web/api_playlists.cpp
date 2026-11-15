@@ -15,6 +15,8 @@
 #include "photo.h"
 #include "ui.h"
 #include "ui_docs.h"
+#include "ui_browse.h"
+#include "ui_playlists.h"
 #include "webstate.h"
 #include <httplib.h>
 #include <algorithm>
@@ -133,18 +135,18 @@ namespace bp
 		// the playlist (its file by id) as it is on the card, the bottom panel's edits written first
 		static bool load(Player& p, Ui& u, const std::string& id, Playlist& pl, std::string& err)
 		{
-			std::string file = u.plWebFile(id);
+			std::string file = u.browse->playlists->plWebFile(id);
 			if (file.empty())
 			{
 				WebCall::setStatus(404);
 				err = error("No such playlist");
 				return false;
 			}
-			u.plFlush(p);
+			u.browse->playlists->plFlush(p);
 			int skipped = 0;
-			if (!u.plStore->load(file, pl, skipped))
+			if (!u.browse->playlists->plStore->load(file, pl, skipped))
 			{
-				if (u.plStore->isBuiltinFile(file))
+				if (u.browse->playlists->plStore->isBuiltinFile(file))
 				{
 					// Liked has no file till the first like
 					pl = Playlist();
@@ -182,13 +184,13 @@ namespace bp
 				WebCall::setStatus(400);
 				return error(why);
 			}
-			if (!u.plStore->save(pl))
+			if (!u.browse->playlists->plStore->save(pl))
 			{
 				WebCall::setStatus(500);
 				return error("The playlist couldn't be saved");
 			}
-			u.plWebEdited(pl.file, remap, p);
-			ws.notify("playlists", "{\"serial\":" + std::to_string(u.plStore->serial()) + "}");
+			u.browse->playlists->plWebEdited(pl.file, remap, p);
+			ws.notify("playlists", "{\"serial\":" + std::to_string(u.browse->playlists->plStore->serial()) + "}");
 			return JsonWriter().obj().key("rev").str(revOf(pl)).key("count").num((int64_t)pl.entries.size()).end().out();
 		}
 
@@ -200,7 +202,7 @@ namespace bp
 
 		static bool hasStore(Ui& u)
 		{
-			if (u.plStore) return true;
+			if (u.browse->playlists->plStore) return true;
 			WebCall::setStatus(503);
 			return false;
 		}
@@ -218,10 +220,10 @@ namespace bp
 			int status = 200;
 			std::string body = w->call([](Player& p, Ui& u) {
 				if (!WebPlaylistGlue::hasStore(u)) return error("Playlists need a state folder");
-				u.plFlush(p);
+				u.browse->playlists->plFlush(p);
 				JsonWriter j;
-				j.obj().key("serial").num(u.plStore->serial()).key("playlists").arr();
-				for (auto& i : u.plStore->list())
+				j.obj().key("serial").num(u.browse->playlists->plStore->serial()).key("playlists").arr();
+				for (auto& i : u.browse->playlists->plStore->list())
 				{
 					j.obj().key("id").str(idOf(i.file)).key("name").str(i.name).key("count").num(i.count);
 					if (i.builtin) j.key("builtin").boolean(true);	// Liked: first, no rename/delete/add, unliked by Like
@@ -288,14 +290,14 @@ namespace bp
 			std::string body = w->call([w, name](Player& p, Ui& u) {
 				if (!WebPlaylistGlue::hasStore(u)) return error("Playlists need a state folder");
 				std::string file;
-				PlNameError e = u.plStore->create(name, file);
+				PlNameError e = u.browse->playlists->plStore->create(name, file);
 				if (e != PlNameError::None)
 				{
 					WebCall::setStatus(e == PlNameError::Taken ? 409 : 400);
 					return error(nameError(e), e == PlNameError::Taken ? "exists" : "name");
 				}
-				u.plWebListChanged(p);
-				w->notify("playlists", "{\"serial\":" + std::to_string(u.plStore->serial()) + "}");
+				u.browse->playlists->plWebListChanged(p);
+				w->notify("playlists", "{\"serial\":" + std::to_string(u.browse->playlists->plStore->serial()) + "}");
 				return JsonWriter().obj().key("id").str(idOf(file)).end().out();
 			}, 2000, status);
 			answer(res, body, status);
@@ -307,21 +309,21 @@ namespace bp
 			std::string body = w->call([w, id, name](Player& p, Ui& u) {
 				if (!WebPlaylistGlue::hasStore(u)) return error("Playlists need a state folder");
 				if (id == PlaylistStore::LIKED_ID) return WebPlaylistGlue::builtin();
-				std::string old = u.plWebFile(id), file;
+				std::string old = u.browse->playlists->plWebFile(id), file;
 				if (old.empty())
 				{
 					WebCall::setStatus(404);
 					return error("No such playlist");
 				}
-				u.plFlush(p);
-				PlNameError e = u.plStore->rename(old, name, file);
+				u.browse->playlists->plFlush(p);
+				PlNameError e = u.browse->playlists->plStore->rename(old, name, file);
 				if (e != PlNameError::None)
 				{
 					WebCall::setStatus(e == PlNameError::Taken ? 409 : 400);
 					return error(nameError(e), e == PlNameError::Taken ? "exists" : "name");
 				}
-				u.plWebRenamed(old, file, name, p);
-				w->notify("playlists", "{\"serial\":" + std::to_string(u.plStore->serial()) + "}");
+				u.browse->playlists->plWebRenamed(old, file, name, p);
+				w->notify("playlists", "{\"serial\":" + std::to_string(u.browse->playlists->plStore->serial()) + "}");
 				return JsonWriter().obj().key("ok").boolean(true).key("id").str(idOf(file)).end().out();
 			}, 2000, status);
 			answer(res, body, status);
@@ -333,21 +335,21 @@ namespace bp
 			std::string body = w->call([w, id](Player& p, Ui& u) {
 				if (!WebPlaylistGlue::hasStore(u)) return error("Playlists need a state folder");
 				if (id == PlaylistStore::LIKED_ID) return WebPlaylistGlue::builtin();
-				std::string file = u.plWebFile(id);
+				std::string file = u.browse->playlists->plWebFile(id);
 				if (file.empty())
 				{
 					WebCall::setStatus(404);
 					return error("No such playlist");
 				}
 				// its edits not written yet: never (written after, they'd bring it back)
-				u.plWebDeleted(file, p);
-				if (!u.plStore->remove(file))
+				u.browse->playlists->plWebDeleted(file, p);
+				if (!u.browse->playlists->plStore->remove(file))
 				{
 					WebCall::setStatus(500);
 					return error("The playlist couldn't be deleted");
 				}
-				u.plWebListChanged(p);
-				w->notify("playlists", "{\"serial\":" + std::to_string(u.plStore->serial()) + "}");
+				u.browse->playlists->plWebListChanged(p);
+				w->notify("playlists", "{\"serial\":" + std::to_string(u.browse->playlists->plStore->serial()) + "}");
 				return std::string("{\"ok\":true}");
 			}, 2000, status);
 			answer(res, body, status);
@@ -439,7 +441,7 @@ namespace bp
 					WebCall::setStatus(400);
 					return error("Only songs and videos can be liked", "type");
 				}
-				bool was = u.plStore->isLiked(path), want = on < 0 ? !was : on == 1;
+				bool was = u.browse->playlists->plStore->isLiked(path), want = on < 0 ? !was : on == 1;
 				bool now = was;
 				std::string dropped;
 				if (want != was)
@@ -451,10 +453,10 @@ namespace bp
 						WebCall::setStatus(500);
 						return error("Liked couldn't be saved");
 					}
-					w->notify("playlists", "{\"serial\":" + std::to_string(u.plStore->serial()) + "}");
+					w->notify("playlists", "{\"serial\":" + std::to_string(u.browse->playlists->plStore->serial()) + "}");
 				}
 				return JsonWriter().obj().key("liked").boolean(now).key("path").str(w->toVirtual(path))
-					.key("serial").num(u.plStore->serial()).key("full").boolean(!dropped.empty())
+					.key("serial").num(u.browse->playlists->plStore->serial()).key("full").boolean(!dropped.empty())
 					.key("dropped").str(dropped.empty() ? "" : w->toVirtual(dropped)).end().out();
 			}, 2000, status);
 			answer(res, body, status);
@@ -469,7 +471,7 @@ namespace bp
 				std::string err;
 				if (!WebPlaylistGlue::load(p, u, PlaylistStore::LIKED_ID, pl, err)) return err;
 				JsonWriter j;
-				j.obj().key("serial").num(u.plStore->serial()).key("count").num((int64_t)pl.entries.size()).key("paths").arr();
+				j.obj().key("serial").num(u.browse->playlists->plStore->serial()).key("count").num((int64_t)pl.entries.size()).key("paths").arr();
 				for (auto& e : pl.entries)
 					if (!isNetPath(e.path)) j.str(w->toVirtual(e.path));
 				return j.end().end().out();

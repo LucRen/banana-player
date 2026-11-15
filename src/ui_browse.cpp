@@ -17,6 +17,7 @@
 #endif
 #include "ui_internal.h"
 #include "ui_browse.h"
+#include "ui_playlists.h"
 #include "ui_docs.h"
 #include "ui_manga.h"
 #include "pagebook.h"
@@ -68,7 +69,7 @@ namespace bp
 		const std::string& last = p.resumeStore().lastFolder;
 		struct stat st;
 		// a playlist kept: the Playlists tab, in it (one deleted since: the tab's list)
-		if (plStore && p.settings.rememberFolder && last.rfind(plStore->dir() + "/", 0) == 0)
+		if (browse->playlists->plStore && p.settings.rememberFolder && last.rfind(browse->playlists->plStore->dir() + "/", 0) == 0)
 		{
 			browse->browseTab = TAB_PLAYLISTS;
 			browse->enterFolder(stat(last.c_str(), &st) == 0 && S_ISREG(st.st_mode) ? plDirFor(last) : std::string(PLROOT), p);
@@ -162,13 +163,13 @@ namespace bp
 			showInFolder(path, p);
 			return;
 		}
-		if (from.kind == SourceKind::Playlist && plStore)
+		if (from.kind == SourceKind::Playlist && browse->playlists->plStore)
 		{
 			// the playlist it played from, the cursor on the item (by the order it played in; else by its path)
 			browse->setSection(TAB_PLAYLISTS);
 			if (!exists(from.id)) { browse->enterFolder(PLROOT, p); return; }
 			browse->enterFolder(plDirFor(from.id), p);
-			int item = from.id == plOrderId && index >= 0 && index < (int)plOrder.size() ? plOrder[index] : -1;
+			int item = from.id == browse->playlists->plOrderId && index >= 0 && index < (int)browse->playlists->plOrder.size() ? browse->playlists->plOrder[index] : -1;
 			if (item < 0 || item >= (int)browse->browsePaths.size() || browse->browsePaths[item] != lastPlayed)
 			{
 				item = -1;
@@ -218,7 +219,7 @@ namespace bp
 	void Ui::Browse::enterFolder(std::string dir, Player& p)
 	{
 		// the playlist's edits written before another page reads it (or the list counts it)
-		ui.plFlush(p);
+		playlists->plFlush(p);
 		placeIn[browseDir] = {ui.cursor, ui.scroll};
 		netOpenPending.clear();	// gone elsewhere first: not opened
 		if (browseDir == FINDNET && dir != FINDNET && ui.discovery) ui.discovery->stop();
@@ -240,8 +241,8 @@ namespace bp
 			return fileNote(at(path), secs, size);
 		};
 		netLoading = false;
-		ui.plMissing.clear();
-		ui.plMissingSerial++;
+		playlists->plMissing.clear();
+		playlists->plMissingSerial++;
 		if (dir == HOMEDIR)
 		{
 			ui.homeListedFor = p.currentPath();
@@ -282,10 +283,10 @@ namespace bp
 		{
 			// the saved playlists, by name
 			// Liked first, then the user's by name, then New playlist
-			if (!ui.plStore) add(-1, "Playlists aren't available", "", "");
+			if (!playlists->plStore) add(-1, "Playlists aren't available", "", "");
 			else
 			{
-				for (auto& pl : ui.plStore->list())
+				for (auto& pl : playlists->plStore->list())
 					add(PL_ROW, pl.name, pl.file, pl.builtin && !pl.count ? "Empty" : std::to_string(pl.count) + (pl.count == 1 ? " item" : " items"));
 				add(PL_NEW, "New playlist", "", "");
 			}
@@ -293,11 +294,11 @@ namespace bp
 		else if (isPlDir(dir))
 		{
 			// a playlist's items, in its order (read again each time: another page may have changed it)
-			ui.plCur = Playlist();
+			playlists->plCur = Playlist();
 			int skipped = 0;
-			ui.plLoaded = ui.plStore && ui.plStore->load(plFileOf(dir), ui.plCur, skipped);
-			if (!ui.plLoaded) ui.plCur.file = plFileOf(dir);
-			ui.plRows(p);
+			playlists->plLoaded = playlists->plStore && playlists->plStore->load(plFileOf(dir), playlists->plCur, skipped);
+			if (!playlists->plLoaded) playlists->plCur.file = plFileOf(dir);
+			playlists->plRows(p);
 		}
 		else if (dir == FORMDIR) formRows();
 		else if (dir == FINDNET)
@@ -419,15 +420,15 @@ namespace bp
 		// a folder to add to a playlist, read first: added now (an older one, cancelled, is nothing)
 		if (!l->test && l->serial > (1 << 29) && l->serial < (1 << 30))
 		{
-			if (l->serial != addPending.serial) return;
-			AddPending a = addPending;
-			addPending = {};
+			if (l->serial != browse->playlists->addPending.serial) return;
+			Playlists::AddPending a = browse->playlists->addPending;
+			browse->playlists->addPending = {};
 			if (!l->result.ok())
 			{
 				NetPath np;
 				const NetServer* sv = netStore && parseNetPath(l->dir, np) ? netStore->find(np.server) : nullptr;
 				// (not found: the folder, most likely; the server answered its parent's listing)
-				alert("Couldn\xE2\x80\x99t add the folder", l->result.error == NetError::NotFound ? "Can't find " + quoted(folderName(l->dir)) + "."
+				alert("Couldn\xE2\x80\x99t add the folder", l->result.error == NetError::NotFound ? "Can't find " + quoted(browse->playlists->folderName(l->dir)) + "."
 					: netErrorText(l->result.error, sv ? sv->host : "the server"));
 				return;
 			}
@@ -435,7 +436,7 @@ namespace bp
 			browse->netNames[l->dir] = l->names;
 			int photos = 0;
 			auto add = folderEntries(l->dir, l->names, photos);
-			addTo(a.dest, add, photos, folderName(l->dir), a.back, p);
+			browse->playlists->addTo(a.dest, add, photos, browse->playlists->folderName(l->dir), a.back, p);
 			return;
 		}
 		if (l->test)
@@ -505,18 +506,18 @@ namespace bp
 	bool Ui::Browse::emptyAction() const
 	{
 		// (an empty playlist's: Add files)
-		bool emptyPl = isPlDir(browseDir) && ui.plLoaded && ui.plStore && ui.plCur.entries.empty() && !ui.plIsLiked(ui.plCur.file);
-		return ui.page == Page::Browse && !ui.inMenu && ui.selMode == SEL_NONE &&
-			((browseDir == NETROOT) || (browseDir == PLROOT && ui.plStore) || emptyPl) && browseRows.size() == 1 && browseRows[0].id < 0;
+		bool emptyPl = isPlDir(browseDir) && playlists->plLoaded && playlists->plStore && playlists->plCur.entries.empty() && !ui.plIsLiked(playlists->plCur.file);
+		return ui.page == Page::Browse && !ui.inMenu && playlists->selMode == SEL_NONE &&
+			((browseDir == NETROOT) || (browseDir == PLROOT && playlists->plStore) || emptyPl) && browseRows.size() == 1 && browseRows[0].id < 0;
 	}
 
 	void Ui::Browse::doEmptyAction(Player& p)
 	{
-		if (browseDir == PLROOT) ui.plNameOpen(false, "", "");
+		if (browseDir == PLROOT) playlists->plNameOpen(false, "", "");
 		else if (isPlDir(browseDir))
 		{
 			// Add files: the cards (where the Local tab was), the files ticked there added to this one
-			ui.selStart(SEL_ADD, ui.plCur.file);
+			playlists->selStart(SEL_ADD, playlists->plCur.file);
 			switchTab(TAB_LOCAL, p);
 		}
 		// no connections yet: the search first (nothing to type); Add connection is Y's, for FTP or one it can't find
@@ -561,7 +562,7 @@ namespace bp
 		bool gone = dir.empty() || (isPlDir(dir) && (stat(plFileOf(dir).c_str(), &st) != 0 || !S_ISREG(st.st_mode))) ||
 			(!pseudoDir(dir) && !isNetPath(dir) && (stat(dir.c_str(), &st) != 0 || !S_ISDIR(st.st_mode)));
 		// (Liked is a playlist whose file may not be written yet)
-		if (gone && isPlDir(dir) && ui.plStore && ui.plStore->isBuiltinFile(plFileOf(dir))) gone = false;
+		if (gone && isPlDir(dir) && playlists->plStore && playlists->plStore->isBuiltinFile(plFileOf(dir))) gone = false;
 		enterFolder(gone ? sectionTop(tab) : dir, p);
 	}
 
@@ -569,7 +570,7 @@ namespace bp
 	{
 		if (ui.page != Page::Browse || atHome() || atFirstPage() || browseDir == FORMDIR || browseDir == FINDNET) return false;
 		// editing a playlist's items, moving them: the list is what's being worked on
-		return ui.selMode != SEL_EDIT && !ui.moving;
+		return playlists->selMode != SEL_EDIT && !playlists->moving;
 	}
 
 	int Ui::Browse::firstCursor() const
@@ -630,7 +631,7 @@ namespace bp
 			// all of them)
 			if (browse->browseRows[i].id == PL_ROW || browse->browseRows[i].id == PL_ITEM)
 			{
-				if (plMissingAt((int)i))
+				if (browse->playlists->plMissingAt((int)i))
 				{
 					size_t at = l.size() - browse->browseRows[i].label.size();
 					l.insert(at, "[Gone] ");
@@ -639,7 +640,7 @@ namespace bp
 				else l += "  | " + browse->browseRows[i].note;
 			}
 			// selecting: a ticked row (Edit's item, Add's file)
-			if (selTicked((int)i)) l.insert(9, "[x] ");	// after "shown  > "
+			if (browse->playlists->selTicked((int)i)) l.insert(9, "[x] ");	// after "shown  > "
 			out.push_back(l);
 		}
 		return out;
@@ -652,7 +653,7 @@ namespace bp
 		int64_t id = browseRows[row].id;
 		if (id == PL_ROW || id == PL_ITEM) return true;
 		// a file: selecting (it ticked), to add to a playlist; a server's folder: its menu (Add to playlist...)
-		if (!ui.plStore) return false;
+		if (!playlists->plStore) return false;
 		return (id == 2 && !isPlDir(browseDir) && !isPhotoFile(browsePaths[row])) || (id == 1 && isNetPath(browseDir));
 	}
 
@@ -670,7 +671,7 @@ namespace bp
 			auto count = [](size_t n) { return std::to_string(n) + (n == 1 ? " item" : " items"); };
 			if (browse->browseDir == PLROOT && how == MENU_X)
 			{
-				if (!plStore) return;
+				if (!browse->playlists->plStore) return;
 				items = {CTX_PL_NEW, CTX_CANCEL};
 				title = "Your playlists";
 			}
@@ -685,20 +686,20 @@ namespace bp
 			}
 			else if (how == MENU_X)
 			{
-				if (!plLoaded) return;
-				file = plCur.file;
-				title = plCur.name;
-				note = count(plCur.entries.size());
+				if (!browse->playlists->plLoaded) return;
+				file = browse->playlists->plCur.file;
+				title = browse->playlists->plCur.name;
+				note = count(browse->playlists->plCur.entries.size());
 				// eight with items (the box steps its rows closer to fit, the count left to the page), four without
 				if (plIsLiked(file))
 				{
 					// only the Like button adds to Liked; here: play, and remove (Select)
-					if (plCur.entries.empty()) return;
+					if (browse->playlists->plCur.entries.empty()) return;
 					items = {CTX_PL_PLAY, CTX_PL_SHUFFLE, CTX_PL_SELECT, CTX_PL_MISSING};
 				}
 				else
 				{
-					if (!plCur.entries.empty())
+					if (!browse->playlists->plCur.entries.empty())
 						items = {CTX_PL_PLAY, CTX_PL_SHUFFLE, CTX_PL_ADD_FILES, CTX_PL_ADD_FOLDER, CTX_PL_SELECT, CTX_PL_DEDUP, CTX_PL_MISSING};
 					else items = {CTX_PL_ADD_FILES, CTX_PL_ADD_FOLDER};
 					items.push_back(CTX_PL_RENAME);
@@ -708,10 +709,10 @@ namespace bp
 			else
 			{
 				if (!onRow || browse->browseRows[row].id != PL_ITEM) return;
-				file = plCur.file;
+				file = browse->playlists->plCur.file;
 				item = row;
 				title = browse->browseRows[row].label;
-				int miss = plMissingAt(row);
+				int miss = browse->playlists->plMissingAt(row);
 				if (miss)
 				{
 					note = plIsLiked(file) && miss == 1 ? "It's gone from the card" : miss == 1 ? "Not found. Is the card in?" : "Its connection was deleted";
@@ -729,20 +730,20 @@ namespace bp
 			ctxPath.clear();
 			ctxTitle = title;
 			ctxNote = note;
-			ctxPlFile = file;
-			ctxPlItem = item;
+			browse->playlists->ctxPlFile = file;
+			browse->playlists->ctxPlItem = item;
 			return;
 		}
 		ctxTitle.clear();
 		ctxNote.clear();
-		ctxPlFile.clear();
-		ctxPlItem = -1;
+		browse->playlists->ctxPlFile.clear();
+		browse->playlists->ctxPlItem = -1;
 		ctxFolder.clear();
 		bool folder = browse->folderRow(row);
 		bool server = browse->browseDir == NETROOT && row >= 0 && row < (int)browse->browseRows.size() && browse->browseRows[row].id == 4;
 		bool netFolder = isNetPath(browse->browseDir) && onRow && browse->browseRows[row].id == 1;
 		// X on the cards' pages and a server's folders: Select files (to add to a playlist)
-		bool selectFiles = plStore && how == MENU_X && browse->browseDir != NETROOT && browse->browseDir != FINDNET && browse->browseTab != TAB_PLAYLISTS;
+		bool selectFiles = browse->playlists->plStore && how == MENU_X && browse->browseDir != NETROOT && browse->browseDir != FINDNET && browse->browseTab != TAB_PLAYLISTS;
 		std::vector<int> items;
 		std::string id;
 		if (server && how != MENU_X)
@@ -763,7 +764,7 @@ namespace bp
 		else if (folder) items = {CTX_HIDE, CTX_REFRESH, CTX_CANCEL};
 		// a file of the cards: Copy..., Move..., Rename..., Delete (a folder's come before its Hide)
 		else if (how != MENU_X && browse->fileOpsOn(row) && !netFolder) items = {CTX_CANCEL};
-		else if (netFolder && how != MENU_X && plStore)
+		else if (netFolder && how != MENU_X && browse->playlists->plStore)
 		{
 			// a server's folder: its videos and songs added to a playlist
 			items = {CTX_ADD_TO, CTX_CANCEL};
@@ -772,13 +773,13 @@ namespace bp
 		else if (how == MENU_X) items = {CTX_REFRESH, CTX_CANCEL};
 		else return;	// Y, or a hold, on what has no menu of its own
 		// a card's folder (Y, a hold): Add to playlist... first
-		if (folder && how != MENU_X && plStore) items.insert(items.begin(), CTX_ADD_TO);
+		if (folder && how != MENU_X && browse->playlists->plStore) items.insert(items.begin(), CTX_ADD_TO);
 		// X on a card's pages: Show hidden folders, before Cancel
 		if (how == MENU_X && !isNetPath(browse->browseDir) && (browse->browseDir.empty() || !pseudoDir(browse->browseDir)))
 			items.insert(items.end() - 1, CTX_HIDDEN);
 		if (folder || netFolder) ctxFolder = browse->browsePaths[row];
 		bool fileOps = how != MENU_X && browse->fileOpsOn(row);
-		if (fileOps) items.insert(items.begin() + ((folder || netFolder) && plStore ? 1 : 0), {CTX_F_INFO, CTX_F_COPY, CTX_F_MOVE, CTX_F_RENAME, CTX_F_DELETE});
+		if (fileOps) items.insert(items.begin() + ((folder || netFolder) && browse->playlists->plStore ? 1 : 0), {CTX_F_INFO, CTX_F_COPY, CTX_F_MOVE, CTX_F_RENAME, CTX_F_DELETE});
 		// X: the highlighted file's or folder's Info (first, above Select files)
 		bool infoX = how == MENU_X && browse->fileOpsOn(row);
 		if (selectFiles) items.insert(items.begin(), CTX_SELECT_FILES);
@@ -861,7 +862,7 @@ namespace bp
 			case CTX_NP_LIKE: likeNow(barPlayer(p)); break;
 			case CTX_NP_ADD:
 				if (Player& bp = barPlayer(p); bp.playing() && !bp.playingPhoto())
-					openAddOne(bp.currentPath(), bp.title, bp.loaded ? bp.duration : -1, p);
+					browse->playlists->openAddOne(bp.currentPath(), bp.title, bp.loaded ? bp.duration : -1, p);
 				break;
 			case CTX_NP_SHOW:
 				if (Player& bp = barPlayer(p); bp.playing() && !bp.playingPhoto()) showInFolder(bp.currentPath(), p);
@@ -877,7 +878,7 @@ namespace bp
 				std::string title;
 				for (auto& x : recent)
 					if (x.path == path) title = x.name;
-				openAddOne(path, title, -1, p);
+				browse->playlists->openAddOne(path, title, -1, p);
 				break;
 			}
 			case CTX_R_LIKE:
@@ -885,7 +886,7 @@ namespace bp
 				std::string title;
 				for (auto& x : recent)
 					if (x.path == path) title = x.name;
-				bool was = plStore && plStore->isLiked(path);
+				bool was = browse->playlists->plStore && browse->playlists->plStore->isLiked(path);
 				if (setLikedPath(p, path, title, -1, !was) != was) likeCard(p, !was, title);
 				break;
 			}
@@ -913,18 +914,18 @@ namespace bp
 			// the items whose file is on no card now (network ones are never judged: the server may only be off).
 			// Twice, the first saying how many: a card that's out makes its files look gone
 			std::set<int> gone;
-			for (size_t i = 0; i < plCur.entries.size(); i++)
+			for (size_t i = 0; i < browse->playlists->plCur.entries.size(); i++)
 			{
-				const std::string& e = plCur.entries[i].path;
+				const std::string& e = browse->playlists->plCur.entries[i].path;
 				struct stat st;
 				if (!isNetPath(e) && stat(e.c_str(), &st) != 0) gone.insert((int)i);
 			}
 			if (gone.empty()) { ctxOpen = false; p.osd("Nothing is missing"); return; }
 			if (!ctxArmed) { ctxArmed = true; ctxMissing = (int)gone.size(); return; }
 			ctxOpen = false;
-			auto remap = removeEntries(plCur.entries, gone);
-			plSaved(p, remap);
-			fprintf(stderr, "playlists: removed %zu missing from %s\n", gone.size(), plCur.name.c_str());
+			auto remap = removeEntries(browse->playlists->plCur.entries, gone);
+			browse->playlists->plSaved(p, remap);
+			fprintf(stderr, "playlists: removed %zu missing from %s\n", gone.size(), browse->playlists->plCur.name.c_str());
 			p.osd("Removed " + std::to_string(gone.size()) + " missing");
 			return;
 		}
@@ -933,46 +934,46 @@ namespace bp
 			// twice (the files themselves stay where they are: the menu says so)
 			if (!ctxArmed) { ctxArmed = true; return; }
 			ctxOpen = false;
-			plDelete(ctxPlFile, p);
+			browse->playlists->plDelete(browse->playlists->ctxPlFile, p);
 			return;
 		}
 		if (what >= CTX_PL_NEW)
 		{
 			ctxOpen = false;
-			std::string file = ctxPlFile;
-			int at = ctxPlItem;
+			std::string file = browse->playlists->ctxPlFile;
+			int at = browse->playlists->ctxPlItem;
 			// the playlist the menu is for: the one open, or one of the list's (read now)
 			Playlist pl;
 			int skipped = 0;
-			bool open = isPlDir(browse->browseDir) && plLoaded && file == plCur.file;
-			if (open) pl = plCur;
-			else if (!file.empty() && (!plStore || !plStore->load(file, pl, skipped))) { alert("Couldn\xE2\x80\x99t read the playlist", "Its file may be damaged, or the card read only."); return; }
+			bool open = isPlDir(browse->browseDir) && browse->playlists->plLoaded && file == browse->playlists->plCur.file;
+			if (open) pl = browse->playlists->plCur;
+			else if (!file.empty() && (!browse->playlists->plStore || !browse->playlists->plStore->load(file, pl, skipped))) { alert("Couldn\xE2\x80\x99t read the playlist", "Its file may be damaged, or the card read only."); return; }
 			if (plIsLiked(file) && (what == CTX_PL_RENAME || what == CTX_PL_DELETE || what == CTX_PL_DEDUP || what == CTX_PL_ADD_FILES ||
 				what == CTX_PL_ADD_FOLDER || what == CTX_PL_MOVE))
 				return;	// Liked is managed by the Like button; Remove and Select there are Unlike
 			switch (what)
 			{
-			case CTX_PL_NEW: plNameOpen(false, "", ""); break;
-			case CTX_PL_RENAME: plNameOpen(true, file, pl.name); break;
+			case CTX_PL_NEW: browse->playlists->plNameOpen(false, "", ""); break;
+			case CTX_PL_RENAME: browse->playlists->plNameOpen(true, file, pl.name); break;
 			case CTX_PL_PLAY: case CTX_PL_SHUFFLE:
 				if (pl.entries.empty()) p.osd(quoted(pl.name) + " is empty");
-				else plPlay(pl, 0, what == CTX_PL_SHUFFLE, p);
+				else browse->playlists->plPlay(pl, 0, what == CTX_PL_SHUFFLE, p);
 				break;
-			case CTX_PL_HERE: if (open && at >= 0 && at < (int)pl.entries.size()) plPlay(pl, at, false, p); break;
+			case CTX_PL_HERE: if (open && at >= 0 && at < (int)pl.entries.size()) browse->playlists->plPlay(pl, at, false, p); break;
 			case CTX_PL_REMOVE:
-				if (open && at >= 0 && at < (int)plCur.entries.size())
+				if (open && at >= 0 && at < (int)browse->playlists->plCur.entries.size())
 				{
-					auto remap = removeEntries(plCur.entries, {at});
-					plSaved(p, remap);
+					auto remap = removeEntries(browse->playlists->plCur.entries, {at});
+					browse->playlists->plSaved(p, remap);
 				}
 				break;
 			case CTX_PL_DEDUP:
 				if (open)
 				{
 					int removed = 0;
-					auto remap = removeDuplicates(plCur.entries, removed);
+					auto remap = removeDuplicates(browse->playlists->plCur.entries, removed);
 					if (!removed) { p.osd("No duplicates"); break; }
-					plSaved(p, remap);
+					browse->playlists->plSaved(p, remap);
 					p.osd("Removed " + std::to_string(removed) + (removed == 1 ? " duplicate" : " duplicates"));
 				}
 				break;
@@ -987,27 +988,27 @@ namespace bp
 				// to the cards (where the Local tab was), ticking files or picking a folder for this one
 				if (open)
 				{
-					selStart(what == CTX_PL_ADD_FILES ? SEL_ADD : SEL_PICK, file);
+					browse->playlists->selStart(what == CTX_PL_ADD_FILES ? SEL_ADD : SEL_PICK, file);
 					browse->switchTab(TAB_LOCAL, p);
 				}
 				break;
-			case CTX_PL_SELECT: if (open) selStart(SEL_EDIT, ""); break;
+			case CTX_PL_SELECT: if (open) browse->playlists->selStart(SEL_EDIT, ""); break;
 			case CTX_PL_ADD_ONE:
 				if (open && at >= 0 && at < (int)pl.entries.size())
-					openAddOne(pl.entries[at].path, pl.entries[at].title, pl.entries[at].duration, p);
+					browse->playlists->openAddOne(pl.entries[at].path, pl.entries[at].title, pl.entries[at].duration, p);
 				break;
 			case CTX_PL_MOVE:
 				// the one item, moved at once (and back to the list as it was, after)
-				if (open && at >= 0 && at < (int)plCur.entries.size())
+				if (open && at >= 0 && at < (int)browse->playlists->plCur.entries.size())
 				{
-					selStart(SEL_EDIT, "");
-					plSel = {at};
-					moveFromMenu = true;
-					moveStart(p);
+					browse->playlists->selStart(SEL_EDIT, "");
+					browse->playlists->plSel = {at};
+					browse->playlists->moveFromMenu = true;
+					browse->playlists->moveStart(p);
 				}
 				break;
-			case CTX_SELECT_FILES: selStart(SEL_ADD, ""); break;
-			case CTX_ADD_TO: if (!ctxFolder.empty()) openPicker(ctxFolder, p); break;
+			case CTX_SELECT_FILES: browse->playlists->selStart(SEL_ADD, ""); break;
+			case CTX_ADD_TO: if (!ctxFolder.empty()) browse->playlists->openPicker(ctxFolder, p); break;
 			default: break;
 			}
 			return;
@@ -1118,7 +1119,7 @@ namespace bp
 		std::string where = browseDir.empty() ? "Your cards" : browseDir == RECENT ? "Recent"
 			: browseDir == NETROOT ? "Your connections" : browseDir == FORMDIR ? (formId.empty() ? "Add connection" : "Edit connection")
 			: browseDir == FINDNET ? "On your network" : browseDir == PLROOT ? "Your playlists"
-			: isPlDir(browseDir) ? "Playlists/" + ui.plCur.name : browseDir;
+			: isPlDir(browseDir) ? "Playlists/" + playlists->plCur.name : browseDir;
 		if (isNetPath(browseDir) || (!browseDir.empty() && !pseudoDir(browseDir))) return ui.whereOf(browseDir);
 		// the folders apart: "share / Movies"
 		std::string out;
@@ -1129,9 +1130,9 @@ namespace bp
 	void Ui::drawTracks(const Player& p)
 	{
 		bool inBrowse = page == Page::Browse;
-		bool sel = inBrowse && !inMenu && selMode != SEL_NONE;
+		bool sel = inBrowse && !inMenu && browse->playlists->selMode != SEL_NONE;
 		if (inBrowse && !inMenu && !sel && browse->atHome()) { drawHome(p); return; }
-		if (sel) drawSelHeader(p);
+		if (sel) browse->playlists->drawSelHeader(p);
 		else if (inBrowse && !inMenu)
 		{
 			// All recent: a page of Home's; else a section's header (its markers in place of tabs)
@@ -1166,7 +1167,7 @@ namespace bp
 				if (browse->browseDir == RECENT && p.settings.keepHistory && recentCounts[0] && !recentTabsUp) drawRecentTabs(16, SUB_Y, 624);
 				std::string top = browse->browseDir == RECENT ? ""
 					: browse->browseDir.empty() ? (videos && cards ? "Videos and your cards" : cards ? "Your cards" : "Your folders")
-					: browse->browseDir == PLROOT ? (!plStore ? "" : n <= 1 ? "Liked"
+					: browse->browseDir == PLROOT ? (!browse->playlists->plStore ? "" : n <= 1 ? "Liked"
 						: "Liked \xC2\xB7 " + std::to_string(n - 1) + (n == 2 ? " playlist" : " playlists"))
 					: !n ? ""
 					: std::to_string(n) + (n == 1 ? " connection" : " connections");
@@ -1175,16 +1176,16 @@ namespace bp
 			else
 			{
 				int whereW = 600;
-				if (isPlDir(browse->browseDir) && plLoaded && plIsLiked(plCur.file))
+				if (isPlDir(browse->browseDir) && browse->playlists->plLoaded && plIsLiked(browse->playlists->plCur.file))
 				{
 					// Liked: its order, and how many (empty: the page says so)
-					size_t n = plCur.entries.size();
+					size_t n = browse->playlists->plCur.entries.size();
 					if (n) drawTextMid("Newest first \xC2\xB7 " + std::to_string(n) + (n == 1 ? " item" : " items"), 0, DIM, 16, SUB_Y);
 					whereW = 0;
 				}
-				else if (isPlDir(browse->browseDir) && plLoaded)
+				else if (isPlDir(browse->browseDir) && browse->playlists->plLoaded)
 				{
-					size_t n = plCur.entries.size();
+					size_t n = browse->playlists->plCur.entries.size();
 					std::string count = std::to_string(n) + (n == 1 ? " item" : " items");
 					drawTextMid(count, 0, DIM, 616, SUB_Y, 0, 1);
 					whereW -= (int)std::lround(textWidth(count, 0) / sx) + 24;
@@ -1212,7 +1213,7 @@ namespace bp
 				: m == "This folder can't be opened" ? "Is the card still in?"
 				: m == "Play history is off (Settings)" ? "Turn it on in Settings, Files" : "";
 			std::string title = m == "Play history is off (Settings)" ? "Play history is off" : m;
-			if (pl && isPlDir(browse->browseDir) && plIsLiked(plCur.file) && plLoaded)
+			if (pl && isPlDir(browse->browseDir) && plIsLiked(browse->playlists->plCur.file) && browse->playlists->plLoaded)
 				drawEmpty(G_HEART_O, "Nothing liked yet", "Tap the heart at the top while a song or video plays,\n"
 					"or press START \xE2\x80\xBA Like. Liked things gather here.", nullptr);
 			else if (pl)
@@ -1234,15 +1235,15 @@ namespace bp
 				// the subtitle style: apart from the tracks, a line above it
 				if (style || (form && r[i].id == FORM_TEST)) fill({32, y - 3, 576, 1}, RULE);
 				// selecting: a ticked row on a lighter ground; Move's block lit as the cursor is
-				bool block = sel && ((moving && plSel.count(i)) || (plDrag.on && dragSel.count(i)));
+				bool block = sel && ((browse->playlists->moving && browse->playlists->plSel.count(i)) || (browse->playlists->plDrag.on && browse->playlists->dragSel.count(i)));
 				if (block) drawFocus({16, y, 608, ROW_H - 4});
 				// back from the player: the playing row lit a moment (still playing, here)
 				else if (at && inBrowse && landFlashUntil && rowChip(i)) drawBox({16, y, 608, ROW_H - 4}, PRESSED, R_BUTTON, true);
-				else if (at && !(sel && plDrag.on)) drawFocus({16, y, 608, ROW_H - 4});
-				else if (sel && selTicked(i)) drawBox({16, y, 608, ROW_H - 4}, SURFACE, R_BUTTON);
+				else if (at && !(sel && browse->playlists->plDrag.on)) drawFocus({16, y, 608, ROW_H - 4});
+				else if (sel && browse->playlists->selTicked(i)) drawBox({16, y, 608, ROW_H - 4}, SURFACE, R_BUTTON);
 				if (inBrowse && r[i].id == PL_ITEM)
 				{
-					drawPlRow(i, mid, at || block);
+					browse->playlists->drawPlRow(i, mid, at || block);
 					continue;
 				}
 				int noteW = 0;
@@ -1263,9 +1264,9 @@ namespace bp
 				}
 				int textX = 32;
 				// adding: a file's box (none for a photo: it can't go in, dimmed; nor a folder), the marks after it
-				bool boxes = sel && selMode == SEL_ADD;
-				bool inert = sel && r[i].id == 2 && !selTickable(i);
-				if (boxes && selTickable(i)) drawGlyphMid(selTicked(i) ? G_BOX_ON : G_BOX, 40, mid, selTicked(i) ? ACCENT : DIM);
+				bool boxes = sel && browse->playlists->selMode == SEL_ADD;
+				bool inert = sel && r[i].id == 2 && !browse->playlists->selTickable(i);
+				if (boxes && browse->playlists->selTickable(i)) drawGlyphMid(browse->playlists->selTicked(i) ? G_BOX_ON : G_BOX, 40, mid, browse->playlists->selTicked(i) ? ACCENT : DIM);
 				if (inBrowse)
 				{
 					// what the row is, as a mark before its name
@@ -1277,7 +1278,7 @@ namespace bp
 						textX = boxes ? 94 : 66;
 					}
 					// a liked file: a small heart before its note
-					if (r[i].id == 2 && plStore && i < (int)browse->browsePaths.size() && plStore->isLiked(browse->browsePaths[i]))
+					if (r[i].id == 2 && browse->playlists->plStore && i < (int)browse->browsePaths.size() && browse->playlists->plStore->isLiked(browse->browsePaths[i]))
 					{
 						drawGlyphMid(G_HEART_S, noteW ? 608 - noteW : 601, mid, ACCENT);
 						noteW += 22;
@@ -1302,9 +1303,9 @@ namespace bp
 				drawTextMid(r[i].label, 1, ink, textX, mid, 600 - textX - noteW);
 			}
 		// a dragged row: where it lands, a line in the gap (none while it would stay where it is)
-		if (sel && plDrag.on && !dragSel.empty() && dragTarget() != *dragSel.begin())
+		if (sel && browse->playlists->plDrag.on && !browse->playlists->dragSel.empty() && browse->playlists->dragTarget() != *browse->playlists->dragSel.begin())
 		{
-			int slot = dragSlot();
+			int slot = browse->playlists->dragSlot();
 			if (slot >= scroll && slot <= scroll + ROWS_SHOWN) fillRound({16, ROW_Y + (slot - scroll) * ROW_H - 3, 608, 2}, ACCENT, 1);
 		}
 		int n = (int)r.size(), first = inBrowse ? browse->listFirst() : 0;
@@ -1324,13 +1325,13 @@ namespace bp
 			drawHints(h);
 			return;
 		}
-		if (sel) { drawSelBar(); return; }
+		if (sel) { browse->playlists->drawSelBar(); return; }
 		// B at a section's top goes Home; L/R to the sections either side
 		const char* back = browse->atFirstPage() ? "Home" : "Back";
 		bool plEmpty = r.size() == 1 && r[0].id < 0;
 		// a row with a menu of its own (Y): a folder, a connection, a playlist, its item
 		bool yMenu = cursor >= 0 && cursor < n && (browse->folderRow(cursor) || (browse->browseDir == NETROOT && r[cursor].id == 4) || r[cursor].id == PL_ROW ||
-			r[cursor].id == PL_ITEM || (isNetPath(browse->browseDir) && r[cursor].id == 1 && plStore) || browse->fileOpsOn(cursor));
+			r[cursor].id == PL_ITEM || (isNetPath(browse->browseDir) && r[cursor].id == 1 && browse->playlists->plStore) || browse->fileOpsOn(cursor));
 		bool file = cursor >= 0 && cursor < n && (r[cursor].id == 2 || r[cursor].id == PL_ITEM);
 		// a book, a document, any file that doesn't play: A opens it (or says it can't)
 		const char* aFile = file && cursor < (int)browse->browsePaths.size() && !isMediaFile(browse->browsePaths[cursor]) ? "Open" : "Play";
@@ -1339,7 +1340,7 @@ namespace bp
 		else if (browse->browseDir == FINDNET) drawHints({{"A", "Add this one"}, {"B", "Back"}});
 		else if (browse->browseDir == RECENT && plEmpty) drawHints({{"B", "Home"}, {"X", "Options"}, {"START", "Menu"}});
 		else if (browse->browseDir == RECENT) drawHints({{"A", file && cursor < (int)browse->browsePaths.size() && !isMediaFile(browse->browsePaths[cursor]) ? "Open" : "Play"}, {"Y", "Menu"}, {"L/R", "Kind"}, {"B", "Home"}, {"X", "Options"}});
-		else if (plEmpty && isPlDir(browse->browseDir) && plIsLiked(plCur.file)) drawHints({{"B", back}, {"L/R", "Sections"}, {"START", "Menu"}});
+		else if (plEmpty && isPlDir(browse->browseDir) && plIsLiked(browse->playlists->plCur.file)) drawHints({{"B", back}, {"L/R", "Sections"}, {"START", "Menu"}});
 		else if (browse->browseDir == PLROOT && cursor >= 0 && cursor < n && r[cursor].id == PL_NEW)
 			drawHints({{"A", "New playlist"}, {"B", back}, {"X", "Options"}, {"L/R", "Sections"}});
 		else if (browse->emptyAction() && browse->browseDir == PLROOT)
@@ -1360,50 +1361,50 @@ namespace bp
 		ui.drawTextMid("..", 1, at ? ACCENT : TEXT, 66, mid, 534);
 	}
 
-	void Ui::drawPlRow(int i, int mid, bool at)
+	void Ui::Playlists::drawPlRow(int i, int mid, bool at)
 	{
-		const std::string& path = browse->browsePaths[i];
+		const std::string& path = ui.browse->browsePaths[i];
 		int miss = plMissingAt(i);
 		SDL_Color soft = at ? DIM_ON : DIM;
 		// selecting: its box where its number was, its grip on the right (Move's block: its arrows, yellow)
-		bool edit = selMode == SEL_EDIT && !inMenu;
+		bool edit = selMode == SEL_EDIT && !ui.inMenu;
 		bool block = edit && ((moving && plSel.count(i)) || (plDrag.on && dragSel.count(i)));
 		// (Liked has no numbers: its order is the likes', newest first)
-		bool liked = plIsLiked(plCur.file);
-		if (edit) drawGlyphMid(plSel.count(i) ? G_BOX_ON : G_BOX, 40, mid, plSel.count(i) ? ACCENT : soft);
-		else if (!liked) drawTextMid(std::to_string(i + 1), 0, soft, 56, mid, 0, 1);
-		if (edit) drawGlyphMid(block ? G_MOVE : G_GRIP, 600, mid, block ? ACCENT : soft);
+		bool liked = ui.plIsLiked(plCur.file);
+		if (edit) ui.drawGlyphMid(plSel.count(i) ? G_BOX_ON : G_BOX, 40, mid, plSel.count(i) ? ACCENT : soft);
+		else if (!liked) ui.drawTextMid(std::to_string(i + 1), 0, soft, 56, mid, 0, 1);
+		if (edit) ui.drawGlyphMid(block ? G_MOVE : G_GRIP, 600, mid, block ? ACCENT : soft);
 		int right = edit ? 572 : 608;
 		// its number in the playlist, its mark (an alert when it isn't there), its name, where it is
 		const Glyph& g = miss ? G_ALERT : isAudioFile(path) ? G_NOTE : G_FILM;
 		int gx = liked && !edit ? 43 : 64 + 11;
-		drawGlyphMid(g, gx, mid, miss ? DIM : at ? ACCENT : TEXT);
+		ui.drawGlyphMid(g, gx, mid, miss ? DIM : at ? ACCENT : TEXT);
 		// a missing one says so in its name, "[Gone]" (why: its menu's line), not on the right
-		std::string note = miss ? "" : browse->browseRows[i].note;
+		std::string note = miss ? "" : ui.browse->browseRows[i].note;
 		int noteW = 0;
 		if (!note.empty())
 		{
-			drawTextMid(note, 0, miss ? DANGER : soft, right, mid, 220, 1);
-			int w = std::min(220, (int)std::lround(textWidth(note, 0) / sx));
+			ui.drawTextMid(note, 0, miss ? DANGER : soft, right, mid, 220, 1);
+			int w = std::min(220, (int)std::lround(ui.textWidth(note, 0) / sx));
 			noteW = w + 16;
 			// a network item: the server's name, marked as one
 			if (!miss && isNetPath(path))
 			{
-				drawGlyphMid(G_NETWORK, right - w - 19, mid, DIM);
+				ui.drawGlyphMid(G_NETWORK, right - w - 19, mid, DIM);
 				noteW += 30;
 			}
 		}
 		// the item that plays (this playlist playing): its chip
 		if (!edit)
-			if (int k = rowChip(i)) noteW += drawChip(right - noteW, mid, k) + 10;
+			if (int k = ui.rowChip(i)) noteW += ui.drawChip(right - noteW, mid, k) + 10;
 		int x = liked && !edit ? 66 : 96;
 		if (miss)
 		{
 			static const std::string GONE = "[Gone] ";
-			drawTextMid(GONE, 1, DANGER, x, mid);
-			x += (int)std::lround(textWidth(GONE, 1) / sx);
+			ui.drawTextMid(GONE, 1, DANGER, x, mid);
+			x += (int)std::lround(ui.textWidth(GONE, 1) / sx);
 		}
-		drawTextMid(browse->browseRows[i].label, 1, miss ? soft : at ? ACCENT : TEXT, x, mid, std::max(0, right - 8 - x - noteW));
+		ui.drawTextMid(ui.browse->browseRows[i].label, 1, miss ? soft : at ? ACCENT : TEXT, x, mid, std::max(0, right - 8 - x - noteW));
 	}
 
 	void Ui::drawTracksHeader(const Player& p)
@@ -1463,7 +1464,7 @@ namespace bp
 		while (d.size() > 1 && d.back() == '/') d.pop_back();
 		if (page != Page::Browse || browse->browseDir != d || pseudoDir(d) || isNetPath(d)) return;
 		// not under a menu, the picker or a move (their rows are the list's as it was)
-		if (ctxOpen || pickerOpen || addPending.serial || moving || plDrag.on || kbOpen) return;
+		if (ctxOpen || browse->playlists->pickerOpen || browse->playlists->addPending.serial || browse->playlists->moving || browse->playlists->plDrag.on || kbOpen) return;
 		std::string at = cursor >= 0 && cursor < (int)browse->browsePaths.size() ? browse->browsePaths[cursor] : "";
 		int s = scroll;
 		browse->enterFolder(d, p);
@@ -1481,23 +1482,23 @@ namespace bp
 		// the updater's pop-up over the file list takes the keys while it shows
 		if (ui.popupShown(p)) return ui.popupKey(b, p);
 		// a network folder read before it's added: B cancels, nothing else
-		if (ui.addPending.serial)
+		if (playlists->addPending.serial)
 		{
-			if (b == Button::B) ui.cancelAdd(p);
+			if (b == Button::B) playlists->cancelAdd(p);
 			return false;
 		}
-		if (ui.pickerOpen)
+		if (playlists->pickerOpen)
 		{
-			ui.pickerKey(b, p);
+			playlists->pickerKey(b, p);
 			return false;
 		}
 		// something playing behind the browser: SELECT goes back to it, L3 likes it (a page's own keys don't use them)
-		if (!ui.inMenu && ui.selMode == SEL_NONE && browseDir != FORMDIR)
+		if (!ui.inMenu && playlists->selMode == SEL_NONE && browseDir != FORMDIR)
 		{
 			if (b == Button::Select && ui.nowPlayable(p)) { ui.goNowPlaying(p); return false; }
 			if (b == Button::L3 && p.playing() && !p.playingPhoto()) { ui.likeNow(p); return false; }
 		}
-		if (!ui.inMenu && ui.selMode != SEL_NONE && ui.selKey(b, p)) return false;
+		if (!ui.inMenu && playlists->selMode != SEL_NONE && playlists->selKey(b, p)) return false;
 		if (!ui.inMenu && atHome()) return ui.homeKey(b, p);
 		// All recent: X Home's options, Y a file's menu (as on its card)
 		if (!ui.inMenu && browseDir == RECENT && b == Button::X) { ui.openHomeOptions(); return false; }
@@ -1565,28 +1566,28 @@ namespace bp
 		}
 		// the drawer: its own taps
 		if (!ui.inMenu && browseDir == EXTDIR) return ui.manga->extPointer(pt, x, y, p);
-		if (!ui.inMenu && ui.selMode != SEL_NONE)
+		if (!ui.inMenu && playlists->selMode != SEL_NONE)
 		{
 			// selecting: no tabs (the header's "<" was taken above); the bar's buttons, those that can act now
 			if (y < 60) return false;
 			if (y >= 424)
 			{
-				int n = ui.selCount(), ticked = 0, files = ui.selFolderFiles(ticked);
+				int n = playlists->selCount(), ticked = 0, files = playlists->selFolderFiles(ticked);
 				std::vector<std::pair<int, bool>> ids;
-				if (ui.moving) ids = {{MOVE_CANCEL, true}, {MOVE_DONE, true}};
-				else if (ui.selMode == SEL_EDIT) ids = {{SEL_ALL, !ui.plCur.entries.empty()}, {SEL_MOVE, n > 0 && !ui.plIsLiked(ui.plCur.file)}, {SEL_ACT, n > 0}};
-				else if (ui.selMode == SEL_ADD) ids = {{SEL_ALL, files > 0}, {SEL_CANCEL, true}, {SEL_ACT, n > 0}};
-				else ids = {{SEL_CANCEL, true}, {SEL_ACT, ui.pickable()}};
+				if (playlists->moving) ids = {{MOVE_CANCEL, true}, {MOVE_DONE, true}};
+				else if (playlists->selMode == SEL_EDIT) ids = {{SEL_ALL, !playlists->plCur.entries.empty()}, {SEL_MOVE, n > 0 && !ui.plIsLiked(playlists->plCur.file)}, {SEL_ACT, n > 0}};
+				else if (playlists->selMode == SEL_ADD) ids = {{SEL_ALL, files > 0}, {SEL_CANCEL, true}, {SEL_ACT, n > 0}};
+				else ids = {{SEL_CANCEL, true}, {SEL_ACT, playlists->pickable()}};
 				for (auto& id : ids)
 					if (id.second && ui.buttonRect(id.first).hit(x, y)) ui.pressedBtn = id.first;
 				return false;
 			}
-			if (ui.moving) return false;
+			if (playlists->moving) return false;
 			// Edit: a finger on a row's grip drags it at once
-			if (ui.selMode == SEL_EDIT && x >= 576 && y >= ROW_Y && y < ROW_Y + ROWS_SHOWN * ROW_H)
+			if (playlists->selMode == SEL_EDIT && x >= 576 && y >= ROW_Y && y < ROW_Y + ROWS_SHOWN * ROW_H)
 			{
 				int i = ui.scroll + (y - ROW_Y) / ROW_H;
-				if (ui.selTickable(i)) { ui.dragBegin(i, y, p); return false; }
+				if (playlists->selTickable(i)) { playlists->dragBegin(i, y, p); return false; }
 			}
 		}
 		if (!ui.inMenu && atHome()) return ui.homePointer(pt, x, y, p);

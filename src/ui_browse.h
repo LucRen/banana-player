@@ -16,7 +16,8 @@ namespace bp
 {
 	struct Ui::Browse : Ui::Area
 	{
-		explicit Browse(Ui& u) : Area(u) {}
+		explicit Browse(Ui& u);
+		~Browse() override;
 
 		// ---- the area ----
 		bool has(Page pg) const override { return pg == Page::Browse; }
@@ -122,5 +123,8 @@ namespace bp
 		std::vector<FoundHost> found;
 		bool findWasRunning = false;
 		void findRows();
+
+		// ---- the playlists: a plain struct of the browser's (Ui::Playlists, ui_playlists.h) ----
+		std::unique_ptr<Playlists> playlists;
 	};
 }

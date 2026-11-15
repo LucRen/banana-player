@@ -4,6 +4,7 @@
 #include "ui_internal.h"
 #include "ui_manga.h"
 #include "ui_browse.h"
+#include "ui_playlists.h"
 
 namespace bp
 {

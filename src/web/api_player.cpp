@@ -12,6 +12,8 @@
 #include "tracks.h"
 #include "ui.h"
 #include "ui_sound.h"
+#include "ui_browse.h"
+#include "ui_playlists.h"
 #include "session_host.h"
 #include "netpath.h"
 #include "webstate.h"
@@ -144,11 +146,11 @@ namespace bp
 			{
 				Playlist pl;
 				int skipped = 0;
-				if (!u.plStore || !u.plStore->load(src.id, pl, skipped)) return {p.currentPath()};
+				if (!u.browse->playlists->plStore || !u.browse->playlists->plStore->load(src.id, pl, skipped)) return {p.currentPath()};
 				std::vector<std::string> out;
-				if (u.plOrderId == src.id && (int)u.plOrder.size() == p.count())
+				if (u.browse->playlists->plOrderId == src.id && (int)u.browse->playlists->plOrder.size() == p.count())
 				{
-					for (int i : u.plOrder)
+					for (int i : u.browse->playlists->plOrder)
 						if (i >= 0 && i < (int)pl.entries.size()) out.push_back(pl.entries[i].path);
 				}
 				else
@@ -205,7 +207,7 @@ namespace bp
 				s.sourceKind = src.kind == SourceKind::Playlist ? (src.id.empty() ? "selection" : "playlist") : "folder";
 				s.sourceTitle = src.title;
 				s.sourceId = src.kind == SourceKind::Playlist ? (src.id.empty() ? "" : playlistId(src.id)) : isNetPath(src.id) ? src.id : ws.toVirtual(src.id);
-				s.liked = u.plStore && u.plStore->isLiked(path);
+				s.liked = u.browse->playlists->plStore && u.browse->playlists->plStore->isLiked(path);
 				s.index = p.index();
 				s.count = p.count();
 				s.loading = p.loading();
@@ -354,16 +356,16 @@ namespace bp
 		// a saved playlist from item index (shuffled: from a random one), at t if given
 		static std::string playPlaylist(Player& p, Ui& u, const std::string& id, int index, bool shuffle, double t, bool handBack = false)
 		{
-			std::string file = u.plWebFile(id);
+			std::string file = u.browse->playlists->plWebFile(id);
 			if (file.empty())
 			{
 				WebCall::setStatus(404);
 				return error("No such playlist");
 			}
-			u.plFlush(p);
+			u.browse->playlists->plFlush(p);
 			Playlist pl;
 			int skipped = 0;
-			if (!u.plStore->load(file, pl, skipped))
+			if (!u.browse->playlists->plStore->load(file, pl, skipped))
 			{
 				WebCall::setStatus(500);
 				return error("The playlist couldn't be read");
@@ -382,7 +384,7 @@ namespace bp
 				return "{\"ok\":true}";
 			}
 			// (main opens it as the loop comes round: Ui's play request, as the browser's own Play)
-			u.plPlay(pl, index, shuffle, p);
+			u.browse->playlists->plPlay(pl, index, shuffle, p);
 			if (t > 0 && !shuffle) seekWhenOpen(p, u, pl.entries[index].path, t);
 			return "{\"ok\":true}";
 		}

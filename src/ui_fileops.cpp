@@ -4,6 +4,7 @@
 // itself is treecopy.h's: measured first, written out of sight, put in place last, so nothing half-copied is left.
 #include "ui_internal.h"
 #include "ui_browse.h"
+#include "ui_playlists.h"
 #include "ui_docs.h"
 #include "ui_manga.h"
 #include "treecopy.h"
@@ -697,21 +698,21 @@ namespace bp
 		int moved = 0;
 		p.pathsMoved(from, to);
 		// playlists and Liked (the edits waiting first, so none is written over the old paths)
-		if (plStore)
+		if (browse->playlists->plStore)
 		{
-			plFlush(p);
-			for (const auto& info : plStore->list())
+			browse->playlists->plFlush(p);
+			for (const auto& info : browse->playlists->plStore->list())
 			{
 				Playlist pl;
 				int skipped = 0;
-				if (!plStore->load(info.file, pl, skipped)) continue;
+				if (!browse->playlists->plStore->load(info.file, pl, skipped)) continue;
 				bool any = false;
 				for (auto& e : pl.entries)
 				{
 					std::string n;
 					if (movedPath(e.path, from, to, n)) { e.path = n; any = true; }
 				}
-				if (any && plStore->save(pl)) moved++;
+				if (any && browse->playlists->plStore->save(pl)) moved++;
 			}
 		}
 		// documents: their places and bookmarks

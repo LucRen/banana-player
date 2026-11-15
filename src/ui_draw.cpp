@@ -17,6 +17,7 @@
 #endif
 #include "ui_internal.h"
 #include "ui_browse.h"
+#include "ui_playlists.h"
 #include "ui_reader.h"
 #include "ui_manga.h"
 
@@ -393,7 +394,7 @@ namespace bp
 			browse->findWasRunning = false;
 			browse->findRows();
 		}
-		if (dropArmed && SDL_GetTicks() - dropArmed >= QUIT_WINDOW_MS) dropArmed = 0;
+		if (browse->playlists->dropArmed && SDL_GetTicks() - browse->playlists->dropArmed >= QUIT_WINDOW_MS) browse->playlists->dropArmed = 0;
 		if (pinArmed && SDL_GetTicks() - pinArmed >= QUIT_WINDOW_MS) pinArmed = 0;
 		// a finger held on a folder: its menu (the lift that follows chooses nothing). On a playlist's item, or a file:
 		// selecting, that one ticked
@@ -404,15 +405,15 @@ namespace bp
 			swallowTouch = true;
 			bool item = isPlDir(browse->browseDir) && cursor >= 0 && cursor < (int)browse->browseRows.size() && browse->browseRows[cursor].id == PL_ITEM;
 			bool file = !isPlDir(browse->browseDir) && cursor >= 0 && cursor < (int)browse->browseRows.size() && browse->browseRows[cursor].id == 2;
-			if ((item || file) && plStore)
+			if ((item || file) && browse->playlists->plStore)
 			{
-				selStart(item ? SEL_EDIT : SEL_ADD, "");
+				browse->playlists->selStart(item ? SEL_EDIT : SEL_ADD, "");
 				swallowTouch = true;
-				if (item) plSel.insert(cursor);
+				if (item) browse->playlists->plSel.insert(cursor);
 				else
 				{
-					picked.insert(browse->browsePaths[cursor]);
-					pickOrder.push_back(browse->browsePaths[cursor]);
+					browse->playlists->picked.insert(browse->browsePaths[cursor]);
+					browse->playlists->pickOrder.push_back(browse->browsePaths[cursor]);
 				}
 			}
 			else openBrowseMenu(cursor, MENU_HOLD);
@@ -432,7 +433,7 @@ namespace bp
 				openRecentMenu(recent[i].path);
 			}
 		}
-		plCheckShown();
+		browse->playlists->plCheckShown();
 		std::string sig = signature(p);
 		if (page == Page::Info || page == Page::About)
 			for (auto& l : infoLines) sig += l.label + "=" + l.text + ";";
@@ -468,9 +469,9 @@ namespace bp
 		if (displayShown(p)) drawDisplay(p);
 		if (inMenu) drawTabs(p);
 		if (ctxOpen) drawBrowseMenu(p);	// (the mini bar's hold menu opens on pages of its own too)
-		if (pickerOpen) drawPicker();
+		if (browse->playlists->pickerOpen) browse->playlists->drawPicker();
 		if (playOnOpen && inMenu && page == Page::Playing) drawPlayOn(p);
-		if (addPending.serial && page == Page::Browse) drawBusy();
+		if (browse->playlists->addPending.serial && page == Page::Browse) browse->playlists->drawBusy();
 		if (popupShown(p)) drawUpdatePopup();
 		manga->drawExtNotice();
 		if (manga->mangaErrOpen) manga->drawMangaErr();
@@ -652,7 +653,7 @@ namespace bp
 		Rect b = buttonRect(BACK_ICON);
 		drawBox(b, pressedBtn == BACK_ICON ? PRESSED : BUTTON, R_BUTTON);
 		// adding files to a playlist: a ✕, it cancels (B goes up a folder there)
-		bool cancel = page == Page::Browse && !inMenu && (selMode == SEL_ADD || selMode == SEL_PICK);
+		bool cancel = page == Page::Browse && !inMenu && (browse->playlists->selMode == SEL_ADD || browse->playlists->selMode == SEL_PICK);
 		if (cancel) drawGlyphMid(G_CROSS, b.x + b.w / 2, b.y + b.h / 2, TEXT, 2);
 		else drawGlyphMid(G_BACK, b.x + b.w / 2 - 1, b.y + b.h / 2, TEXT, 3);
 	}

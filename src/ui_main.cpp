@@ -18,6 +18,7 @@
 #endif
 #include "ui_internal.h"
 #include "ui_browse.h"
+#include "ui_playlists.h"
 #include "ui_sound.h"
 
 namespace bp
@@ -252,8 +253,8 @@ namespace bp
 		// the select mode's bar: three buttons (Edit, Add), two (Pick, Move)
 		if (id == SEL_ALL) return {24, 428, 184, 44};
 		if (id == SEL_MOVE) return {228, 428, 184, 44};
-		if (id == SEL_ACT) return selMode == SEL_PICK ? Rect{328, 428, 288, 44} : Rect{432, 428, 184, 44};
-		if (id == SEL_CANCEL) return selMode == SEL_PICK ? Rect{24, 428, 288, 44} : Rect{228, 428, 184, 44};
+		if (id == SEL_ACT) return browse->playlists->selMode == SEL_PICK ? Rect{328, 428, 288, 44} : Rect{432, 428, 184, 44};
+		if (id == SEL_CANCEL) return browse->playlists->selMode == SEL_PICK ? Rect{24, 428, 288, 44} : Rect{228, 428, 184, 44};
 		if (id == MOVE_CANCEL) return {24, 428, 288, 44};
 		if (id == MOVE_DONE) return {328, 428, 288, 44};
 		if (id == BUSY_CANCEL) return {152, 224, 336, 46};

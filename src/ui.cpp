@@ -18,6 +18,7 @@
 #endif
 #include "ui_internal.h"
 #include "ui_browse.h"
+#include "ui_playlists.h"
 #include "ui_settings.h"
 #include "ui_docs.h"
 #include "ui_reader.h"
@@ -161,14 +162,14 @@ namespace bp
 		{
 			kbPress(b);
 			if (sound->eqNameSubmit) sound->nameDone(p);
-			if (plNameSubmit) plNameDone(p);
+			if (browse->playlists->plNameSubmit) browse->playlists->plNameDone(p);
 			if (browse->fileNameSubmit) browse->fileRenameDone(p);
 			return false;
 		}
 		// Add to... over what plays (or the Playing tab); the browser's is taken below, in its turn
-		if (pickerOpen && page != Page::Browse)
+		if (browse->playlists->pickerOpen && page != Page::Browse)
 		{
-			pickerKey(b, p);
+			browse->playlists->pickerKey(b, p);
 			return false;
 		}
 		// Play on, over START › Playing
@@ -197,7 +198,7 @@ namespace bp
 		}
 		// a page the output waits for a tap there to start the sound (the top panel says so): B plays here instead
 		if (b == Button::B && !inMenu && (page == Page::Main || page == Page::Browse) && SessionHost::get().pageWaits() &&
-			!ctxOpen && !pickerOpen && !popupShown(p) && selMode == SEL_NONE && !addPending.serial)
+			!ctxOpen && !browse->playlists->pickerOpen && !popupShown(p) && browse->playlists->selMode == SEL_NONE && !browse->playlists->addPending.serial)
 		{
 			takeOver(p);
 			return false;
@@ -416,7 +417,7 @@ namespace bp
 			}
 		}
 		// a playlist's edits, written once they've stopped for a second
-		if (plDirty && SDL_GetTicks() - plDirtyAt >= 1000) plFlush(p);
+		if (browse->playlists->plDirty && SDL_GetTicks() - browse->playlists->plDirtyAt >= 1000) browse->playlists->plFlush(p);
 		// the dashboard starts downloads and asks for a series' chapters: their worker answers are taken here too,
 		// since no manga page may be drawn on the handheld while the browser is the one using the reader
 		if (p.settings.mangaOn && manga->mangaNet)
@@ -485,13 +486,13 @@ namespace bp
 			!kbOpen && !quickOpen && !popupShown(p) && !slide.on && SDL_GetTicks() - webInputAt >= (Uint32)offSecs * 1000)
 			panel.set(false);
 		// a dragged row near the list's top or bottom: the list scrolls under it, a row each 150 ms
-		if (plDrag.on && page == Page::Browse && isPlDir(browse->browseDir) && SDL_GetTicks() - plDrag.scrollAt >= 150)
+		if (browse->playlists->plDrag.on && page == Page::Browse && isPlDir(browse->browseDir) && SDL_GetTicks() - browse->playlists->plDrag.scrollAt >= 150)
 		{
 			int n = (int)browse->browseRows.size();
 			int was = scroll;
-			if (plDrag.y < ROW_Y + 24) scroll = std::max(0, scroll - 1);
-			else if (plDrag.y > ROW_Y + ROWS_SHOWN * ROW_H - 24) scroll = std::min(std::max(0, n - ROWS_SHOWN), scroll + 1);
-			if (scroll != was) plDrag.scrollAt = SDL_GetTicks();
+			if (browse->playlists->plDrag.y < ROW_Y + 24) scroll = std::max(0, scroll - 1);
+			else if (browse->playlists->plDrag.y > ROW_Y + ROWS_SHOWN * ROW_H - 24) scroll = std::min(std::max(0, n - ROWS_SHOWN), scroll + 1);
+			if (scroll != was) browse->playlists->plDrag.scrollAt = SDL_GetTicks();
 		}
 		// a playlist's network item: its folder listed for its subtitles and cover (once a play; netListed answers)
 		if (std::string dir = p.netFolderWanted(); !dir.empty() && !sideAsked.count(dir))
@@ -545,26 +546,26 @@ namespace bp
 			return false;
 		}
 		// adding files: the header's key is a ✕ that cancels at once (B goes up a folder there)
-		if (id == BACK_ICON && page == Page::Browse && (selMode == SEL_ADD || selMode == SEL_PICK)) { selBack(p, true); return false; }
+		if (id == BACK_ICON && page == Page::Browse && (browse->playlists->selMode == SEL_ADD || browse->playlists->selMode == SEL_PICK)) { browse->playlists->selBack(p, true); return false; }
 		if (id == BACK_ICON) return pressAnyway(Button::B, p);
 		// the mini bar: the player, or its play mark
 		if (id == MINI_BAR) { goNowPlaying(p); return false; }
 		if (id == MINI_PP) { miniToggle(p); return false; }
 		if (id == EMPTY_BTN) { browse->doEmptyAction(p); return false; }
 		// the select mode's bar: its keys' (Cancel leaves from any folder)
-		if (id == SEL_ALL) { selKey(Button::Select, p); return false; }
-		if (id == SEL_MOVE) { selKey(Button::Y, p); return false; }
+		if (id == SEL_ALL) { browse->playlists->selKey(Button::Select, p); return false; }
+		if (id == SEL_MOVE) { browse->playlists->selKey(Button::Y, p); return false; }
 		// (the act itself, not its key: adding, X is Cancel and Y adds)
-		if (id == SEL_ACT) { removeArmed = removeArmed && selMode == SEL_EDIT; dropArmed = 0; selAct(p); return false; }
+		if (id == SEL_ACT) { browse->playlists->removeArmed = browse->playlists->removeArmed && browse->playlists->selMode == SEL_EDIT; browse->playlists->dropArmed = 0; browse->playlists->selAct(p); return false; }
 		// (Cancel shows X's key, so it asks twice as X does; the header's ✕ leaves at once)
-		if (id == SEL_CANCEL) { selBack(p, false); return false; }
-		if (id == MOVE_CANCEL || id == MOVE_DONE) { moveEnd(id == MOVE_DONE, p); return false; }
-		if (id == BUSY_CANCEL) { cancelAdd(p); return false; }
+		if (id == SEL_CANCEL) { browse->playlists->selBack(p, false); return false; }
+		if (id == MOVE_CANCEL || id == MOVE_DONE) { browse->playlists->moveEnd(id == MOVE_DONE, p); return false; }
+		if (id == BUSY_CANCEL) { browse->playlists->cancelAdd(p); return false; }
 		if (id >= manga->EXT_TILE && id <= manga->EXT_DONE) return manga->extAct(id, p);
 		if (id == LIKE_BTN) { likeNow(p); return false; }
 		if (id == ADD_BTN)
 		{
-			if (p.playing()) openAddOne(p.currentPath(), p.title, p.loaded ? p.duration : -1, p);
+			if (p.playing()) browse->playlists->openAddOne(p.currentPath(), p.title, p.loaded ? p.duration : -1, p);
 			return false;
 		}
 		if (id >= PLAY_ROW && id < PLAY_ROW + 7) return playingChoose(id - PLAY_ROW, p);
@@ -658,7 +659,7 @@ namespace bp
 		{
 			kbPointer(pt, x, y);
 			if (sound->eqNameSubmit) sound->nameDone(p);
-			if (plNameSubmit) plNameDone(p);
+			if (browse->playlists->plNameSubmit) browse->playlists->plNameDone(p);
 			if (browse->fileNameSubmit) browse->fileRenameDone(p);
 			return false;
 		}
@@ -679,7 +680,7 @@ namespace bp
 		}
 		if (quickOpen) return quickPointer(pt, x, y, p);
 		// Add to... over what plays (or the Playing tab) as over the browser
-		if (pickerOpen) return pickerPointer(pt, x, y, p);
+		if (browse->playlists->pickerOpen) return browse->playlists->pickerPointer(pt, x, y, p);
 		playOnOpen = playOnOpen && inMenu && page == Page::Playing && playingTabShown(p);
 		if (playOnOpen) return playOnPointer(pt, x, y, p);
 		displayOpen = displayOpen && displayShown(p);
@@ -687,7 +688,7 @@ namespace bp
 		// Home's quit dialog takes every finger: a row chooses as it lifts, outside it cancels
 		if (page == Page::Browse && !inMenu && browse->atHome() && quitOpen && !popupShown(p)) return homePointer(pt, x, y, p);
 		// the header's web dashboard mark: its page, as the finger lifts on it
-		if (webIndDown || (pt.kind == Pointer::Down && webInd.w && webInd.hit(x, y) && !ctxOpen && !pickerOpen && !popupShown(p)))
+		if (webIndDown || (pt.kind == Pointer::Down && webInd.w && webInd.hit(x, y) && !ctxOpen && !browse->playlists->pickerOpen && !popupShown(p)))
 		{
 			if (pt.kind == Pointer::Down) webIndDown = true;
 			else if (pt.kind == Pointer::Up)
@@ -751,22 +752,22 @@ namespace bp
 			return false;
 		}
 		// a network folder read before it's added: its dialog's Cancel, nothing else
-		if (page == Page::Browse && addPending.serial)
+		if (page == Page::Browse && browse->playlists->addPending.serial)
 		{
 			if (pt.kind == Pointer::Down) pressedBtn = buttonRect(BUSY_CANCEL).hit(x, y) ? BUSY_CANCEL : -1;
 			else if (pt.kind == Pointer::Up && pressedBtn == BUSY_CANCEL)
 			{
 				pressedBtn = -1;
-				if (buttonRect(BUSY_CANCEL).hit(x, y)) cancelAdd(p);
+				if (buttonRect(BUSY_CANCEL).hit(x, y)) browse->playlists->cancelAdd(p);
 			}
 			return false;
 		}
-		if (page == Page::Browse && pickerOpen) return pickerPointer(pt, x, y, p);
+		if (page == Page::Browse && browse->playlists->pickerOpen) return browse->playlists->pickerPointer(pt, x, y, p);
 		// a playlist's row on the finger by its grip: the landing line follows, lifted it's dropped there
-		if (plDrag.on)
+		if (browse->playlists->plDrag.on)
 		{
-			plDrag.y = std::clamp(y, 0, H - 1);
-			if (pt.kind == Pointer::Up) dragEnd(p);
+			browse->playlists->plDrag.y = std::clamp(y, 0, H - 1);
+			if (pt.kind == Pointer::Up) browse->playlists->dragEnd(p);
 			return false;
 		}
 		if (panTouch) return photoPointer(pt, x, y, p);
@@ -973,7 +974,7 @@ namespace bp
 		listScrolled = false;
 		touchStartY = y;
 		scrollStart = scroll;
-		holdAt = page == Page::Browse && !inMenu && selMode == SEL_NONE && browse->holdRow(i) ? SDL_GetTicks() : 0;
+		holdAt = page == Page::Browse && !inMenu && browse->playlists->selMode == SEL_NONE && browse->holdRow(i) ? SDL_GetTicks() : 0;
 		return false;
 	}
 
@@ -1016,16 +1017,16 @@ namespace bp
 		// the dots of "Loading..." go round
 		if (p.loading() || p.thumbPending()) photo += "|loading" + std::to_string(SDL_GetTicks() / 400 % 4);
 		// Playlists: the store, items found missing, a menu's title and line, a name refused
-		photo += "|pl" + std::to_string(plStore ? plStore->serial() : -1) + " " + std::to_string(plMissingSerial) + ctxTitle + "|" + ctxNote + "|" + plNameNote;
+		photo += "|pl" + std::to_string(browse->playlists->plStore ? browse->playlists->plStore->serial() : -1) + " " + std::to_string(browse->playlists->plMissingSerial) + ctxTitle + "|" + ctxNote + "|" + browse->playlists->plNameNote;
 		// selecting: the mode and where it adds, the ticks, Move's block, a dragged row's landing (the finger in steps
 		// of 8), the picker, the arms, a folder being read
-		if (selMode != SEL_NONE || pickerOpen || addPending.serial)
+		if (browse->playlists->selMode != SEL_NONE || browse->playlists->pickerOpen || browse->playlists->addPending.serial)
 		{
 			char sb[200];
-			snprintf(sb, sizeof sb, "|sel%d %d %d %d %d,%d %d %d,%d %d %d %d %d %d %d", selMode, selCount(), selSerial, moving,
-				plSel.empty() ? -1 : *plSel.begin(), (int)plSel.size(), plDrag.on, plDrag.on ? dragSlot() : -1, plDrag.y / 8, pickerOpen,
-				pickerCursor, pickerScroll, removeArmed, dropArmed != 0, addPending.serial);
-			photo += sb + selDest;
+			snprintf(sb, sizeof sb, "|sel%d %d %d %d %d,%d %d %d,%d %d %d %d %d %d %d", browse->playlists->selMode, browse->playlists->selCount(), browse->playlists->selSerial, browse->playlists->moving,
+				browse->playlists->plSel.empty() ? -1 : *browse->playlists->plSel.begin(), (int)browse->playlists->plSel.size(), browse->playlists->plDrag.on, browse->playlists->plDrag.on ? browse->playlists->dragSlot() : -1, browse->playlists->plDrag.y / 8, browse->playlists->pickerOpen,
+				browse->playlists->pickerCursor, browse->playlists->pickerScroll, browse->playlists->removeArmed, browse->playlists->dropArmed != 0, browse->playlists->addPending.serial);
+			photo += sb + browse->playlists->selDest;
 		}
 		// Main: what it plays from, and whether the file is a server's (a playlist's item says where it comes from)
 		if (p.playing() && page == Page::Main)
@@ -1048,7 +1049,7 @@ namespace bp
 		{
 			Uint32 now = SDL_GetTicks();
 			photo += "|like" + std::to_string(likePopAt && now - likePopAt < 110) + std::to_string(addFlashUntil && now < addFlashUntil) +
-				std::to_string(pickerArmed) + pickerOne + "|" + std::to_string(likedNow(p));
+				std::to_string(browse->playlists->pickerArmed) + browse->playlists->pickerOne + "|" + std::to_string(likedNow(p));
 		}
 		// the clock: its minute
 		if (!clockText(p).empty()) photo += "|clk" + std::to_string((long long)time(nullptr) / 60);

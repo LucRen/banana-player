@@ -17,6 +17,7 @@
 #endif
 #include "ui_internal.h"
 #include "ui_browse.h"
+#include "ui_playlists.h"
 #include "ui_sound.h"
 #include "ui_docs.h"
 #include "ui_manga.h"
@@ -279,9 +280,9 @@ namespace bp
 		if (kbField == PL_NAME)
 		{
 			// the same for a playlist's name (plNameDone); cancelled, a new one for Add to... adds nothing
-			if (keep) { plNameSubmit = true; return; }
-			plNameNote.clear();
-			plNameThenAdd = false;
+			if (keep) { browse->playlists->plNameSubmit = true; return; }
+			browse->playlists->plNameNote.clear();
+			browse->playlists->plNameThenAdd = false;
 		}
 		if (kbField == MANGA_SEARCH_FIELD)
 		{
@@ -444,7 +445,7 @@ namespace bp
 		if (kbCaretShown()) fill({caretX, 108, 3, 32}, ACCENT);
 		if (!after.empty()) drawTextMid(after, 1, TEXT, caretX + 5, 124, std::max(0, 580 - (caretX + 5 - 32)));
 		if (kbField == EQ_NAME && !sound->eqNameNote.empty()) drawTextMid(sound->eqNameNote, 0, ACCENT, 24, 176, 592);
-		if (kbField == PL_NAME && !plNameNote.empty()) drawTextMid(plNameNote, 0, ACCENT, 24, 176, 592);
+		if (kbField == PL_NAME && !browse->playlists->plNameNote.empty()) drawTextMid(browse->playlists->plNameNote, 0, ACCENT, 24, 176, 592);
 		if (kbField == FILE_NAME && !browse->fileNameNote.empty()) drawTextMid(browse->fileNameNote, 0, ACCENT, 24, 176, 592);
 		// both kinds of repository take a plain address: a Lua one's, or an extensions' index (index.pb, index.min.json)
 		if (kbField == SRC_URL_FIELD)

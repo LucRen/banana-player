@@ -6,6 +6,7 @@
 #include "ui_reader.h"
 #include "ui_manga.h"
 #include "ui_browse.h"
+#include "ui_playlists.h"
 #include "pagebook.h"
 #include "manga_ui_logic.h"
 #include <algorithm>

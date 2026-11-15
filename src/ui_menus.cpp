@@ -18,6 +18,7 @@
 #endif
 #include "ui_internal.h"
 #include "ui_browse.h"
+#include "ui_playlists.h"
 #include "ui_settings.h"
 #include "pagebook.h"
 #include <strings.h>
@@ -134,8 +135,8 @@ namespace bp
 			if (browse->emptyAction()) { browse->doEmptyAction(p); return; }
 			if (r[i].id < 0) return;
 			// selecting: a row ticked (a folder still opens)
-			if (selMode != SEL_NONE && selChoose(i, p)) return;
-			if (r[i].id == PL_NEW) { plNameOpen(false, "", ""); return; }
+			if (browse->playlists->selMode != SEL_NONE && browse->playlists->selChoose(i, p)) return;
+			if (r[i].id == PL_NEW) { browse->playlists->plNameOpen(false, "", ""); return; }
 			if (r[i].id == PL_ROW)
 			{
 				// a playlist: its items (and the one kept for the next launch, as a folder gone into is)
@@ -147,10 +148,10 @@ namespace bp
 			if (r[i].id == PL_ITEM)
 			{
 				// an item that isn't there: what can be done about it (its menu, why under the title)
-				if (plMissingAt(i)) { openBrowseMenu(i, MENU_Y); return; }
+				if (browse->playlists->plMissingAt(i)) { openBrowseMenu(i, MENU_Y); return; }
 				// the item that plays (from this playlist): back to it, never from its start
 				if (rowChip(i)) { showPlayer(); return; }
-				plPlay(plCur, i, false, p);
+				browse->playlists->plPlay(browse->playlists->plCur, i, false, p);
 				return;
 			}
 			if (browse->browseDir == FORMDIR) { browse->formChoose(r[i].id, p); return; }
@@ -684,8 +685,8 @@ namespace bp
 			}
 			bool docR = isDocumentName(ctxRecent) || isComicName(ctxRecent);	// (a document is read, at a page)
 			std::string resume = ri && !ri->at.empty() ? (docR ? "Resume at " : "Resume from ") + ri->at : docR ? "Open" : "Play";
-			bool likedR = it == CTX_R_LIKE && plStore && plStore->isLiked(ctxRecent);
-			bool inLiked = plIsLiked(ctxPlFile);	// Liked's Remove is Unlike
+			bool likedR = it == CTX_R_LIKE && browse->playlists->plStore && browse->playlists->plStore->isLiked(ctxRecent);
+			bool inLiked = plIsLiked(browse->playlists->ctxPlFile);	// Liked's Remove is Unlike
 			const char* label = it == CTX_R_PLAY ? resume.c_str() : it == CTX_R_START ? (docR ? "Open from the start" : "Play from the start")
 				: it == CTX_R_SHOW ? "Show in folder" : it == CTX_R_ADD || it == CTX_PL_ADD_ONE ? "Add to playlist\xE2\x80\xA6"
 				: it == CTX_R_LIKE ? (likedR ? "Unlike" : "Like") : it == CTX_R_REMOVE ? "Remove from Recent"
@@ -1074,13 +1075,13 @@ namespace bp
 
 	// ---- Like ----
 
-	bool Ui::likeable(const Player& p) const { return plStore && p.playing() && PlaylistStore::likable(p.currentPath()); }
+	bool Ui::likeable(const Player& p) const { return browse->playlists->plStore && p.playing() && PlaylistStore::likable(p.currentPath()); }
 
-	bool Ui::likedNow(const Player& p) const { return plStore && p.playing() && plStore->isLiked(p.currentPath()); }
+	bool Ui::likedNow(const Player& p) const { return browse->playlists->plStore && p.playing() && browse->playlists->plStore->isLiked(p.currentPath()); }
 
 	bool Ui::headerActions(const Player& p) const
 	{
-		return plStore && p.playing() && !p.playingPhoto() && PlaylistStore::likable(p.currentPath());
+		return browse->playlists->plStore && p.playing() && !p.playingPhoto() && PlaylistStore::likable(p.currentPath());
 	}
 
 	void Ui::likeCard(Player& p, bool liked, const std::string& title)
@@ -1100,7 +1101,7 @@ namespace bp
 		likeCard(p, !was, title);
 	}
 
-	void Ui::openAddOne(const std::string& path, const std::string& title, double duration, Player& p)
+	void Ui::Playlists::openAddOne(const std::string& path, const std::string& title, double duration, Player& p)
 	{
 		if (!plStore || !PlaylistStore::likable(path)) return;	// (songs and videos: never a photo)
 		pickerOne = path;
@@ -1284,7 +1285,7 @@ namespace bp
 		switch (rows[row])
 		{
 		case PR_LIKE: likeNow(p); return false;	// (the tab stays: the row says what it is now)
-		case PR_ADD: openAddOne(p.currentPath(), p.title, p.loaded ? p.duration : -1, p); return false;
+		case PR_ADD: browse->playlists->openAddOne(p.currentPath(), p.title, p.loaded ? p.duration : -1, p); return false;
 		case PR_NOW: showPlayer(); return false;
 		case PR_PLAYON: openPlayOn(); return false;
 		case PR_STOP:
@@ -1327,13 +1328,13 @@ namespace bp
 			: whereOf(isNetPath(path) ? netParent(path) : parentFolder(path));
 		drawTextMid(sub, 0, DIM, 80, card.y + 45, 520);
 		// the playlists it's in, read again when they change
-		if (plStore && (playingInSerial != plStore->serial() || playingInPath != path))
+		if (browse->playlists->plStore && (playingInSerial != browse->playlists->plStore->serial() || playingInPath != path))
 		{
-			playingInSerial = plStore->serial();
+			playingInSerial = browse->playlists->plStore->serial();
 			playingInPath = path;
 			std::vector<std::string> in;
-			for (auto& pl : plStore->addTargets())
-				if (plStore->containsPath(pl.file, path)) in.push_back(pl.name);
+			for (auto& pl : browse->playlists->plStore->addTargets())
+				if (browse->playlists->plStore->containsPath(pl.file, path)) in.push_back(pl.name);
 			playingIn = in.empty() ? "" : in.size() == 1 ? "In " + in[0] : "In " + std::to_string(in.size()) + " playlists";
 		}
 		bool liked = likedNow(p);
@@ -1355,7 +1356,7 @@ namespace bp
 				note = liked ? "In Liked" : "Adds it to Liked";
 				if (liked) ink = ACCENT;
 				break;
-			case PR_ADD: g = &G_PL_ADD; label = "Add to playlist\xE2\x80\xA6"; note = plStore ? playingIn : ""; break;
+			case PR_ADD: g = &G_PL_ADD; label = "Add to playlist\xE2\x80\xA6"; note = browse->playlists->plStore ? playingIn : ""; break;
 			case PR_NOW:
 				g = &G_RIGHT;
 				label = "Now playing";
@@ -1405,45 +1406,45 @@ namespace bp
 		std::string* dropped)
 	{
 		if (dropped) dropped->clear();
-		if (!plStore) return false;
-		if (plStore->isLiked(path) != on)
+		if (!browse->playlists->plStore) return false;
+		if (browse->playlists->plStore->isLiked(path) != on)
 		{
 			// (Liked's own edits waiting, if it's open, are written first so this one doesn't lose them)
-			plFlush(p);
+			browse->playlists->plFlush(p);
 			Playlist before;
 			int skipped = 0;
-			bool playsLiked = p.playing() && p.source().kind == SourceKind::Playlist && p.source().id == plStore->likedFile();
-			if (playsLiked) plStore->load(plStore->likedFile(), before, skipped);
-			if (!plStore->setLiked(path, title, duration, on, at, dropped))
+			bool playsLiked = p.playing() && p.source().kind == SourceKind::Playlist && p.source().id == browse->playlists->plStore->likedFile();
+			if (playsLiked) browse->playlists->plStore->load(browse->playlists->plStore->likedFile(), before, skipped);
+			if (!browse->playlists->plStore->setLiked(path, title, duration, on, at, dropped))
 			{
-				if (plStore->likable(path))
+				if (browse->playlists->plStore->likable(path))
 					p.showNoteCard(G_ALERT_ROWS, G_ALERT.h, theme::ass(theme::DANGER).c_str(), "Couldn't save Liked", "The card may be full or locked");
-				return plStore->isLiked(path);
+				return browse->playlists->plStore->isLiked(path);
 			}
 			// Liked is what plays: its order moved (a new one goes first), the player told as an edit
 			if (playsLiked)
 			{
 				Playlist after;
-				if (plStore->load(plStore->likedFile(), after, skipped))
+				if (browse->playlists->plStore->load(browse->playlists->plStore->likedFile(), after, skipped))
 				{
 					std::vector<int> remap(before.entries.size(), -1);
 					std::vector<char> used(after.entries.size(), 0);
 					for (size_t i = 0; i < before.entries.size(); i++)
 						for (size_t j = 0; j < after.entries.size(); j++)
 							if (!used[j] && after.entries[j].path == before.entries[i].path) { remap[i] = int(j); used[j] = 1; break; }
-					plTellPlayer(after, remap, p);
+					browse->playlists->plTellPlayer(after, remap, p);
 				}
 			}
 			// the pages that show Liked (the list's count, its items) read it again
-			selSerial++;
-			if (browse->browseDir == plDirFor(plStore->likedFile()))
+			browse->playlists->selSerial++;
+			if (browse->browseDir == plDirFor(browse->playlists->plStore->likedFile()))
 			{
-				plCur = Playlist();
-				plLoaded = plStore->load(plStore->likedFile(), plCur, skipped);
-				plRefresh(p);
+				browse->playlists->plCur = Playlist();
+				browse->playlists->plLoaded = browse->playlists->plStore->load(browse->playlists->plStore->likedFile(), browse->playlists->plCur, skipped);
+				browse->playlists->plRefresh(p);
 			}
-			else plWebListChanged(p);
+			else browse->playlists->plWebListChanged(p);
 		}
-		return plStore->isLiked(path);
+		return browse->playlists->plStore->isLiked(path);
 	}
 }
