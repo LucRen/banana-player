@@ -18,6 +18,7 @@
 #endif
 #include "ui_internal.h"
 #include "ui_docs.h"
+#include "ui_reader.h"
 #include "ui_sound.h"
 #include "ui_web.h"
 #include "durworker.h"
@@ -80,6 +81,7 @@ namespace bp
 	// the areas: each made here and listed, which is all the wiring one needs (docs/notes/ui-areas.md)
 	Ui::Ui()
 	{
+		pageReader = std::make_unique<PageReader>(*this);	// (not an area: no page of its own; Docs and Manga use it)
 		docs = std::make_unique<Docs>(*this);
 		areas.push_back(docs.get());
 		sound = std::make_unique<Sound>(*this);
@@ -606,7 +608,7 @@ namespace bp
 		// reader reads longer than any timeout without touching)
 		// (a song's own timer, and a video's: Never by default, its controls are what one reaches for)
 		int offSecs = screenOffSeconds(p.playingAudio() ? p.settings.screenOffAfter : p.settings.screenOffVideo);
-		bool viewing = p.playingPhoto() || readerStatus.open;
+		bool viewing = p.playingPhoto() || pageReader->readerStatus.open;
 		if (offSecs > 0 && panel.on() && p.playing() && !viewing && !p.paused && !p.loading() && p.error.empty() &&
 			!kbOpen && !quickOpen && !popupShown(p) && !slide.on && SDL_GetTicks() - webInputAt >= (Uint32)offSecs * 1000)
 			panel.set(false);
@@ -744,7 +746,7 @@ namespace bp
 		int x = (int)(pt.x * W), y = (int)(pt.y * H);
 		webInputAt = SDL_GetTicks();
 		// a list's finger whose lift never came (a dialog took it): a new touch starts afresh
-		if (pt.kind == Pointer::Down) mlist = MangaListDrag();
+		if (pt.kind == Pointer::Down) pageReader->mlist = PageReader::MangaListDrag();
 		// a slider under the finger: it keeps the finger until it lifts, whatever it passes over (a new touch with
 		// one still held: its lift was lost, it's let go where it was)
 		if (slide.on)
@@ -931,7 +933,7 @@ namespace bp
 		}
 		// a finger that went down on one of the manga app's lists: its moves scroll the list and its lift is the tap
 		// (the down came through mangaPointer, after the sheets, the header and the mini bar had their turn)
-		if (mlist.on && pt.kind != Pointer::Down) return mangaListPointer(pt, x, y);
+		if (pageReader->mlist.on && pt.kind != Pointer::Down) return pageReader->mangaListPointer(pt, x, y);
 		if (pressedBtn >= 0)
 		{
 			if (pt.kind != Pointer::Up) return false;
@@ -966,7 +968,7 @@ namespace bp
 			pressedBtn = x < MINI_BOX.x + 44 ? MINI_PP : MINI_BAR;
 			miniHoldAt = SDL_GetTicks();
 			// in fullscreen the bar is the controls sheet's: a touch on it shows the sheet 4 s more
-			if (page == Page::MangaRead && readerStatus.fullscreen) mangaCtrlUntil = SDL_GetTicks() + MG_CTRL_MS;
+			if (page == Page::MangaRead && pageReader->readerStatus.fullscreen) mangaCtrlUntil = SDL_GetTicks() + MG_CTRL_MS;
 			if (pressedBtn == MINI_PP && pageDrives(bp))
 			{
 				miniHoldAt = 0;
@@ -1321,22 +1323,22 @@ namespace bp
 			if (page == Page::MangaRead)
 			{
 				char rb[160];
-				snprintf(rb, sizeof rb, "|rs%d%d%d%d %d %d %d%d%d z%d %d%d%d r%d", (int)readerStatus.open, (int)readerStatus.loading,
-					(int)readerStatus.atEnd, (int)mangaReadLive, readerStatus.page, readerStatus.pages, (int)mangaDirty,
-					(int)mangaTouch, (int)slideHeld(SL_MANGA), readerStatus.zoomPct, (int)mangaMenu, mangaMenuCursor,
-					(int)mangaPages, readerStatus.rotation);
-				photo += std::string(rb) + readerStatus.error + "|" + mangaReadChapterId + "|m" + std::to_string(readerStatus.mode) +
-					"|w" + std::to_string((int)readerStatus.failedHere) + std::to_string((int)mangaReadWaiting) + std::to_string((int)mangaSrcLoading) + mangaSrcError;
+				snprintf(rb, sizeof rb, "|rs%d%d%d%d %d %d %d%d%d z%d %d%d%d r%d", (int)pageReader->readerStatus.open, (int)pageReader->readerStatus.loading,
+					(int)pageReader->readerStatus.atEnd, (int)mangaReadLive, pageReader->readerStatus.page, pageReader->readerStatus.pages, (int)mangaDirty,
+					(int)mangaTouch, (int)slideHeld(SL_MANGA), pageReader->readerStatus.zoomPct, (int)mangaMenu, mangaMenuCursor,
+					(int)pageReader->mangaPages, pageReader->readerStatus.rotation);
+				photo += std::string(rb) + pageReader->readerStatus.error + "|" + pageReader->mangaReadChapterId + "|m" + std::to_string(pageReader->readerStatus.mode) +
+					"|w" + std::to_string((int)pageReader->readerStatus.failedHere) + std::to_string((int)mangaReadWaiting) + std::to_string((int)mangaSrcLoading) + mangaSrcError;
 				// the pages grid: the cursor, the scroll, the textures made, the thumbnails arrived
-				if (mangaPages)
-					photo += "|pg" + std::to_string(mangaPagesCursor) + "," + std::to_string(mangaPagesScroll) + " " +
-						std::to_string(mpTex.size()) + "," + std::to_string(readerThumbs.pages.size());
+				if (pageReader->mangaPages)
+					photo += "|pg" + std::to_string(pageReader->mangaPagesCursor) + "," + std::to_string(pageReader->mangaPagesScroll) + " " +
+						std::to_string(pageReader->mpTex.size()) + "," + std::to_string(pageReader->readerThumbs.pages.size());
 				// fullscreen (or Book): where the pages are on this panel, which have their textures, the tag
-				if (readerStatus.fullscreen || readerStatus.book)
+				if (pageReader->readerStatus.fullscreen || pageReader->readerStatus.book)
 				{
-					photo += "|bk" + std::to_string(readerStatus.book) + (mangaBookToast ? "t" : "");
-					photo += "|full" + std::to_string(readerBottom.gen) + " " + std::to_string(mfTex.size()) + " " +
-						std::to_string(mfWaiting) + " " + std::to_string(readerBottom.pages.size()) + (SDL_GetTicks() < mfTagUntil ? "T" : "");
+					photo += "|bk" + std::to_string(pageReader->readerStatus.book) + (mangaBookToast ? "t" : "");
+					photo += "|full" + std::to_string(pageReader->readerBottom.gen) + " " + std::to_string(pageReader->mfTex.size()) + " " +
+						std::to_string(pageReader->mfWaiting) + " " + std::to_string(pageReader->readerBottom.pages.size()) + (SDL_GetTicks() < pageReader->mfTagUntil ? "T" : "");
 					// the controls over the pages and the first open's toast: how long they still show, in 100 ms
 					// steps, so each hides by itself (no finger, no other change to draw for)
 					Uint32 now = SDL_GetTicks();
@@ -1344,7 +1346,7 @@ namespace bp
 						std::to_string(mangaCtrlUntil && now < mangaCtrlUntil ? (int)((mangaCtrlUntil - now + 99) / 100) : 0) + " " +
 						std::to_string(mangaToastUntil && now < mangaToastUntil ? (int)((mangaToastUntil - now + 99) / 100) : 0) + " " +
 						std::to_string(mangaCtrlPressed);
-					for (auto& b : readerBottom.boxes)
+					for (auto& b : pageReader->readerBottom.boxes)
 						photo += " " + std::to_string(b.page) + ":" + std::to_string((int)std::lround(b.x * 4096)) + "," + std::to_string((int)std::lround(b.y * 4096));
 				}
 			}

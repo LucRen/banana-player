@@ -181,31 +181,13 @@ namespace bp
 			playRequest = {};
 			return true;
 		}
-		// ---- the manga reader: Ui (bottom panel, the library) and main's reader (top panel) talk only through these ----
-		// a chapter to open on the top panel (Ui sets it and shows Page::MangaRead; main takes it once and opens it).
-		// path: a folder of pictures or a CBZ; page: where to start (0-based); fit: MANGA_FIT_*
-		struct MangaReadRequest
-		{
-			std::string seriesId, seriesTitle, chapterId, chapterTitle, path;
-			bool archive = false;
-			int page = 0, mode = 0, fit = 0;
-			int book = 0;	// MANGA_BOOK_*: the series' own (takeMangaRead fills it)
-			float within = 0;	// the place inside `page` kept for this chapter (takeMangaRead fills it)
-			// a chapter from a source or a server: its pages' URLs, in order, and the headers they need (the source's
-			// Referer...); path is then the chapter's id (the cache's key, never opened). Empty: path is a folder or a CBZ
-			std::vector<std::string> pageUrls;
-			std::vector<std::pair<std::string, std::string>> pageHeaders;
-		};
+		// ---- the top panel's page reader: its channel (the request, the commands, the status) and the views the PDF
+		// viewer and the Manga reader share (the pages grid, fullscreen, the zoom), all in ui_reader.h / ui_reader.cpp ----
+		// (public: main talks to it for the top panel's MangaReader)
+		struct PageReader;
+		std::unique_ptr<PageReader> pageReader;
+		// the place inside a page kept for a chapter, and the series' own Book (PageReader::takeMangaRead fills them in)
 		float mangaWithinFor(const std::string& chapterId, int page) const;
-		bool takeMangaRead(MangaReadRequest& out)
-		{
-			if (mangaRead.path.empty()) return false;
-			out = std::move(mangaRead);
-			mangaRead = {};
-			out.book = mangaBookFor(out.seriesId);
-			out.within = mangaWithinFor(out.chapterId, out.page);
-			return true;
-		}
 		// the dashboard's series view (design 8): a chapter with what the reader knows of it. download is "", or the
 		// mark the handheld's series page gives it ("queued", "running", "paused", "failed", "onCard")
 		struct MangaWebChapter
@@ -233,57 +215,12 @@ namespace bp
 		int mangaDlQueueChapters(const std::string& sourceId, const std::string& scriptPath,
 			const std::string& seriesId, const std::string& seriesTitle,
 			const std::vector<MangaChapter>& chapters);
-		// what the bottom panel asks of the reader, in order (main applies them each pass): Close; Step (v: screens, + down);
-		// Page (v: +1 / -1, a whole page); Seek (v: the page index); TouchDown / Drag (v: the finger's dy as a fraction of
-		// the panel's height, + down: the panels are the same size, so main scales it to the top panel) / Release, each
-		// with the time in ms (Drag's v2: the finger's dx, as a fraction of the panel's width, + right); Mode (v: MANGA_RTL,
-		// MANGA_LTR, MANGA_STRIP: the page under the view kept); Fit (v: MANGA_FIT_*: the page under the view kept)
-		// Fullscreen (v: 1 on, 0 off; v2: the hinge gap in 480-line units: both panels are one tall view, the gap skipped)
-		// Zoom (v: the factor, 1 = the fit, 1.5 … 8: the content under the view's middle stays there, and the pages in
-		// view are decoded again at that width once the presses rest)
-		// Rotate (paged modes only: each press turns the page 90° clockwise, 0 → 90 → 180 → 270 → 0; Strip ignores it;
-		// kept per chapter, back to 0 on another chapter; the fit and zoom work on the turned page)
-		// ZoomPoint (v: the factor; v2, v3: the tap point as fractions of the view width and height: zoom to that point
-		// / back to the fit, as a double-tap on the page area does)
-		// Book (v: MANGA_BOOK_*: held sideways, a page upright on each panel; Step turns a spread, Page moves one)
-		struct ReaderCmd { enum Kind { Close, Step, Page, Seek, TouchDown, Drag, Release, Mode, Fit, Fullscreen, Zoom, Rotate, ZoomPoint, Retry, Book, Pan } kind = Close; double v = 0; int64_t ms = 0; double v2 = 0; double v3 = 0; };
-		std::vector<ReaderCmd> readerCmds;
-		// what the reader shows, as main last set it (the bottom panel draws from it; it goes into signature())
-		struct ReaderStatus
-		{
-			bool open = false, loading = false, atEnd = false;	// atEnd: the strip's bottom reached (the next chapter's card)
-			int page = 0, pages = 0;	// the page under the view's middle (0-based), the chapter's page count
-			float within = 0;	// Vertical scroll: how far through that page the view's middle is
-			int mode = 0;	// the mode it reads in (MANGA_*)
-			int zoomPct = 100;	// the zoom (1 = the fit, 100 % … 800 %)
-			bool fullscreen = false;	// both panels show the pages
-			int rotation = 0;	// the page turn in degrees (0, 90, 180, 270; paged modes only, 0 in Strip)
-			int book = 0;	// MANGA_BOOK_*: held sideways, a page on each panel (page: the spread's first)
-			std::string error;	// the chapter couldn't be opened ("" while fine)
-			bool failedHere = false;	// a page in view failed (fetch, decode or no GPU memory): Try again shows
-		};
-		ReaderStatus readerStatus;
 		// ---- Files' document viewers: an area (Area, below), all of it in ui_docs.h / ui_docs.cpp ----
 		// (public: main talks to it for the top panel's text viewer and the PDF viewer's pan area)
 		struct Docs;
 		std::unique_ptr<Docs> docs;
 		// a document from Files: opened in its viewer; false when the path isn't one
 		bool openDocument(const std::string& path, Player& p);
-		// fullscreen: what the bottom panel shows of the view (main sets it each pass): each page's box as fractions
-		// of the panel (x, y, w, h; y may run past 0..1), and the pages' pixels (RGBA, straight alpha) for those boxes;
-		// gen changes with the chapter (the bottom panel's textures of the last one go)
-		struct ReaderBox { int page; float x, y, w, h; };
-		struct ReaderPix { int page = -1, w = 0, h = 0; std::shared_ptr<const std::vector<uint8_t>> rgba; };
-		struct ReaderBottom { bool on = false; uint64_t gen = 0; std::vector<ReaderBox> boxes; std::vector<ReaderPix> pages; };
-		ReaderBottom readerBottom;
-		// the pages grid's thumbnails (docs/design/manga.md section 3): one per decoded page, ~96 px wide RGBA,
-		// made by the reader as each page decodes; pages not decoded yet are absent (the Ui draws a numbered
-		// placeholder). gen changes with the chapter: the Ui's textures of the last one go
-		struct ReaderThumb { int page = -1, w = 0, h = 0; std::shared_ptr<const std::vector<uint8_t>> rgba; };
-		struct ReaderThumbs { bool on = false; uint64_t gen = 0; std::vector<ReaderThumb> pages; };
-		ReaderThumbs readerThumbs;
-		// the reader closed itself (an error, or main stopped it): the bottom panel leaves its page
-		bool readerOpen() const { return readerStatus.open; }
 		// started with no file: the video's Quit closes it (back to the browser)
 		bool browserMode = false;
 		// Settings' Quit Banana Player: out of the player, from the browser or a video
@@ -577,7 +514,6 @@ namespace bp
 		int& lightFilter(Settings& s) const;	// the reader's own filter: the text viewer's, the PDF/comic viewer's, Manga's
 		// what the reader's Brightness button says while Extra dim or a filter is on ("Warm · 30%"); empty: neither
 		std::string lightNote(const Player& p) const;
-		int readFilterNow = 0, readDimNow = 0;	// (Ui::draw: the reading filter and Extra dim as the pages are drawn)
 		// All recent's tabs: 0 everything, 1 videos, 2 music, 3 books and documents (L2/R2, or a tap on them); the counts
 		// as last listed, and where each tab was drawn (for a tap)
 		int recentTab = 0, recentCounts[4] = {0, 0, 0, 0};
@@ -639,7 +575,6 @@ namespace bp
 		// Playlists (browseDir PLROOT, the list; PLDIR + its file, a playlist's items). The store is null with no state
 		// folder. plCur: the playlist open (its items are browseRows, in its order; PL_ITEM rows)
 		std::unique_ptr<PlaylistStore> plStore;
-		MangaReadRequest mangaRead;	// (takeMangaRead)
 		// ---- Files' own file operations (ui_fileops.cpp) ----
 		// Copy / Move: the item is held (clip) while you go to the folder it goes in, and pasted there (SELECT, or the
 		// bar's button); a copy, or a move to the other card, runs on a thread of its own with this panel showing
@@ -1470,8 +1405,7 @@ namespace bp
 		Uint32 mangaJavaAt = 0;		// Java extensions' Remove pressed once: again within 2 s removes it
 		bool mangaHistOn = true;	// the setting, kept here for the reader's records (mangaRecordProgress has no Player)
 		int mangaPressed = -1;		// the card, cover, row or button under the finger
-		// Page::MangaRead: the chapter open, what was last recorded, and the finger on it
-		std::string mangaReadSeriesId, mangaReadChapterId, mangaReadChapterTitle;
+		// Page::MangaRead: what was last recorded, and the finger on it (the chapter open: PageReader's)
 		bool mangaReadLive = false;	// main has had this request open (a close before that isn't main's)
 		// a source's chapter picked from its series page: the reader page shows at once, "Loading chapter…" until its
 		// page list comes (then the request goes to main), or why it didn't (A tries again, B goes back)
@@ -1533,25 +1467,14 @@ namespace bp
 		Uint32 mangaProgAt = 0;
 		bool mangaTouch = false;
 		double mangaTouchY = 0, mangaTouchX = 0;
-		// fullscreen reading: the pages' textures on this panel (a page in slices of at most 2048 rows), the chapter
-		// they belong to, how many still wait to be made, when the page tag fades
-		struct FullTex { int w = 0, h = 0; std::vector<SDL_Texture*> tiles; Uint32 used = 0; const void* src = nullptr; };	// src: the pixels it was made from
-		std::map<int, FullTex> mfTex;
-		uint64_t mfGen = 0;
-		int mfWaiting = 0;
-		Uint32 mfTagUntil = 0;
-		int mfLastPage = -1;
-		void drawMangaFull();
 		void drawMangaControls();
 		void drawMangaToast();
 		void mangaFullscreen(bool on, Player& p);	// SELECT, and B while fullscreen
-		void mfFree();
 		int mangaModeFor(const std::string& seriesId, const Player& p) const;	// the series' own, else the setting's
 		int mangaBookFor(const std::string& seriesId) const;	// the series' own Book (MANGA_BOOK_*; off by default)
 		void mangaSetBook(int book, Player& p);	// on (held as book) or off, kept for the series
 		bool mangaBookKey(Button b, Player& p);	// the reader's keys while in Book
 		void mangaCycleMode(Player& p);	// X while reading
-		int mangaSliderPage = -1;
 		// fullscreen's controls over the pages: a tap shows them 4 s (a drag or the 4 s hides them), and the finger that
 		// may still be a tap; the sheet's button under it (and its slider, which is the reading page's)
 		Uint32 mangaCtrlUntil = 0;	// when they hide (0: hidden)
@@ -1571,8 +1494,6 @@ namespace bp
 		// START close). Reading goes on behind it
 		bool mangaMenu = false;
 		int mangaMenuCursor = 0;
-		// the zoom the keys last asked for: key repeats polled in one pass must walk the ladder, not resend a step
-		int mangaZoomAsked = 100;
 		static constexpr int MGM_ROWS = 8, MGM_ROW_H = 34, MGM_TOP = 164;	// at most 8 rows, above the help line (452)
 		// the rows a menu may have, in order; mangaMenuRows() lists the ones that mean something now (the cursor is
 		// one of these ids, so it stays on its row as others come and go)
@@ -1592,31 +1513,7 @@ namespace bp
 		void mangaMenuStep(int dir, Player& p);
 		void mangaMenuAct(Player& p);
 		void drawMangaReadingMenu(const Player& p);
-		// the pages grid (Y in the reader): the chapter's thumbnails 6 wide, the D-pad moves the cursor, A jumps
-		// and closes, B or Y closes; the top panel keeps showing the reader, moved to the page under the cursor
-		// (a Seek as the slider sends). the thumbnails are made by the reader as each page decodes
-		bool mangaPages = false;	// the grid is open
-		int mangaPagesCursor = 0;	// the page under the cursor (0-based)
-		int mangaPagesScroll = 0;	// the first row shown
-		bool mangaPagesTouch = false;
-		double mangaPagesTouchY = 0, mangaPagesTouchStartY = 0;	// the finger's last place the scroll took, and where it went down
-		bool mangaPagesMoved = false;	// the finger moved far enough to be a drag: lifting it then doesn't open a page
-		int mangaPagesPressed = -1;	// the thumbnail under the finger (-1: none)
-		// the grid's own textures: one SDL_Texture per decoded page, made a few per frame so a turn never stalls
-		struct ThumbTex { SDL_Texture* tex = nullptr; int w = 0, h = 0; Uint32 used = 0; };
-		std::map<int, ThumbTex> mpTex;
-		uint64_t mpGen = 0;
-		int mpMade = 0;	// how many were made this frame (at most a few)
-		void drawMangaPages(const Player& p);
-		void mangaPagesOpen(Player& p);
-		void mangaPagesClose(Player& p);
-		bool mangaPagesKey(Button b, Player& p);
-		bool mangaPagesPointer(const Pointer& pt, int x, int y, Player& p);
-		void mpFree();
-		void mangaZoomStep(int dir);	// UP/DOWN, and the Zoom row: one of the photo viewer's steps
-		void mangaZoomToggle();			// A: 200 % or back to the fit
 		void mangaSetMode(int m, Player& p);	// this series' reading mode (X and the menu)
-		void mangaZoomTo(double z);
 		// the first fullscreen ever: a toast in the panel's middle for 2 s (mangaFullSeen remembers it)
 		Uint32 mangaToastUntil = 0;
 		int mangaBookToast = 0;	// MANGA_BOOK_*: the toast says how to hold the handheld for Book (0: how to leave fullscreen)
@@ -1625,7 +1522,6 @@ namespace bp
 	// the page numbers, turned as the pages are, at the foot of the spread
 		static constexpr Uint32 MG_TAP_MS = 250, MG_CTRL_MS = 4000, MG_TOAST_MS = 2000;
 		static constexpr int MG_TAP_UNITS = 12;	// a finger that moves less (640x480 units) may still be a tap
-		static constexpr int MG_LIST_SLOP = 14;	// the app's lists: a finger that moves more is a drag (mangaListPointer)
 		Rect mangaSheetRect() const { return {0, 300, W, H - 300}; }
 		Rect mangaCtrlBtnRect(int i) const
 		{
@@ -1644,7 +1540,6 @@ namespace bp
 		void openMangaSeries(const std::string& id, int from, Player& p);
 		void mangaOpenChapter(const LocalSeries& s, int i, int page, Player& p);
 		void mangaChapterStep(int dir, Player& p);	// the chapter before (-1) or after (+1), at page 0
-		void mangaSeek(int page);		// the slider: a Seek command
 		const LocalSeries* mangaLocalSeries(const std::string& id) const;
 		std::string mangaTitle(const std::string& id) const;
 		int mangaReadChapterIndex() const;
@@ -1653,24 +1548,6 @@ namespace bp
 		void mangaSeriesResume(Player& p);				// A on Resume
 		bool mangaKey(Button b, Player& p);
 		bool mangaPointer(const Pointer& pt, int x, int y, Player& p);
-		// a finger on one of the app's lists or grids (Library, History, Browse, Downloads, Sources, a server's, a
-		// network folder's, a series' chapters): it goes down on a row (mangaListBegin); past a small slop it's a
-		// drag that scrolls the list a row per row's height (scrollTo asks the list for a first row and answers the
-		// one it took, the list keeping its cursor among its rows shown); lifted without one, on the spot it went
-		// down, it's a tap on that row (tap). Ui::pointer sends it the moves and the lift while it's on
-		struct MangaListDrag
-		{
-			bool on = false, moved = false;
-			int downX = 0, downY = 0;	// where the finger went down (640x480)
-			int fromY = 0, fromScroll = 0;	// the finger's place and the list's first row the scroll counts from
-			int rowH = 1, item = -1;	// the list's row height; the row under the finger (-1: none, only a drag)
-			std::function<int(int)> scrollTo;
-			std::function<void(int)> tap;
-		};
-		MangaListDrag mlist;
-		void mangaListBegin(int x, int y, int scroll, int rowH, int item, std::function<int(int)> scrollTo,
-			std::function<void(int)> tap);
-		bool mangaListPointer(const Pointer& pt, int x, int y);
 		void drawMangaTabs();
 		void drawMangaLibrary(const Player& p);
 		void drawMangaHistory(const Player& p);
@@ -1723,10 +1600,6 @@ namespace bp
 		Rect mangaHeartRect() const { return {556, 84, 68, 52}; }
 		// the reading page's own pieces sit above the mini bar when it shows (it takes the panel's bottom): the page
 		// area, the slider and the chapter row all move up, the hints keep to the line under the bar
-		// Try again, in the middle of the page area (or of the panel in fullscreen), while a page in view failed
-		Rect mangaRetryRect(bool full) const { return full ? Rect{200, 216, 240, 48} : Rect{200, 176, 240, 48}; }
-		void mangaRetry() { readerCmds.push_back({ReaderCmd::Retry, 0, (int64_t)SDL_GetTicks()}); }
-		void drawMangaRetry(bool full);
 		Rect mangaAreaRect() const { return {16, 70, 608, miniUp ? 222 : 260}; }	// (222: the page line below keeps 8 clear of it)
 		Rect mangaSliderRect() const { return {40, miniUp ? 330 : 352, 560, 22}; }
 		Rect mangaSliderTrack() const { Rect r = mangaSliderRect(); return {r.x, r.y + 8, r.w, 10}; }
@@ -1748,18 +1621,6 @@ namespace bp
 		static constexpr int MG_HIST_ROW_H = 58, MG_HIST_ROWS = 5;	// the tabs end at 86: History's and Browse's rows below them
 		// the touch ids: their own space (mangaPointer acts on them; act() never sees them)
 		static constexpr int MG_RESUME = 3080, MG_HEART = 3081, MG_PREV = 3100, MG_NEXT = 3101, MG_FULL = 3102, MG_LIGHT = 3103;
-		// the pages grid: 6 columns of 96 px wide thumbnails, 6 px gap, centred in the 640-wide panel;
-		// each row is 130 px (thumb + page number), the grid starts below the header and ends above the hints
-		static constexpr int MPG_COLS = 6, MPG_THUMB_W = 96, MPG_GAP = 6, MPG_ROW_H = 130;
-		static constexpr int MPG_LEFT = (W - (MPG_COLS * MPG_THUMB_W + (MPG_COLS - 1) * MPG_GAP)) / 2;
-		static constexpr int MPG_TOP = 72;
-		Rect mangaPageRect(int i) const	// i: 0-based page index; the rect in the 640x480 panel
-		{
-			int row = i / MPG_COLS, col = i % MPG_COLS;
-			return {MPG_LEFT + col * (MPG_THUMB_W + MPG_GAP), MPG_TOP + (row - mangaPagesScroll) * MPG_ROW_H,
-				MPG_THUMB_W, MPG_ROW_H - MPG_GAP};
-		}
-		static constexpr int MPG_THUMB = 4000;	// touch id base for the thumbnails (mangaPointer)
 
 		// ---- the manga reader's Sources page (ui_manga_sources.cpp) ----
 		// Installed / Available / Repositories, three sub-lists of a page of its own (X on Browse): LEFT/RIGHT step

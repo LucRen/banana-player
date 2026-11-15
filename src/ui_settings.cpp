@@ -17,6 +17,7 @@
 #include <qrcodegen.hpp>
 #endif
 #include "ui_internal.h"
+#include "ui_reader.h"
 
 namespace bp
 {
@@ -158,19 +159,19 @@ namespace bp
 			if (d->intField == &Settings::mangaFit)
 			{
 				// a chapter open on the top panel takes it at once, as X takes the mode
-				if (readerStatus.open) readerCmds.push_back({ReaderCmd::Fit, (double)s.mangaFit, (int64_t)SDL_GetTicks()});
+				if (pageReader->readerStatus.open) pageReader->readerCmds.push_back({PageReader::ReaderCmd::Fit, (double)s.mangaFit, (int64_t)SDL_GetTicks()});
 			}
 			else if (d->intField == &Settings::mangaHinge)
 			{
 				// both panels are one view while reading fullscreen: the reader relayouts now, not at the next open
-				if (readerStatus.open && readerStatus.fullscreen)
-					readerCmds.push_back({ReaderCmd::Fullscreen, 1.0, (int64_t)SDL_GetTicks(), (double)s.mangaHinge});
+				if (pageReader->readerStatus.open && pageReader->readerStatus.fullscreen)
+					pageReader->readerCmds.push_back({PageReader::ReaderCmd::Fullscreen, 1.0, (int64_t)SDL_GetTicks(), (double)s.mangaHinge});
 			}
 			else if (d->intField == &Settings::mangaCacheSize)
 			{
 				// over a smaller cap the cache gives its oldest pages up at once
 				mangaPageCache.setLimit(mangaCacheBytes(s.mangaCacheSize));
-				mangaNetTrim(mangaRead.path, p);
+				mangaNetTrim(pageReader->mangaRead.path, p);
 			}
 			else if (d->flagField == &Settings::mangaHistory)
 			{

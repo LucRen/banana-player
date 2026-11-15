@@ -4,6 +4,7 @@
 #include "mangalocal.h"
 #include "mangaseriescache.h"
 #include "ui_internal.h"
+#include "ui_reader.h"
 #include <algorithm>
 #include <cctype>
 #include <cmath>
@@ -328,7 +329,7 @@ namespace bp
 			if (n && y >= MG_ROW_TOP && y < MG_ROW_TOP + MG_ROWS * ROW_H)
 			{
 				int i = mListScroll + (y - MG_ROW_TOP) / ROW_H;
-				mangaListBegin(x, y, mListScroll, ROW_H, i < n ? i : -1, [this](int want) {
+				pageReader->mangaListBegin(x, y, mListScroll, ROW_H, i < n ? i : -1, [this](int want) {
 					int n = (int)mangaLocal.size();
 					mListScroll = std::clamp(want, 0, std::max(0, n - MG_ROWS));
 					mListCursor = std::clamp(mListCursor, mListScroll, std::max(mListScroll, std::min(n - 1, mListScroll + MG_ROWS - 1)));
@@ -347,7 +348,7 @@ namespace bp
 		{
 			// the rows follow a finger as On this handheld's do (the draw keeps the scroll on the cursor: it moves too)
 			int i = mbrowseScroll + (y - MG_ROW_TOP) / ROW_H;
-			mangaListBegin(x, y, mbrowseScroll, ROW_H, i < n ? i : -1, [this, &p](int want) {
+			pageReader->mangaListBegin(x, y, mbrowseScroll, ROW_H, i < n ? i : -1, [this, &p](int want) {
 				int n = mangaBrowseCount(p);
 				mbrowseScroll = std::clamp(want, 0, std::max(0, n - MG_ROWS));
 				mbrowseCursor = std::clamp(mbrowseCursor, mbrowseScroll, std::max(mbrowseScroll, std::min(n - 1, mbrowseScroll + MG_ROWS - 1)));
@@ -1185,20 +1186,20 @@ namespace bp
 		{
 			mangaRecordProgress();
 			mangaSave();
-			mangaSrcPendFull = readerStatus.fullscreen;
-			readerCmds.push_back({ReaderCmd::Close, 0, (int64_t)SDL_GetTicks()});
-			mpFree();
-			mfFree();
-			mangaZoomAsked = 100;
+			mangaSrcPendFull = pageReader->readerStatus.fullscreen;
+			pageReader->readerCmds.push_back({PageReader::ReaderCmd::Close, 0, (int64_t)SDL_GetTicks()});
+			pageReader->mpFree();
+			pageReader->mfFree();
+			pageReader->mangaZoomAsked = 100;
 			mangaProgPage = mangaProgPages = -1;
 			page = Page::MangaSeries;	// (so the block below takes it as an open from the series page)
 		}
 		if (page != Page::MangaRead)
 		{
 			mangaReadWaiting = true;
-			mangaReadSeriesId = seriesId;
-			mangaReadChapterTitle = chapterName(chapters[i]);
-			mangaMenu = mangaPages = false;
+			pageReader->mangaReadSeriesId = seriesId;
+			pageReader->mangaReadChapterTitle = chapterName(chapters[i]);
+			mangaMenu = pageReader->mangaPages = false;
 			mangaReadLive = false;
 			page = Page::MangaRead;
 		}
@@ -1225,8 +1226,8 @@ namespace bp
 	void Ui::drawMangaReadWaiting()
 	{
 		drawBackIcon();
-		drawTextMid(mangaReadChapterTitle, 1, TEXT, 72, 24, 540);
-		drawTextMid(mangaTitle(mangaReadSeriesId), 0, DIM, 72, 50, 540);
+		drawTextMid(pageReader->mangaReadChapterTitle, 1, TEXT, 72, 24, 540);
+		drawTextMid(mangaTitle(pageReader->mangaReadSeriesId), 0, DIM, 72, 50, 540);
 		Rect area = mangaAreaRect();
 		drawBox(area, SURFACE, R_TILE);
 		int mid = area.y + area.h / 2;
@@ -1362,14 +1363,14 @@ namespace bp
 		}
 		mangaSeriesId = mangaSrcPendSeriesId;
 		mangaReadSrcChapters = mangaSrcPendChapters;
-		mangaReadSeriesId = mangaSrcPendSeriesId;
-		mangaReadChapterId = chapterId;
-		mangaReadChapterTitle = chapterName(c);
+		pageReader->mangaReadSeriesId = mangaSrcPendSeriesId;
+		pageReader->mangaReadChapterId = chapterId;
+		pageReader->mangaReadChapterTitle = chapterName(c);
 		// path: the chapter's own id, the cache's key (never a folder to open); the pages are the URLs, in order
-		mangaRead = {mangaSrcPendSeriesId, mangaSrcPendSeriesTitle, chapterId, mangaReadChapterTitle, chapterId, false,
+		pageReader->mangaRead = {mangaSrcPendSeriesId, mangaSrcPendSeriesTitle, chapterId, pageReader->mangaReadChapterTitle, chapterId, false,
 			mangaSrcPendPage, mangaSrcPendMode, mangaSrcPendFit};
-		mangaRead.pageUrls = mangaSrcUrls;
-		mangaRead.pageHeaders = mangaSrcHeaders;
+		pageReader->mangaRead.pageUrls = mangaSrcUrls;
+		pageReader->mangaRead.pageHeaders = mangaSrcHeaders;
 		// in History at once: the chapter as opened (its length is the list's), not only after a page turns
 		if (mangaStore)
 		{
@@ -1377,7 +1378,7 @@ namespace bp
 			ChapterProgress cp = old ? *old : ChapterProgress{};
 			cp.seriesId = mangaSrcPendSeriesId;
 			cp.chapterId = chapterId;
-			cp.chapterTitle = mangaReadChapterTitle;
+			cp.chapterTitle = pageReader->mangaReadChapterTitle;
 			if (!old)
 			{
 				cp.page = mangaSrcPendPage;
@@ -1389,13 +1390,13 @@ namespace bp
 			mangaSave();
 		}
 		// the status still holds the chapter before: only a change records
-		mangaProgPage = readerStatus.page;
-		mangaProgPages = readerStatus.pages;
+		mangaProgPage = pageReader->readerStatus.page;
+		mangaProgPages = pageReader->readerStatus.pages;
 		mangaReadLive = false;
-		mangaSliderPage = -1;
+		pageReader->mangaSliderPage = -1;
 		mangaCtrlUntil = 0;
 		mangaMenu = false;
-		mangaZoomAsked = 100;
+		pageReader->mangaZoomAsked = 100;
 		page = Page::MangaRead;
 		if (mangaSrcPendFull)
 		{
@@ -1403,8 +1404,8 @@ namespace bp
 			// hinge it was asked with; the toast is the first fullscreen's, and the setting is written on the next
 			// key (mangaKey), where a Player can be changed
 			Uint32 now = SDL_GetTicks();
-			readerCmds.push_back({ReaderCmd::Fullscreen, 1.0, (int64_t)now, (double)mangaSrcPendHinge});
-			mfTagUntil = now + 2500;
+			pageReader->readerCmds.push_back({PageReader::ReaderCmd::Fullscreen, 1.0, (int64_t)now, (double)mangaSrcPendHinge});
+			pageReader->mfTagUntil = now + 2500;
 			if (!p.settings.mangaFullSeen) mangaToastUntil = now + MG_TOAST_MS;
 			mangaFullSeenPending = !p.settings.mangaFullSeen;
 		}
@@ -1416,7 +1417,7 @@ namespace bp
 		if (i < 0) return;
 		int j = i + dir;
 		if (j < 0 || j >= (int)mangaReadSrcChapters.size()) return;
-		mangaSourceChapterOpen(mangaReadSrcChapters, j, 0, mangaReadSeriesId, mangaTitle(mangaReadSeriesId), p);
+		mangaSourceChapterOpen(mangaReadSrcChapters, j, 0, pageReader->mangaReadSeriesId, mangaTitle(pageReader->mangaReadSeriesId), p);
 	}
 
 	// ---- a source series: its details, its chapters, In library ----

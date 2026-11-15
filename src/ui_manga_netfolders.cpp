@@ -4,6 +4,7 @@
 #include "manga_names.h"
 #include "netpath.h"
 #include "ui_internal.h"
+#include "ui_reader.h"
 #include "treecopy.h"
 #include <sys/time.h>
 #include <algorithm>
@@ -378,12 +379,12 @@ namespace bp
 			mangaSave();
 		}
 		mangaSeriesId = mangaNetSeriesPath;
-		mangaReadSeriesId = mangaNetSeriesPath;
-		mangaReadChapterId = c.path;
-		mangaReadChapterTitle = c.title;
+		pageReader->mangaReadSeriesId = mangaNetSeriesPath;
+		pageReader->mangaReadChapterId = c.path;
+		pageReader->mangaReadChapterTitle = c.title;
 		// path: the local copy the worker made (a folder of pictures or an archive); the ids stay the bpnet://
 		// paths, so progress and the store never see a machine's cache folder
-		mangaRead = {mangaNetSeriesPath, mangaNetSeriesTitle, c.path, c.title, localPath, c.archive, mangaNetPendPage,
+		pageReader->mangaRead = {mangaNetSeriesPath, mangaNetSeriesTitle, c.path, c.title, localPath, c.archive, mangaNetPendPage,
 			mangaNetPendMode, mangaNetPendFit};
 		// its folder marked as just used (the cache's oldest go first), then the cache held under the cap
 		{
@@ -391,22 +392,22 @@ namespace bp
 			utimes(item.c_str(), nullptr);
 			mangaNetTrim(item, p);
 		}
-		mangaProgPage = readerStatus.page;
-		mangaProgPages = readerStatus.pages;
+		mangaProgPage = pageReader->readerStatus.page;
+		mangaProgPages = pageReader->readerStatus.pages;
 		mangaReadLive = false;
-		mangaSliderPage = -1;
+		pageReader->mangaSliderPage = -1;
 		mangaCtrlUntil = 0;
 		mangaMenu = false;
-		mangaZoomAsked = 100;
-		mangaPages = false;
+		pageReader->mangaZoomAsked = 100;
+		pageReader->mangaPages = false;
 		page = Page::MangaRead;
 		// Open fullscreen: the command SELECT sends right after the chapter, with the hinge it was asked with; the
 		// setting is written on the next key (mangaKey), where a Player can be changed
 		if (mangaNetPendFull)
 		{
 			Uint32 now = SDL_GetTicks();
-			readerCmds.push_back({ReaderCmd::Fullscreen, 1.0, (int64_t)now, (double)mangaNetPendHinge});
-			mfTagUntil = now + 2500;
+			pageReader->readerCmds.push_back({PageReader::ReaderCmd::Fullscreen, 1.0, (int64_t)now, (double)mangaNetPendHinge});
+			pageReader->mfTagUntil = now + 2500;
 			if (!p.settings.mangaFullSeen) mangaToastUntil = now + MG_TOAST_MS;
 			mangaFullSeenPending = !p.settings.mangaFullSeen;
 		}
@@ -592,7 +593,7 @@ namespace bp
 		// with the rows shown), a tap (lifted where it went down) is what A does on the row
 		int n = mangaNetView == MNF_SERIES ? (int)mangaNetChapters.size() : (int)mangaNetRows.size();
 		int i = mangaNetScroll + (y - MNF_ROW_TOP) / ROW_H;
-		mangaListBegin(x, y, mangaNetScroll, ROW_H, i < n ? i : -1, [this](int want) {
+		pageReader->mangaListBegin(x, y, mangaNetScroll, ROW_H, i < n ? i : -1, [this](int want) {
 			int n = mangaNetView == MNF_SERIES ? (int)mangaNetChapters.size() : (int)mangaNetRows.size();
 			mangaNetScroll = std::clamp(want, 0, std::max(0, n - MNF_ROWS));
 			mangaNetCursor = std::clamp(mangaNetCursor, mangaNetScroll, std::max(mangaNetScroll, std::min(n - 1, mangaNetScroll + MNF_ROWS - 1)));

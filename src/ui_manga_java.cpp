@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <cstdint>
 #include "ui_internal.h"
+#include "ui_reader.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -253,9 +254,9 @@ namespace bp
 		bool inUse = false;
 		{
 			std::string full, key;
-			if (page == Page::MangaRead && isSourceId(mangaReadSeriesId))
+			if (page == Page::MangaRead && isSourceId(pageReader->mangaReadSeriesId))
 			{
-				splitSourceId(mangaReadSeriesId, full, key);
+				splitSourceId(pageReader->mangaReadSeriesId, full, key);
 				if (MangaJava::isSourceId(full)) inUse = true;
 			}
 			else if (page == Page::MangaSeries && isSourceId(mangaSeriesId))

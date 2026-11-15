@@ -4,6 +4,7 @@
 // doc-places.conf (the state folder), so it opens where it was left.
 #include "ui_internal.h"
 #include "ui_docs.h"
+#include "ui_reader.h"
 #include "filesave.h"
 #include "epub.h"
 #include "pagebook.h"
@@ -119,13 +120,13 @@ namespace bp
 			return true;
 		}
 		int page0 = kept && kept->position > 0 ? (int)kept->position : 0;
-		ui.mangaRead = {"", name, "", name, path, true, page0, p.settings.pdfStrip ? MANGA_STRIP : MANGA_LTR, MANGA_FIT_PAGE};
-		ui.mangaReadSeriesId.clear();
-		ui.mangaReadChapterId.clear();
-		ui.mangaReadChapterTitle = name;
-		ui.mangaZoomAsked = 100;
-		ui.mangaPages = false;
-		ui.readerStatus = {};
+		ui.pageReader->mangaRead = {"", name, "", name, path, true, page0, p.settings.pdfStrip ? MANGA_STRIP : MANGA_LTR, MANGA_FIT_PAGE};
+		ui.pageReader->mangaReadSeriesId.clear();
+		ui.pageReader->mangaReadChapterId.clear();
+		ui.pageReader->mangaReadChapterTitle = name;
+		ui.pageReader->mangaZoomAsked = 100;
+		ui.pageReader->mangaPages = false;
+		ui.pageReader->readerStatus = {};
 		docPan = {};
 		ui.page = Page::DocPages;
 		return true;
@@ -202,9 +203,9 @@ namespace bp
 		}
 		else
 		{
-			if (!ui.readerStatus.open || ui.readerStatus.pages <= 0) return;
-			e.position = ui.readerStatus.page;
-			e.duration = ui.readerStatus.pages;
+			if (!ui.pageReader->readerStatus.open || ui.pageReader->readerStatus.pages <= 0) return;
+			e.position = ui.pageReader->readerStatus.page;
+			e.duration = ui.pageReader->readerStatus.pages;
 			e.aid = 2;	// (the kind: a page of so many)
 		}
 		const ResumeEntry* was = docPlaces->find(docPath);
@@ -221,11 +222,11 @@ namespace bp
 		if (ui.page == Page::DocText) textCloseAsked = true;
 		else
 		{
-			ui.readerCmds.push_back({ReaderCmd::Close, 0, (int64_t)SDL_GetTicks()});
-			ui.mangaPages = false;
-			ui.mpFree();
-			ui.mfFree();
-			ui.mangaZoomAsked = 100;
+			ui.pageReader->readerCmds.push_back({PageReader::ReaderCmd::Close, 0, (int64_t)SDL_GetTicks()});
+			ui.pageReader->mangaPages = false;
+			ui.pageReader->mpFree();
+			ui.pageReader->mfFree();
+			ui.pageReader->mangaZoomAsked = 100;
 		}
 		if (docPanTex) SDL_DestroyTexture(docPanTex);
 		docPanTex = nullptr;
@@ -250,7 +251,7 @@ namespace bp
 	{
 		if (p.settings.txtBook) docBookHoldLast = p.settings.txtBook;
 		findTick();
-		bool open = ui.page == Page::DocText ? textStatus.open : ui.readerStatus.open;
+		bool open = ui.page == Page::DocText ? textStatus.open : ui.pageReader->readerStatus.open;
 		if (open) docLive = true;
 		docRemember();
 		docPlacesSave(false);
@@ -411,7 +412,7 @@ namespace bp
 			if (!textStatus.encoding.empty()) r.push_back(DT_ENCODING);
 			return r;
 		}
-		bool strip = ui.readerStatus.mode == MANGA_STRIP;
+		bool strip = ui.pageReader->readerStatus.mode == MANGA_STRIP;
 		std::vector<int> r = {DP_VIEW};
 		if (strip) r.push_back(DP_FULL);
 		r.push_back(DP_FILTER);
@@ -470,23 +471,23 @@ namespace bp
 			return;
 		case DP_VIEW:
 		{
-			bool strip = ui.readerStatus.mode != MANGA_STRIP;
+			bool strip = ui.pageReader->readerStatus.mode != MANGA_STRIP;
 			// (each view opens at its fit: a page's zoom would cut a strip's lines at both edges)
-			if (ui.readerStatus.zoomPct != 100) ui.mangaZoomTo(1.0);
-			if (!strip && ui.readerStatus.fullscreen) ui.readerCmds.push_back({ReaderCmd::Fullscreen, 0, (int64_t)SDL_GetTicks()});
-			ui.readerCmds.push_back({ReaderCmd::Mode, (double)(strip ? MANGA_STRIP : MANGA_LTR), (int64_t)SDL_GetTicks()});
+			if (ui.pageReader->readerStatus.zoomPct != 100) ui.pageReader->mangaZoomTo(1.0);
+			if (!strip && ui.pageReader->readerStatus.fullscreen) ui.pageReader->readerCmds.push_back({PageReader::ReaderCmd::Fullscreen, 0, (int64_t)SDL_GetTicks()});
+			ui.pageReader->readerCmds.push_back({PageReader::ReaderCmd::Mode, (double)(strip ? MANGA_STRIP : MANGA_LTR), (int64_t)SDL_GetTicks()});
 			s.pdfStrip = strip;
 			break;
 		}
 		case DP_FULL:
-			ui.readerCmds.push_back({ReaderCmd::Fullscreen, ui.readerStatus.fullscreen ? 0.0 : 1.0, (int64_t)SDL_GetTicks(), (double)p.settings.mangaHinge});
-			if (!ui.readerStatus.fullscreen) docFullTagUntil = SDL_GetTicks() + 2500;
+			ui.pageReader->readerCmds.push_back({PageReader::ReaderCmd::Fullscreen, ui.pageReader->readerStatus.fullscreen ? 0.0 : 1.0, (int64_t)SDL_GetTicks(), (double)p.settings.mangaHinge});
+			if (!ui.pageReader->readerStatus.fullscreen) docFullTagUntil = SDL_GetTicks() + 2500;
 			return;
 		case DP_FIT:
 			cyc(s.mangaFit, 2);	// Page and Width (Fill crops a document's margins away)
-			ui.readerCmds.push_back({ReaderCmd::Fit, (double)s.mangaFit, (int64_t)SDL_GetTicks()});
+			ui.pageReader->readerCmds.push_back({PageReader::ReaderCmd::Fit, (double)s.mangaFit, (int64_t)SDL_GetTicks()});
 			break;
-		case DP_ZOOM: ui.mangaZoomStep(dir); return;
+		case DP_ZOOM: ui.pageReader->mangaZoomStep(dir); return;
 		default: return;
 		}
 		p.setSettings(s);
@@ -530,7 +531,7 @@ namespace bp
 		if (id == DP_PAGES)
 		{
 			docMenu = DOC_MENU_NONE;
-			ui.mangaPagesOpen(p);
+			ui.pageReader->mangaPagesOpen(p);
 			return;
 		}
 		if (id == DT_MARKS)
@@ -628,10 +629,10 @@ namespace bp
 			case DT_VIEW: v = p.settings.txtBook ? "Book mode" : "Scroll"; break;
 			case DT_TURN: v = p.settings.txtTurn ? "Off" : "Fold"; break;
 			case DT_HOLD: v = p.settings.txtBook == MANGA_BOOK_RIGHT ? "Top screen right" : "Top screen left"; break;
-			case DP_VIEW: v = ui.readerStatus.mode == MANGA_STRIP ? "Vertical scroll" : "Single page"; break;
-			case DP_FULL: v = ui.readerStatus.fullscreen ? "On" : "Off"; break;
+			case DP_VIEW: v = ui.pageReader->readerStatus.mode == MANGA_STRIP ? "Vertical scroll" : "Single page"; break;
+			case DP_FULL: v = ui.pageReader->readerStatus.fullscreen ? "On" : "Off"; break;
 			case DP_FIT: v = p.settings.mangaFit == MANGA_FIT_WIDTH ? "Width" : "Page"; break;
-			case DP_ZOOM: v = std::to_string(ui.readerStatus.zoomPct) + "%"; break;
+			case DP_ZOOM: v = std::to_string(ui.pageReader->readerStatus.zoomPct) + "%"; break;
 			default: break;
 			}
 			ui.drawTextMid("<", 1, at ? ACCENT : DIM, SET_ARROW_X, mid);
@@ -774,26 +775,26 @@ namespace bp
 			return false;
 		}
 		// the PDF viewer
-		if (ui.mangaPages) return ui.mangaPagesKey(b, p);
-		bool strip = ui.readerStatus.mode == MANGA_STRIP;
-		if (ui.readerStatus.fullscreen && (b == Button::B || b == Button::Select))
+		if (ui.pageReader->mangaPages) return ui.pageReader->mangaPagesKey(b, p);
+		bool strip = ui.pageReader->readerStatus.mode == MANGA_STRIP;
+		if (ui.pageReader->readerStatus.fullscreen && (b == Button::B || b == Button::Select))
 		{
-			ui.readerCmds.push_back({ReaderCmd::Fullscreen, 0, now});
+			ui.pageReader->readerCmds.push_back({PageReader::ReaderCmd::Fullscreen, 0, now});
 			return false;
 		}
 		switch (b)
 		{
-		case Button::Left: ui.readerCmds.push_back({ReaderCmd::Step, -1, now}); break;
-		case Button::Right: ui.readerCmds.push_back({ReaderCmd::Step, 1, now}); break;
-		case Button::L: ui.readerCmds.push_back({ReaderCmd::Page, -1, now}); break;
-		case Button::R: ui.readerCmds.push_back({ReaderCmd::Page, 1, now}); break;
+		case Button::Left: ui.pageReader->readerCmds.push_back({PageReader::ReaderCmd::Step, -1, now}); break;
+		case Button::Right: ui.pageReader->readerCmds.push_back({PageReader::ReaderCmd::Step, 1, now}); break;
+		case Button::L: ui.pageReader->readerCmds.push_back({PageReader::ReaderCmd::Page, -1, now}); break;
+		case Button::R: ui.pageReader->readerCmds.push_back({PageReader::ReaderCmd::Page, 1, now}); break;
 		// zoom in either view, as the manga reader and the photo viewer do (the finger, LEFT/RIGHT and A move on)
-		case Button::Up: ui.mangaZoomStep(1); break;
-		case Button::Down: ui.mangaZoomStep(-1); break;
+		case Button::Up: ui.pageReader->mangaZoomStep(1); break;
+		case Button::Down: ui.pageReader->mangaZoomStep(-1); break;
 		case Button::A:
-			if (ui.readerStatus.failedHere) ui.mangaRetry();
-			else if (strip) ui.readerCmds.push_back({ReaderCmd::Step, 1, now});
-			else ui.mangaZoomToggle();
+			if (ui.pageReader->readerStatus.failedHere) ui.pageReader->mangaRetry();
+			else if (strip) ui.pageReader->readerCmds.push_back({PageReader::ReaderCmd::Step, 1, now});
+			else ui.pageReader->mangaZoomToggle();
 			break;
 		case Button::X:
 		{
@@ -805,11 +806,11 @@ namespace bp
 		case Button::Select:
 			if (strip)
 			{
-				ui.readerCmds.push_back({ReaderCmd::Fullscreen, 1, now, (double)p.settings.mangaHinge});
+				ui.pageReader->readerCmds.push_back({PageReader::ReaderCmd::Fullscreen, 1, now, (double)p.settings.mangaHinge});
 				docFullTagUntil = SDL_GetTicks() + 2500;
 			}
 			break;
-		case Button::Y: ui.mangaPagesOpen(p); break;
+		case Button::Y: ui.pageReader->mangaPagesOpen(p); break;
 		case Button::Start: docMenu = DOC_MENU_OPTIONS; docMenuCursor = docMenuScroll = 0; break;
 		case Button::B: docClose(p); break;
 		default: break;
@@ -830,7 +831,7 @@ namespace bp
 	Ui::Rect Ui::Docs::docPadRect() const { return {16, 104, W - 32, (ui.miniUp ? 344 : 396) - 104 - 64}; }
 	Ui::Rect Ui::Docs::docBtn(int i) const
 	{
-		if (ui.page == Page::DocPages && ui.readerStatus.mode != MANGA_STRIP)
+		if (ui.page == Page::DocPages && ui.pageReader->readerStatus.mode != MANGA_STRIP)
 		{
 			// beside the pan area, as the photo viewer's; the ninth, wide under them: the other view
 			if (i == 8) return {368, 336, 248, 52};
@@ -861,14 +862,14 @@ namespace bp
 		if (docMenu != DOC_MENU_NONE)
 		{
 			// the list follows a finger's drag (as the manga reader's lists); a tap acts on the row as the finger lifts
-			if (pt.kind != Pointer::Down) return ui.mangaListPointer(pt, x, y);
+			if (pt.kind != Pointer::Down) return ui.pageReader->mangaListPointer(pt, x, y);
 			int n = docMenu == DOC_MENU_MARKS ? (int)docMarksHere().size() + 1
 				: docMenu == DOC_MENU_CONTENTS ? (int)textStatus.contents.size() : (int)docMenuRows().size();
 			int shown = std::max(1, (H - MENU_TOP - 40) / MENU_ROW_H);
 			int r = (y - MENU_TOP) / MENU_ROW_H + docMenuScroll;
 			if (y < 60) { docMenu = DOC_MENU_NONE; return false; }
 			if (y < MENU_TOP || r < 0 || r >= n) r = -1;
-			ui.mangaListBegin(x, y, docMenuScroll, MENU_ROW_H, r,
+			ui.pageReader->mangaListBegin(x, y, docMenuScroll, MENU_ROW_H, r,
 				[this, n, shown](int want) {
 					docMenuScroll = std::clamp(want, 0, std::max(0, n - shown));
 					// the cursor stays among the rows shown (the drawing keeps it in view, and would pull the list back)
@@ -883,7 +884,7 @@ namespace bp
 				});
 			return false;
 		}
-		if (ui.page == Page::DocPages && ui.mangaPages) return ui.mangaPagesPointer(pt, x, y, p);
+		if (ui.page == Page::DocPages && ui.pageReader->mangaPages) return ui.pageReader->mangaPagesPointer(pt, x, y, p);
 		if (findJob) return false;
 		// the find bar over the buttons: Previous, Next, Done
 		if (ui.page == Page::DocText && findOn && !textStatus.book && pt.kind == Pointer::Up)
@@ -924,14 +925,14 @@ namespace bp
 			}
 			return false;
 		}
-		if (pt.kind == Pointer::Down && ui.buttonRect(BACK_ICON).hit(x, y) && !(ui.page == Page::DocPages && ui.readerStatus.fullscreen))
+		if (pt.kind == Pointer::Down && ui.buttonRect(BACK_ICON).hit(x, y) && !(ui.page == Page::DocPages && ui.pageReader->readerStatus.fullscreen))
 		{
 			docClose(p);
 			return false;
 		}
 		bool text = ui.page == Page::DocText;
-		bool full = !text && ui.readerStatus.fullscreen;
-		bool single = !text && ui.readerStatus.mode != MANGA_STRIP;
+		bool full = !text && ui.pageReader->readerStatus.fullscreen;
+		bool single = !text && ui.pageReader->readerStatus.mode != MANGA_STRIP;
 		int nBtn = text ? 5 : single ? 9 : 4;
 		if (pt.kind == Pointer::Down)
 		{
@@ -948,7 +949,7 @@ namespace bp
 			{
 				// the strip under the finger, as the manga reader's
 				docTouch = true;
-				ui.readerCmds.push_back({ReaderCmd::TouchDown, 0, (int64_t)now});
+				ui.pageReader->readerCmds.push_back({PageReader::ReaderCmd::TouchDown, 0, (int64_t)now});
 				return false;
 			}
 			if (text && docPadRect().hit(x, y))
@@ -965,11 +966,11 @@ namespace bp
 					ui.slideGrab(SL_DOC, 0, {docBarTrack(), {0, 1, 0}, false, 0, textStatus.fraction}, x, y, p, [this](double f, bool, Player&) {
 						textCmds.push_back({TextReader::Jump, f, (int64_t)SDL_GetTicks()});
 					});
-				else if (ui.readerStatus.pages > 1)
+				else if (ui.pageReader->readerStatus.pages > 1)
 				{
-					ui.mangaSliderPage = -1;
-					ui.slideGrab(SL_DOC, 0, {docBarTrack(), {0, (double)(ui.readerStatus.pages - 1), 1}, false, SCRUB_MS, (double)ui.readerStatus.page}, x, y, p,
-						[this](double v, bool, Player&) { ui.mangaSeek((int)v); });
+					ui.pageReader->mangaSliderPage = -1;
+					ui.slideGrab(SL_DOC, 0, {docBarTrack(), {0, (double)(ui.pageReader->readerStatus.pages - 1), 1}, false, SCRUB_MS, (double)ui.pageReader->readerStatus.page}, x, y, p,
+						[this](double v, bool, Player&) { ui.pageReader->mangaSeek((int)v); });
 				}
 				return false;
 			}
@@ -1003,14 +1004,14 @@ namespace bp
 				double dy = pt.y - docTouchY, dx = pt.x - docTouchX;
 				docTouchY = pt.y;
 				docTouchX = pt.x;
-				if (docMoved && (dy != 0 || dx != 0)) ui.readerCmds.push_back({ReaderCmd::Drag, dy, (int64_t)now, dx});
+				if (docMoved && (dy != 0 || dx != 0)) ui.pageReader->readerCmds.push_back({PageReader::ReaderCmd::Drag, dy, (int64_t)now, dx});
 			}
 			else if (docPanTouch && docMoved)
 			{
 				// the box goes with the finger over the small page; the top panel shows what's in it
 				Rect tr = docPanThumb();
 				double fx = docPanStartX + (x - docDownX) / (double)tr.w, fy = docPanStartY + (y - docDownY) / (double)tr.h;
-				ui.readerCmds.push_back({ReaderCmd::Pan, fx, (int64_t)now, fy});
+				ui.pageReader->readerCmds.push_back({PageReader::ReaderCmd::Pan, fx, (int64_t)now, fy});
 			}
 			return false;
 		}
@@ -1031,7 +1032,7 @@ namespace bp
 		if (docTouch)
 		{
 			docTouch = false;
-			ui.readerCmds.push_back({ReaderCmd::Release, 0, (int64_t)now});
+			ui.pageReader->readerCmds.push_back({PageReader::ReaderCmd::Release, 0, (int64_t)now});
 			return false;
 		}
 		if (docPanTouch)
@@ -1044,14 +1045,14 @@ namespace bp
 			{
 				// a double-tap: in to 2x there, or (zoomed) back out
 				docTapAt = 0;
-				bool zoomed = ui.readerStatus.zoomPct > 100;
-				ui.mangaZoomTo(zoomed ? 1.0 : 2.0);
-				if (!zoomed) ui.readerCmds.push_back({ReaderCmd::Pan, fx, (int64_t)now, fy});
+				bool zoomed = ui.pageReader->readerStatus.zoomPct > 100;
+				ui.pageReader->mangaZoomTo(zoomed ? 1.0 : 2.0);
+				if (!zoomed) ui.pageReader->readerCmds.push_back({PageReader::ReaderCmd::Pan, fx, (int64_t)now, fy});
 				return false;
 			}
 			docTapAt = now;
 			// a tap, zoomed in: the view there
-			if (ui.readerStatus.zoomPct > 100) ui.readerCmds.push_back({ReaderCmd::Pan, fx, (int64_t)now, fy});
+			if (ui.pageReader->readerStatus.zoomPct > 100) ui.pageReader->readerCmds.push_back({PageReader::ReaderCmd::Pan, fx, (int64_t)now, fy});
 			return false;
 		}
 		int i = docPressed;
@@ -1079,7 +1080,7 @@ namespace bp
 			{
 				Settings s = p.settings;
 				s.mangaFit = s.mangaFit == MANGA_FIT_WIDTH ? MANGA_FIT_PAGE : MANGA_FIT_WIDTH;
-				ui.readerCmds.push_back({ReaderCmd::Fit, (double)s.mangaFit, (int64_t)SDL_GetTicks()});
+				ui.pageReader->readerCmds.push_back({PageReader::ReaderCmd::Fit, (double)s.mangaFit, (int64_t)SDL_GetTicks()});
 				p.setSettings(s);
 			}
 			else key(KEYS[i], p);
@@ -1303,14 +1304,14 @@ namespace bp
 	void Ui::Docs::drawDocPages(const Player& p)
 	{
 		int filter = std::clamp(p.settings.pdfFilter, 0, DOC_FILTERS - 1);
-		if (ui.mangaPages)
+		if (ui.pageReader->mangaPages)
 		{
-			ui.drawMangaPages(p);
+			ui.pageReader->drawMangaPages(p);
 			return;
 		}
-		if (ui.readerStatus.fullscreen && ui.readerBottom.on)
+		if (ui.pageReader->readerStatus.fullscreen && ui.pageReader->readerBottom.on)
 		{
-			ui.drawMangaFull();
+			ui.pageReader->drawMangaFull();
 			if (SDL_GetTicks() < docFullTagUntil)
 			{
 				ui.fillRound({170, 420, 300, 40}, BG, R_CHIP);
@@ -1320,15 +1321,15 @@ namespace bp
 			return;
 		}
 		ui.drawBackIcon();
-		std::string title = ui.mangaReadChapterTitle.empty() ? fileName(docPath) : ui.mangaReadChapterTitle;
+		std::string title = ui.pageReader->mangaReadChapterTitle.empty() ? fileName(docPath) : ui.pageReader->mangaReadChapterTitle;
 		ui.drawTextMid(title, 1, TEXT, 72, 24, 420);
-		int pages = ui.readerStatus.pages;
+		int pages = ui.pageReader->readerStatus.pages;
 		if (pages > 0)
-			ui.drawTextMid(std::to_string((ui.slideHeld(SL_DOC) ? (int)ui.slide.value : ui.readerStatus.page) + 1) + " / " + std::to_string(pages), 1, TEXT, W - 24, 24, 160, 1);
-		bool single = ui.readerStatus.mode != MANGA_STRIP;
-		if (!ui.readerStatus.error.empty())
+			ui.drawTextMid(std::to_string((ui.slideHeld(SL_DOC) ? (int)ui.slide.value : ui.pageReader->readerStatus.page) + 1) + " / " + std::to_string(pages), 1, TEXT, W - 24, 24, 160, 1);
+		bool single = ui.pageReader->readerStatus.mode != MANGA_STRIP;
+		if (!ui.pageReader->readerStatus.error.empty())
 		{
-			ui.drawTextMid(ui.readerStatus.error, 1, DANGER, W / 2, 200, 560, 2);
+			ui.drawTextMid(ui.pageReader->readerStatus.error, 1, DANGER, W / 2, 200, 560, 2);
 			ui.drawHints({{"B", "Close"}});
 			return;
 		}
@@ -1369,10 +1370,10 @@ namespace bp
 					ui.fill({bx + bw - 2, by, 2, bh}, ACCENT);
 				}
 			}
-			else ui.drawText(ui.readerStatus.loading || !ui.readerStatus.open ? "Loading" + std::string(SDL_GetTicks() / 400 % 4, '.') : "",
+			else ui.drawText(ui.pageReader->readerStatus.loading || !ui.pageReader->readerStatus.open ? "Loading" + std::string(SDL_GetTicks() / 400 % 4, '.') : "",
 				1, DIM, pan.x + pan.w / 2, pan.y + pan.h / 2 - 12, 0, 2);
-			ui.drawText("Zoom " + std::to_string(ui.readerStatus.zoomPct) + "%", 0, TEXT, pan.x, pan.y + pan.h + (ui.miniUp ? 4 : 10), pan.w);
-			ui.drawText(ui.readerStatus.zoomPct > 100 ? "Drag the box \xC2\xB7 double-tap: zoom out" : "Double-tap: zoom in", 0, DIM, pan.x,
+			ui.drawText("Zoom " + std::to_string(ui.pageReader->readerStatus.zoomPct) + "%", 0, TEXT, pan.x, pan.y + pan.h + (ui.miniUp ? 4 : 10), pan.w);
+			ui.drawText(ui.pageReader->readerStatus.zoomPct > 100 ? "Drag the box \xC2\xB7 double-tap: zoom out" : "Double-tap: zoom in", 0, DIM, pan.x,
 				pan.y + pan.h + (ui.miniUp ? 24 : 36), pan.w);
 			const char* labels[9] = {"Prev", "Next", "Zoom -", "Zoom +", "Page fit", "Brightness", "Pages", "Options", "Vertical scroll"};
 			const char* keys[9] = {"L", "R", "DOWN", "UP", p.settings.mangaFit == MANGA_FIT_WIDTH ? "Width" : "Page", "", "Y",
@@ -1382,8 +1383,8 @@ namespace bp
 			{
 				Rect b = docBtn(i);
 				ui.drawBox(b, docPressed == i ? PRESSED : BUTTON, R_BUTTON);
-				bool off = (i == 0 && ui.readerStatus.page <= 0) || (i == 1 && ui.readerStatus.page + 1 >= pages) ||
-					(i == 2 && ui.readerStatus.zoomPct <= 100);
+				bool off = (i == 0 && ui.pageReader->readerStatus.page <= 0) || (i == 1 && ui.pageReader->readerStatus.page + 1 >= pages) ||
+					(i == 2 && ui.pageReader->readerStatus.zoomPct <= 100);
 				std::string label = labels[i];
 				if (i == 5)
 				{
@@ -1401,12 +1402,12 @@ namespace bp
 		else
 		{
 			// under a finger: the page the finger is at (the pages themselves come at the reader's pace)
-			ui.drawSlider(docBarTrack(), ui.slideShare(SL_DOC, 0, pages > 1 ? ui.readerStatus.page / (double)(pages - 1) : 0), ui.slideHeld(SL_DOC),
+			ui.drawSlider(docBarTrack(), ui.slideShare(SL_DOC, 0, pages > 1 ? ui.pageReader->readerStatus.page / (double)(pages - 1) : 0), ui.slideHeld(SL_DOC),
 				ui.slideHeld(SL_DOC) ? "Page " + std::to_string((int)ui.slide.value + 1) + " / " + std::to_string(pages) : "");
 			Rect pad = docPadRect();
 			ui.drawBox(pad, SURFACE, R_TILE);
-			if (ui.readerStatus.failedHere) ui.drawTextMid("A page couldn't be shown \xC2\xB7 A: try again", 1, DANGER, W / 2, pad.y + pad.h / 2, 560, 2);
-			else ui.drawTextMid(ui.readerStatus.loading ? "Loading" + std::string(SDL_GetTicks() / 400 % 4, '.') : "Drag here to scroll", 1, DIM, W / 2,
+			if (ui.pageReader->readerStatus.failedHere) ui.drawTextMid("A page couldn't be shown \xC2\xB7 A: try again", 1, DANGER, W / 2, pad.y + pad.h / 2, 560, 2);
+			else ui.drawTextMid(ui.pageReader->readerStatus.loading ? "Loading" + std::string(SDL_GetTicks() / 400 % 4, '.') : "Drag here to scroll", 1, DIM, W / 2,
 				pad.y + pad.h / 2, 0, 2);
 			// each with its key under it, as the single page's
 			const char* labels[4] = {"Single page", "Fullscreen", "Brightness", "Pages"};
@@ -1431,8 +1432,8 @@ namespace bp
 		snprintf(b, sizeof b, "|doc%d %d,%d,%d %d%d%d%d %d|t%d %d %llu %d|r%d%d %d/%d m%d z%d f%d %d%d|pan%d %.3f,%.3f,%.3f,%.3f %p|%u",
 			(int)ui.page, docMenu, docMenuCursor, docMenuScroll, (int)docTouch, (int)ui.slideHeld(SL_DOC), (int)docPanTouch, docPressed,
 			(int)docLive, (int)textStatus.open, (int)std::lround(textStatus.fraction * 1000), (unsigned long long)textStatus.place,
-			(int)textStatus.atEnd, (int)ui.readerStatus.open, (int)ui.readerStatus.loading, ui.readerStatus.page, ui.readerStatus.pages,
-			ui.readerStatus.mode, ui.readerStatus.zoomPct, (int)ui.readerStatus.fullscreen, (int)ui.readerStatus.failedHere, (int)ui.mangaPages,
+			(int)textStatus.atEnd, (int)ui.pageReader->readerStatus.open, (int)ui.pageReader->readerStatus.loading, ui.pageReader->readerStatus.page, ui.pageReader->readerStatus.pages,
+			ui.pageReader->readerStatus.mode, ui.pageReader->readerStatus.zoomPct, (int)ui.pageReader->readerStatus.fullscreen, (int)ui.pageReader->readerStatus.failedHere, (int)ui.pageReader->mangaPages,
 			docPan.page, docPan.x0, docPan.y0, docPan.x1, docPan.y1, (const void*)docPan.rgba.get(),
 			SDL_GetTicks() < docFullTagUntil ? 1u : 0u);
 		std::string s = b;
@@ -1440,19 +1441,19 @@ namespace bp
 		s += "|bk" + std::to_string(textStatus.book) + " " + std::to_string(textStatus.bottomGen) + (SDL_GetTicks() < docBookToastUntil ? "T" : "");
 		// (a turn: a frame each step of it)
 		if (docTurning()) s += "|turn" + std::to_string((SDL_GetTicks() - textStatus.turnAt) / 12) + " " + std::to_string((SDL_GetTicks() - textStatus.noticeAt) / 40);
-		s += textStatus.error + "|" + textStatus.encoding + "|" + textEncoding + "|" + ui.readerStatus.error;
+		s += textStatus.error + "|" + textStatus.encoding + "|" + textEncoding + "|" + ui.pageReader->readerStatus.error;
 		// (opening: the dots move)
-		if ((ui.page == Page::DocText && !textStatus.open) || (ui.page == Page::DocPages && (ui.readerStatus.loading || !ui.readerStatus.open)))
+		if ((ui.page == Page::DocText && !textStatus.open) || (ui.page == Page::DocPages && (ui.pageReader->readerStatus.loading || !ui.pageReader->readerStatus.open)))
 			s += std::to_string(SDL_GetTicks() / 400);
 		// (the pages grid and fullscreen are the manga reader's own drawing: their state as it signs it)
-		if (ui.page == Page::DocPages && ui.mangaPages)
-			s += "|pg" + std::to_string(ui.mangaPagesCursor) + "," + std::to_string(ui.mangaPagesScroll) + " " +
-				std::to_string(ui.mpTex.size()) + "," + std::to_string(ui.readerThumbs.pages.size());
-		if (ui.page == Page::DocPages && ui.readerStatus.fullscreen)
+		if (ui.page == Page::DocPages && ui.pageReader->mangaPages)
+			s += "|pg" + std::to_string(ui.pageReader->mangaPagesCursor) + "," + std::to_string(ui.pageReader->mangaPagesScroll) + " " +
+				std::to_string(ui.pageReader->mpTex.size()) + "," + std::to_string(ui.pageReader->readerThumbs.pages.size());
+		if (ui.page == Page::DocPages && ui.pageReader->readerStatus.fullscreen)
 		{
-			s += "|full" + std::to_string(ui.readerBottom.gen) + " " + std::to_string(ui.mfTex.size()) + " " +
-				std::to_string(ui.mfWaiting) + " " + std::to_string(ui.readerBottom.pages.size()) + (SDL_GetTicks() < ui.mfTagUntil ? "T" : "");
-			for (auto& b : ui.readerBottom.boxes)
+			s += "|full" + std::to_string(ui.pageReader->readerBottom.gen) + " " + std::to_string(ui.pageReader->mfTex.size()) + " " +
+				std::to_string(ui.pageReader->mfWaiting) + " " + std::to_string(ui.pageReader->readerBottom.pages.size()) + (SDL_GetTicks() < ui.pageReader->mfTagUntil ? "T" : "");
+			for (auto& b : ui.pageReader->readerBottom.boxes)
 				s += " " + std::to_string(b.page) + ":" + std::to_string((int)std::lround(b.x * 4096)) + "," + std::to_string((int)std::lround(b.y * 4096));
 		}
 		return s;

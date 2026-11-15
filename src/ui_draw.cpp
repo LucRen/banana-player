@@ -16,6 +16,7 @@
 #include <qrcodegen.hpp>
 #endif
 #include "ui_internal.h"
+#include "ui_reader.h"
 
 namespace bp
 {
@@ -350,8 +351,8 @@ namespace bp
 	{
 		sameBrightness = p.settings.sameBrightness;
 		// (the readers' filter and Extra dim, for the drawing that has no Player: the Manga reader's bottom pages)
-		readFilterNow = page == Page::DocPages ? p.settings.pdfFilter : p.settings.mangaFilter;
-		readDimNow = p.settings.readDim;
+		pageReader->readFilterNow = page == Page::DocPages ? p.settings.pdfFilter : p.settings.mangaFilter;
+		pageReader->readDimNow = p.settings.readDim;
 		mangaOn = p.settings.mangaOn;
 		mangaHistOn = p.settings.mangaHistory;
 		// before the signature: "Again to clear" goes back to how it was when the second tap would no longer clear

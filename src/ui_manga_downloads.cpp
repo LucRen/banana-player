@@ -3,6 +3,7 @@
 #include "manga_names.h"
 #include "manga_ui_logic.h"
 #include "ui_internal.h"
+#include "ui_reader.h"
 #include "cbz.h"
 #include "comicinfo.h"
 #include "format.h"
@@ -284,19 +285,19 @@ namespace bp
 			mangaSave();
 		}
 		mangaSeriesId = seriesId;
-		mangaReadSeriesId = seriesId;
-		mangaReadChapterId = chapterId;
-		mangaReadChapterTitle = chapterTitle;
+		pageReader->mangaReadSeriesId = seriesId;
+		pageReader->mangaReadChapterId = chapterId;
+		pageReader->mangaReadChapterTitle = chapterTitle;
 		// archive: the reader opens it through cbz.h, no page URLs and so no network
-		mangaRead = {seriesId, seriesTitle, chapterId, chapterTitle, path, true, std::max(0, page0),
+		pageReader->mangaRead = {seriesId, seriesTitle, chapterId, chapterTitle, path, true, std::max(0, page0),
 			mangaModeFor(seriesId, p), p.settings.mangaFit};
-		mangaProgPage = readerStatus.page;
-		mangaProgPages = readerStatus.pages;
+		mangaProgPage = pageReader->readerStatus.page;
+		mangaProgPages = pageReader->readerStatus.pages;
 		mangaReadLive = false;
-		mangaSliderPage = -1;
+		pageReader->mangaSliderPage = -1;
 		mangaCtrlUntil = 0;
 		mangaMenu = false;
-		mangaZoomAsked = 100;
+		pageReader->mangaZoomAsked = 100;
 		page = Page::MangaRead;
 		if (p.settings.mangaOpenFull) mangaFullscreen(true, p);
 	}
@@ -642,7 +643,7 @@ namespace bp
 			int i = mdlCardScroll + (y - 138) / 44;
 			// (the row's gap is no tap, as before)
 			if (i < n && (y - 138) % 44 >= 40) i = -1;
-			mangaListBegin(x, y, mdlCardScroll, 44, i < n ? i : -1, [this](int want) {
+			pageReader->mangaListBegin(x, y, mdlCardScroll, 44, i < n ? i : -1, [this](int want) {
 				int n = mdlCardOpen && mdlCardAt >= 0 && mdlCardAt < (int)mdlCard.size() ? (int)mdlCard[mdlCardAt].chapters.size() : 0;
 				mdlCardScroll = std::clamp(want, 0, std::max(0, n - 6));
 				mdlCardCursor = std::clamp(mdlCardCursor, mdlCardScroll, std::max(mdlCardScroll, std::min(n - 1, mdlCardScroll + 5)));
@@ -660,7 +661,7 @@ namespace bp
 		{
 			int i = mdlScroll + (y - MDL_TOP) / MDL_QROW;
 			if (i < q && (y - MDL_TOP) % MDL_QROW >= MDL_QROW - 4) i = -1;
-			mangaListBegin(x, y, mdlScroll, MDL_QROW, i < q ? i : -1, [this](int want) {
+			pageReader->mangaListBegin(x, y, mdlScroll, MDL_QROW, i < q ? i : -1, [this](int want) {
 				int q = mangaDlQueueCount();
 				mdlScroll = std::clamp(want, 0, std::max(0, q - MDL_QSHOWN));
 				if (mdlCursor < q) mdlCursor = std::clamp(mdlCursor, mdlScroll, std::max(mdlScroll, std::min(q - 1, mdlScroll + MDL_QSHOWN - 1)));
@@ -684,7 +685,7 @@ namespace bp
 		{
 			int i = mdlCardScroll + (y - top) / MDL_CROW;
 			if (i < c && (y - top) % MDL_CROW >= MDL_CROW - 4) i = -1;
-			mangaListBegin(x, y, mdlCardScroll, MDL_CROW, i < c ? i : -1, [this](int want) {
+			pageReader->mangaListBegin(x, y, mdlCardScroll, MDL_CROW, i < c ? i : -1, [this](int want) {
 				int q = mangaDlQueueCount(), c = (int)mdlCard.size(), off = q + (q > 0 ? 1 : 0), rows = mdlCardRows();
 				mdlCardScroll = std::clamp(want, 0, std::max(0, c - rows));
 				if (mdlCursor >= off && c > 0)

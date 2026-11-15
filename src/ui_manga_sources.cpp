@@ -2,6 +2,7 @@
 #include "manganet.h"
 #include "manga_ui_logic.h"
 #include "ui_internal.h"
+#include "ui_reader.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -541,7 +542,7 @@ namespace bp
 		for (int i = sc; i < n && i < sc + MS_ROWS; i++)
 			if (mangaSourcesRowRect(i - sc).hit(x, y)) hit = i;
 		int tab = mstTab;
-		mangaListBegin(x, y, sc, MS_ROW_H, hit, [this, &p, tab](int want) {
+		pageReader->mangaListBegin(x, y, sc, MS_ROW_H, hit, [this, &p, tab](int want) {
 			if (mstTab != tab) return want;
 			int n = mangaSourcesRows(p), &cur = mstCursor[tab], &sc = mstScroll[tab];
 			sc = std::clamp(want, 0, std::max(0, n - MS_ROWS));

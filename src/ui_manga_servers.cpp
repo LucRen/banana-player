@@ -3,6 +3,7 @@
 #include "mangaremote.h"
 #include "manga_ui_logic.h"
 #include "ui_internal.h"
+#include "ui_reader.h"
 #include <algorithm>
 #include <cctype>
 #include <cmath>
@@ -594,7 +595,7 @@ namespace bp
 				if (r.y >= MGSRV_CLIP_BOTTOM) break;
 				if (r.hit(x, y)) hit = i;
 			}
-			mangaListBegin(x, y, mangaSrvScroll, MGSRV_STEP, hit, [this](int want) {
+			pageReader->mangaListBegin(x, y, mangaSrvScroll, MGSRV_STEP, hit, [this](int want) {
 				int n = (int)mangaSrvItems.size(), rows = (n + MG_COLS - 1) / MG_COLS;
 				mangaSrvScroll = std::clamp(want, 0, std::max(0, rows - MGSRV_GRID_ROWS_SHOWN));
 				if (n)
@@ -878,7 +879,7 @@ namespace bp
 			// the chapters follow a finger: a drag scrolls them (the next book page asked near the end, as the
 			// D-pad asks it), a tap (lifted where it went down) reads the row
 			int i = mserScroll + (y - MG_SRC_SER_TOP) / ROW_H;
-			mangaListBegin(x, y, mserScroll, ROW_H, i < n ? i : -1, [this](int want) {
+			pageReader->mangaListBegin(x, y, mserScroll, ROW_H, i < n ? i : -1, [this](int want) {
 				int n = (int)mangaSrvChapters.size();
 				mserScroll = std::clamp(want, 0, std::max(0, n - mserRows()));
 				if (mserCursor >= 0) mserCursor = std::clamp(mserCursor, mserScroll, std::max(mserScroll, std::min(n - 1, mserScroll + mserRows() - 1)));
@@ -964,9 +965,9 @@ namespace bp
 
 	int Ui::mangaServerChapterIndex() const
 	{
-		if (!isServerId(mangaReadSeriesId) || mangaSrvSeriesId != mangaReadSeriesId) return -1;
+		if (!isServerId(pageReader->mangaReadSeriesId) || mangaSrvSeriesId != pageReader->mangaReadSeriesId) return -1;
 		for (size_t i = 0; i < mangaSrvChapters.size(); i++)
-			if (serverItemId(mangaSrvId, mangaSrvChapters[i].key) == mangaReadChapterId) return (int)i;
+			if (serverItemId(mangaSrvId, mangaSrvChapters[i].key) == pageReader->mangaReadChapterId) return (int)i;
 		return -1;
 	}
 
@@ -1048,28 +1049,28 @@ namespace bp
 		mangaSrvSerError.clear();
 		mangaSeriesId = mangaSrvSeriesId;
 		mangaReadSrcChapters.clear();	// not an installed source's
-		mangaReadSeriesId = mangaSrvSeriesId;
-		mangaReadChapterId = chapterId;
-		mangaReadChapterTitle = chapterLabel(c);
+		pageReader->mangaReadSeriesId = mangaSrvSeriesId;
+		pageReader->mangaReadChapterId = chapterId;
+		pageReader->mangaReadChapterTitle = chapterLabel(c);
 		// path: the chapter's own id, the cache's key; the pages are the URLs, in order, with the server's header
-		mangaRead = {mangaSrvSeriesId, mangaSrvSeriesTitle, chapterId, mangaReadChapterTitle, chapterId, false, page0,
+		pageReader->mangaRead = {mangaSrvSeriesId, mangaSrvSeriesTitle, chapterId, pageReader->mangaReadChapterTitle, chapterId, false, page0,
 			mangaModeFor(mangaSrvSeriesId, p), p.settings.mangaFit};
-		mangaRead.pageUrls = urls;
-		mangaRead.pageHeaders = headers;
-		mangaProgPage = readerStatus.page;
-		mangaProgPages = readerStatus.pages;
+		pageReader->mangaRead.pageUrls = urls;
+		pageReader->mangaRead.pageHeaders = headers;
+		mangaProgPage = pageReader->readerStatus.page;
+		mangaProgPages = pageReader->readerStatus.pages;
 		mangaReadLive = false;
-		mangaSliderPage = -1;
+		pageReader->mangaSliderPage = -1;
 		mangaCtrlUntil = 0;
 		mangaMenu = false;
-		mangaZoomAsked = 100;
+		pageReader->mangaZoomAsked = 100;
 		page = Page::MangaRead;
 		if (p.settings.mangaOpenFull)
 		{
 			// Open fullscreen: the command SELECT sends right after the chapter, as a source's chapter does
 			Uint32 now = SDL_GetTicks();
-			readerCmds.push_back({ReaderCmd::Fullscreen, 1.0, (int64_t)now, (double)p.settings.mangaHinge});
-			mfTagUntil = now + 2500;
+			pageReader->readerCmds.push_back({PageReader::ReaderCmd::Fullscreen, 1.0, (int64_t)now, (double)p.settings.mangaHinge});
+			pageReader->mfTagUntil = now + 2500;
 			if (!p.settings.mangaFullSeen) mangaToastUntil = now + MG_TOAST_MS;
 			mangaFullSeenPending = !p.settings.mangaFullSeen;
 		}

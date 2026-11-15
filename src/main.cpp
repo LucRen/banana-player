@@ -23,6 +23,7 @@
 #include "ui.h"
 #include "ui_docs.h"
 #include "ui_glyphs.h"
+#include "ui_reader.h"
 #include "session_host.h"
 #include "updater.h"
 #include "netstore.h"
@@ -1608,8 +1609,8 @@ int main(int argc, char** argv)
 			// the manga reader: a chapter asked for, the bottom panel's commands, what it shows told back
 			if (haveUi)
 			{
-				Ui::MangaReadRequest rq;
-				if (ui.takeMangaRead(rq))
+				Ui::PageReader::MangaReadRequest rq;
+				if (ui.pageReader->takeMangaRead(rq))
 				{
 					readerFetch.end();
 					SDL_GL_MakeCurrent(top, gl);
@@ -1620,39 +1621,39 @@ int main(int argc, char** argv)
 #endif
 					int w, h;
 					SDL_GL_GetDrawableSize(top, &w, &h);
-					ui.readerStatus = {};
-					if (!readerReady) ui.readerStatus.error = "The reader couldn't start";
+					ui.pageReader->readerStatus = {};
+					if (!readerReady) ui.pageReader->readerStatus.error = "The reader couldn't start";
 					else if (!rq.pageUrls.empty())
 					{
 						// a source's or a server's chapter: the pages come through MangaNet into the Ui's own page
 						// cache (its Clear cache empties the same folder)
-						if (opts.stateDir.empty()) ui.readerStatus.error = "No state folder for the chapter's pages";
+						if (opts.stateDir.empty()) ui.pageReader->readerStatus.error = "No state folder for the chapter's pages";
 						else if (!mangaNet || !player.settings.mangaOn)
-							ui.readerStatus.error = "The manga reader's network side is off";
+							ui.pageReader->readerStatus.error = "The manga reader's network side is off";
 						else
 						{
 							mangaNet->start();
 							PageCache& cache = ui.mangaPageCacheRef();
 							uint64_t limit = mangaCacheBytes(player.settings.mangaCacheSize);
 							if (!cache.open(opts.stateDir + "/manga/cache", limit))
-								ui.readerStatus.error = "The page cache couldn't be opened";
+								ui.pageReader->readerStatus.error = "The page cache couldn't be opened";
 							else if (!reader.open(rq.pageUrls, rq.pageHeaders, cache, rq.path, rq.page, w, h, rq.mode,
 										 rq.fit))
-								ui.readerStatus.error = reader.error();
+								ui.pageReader->readerStatus.error = reader.error();
 							else
 								readerFetch.begin(mangaNet, &cache, &reader, rq.pageUrls, rq.pageHeaders, limit);
 						}
 					}
 					else if (!reader.open(rq.path, rq.archive, rq.page, w, h, rq.mode, rq.fit))
-						ui.readerStatus.error = reader.error();
+						ui.pageReader->readerStatus.error = reader.error();
 					// the series' own Book (or off), each chapter: it turns the pages as they are decoded
 					if (reader.isOpen()) reader.command(MangaReader::Book, rq.book, (int64_t)now);
 					// back to the place inside the page it was left at (Vertical scroll: a PDF's tall page)
 					if (reader.isOpen() && rq.within > 0) reader.scrollWithin(rq.page, rq.within);
 				}
-				for (auto& c : ui.readerCmds)
+				for (auto& c : ui.pageReader->readerCmds)
 				{
-					if (c.kind == Ui::ReaderCmd::Close)
+					if (c.kind == Ui::PageReader::ReaderCmd::Close)
 					{
 						readerFetch.end();
 						SDL_GL_MakeCurrent(top, gl);	// (close frees the pages' textures in this context)
@@ -1660,7 +1661,7 @@ int main(int argc, char** argv)
 					}
 					else reader.command((int)c.kind, c.v, c.ms, c.v2, c.v3);
 				}
-				ui.readerCmds.clear();
+				ui.pageReader->readerCmds.clear();
 				// Files' text viewer: a document asked for, the bottom panel's commands, where it is told back
 				{
 					Ui::Docs& docs = *ui.docs;
@@ -1781,17 +1782,17 @@ int main(int argc, char** argv)
 						}
 						ui.docs->docPan = std::move(dp);
 					}
-					ui.readerStatus.open = true;
-					ui.readerStatus.loading = reader.loading();
-					ui.readerStatus.error = reader.error();
-					ui.readerStatus.failedHere = reader.failedInView();
-					ui.readerStatus.atEnd = reader.atEnd();
-					ui.readerStatus.page = reader.page();
-					ui.readerStatus.within = (float)reader.within();
-					ui.readerStatus.pages = reader.pages();
-					ui.readerStatus.mode = reader.mode();
+					ui.pageReader->readerStatus.open = true;
+					ui.pageReader->readerStatus.loading = reader.loading();
+					ui.pageReader->readerStatus.error = reader.error();
+					ui.pageReader->readerStatus.failedHere = reader.failedInView();
+					ui.pageReader->readerStatus.atEnd = reader.atEnd();
+					ui.pageReader->readerStatus.page = reader.page();
+					ui.pageReader->readerStatus.within = (float)reader.within();
+					ui.pageReader->readerStatus.pages = reader.pages();
+					ui.pageReader->readerStatus.mode = reader.mode();
 					// a zoom changed (keys, the menu, a double-tap): its percent on the pages a moment, fading out
-					if (reader.zoomPct() != ui.readerStatus.zoomPct && reader.chapterGen() == zoomShownGen && haveUi)
+					if (reader.zoomPct() != ui.pageReader->readerStatus.zoomPct && reader.chapterGen() == zoomShownGen && haveUi)
 					{
 						int cw = 0, ch = 0;
 						auto card = ui.levelCard(std::to_string(reader.zoomPct()) + "%", -1, cw, ch);
@@ -1799,12 +1800,12 @@ int main(int argc, char** argv)
 						reader.showOverlay(card, cw, ch, (int64_t)SDL_GetTicks() + 1200);
 					}
 					zoomShownGen = reader.chapterGen();
-					ui.readerStatus.zoomPct = reader.zoomPct();
-					ui.readerStatus.fullscreen = reader.fullscreen();
-					ui.readerStatus.rotation = reader.rotation();
-					ui.readerStatus.book = reader.book();
+					ui.pageReader->readerStatus.zoomPct = reader.zoomPct();
+					ui.pageReader->readerStatus.fullscreen = reader.fullscreen();
+					ui.pageReader->readerStatus.rotation = reader.rotation();
+					ui.pageReader->readerStatus.book = reader.book();
 					// fullscreen: the bottom panel's share of the view, as fractions of the panel, and the pixels it needs
-					Ui::ReaderBottom rb;
+					Ui::PageReader::ReaderBottom rb;
 					rb.on = reader.bothPanels();	// fullscreen, or Book (a page on each panel)
 					rb.gen = reader.chapterGen();
 					if (rb.on)
@@ -1818,11 +1819,11 @@ int main(int argc, char** argv)
 							if (auto px = reader.pixels(b.page, pw, ph)) rb.pages.push_back({b.page, pw, ph, px});
 						}
 					}
-					ui.readerBottom = std::move(rb);
+					ui.pageReader->readerBottom = std::move(rb);
 					// the pages grid's thumbnails: every page the reader has decoded, ~96 px wide RGBA.
 					// always filled while the reader is open (the Ui only uses them when the grid shows);
 					// shared_ptr copies are cheap, and absent pages are placeholders in the grid
-					Ui::ReaderThumbs rt;
+					Ui::PageReader::ReaderThumbs rt;
 					rt.on = true;
 					rt.gen = reader.chapterGen();
 					for (int pi = 0; pi < reader.pages(); pi++)
@@ -1831,14 +1832,14 @@ int main(int argc, char** argv)
 						if (auto tp = reader.thumbPixels(pi, tw, th))
 							rt.pages.push_back({pi, tw, th, tp});
 					}
-					ui.readerThumbs = std::move(rt);
+					ui.pageReader->readerThumbs = std::move(rt);
 				}
 				else
 				{
 					readerFetch.end();
-					ui.readerStatus.open = false;
-					ui.readerBottom = {};
-					ui.readerThumbs = {};
+					ui.pageReader->readerStatus.open = false;
+					ui.pageReader->readerBottom = {};
+					ui.pageReader->readerThumbs = {};
 				}
 				if (woke) reader.redrawSoon();
 			}
