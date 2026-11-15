@@ -90,22 +90,15 @@ namespace bp
 	bool writeGardenMaps(const std::string& dir)
 	{
 		const int ws[3] = {W, W, BW}, hs[3] = {ROWS_ALONE, ROWS_STRIP, BH * BEES};
-		auto header = [&](int k) { return "P5\n" + std::to_string(ws[k]) + " " + std::to_string(hs[k]) + "\n255\n"; };
 		auto ready = [&](int k) {
-			return pgmFileOk((dir + "/" + FILES[k]), header(k).size() + (size_t)ws[k] * hs[k]);
+			return pgmFileOk((dir + "/" + FILES[k]), pgmFileSize(ws[k], hs[k]));
 		};
 		if (ready(0) && ready(1) && ready(2)) return true;
 		mkdir(dir.c_str(), 0755);
 		for (int k = 0; k < 3; k++)
 		{
 			std::vector<unsigned char> m = k == 2 ? bees() : mask(k == 1);
-			std::string path = dir + "/" + FILES[k], tmp = path + ".tmp";
-			std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-			out << header(k);
-			out.write((const char*)m.data(), (std::streamsize)m.size());
-			if (!out.flush()) return false;
-			out.close();
-			if (rename(tmp.c_str(), path.c_str()) != 0) return false;
+			if (!writePgmFile(dir + "/" + FILES[k], ws[k], hs[k], 255, 1, m)) return false;
 		}
 		return true;
 	}

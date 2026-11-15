@@ -66,19 +66,13 @@ namespace bp
 
 	static bool writePgm(const std::string& path, int w, int h, const std::vector<unsigned char>& data)
 	{
-		std::string tmp = path + ".tmp";
-		std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-		out << "P5\n" << w << " " << h << "\n255\n";
-		out.write((const char*)data.data(), (std::streamsize)data.size());
-		if (!out.flush()) return false;
-		out.close();
-		return rename(tmp.c_str(), path.c_str()) == 0;
+		// (src/vizcache.h: the format and its checksum in one place)
+		return writePgmFile(path, w, h, 255, 1, data);
 	}
 
 	static size_t pgmSize(int w, int h)
 	{
-		std::string header = "P5\n" + std::to_string(w) + " " + std::to_string(h) + "\n255\n";
-		return header.size() + (size_t)w * h;
+		return pgmFileSize(w, h);
 	}
 
 	// the shape map for rows pixels high, the fire's base on row base, its spark zones' rows (high from 0, low from

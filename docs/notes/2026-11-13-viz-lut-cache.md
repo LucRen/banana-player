@@ -26,6 +26,12 @@ expressions alone were ~350 ms of Long cat's 0.42 s to its first frame (ffmpeg's
   if its table is **identical** to the expression's and it evaluates at least 1.5x quicker. It is cached as
   `<maps>/lut/<FNV-1a of version + key>.txt` (the lookup, or `=` for "keep the expression"), so a changed style
   makes new files by itself; `vizPruneLuts` removes the ones no shown style reads.
+- After 0.7.20 every cache file proves itself (a corrupt SD card put other files' bytes under the right names: a
+  "big weird blob", a style that "doesn't react"). A lookup file starts `bplut <the name's hash> <FNV-1a of the
+  body>\n`; a pattern map has `# bp <FNV-1a of its file name + pixel data>` after its magic (ffmpeg's pnm decoder
+  reads it as a comment; checked with mpv's own graphs, same frames). One that fails is removed or rewritten.
+  Maps are all written by `writePgmFile` and sized by `pgmFileSize`; `pgmFileOk` reads each once a run (~4 MB,
+  ~10 ms on the Mac) and then trusts its (dev, inode, size, mtime).
 - `Player::graphFor` reads the lookups for the graph it builds; one not made yet leaves that filter's expression as
   it was this time, and a detached thread (files only, nice 10 on Linux) makes it, with every other shown style's
   the first time a run (~5 s on the Mac, all styles). The next build uses them.

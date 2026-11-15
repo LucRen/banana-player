@@ -1,4 +1,5 @@
 #include "vizcache.h"
+#include "filesave.h"
 
 #include <algorithm>
 #include <cctype>
@@ -9,7 +10,10 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <fcntl.h>
 #include <functional>
+#include <map>
+#include <mutex>
 #include <set>
 #include <sstream>
 #include <utility>
@@ -32,15 +36,45 @@ namespace bp
 	static const int MAX_LEAVES = 4096;
 	size_t vizLutMinLength = 20;
 
+	uint64_t vizChecksum(const void* data, size_t n, uint64_t h)
+	{
+		const unsigned char* p = (const unsigned char*)data;
+		for (size_t i = 0; i < n; i++) h = (h ^ p[i]) * 1099511628211ULL;
+		return h;
+	}
+
+	// the hash that names a key's file and heads it: FNV-1a over the version and the key
+	static uint64_t lutHash(const std::string& key)
+	{
+		std::string text = std::string(LUT_VERSION) + "\n" + key;
+		return vizChecksum(text.data(), text.size());
+	}
+
+	static std::string hex16(uint64_t v)
+	{
+		char b[20];
+		snprintf(b, sizeof b, "%016llx", (unsigned long long)v);
+		return b;
+	}
+
+	// 16 lowercase hex digits at p (as hex16 writes them), else false
+	static bool parseHex16(const char* p, size_t n, uint64_t& out)
+	{
+		if (n < 16) return false;
+		out = 0;
+		for (int i = 0; i < 16; i++)
+		{
+			char c = p[i];
+			int d = c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : -1;
+			if (d < 0) return false;
+			out = out << 4 | (uint64_t)d;
+		}
+		return true;
+	}
+
 	std::string vizLutFile(const std::string& key)
 	{
-		// FNV-1a, 64 bits, over the version and the key
-		uint64_t h = 1469598103934665603ULL;
-		std::string text = std::string(LUT_VERSION) + "\n" + key;
-		for (unsigned char c : text) h = (h ^ c) * 1099511628211ULL;
-		char name[40];
-		snprintf(name, sizeof name, "lut/%016llx.txt", (unsigned long long)h);
-		return name;
+		return "lut/" + hex16(lutHash(key)) + ".txt";
 	}
 
 	// a key's expression parsed with its filter's names (vf_lut2.c, vf_lut.c) less w and h, the picture's size (an
@@ -202,67 +236,181 @@ namespace bp
 		return best;
 	}
 
+	// a file's identity and version: a rename over it (a new inode) or a write into it (the mtime) is another
+	struct Stamp
+	{
+		dev_t dev;
+		ino_t ino;
+		off_t size;
+		long long sec, nsec;
+		bool operator==(const Stamp& o) const { return dev == o.dev && ino == o.ino && size == o.size && sec == o.sec && nsec == o.nsec; }
+	};
+	static Stamp stampOf(const struct stat& st)
+	{
+#ifdef __APPLE__
+		return {st.st_dev, st.st_ino, st.st_size, (long long)st.st_mtimespec.tv_sec, (long long)st.st_mtimespec.tv_nsec};
+#else
+		return {st.st_dev, st.st_ino, st.st_size, (long long)st.st_mtim.tv_sec, (long long)st.st_mtim.tv_nsec};
+#endif
+	}
+	// the maps whose checksums passed this run (or that were written here), as they were then. (The maps are written on
+	// the main thread; the lock because pgmFileOk is a library call any thread may make)
+	static std::mutex verifiedLock;
+	static std::map<std::string, Stamp> verified;
+
+	static std::string pgmHeader(int w, int h, int maxval, int channels, uint64_t sum)
+	{
+		return std::string(channels == 3 ? "P6" : "P5") + "\n# bp " + hex16(sum) + "\n" + std::to_string(w) + " " + std::to_string(h) + "\n" +
+			   std::to_string(maxval) + "\n";
+	}
+
+	// a map's checksum: over its file's name, then its data, so another map's whole file (the same size, whole in
+	// itself: Campfire's three 80x60 planes) under this name fails too
+	static uint64_t mapSum(const std::string& path, const char* data, size_t n)
+	{
+		size_t slash = path.rfind('/');
+		std::string name = slash == std::string::npos ? path : path.substr(slash + 1);
+		return vizChecksum(data, n, vizChecksum(name.data(), name.size()));
+	}
+
+	size_t pgmFileSize(int w, int h, int maxval, int channels)
+	{
+		// (the checksum is always 16 digits: the size doesn't depend on the data)
+		return pgmHeader(w, h, maxval, channels, 0).size() + (size_t)w * h * channels * (maxval > 255 ? 2 : 1);
+	}
+
+	bool writePgmFile(const std::string& path, int w, int h, int maxval, int channels, const unsigned char* data)
+	{
+		size_t n = (size_t)w * h * channels * (maxval > 255 ? 2 : 1);
+		std::string text = pgmHeader(w, h, maxval, channels, mapSum(path, (const char*)data, n));
+		text.append((const char*)data, n);
+		if (!writeFileAtomic(path, text)) return false;
+		// known good as written: not read back this run
+		struct stat st;
+		if (stat(path.c_str(), &st) == 0 && (size_t)st.st_size == text.size())
+		{
+			std::lock_guard<std::mutex> lock(verifiedLock);
+			verified[path] = stampOf(st);
+		}
+		return true;
+	}
+
+	// the whole of an open file, n bytes
+	static bool readAll(int fd, std::string& out, size_t n)
+	{
+		out.resize(n);
+		size_t off = 0;
+		while (off < n)
+		{
+			ssize_t r = ::read(fd, &out[off], n - off);
+			if (r <= 0) return false;
+			off += (size_t)r;
+		}
+		return true;
+	}
+
 	bool pgmFileOk(const std::string& path, size_t size)
 	{
+		int fd = ::open(path.c_str(), O_RDONLY);
+		if (fd < 0) return false;
 		struct stat st;
-		if (stat(path.c_str(), &st) != 0 || (size_t)st.st_size != size) return false;
-		char b[48];
-		FILE* f = fopen(path.c_str(), "rb");
-		if (!f) return false;
-		size_t n = fread(b, 1, sizeof b, f);
-		fclose(f);
-		if (n < 8 || b[0] != 'P' || (b[1] != '5' && b[1] != '6') || b[2] != '\n') return false;
-		// "W H\nMAXVAL\n", digits and single separators only, as the styles write it
-		size_t i = 3;
+		if (fstat(fd, &st) != 0 || (size_t)st.st_size != size)
+		{
+			::close(fd);
+			return false;
+		}
+		const Stamp stamp = stampOf(st);
+		{
+			std::lock_guard<std::mutex> lock(verifiedLock);
+			auto it = verified.find(path);
+			if (it != verified.end() && it->second == stamp)
+			{
+				::close(fd);
+				return true;
+			}
+		}
+		// (read from the descriptor: the bytes checked are the stamp's, even if the file is replaced meanwhile)
+		std::string b;
+		bool whole = readAll(fd, b, size);
+		::close(fd);
+		auto bad = [&] {
+			std::lock_guard<std::mutex> lock(verifiedLock);
+			verified.erase(path);
+			return false;
+		};
+		if (!whole || size < 8 || b[0] != 'P' || (b[1] != '5' && b[1] != '6') || b[2] != '\n') return bad();
+		// "# bp <checksum>\n" then "W H\nMAXVAL\n", digits and single separators only, as pgmHeader writes it
+		uint64_t sum = 0;
+		if (size < 25 || b.compare(3, 5, "# bp ") != 0 || !parseHex16(b.data() + 8, size - 8, sum) || b[24] != '\n') return bad();
+		size_t i = 25;
 		unsigned long v[3];
 		for (int k = 0; k < 3; k++)
 		{
 			size_t d = i;
 			unsigned long x = 0;
-			while (i < n && b[i] >= '0' && b[i] <= '9' && i - d < 6) x = x * 10 + (b[i++] - '0');
+			while (i < size && b[i] >= '0' && b[i] <= '9' && i - d < 6) x = x * 10 + (b[i++] - '0');
 			char sep = k == 0 ? ' ' : '\n';
-			if (i == d || i >= n || b[i] != sep) return false;
+			if (i == d || i >= size || b[i] != sep) return bad();
 			v[k] = x;
 			i++;
 		}
-		if (!v[0] || !v[1] || !v[2] || v[2] > 65535) return false;
+		if (!v[0] || !v[1] || !v[2] || v[2] > 65535) return bad();
 		size_t data = (size_t)v[0] * v[1] * (b[1] == '6' ? 3 : 1) * (v[2] > 255 ? 2 : 1);
-		return i + data == size;
+		if (i + data != size || mapSum(path, b.data() + i, data) != sum) return bad();
+		std::lock_guard<std::mutex> lock(verifiedLock);
+		verified[path] = stamp;
+		return true;
 	}
 
-	static bool ready(const std::string& path)
+	// a key's file read and proved (vizLutFile): the body, or false. One that fails is removed (made again): the card
+	// can hand back other bytes under the same name, and the text goes into the graph as it is. (Only if it's still the
+	// file read: another thread may have just put a good one in its place)
+	static bool readLut(const std::string& path, const std::string& key, std::string& body)
 	{
+		body.clear();
+		int fd = ::open(path.c_str(), O_RDONLY);
+		if (fd < 0) return false;
 		struct stat st;
-		return stat(path.c_str(), &st) == 0 && st.st_size > 0;
+		std::string t;
+		bool whole = fstat(fd, &st) == 0 && st.st_size > 0 && st.st_size < (1 << 24) && readAll(fd, t, (size_t)st.st_size);
+		::close(fd);
+		const std::string head = "bplut " + hex16(lutHash(key)) + " ";
+		const size_t from = head.size() + 17;
+		uint64_t sum = 0;
+		bool ok = whole && t.size() > from && t.compare(0, head.size(), head) == 0 &&
+				  parseHex16(t.data() + head.size(), t.size() - head.size(), sum) && t[from - 1] == '\n' &&
+				  vizChecksum(t.data() + from, t.size() - from) == sum;
+		if (ok)
+		{
+			body = t.substr(from);
+			if (body != "=")
+			{
+				// (a checksum says only that the bytes are the ones written; the filter must still read them)
+				AVExpr* e = body.find_first_of("\n\r'\"") == std::string::npos ? parse(key[0] == '2', body) : nullptr;
+				if (e) av_expr_free(e);
+				ok = e != nullptr;
+			}
+		}
+		if (!ok)
+		{
+			body.clear();
+			struct stat now;
+			if (whole && stat(path.c_str(), &now) == 0 && now.st_ino == st.st_ino && now.st_dev == st.st_dev) unlink(path.c_str());
+		}
+		return ok;
 	}
 
-	static std::string readFile(const std::string& path)
+	bool vizReadLut(const std::string& mapsDir, const std::string& key, std::string& body)
 	{
-		std::ifstream in(path, std::ios::binary);
-		std::ostringstream s;
-		s << in.rdbuf();
-		return s.str();
-	}
-
-	// a key's file that is there and a lookup the filter can read (or "="). The card can hand back other bytes under
-	// the same name, and the text goes into the graph as it is, so a bad one would fail every graph with it for good:
-	// it is removed, and counts as not made yet (made again)
-	static bool lutReady(const std::string& path, bool two)
-	{
-		if (!ready(path)) return false;
-		std::string t = readFile(path);
-		if (t == "=") return true;
-		AVExpr* e = t.find_first_of("\n\r'\"") == std::string::npos ? parse(two, t) : nullptr;
-		if (e) av_expr_free(e);
-		else unlink(path.c_str());
-		return e != nullptr;
+		body.clear();
+		return key.size() > 2 && readLut(mapsDir + "/" + vizLutFile(key), key, body);
 	}
 
 	// the file for a key: its lookup, or "=" (the expression is as quick as it gets, or can't be a table)
 	static bool writeLut(const std::string& key, const std::string& mapsDir)
 	{
-		std::string path = mapsDir + "/" + vizLutFile(key);
-		if (lutReady(path, key[0] == '2')) return true;
+		std::string path = mapsDir + "/" + vizLutFile(key), had;
+		if (readLut(path, key, had)) return true;
 		std::string text = "=";
 		std::vector<unsigned char> t;
 		double seconds = 0;
@@ -279,7 +427,7 @@ namespace bp
 		std::string tmp = path + "." + std::to_string(getpid()) + "-" + std::to_string(__sync_add_and_fetch(&seq, 1)) + ".tmp";
 		{
 			std::ofstream f(tmp, std::ios::binary | std::ios::trunc);
-			f << text;
+			f << "bplut " << hex16(lutHash(key)) << " " << hex16(vizChecksum(text.data(), text.size())) << "\n" << text;
 			if (!f.flush())
 			{
 				f.close();
@@ -364,12 +512,11 @@ namespace bp
 			if (worth(s))
 			{
 				std::string path = mapsDir + "/" + vizLutFile(s.key);
-				if (!lutReady(path, s.key[0] == '2'))
+				if (!readLut(path, s.key, e))
 				{
 					if (missing) missing->push_back(s.key);
-					else writeLut(s.key, mapsDir);
+					else if (writeLut(s.key, mapsDir)) readLut(path, s.key, e);
 				}
-				if (ready(path)) e = readFile(path);
 			}
 			out += e.empty() || e == "=" ? graph.substr(s.from, s.to - s.from) : e;
 		}

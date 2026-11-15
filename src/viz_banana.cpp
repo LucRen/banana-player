@@ -73,22 +73,15 @@ namespace bp
 	bool writeBananaMaps(const std::string& dir)
 	{
 		const int hs[2] = {H_ALONE, H_STRIP};
-		auto header = [](int h) { return "P5\n" + std::to_string(W) + " " + std::to_string(h) + "\n255\n"; };
 		auto ready = [&](int k) {
-			return pgmFileOk((dir + "/" + MASKS[k]), header(hs[k]).size() + (size_t)W * hs[k]);
+			return pgmFileOk((dir + "/" + MASKS[k]), pgmFileSize(W, hs[k]));
 		};
 		if (ready(0) && ready(1)) return true;
 		mkdir(dir.c_str(), 0755);
 		for (int k = 0; k < 2; k++)
 		{
 			std::vector<unsigned char> m = mask(hs[k]);
-			std::string path = dir + "/" + MASKS[k], tmp = path + ".tmp";
-			std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-			out << header(hs[k]);
-			out.write((const char*)m.data(), (std::streamsize)m.size());
-			if (!out.flush()) return false;
-			out.close();
-			if (rename(tmp.c_str(), path.c_str()) != 0) return false;
+			if (!writePgmFile(dir + "/" + MASKS[k], W, hs[k], 255, 1, m)) return false;
 		}
 		return true;
 	}

@@ -75,16 +75,11 @@ namespace bp
 
 		bool writePgm(const std::string& path, int w, int h, const std::vector<unsigned char>& data)
 		{
-			std::string tmp = path + ".tmp";
-			std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-			out << "P5\n" << w << " " << h << "\n255\n";
-			out.write((const char*)data.data(), (std::streamsize)data.size());
-			if (!out.flush()) return false;
-			out.close();
-			return rename(tmp.c_str(), path.c_str()) == 0;
+			// (src/vizcache.h: the format and its checksum in one place)
+			return writePgmFile(path, w, h, 255, 1, data);
 		}
 
-		size_t pgmSize(int w, int h) { return ("P5\n" + n(w) + " " + n(h) + "\n255\n").size() + (size_t)w * h; }
+		size_t pgmSize(int w, int h) { return pgmFileSize(w, h); }
 
 		int stripW(const Layout& L, int j) { return L.x0[j + 1] - L.x0[j]; }
 		int sheetW(const Layout& L, int j) { return stripW(L, j) + 2 * L.sway; }

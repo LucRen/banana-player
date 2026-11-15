@@ -90,19 +90,13 @@ namespace bp
 
 	static bool writePgm(const std::string& path, int w, int h, int maxv, const std::vector<unsigned char>& data)
 	{
-		std::string tmp = path + ".tmp";
-		std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-		out << "P5\n" << w << " " << h << "\n" << maxv << "\n";
-		out.write((const char*)data.data(), (std::streamsize)data.size());
-		if (!out.flush()) return false;
-		out.close();
-		return rename(tmp.c_str(), path.c_str()) == 0;
+		// (src/vizcache.h: the format and its checksum in one place)
+		return writePgmFile(path, w, h, maxv, 1, data);
 	}
 
 	static size_t pgmSize(int w, int h, int bytes)
 	{
-		std::string header = "P5\n" + std::to_string(w) + " " + std::to_string(h) + "\n" + (bytes == 2 ? "65535" : "255") + "\n";
-		return header.size() + (size_t)w * h * bytes;
+		return pgmFileSize(w, h, bytes == 2 ? 65535 : 255);
 	}
 
 	// the windows of a building, at half size: 4x5 on a 7x9 pitch, centred across, from under the roof to over the

@@ -102,9 +102,8 @@ namespace bp
 	{
 		const int w = CIRCLE_BOX, h = CIRCLE_BOX;
 		size_t bytes = (size_t)w * h * 2;
-		std::string header = "P5\n" + std::to_string(w) + " " + std::to_string(h) + "\n65535\n";
 		auto ready = [&](const std::string& path) {
-			return pgmFileOk(path, header.size() + bytes);
+			return pgmFileOk(path, pgmFileSize(w, h, 65535));
 		};
 		if (ready(dir + "/" + CIRCLE_MAPS[0]) && ready(dir + "/" + CIRCLE_MAPS[1])) return true;
 		std::vector<unsigned char> xs(bytes), ys(bytes);
@@ -135,14 +134,7 @@ namespace bp
 		mkdir(dir.c_str(), 0755);
 		for (int k = 0; k < 2; k++)
 		{
-			std::string path = dir + "/" + CIRCLE_MAPS[k], tmp = path + ".tmp";
-			std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-			out << header;
-			const std::vector<unsigned char>& v = k ? ys : xs;
-			out.write((const char*)v.data(), (std::streamsize)v.size());
-			if (!out.flush()) return false;
-			out.close();
-			if (rename(tmp.c_str(), path.c_str()) != 0) return false;
+			if (!writePgmFile(dir + "/" + CIRCLE_MAPS[k], w, h, 65535, 1, k ? ys : xs)) return false;
 		}
 		return true;
 	}

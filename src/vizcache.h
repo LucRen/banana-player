@@ -12,16 +12,36 @@
 // "lut=": only where the inputs are 8 bits (the lookup covers 0-255; a lut on 16-bit values, as the lagfun's exp and
 // log, stays "lut="). Every marker becomes the plain filter again, with the lookup or its own expression, so a graph
 // is always valid after vizCacheLuts or vizPlainLuts.
+#include <cstddef>
+#include <cstdint>
 #include <string>
 #include <vector>
 
 namespace bp
 {
-	// true when path is a P5 (or P6) file of exactly `size` bytes whose header is whole and agrees with that size
-	// (header + width x height x channels x bytes per value). The size alone isn't proof: a corrupt SD card has left
-	// files of the right size holding other files' bytes, which a style then never made again and mpv's movie
-	// source couldn't read ("Could not find codec parameters ... pgm"), so every song with visuals failed. Reads
-	// only the first bytes
+	// The cache's files prove what they are. A corrupt SD card has handed back other files' bytes under the right
+	// names, at the right sizes: a pattern map with garbage or another map's pixels (a big weird blob), a lookup with
+	// another lookup's text (a style that didn't react), each accepted because it was the right size or parsed. So
+	// each file carries a checksum of its bytes (and a lookup the hash of its key): one that fails is made again.
+	// The 64-bit FNV-1a both use (fast enough for a few MB, once a run; no new library)
+	uint64_t vizChecksum(const void* data, size_t n, uint64_t h = 1469598103934665603ULL);
+
+	// A pattern map: "P5\n# bp <16 hex digits>\nW H\nMAXVAL\n" then the data (P6 for 3 channels; 2 bytes a value
+	// past 255); the digits the checksum of the file's name and then its data (another map's whole file, the same
+	// size, fails under this name). ffmpeg's pnm decoder reads a "#" line after the magic as a comment, so mpv's
+	// movie= source draws exactly the same picture. Every style writes through writePgmFile and asks pgmFileSize for
+	// the size it checks, so the layout lives here alone
+	size_t pgmFileSize(int w, int h, int maxval = 255, int channels = 1);
+	// written to path + ".tmp", renamed over path (writeFileAtomic); data: w x h x channels values (x2 past 255)
+	bool writePgmFile(const std::string& path, int w, int h, int maxval, int channels, const unsigned char* data);
+	inline bool writePgmFile(const std::string& path, int w, int h, int maxval, int channels, const std::vector<unsigned char>& data)
+	{
+		return data.size() == (size_t)w * h * channels * (maxval > 255 ? 2 : 1) && writePgmFile(path, w, h, maxval, channels, data.data());
+	}
+	// true when path is such a file of exactly `size` bytes: its header whole and agreeing with that size, and its
+	// data matching its checksum. The checksum is read once a run per file (hundreds of them, up to 300 KB, are asked
+	// about at each graph build): a file verified (or written here) is remembered by its device, inode, size and
+	// mtime, so asking again costs a stat. Thread-safe
 	bool pgmFileOk(const std::string& path, size_t size);
 	// written in place of "lut2=" and "lut=" (always followed by c0='...')
 	constexpr const char* VIZ_LUT2 = "bplut2=";
@@ -38,8 +58,14 @@ namespace bp
 	// the lookups a graph's markers would read (their keys: "2:" or "1:" and the expression), in order; the short
 	// expressions, quick already, not among them
 	std::vector<std::string> vizLutKeys(const std::string& graph);
-	// a key's file, under mapsDir: "lut/<hash of the cache's version and the key>.txt" (the lookup, or "=": none)
+	// a key's file, under mapsDir: "lut/<hash of the cache's version and the key>.txt": a first line "bplut <that
+	// hash> <checksum of the body>\n", then the body: the lookup, or "=" (none). The hash proves the file is this
+	// key's (not another lookup's valid text), the checksum that its bytes are whole; one without both is removed
+	// and made again (as files from before the line were, once)
 	std::string vizLutFile(const std::string& key);
+	// the body of key's file under mapsDir when it's there and proves itself (and, not "=", parses); else false (and
+	// a file that's there but fails is removed)
+	bool vizReadLut(const std::string& mapsDir, const std::string& key, std::string& body);
 	// a key's values as the filter makes them on 8-bit pictures: lut2's 256 x 256 (row y, column x), lut's 256.
 	// false: not a table (it doesn't parse without w and h, or a value is NaN or out of range)
 	bool vizLutTable(const std::string& key, std::vector<unsigned char>& out);

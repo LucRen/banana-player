@@ -123,17 +123,10 @@ namespace bp
 			return b;
 		}
 
-		std::string header(int w, int h) { return "P5\n" + n(w) + " " + n(h) + "\n255\n"; }
-
 		bool pgm(const std::string& path, int w, int h, const std::vector<unsigned char>& data)
 		{
-			std::string tmp = path + ".tmp";
-			std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-			out << header(w, h);
-			out.write((const char*)data.data(), (std::streamsize)data.size());
-			if (!out.flush()) return false;
-			out.close();
-			return rename(tmp.c_str(), path.c_str()) == 0;
+			// (src/vizcache.h: the format and its checksum in one place)
+			return writePgmFile(path, w, h, 255, 1, data);
 		}
 
 		int cls(char c)
@@ -268,7 +261,7 @@ namespace bp
 		auto ready = [&](int k) {
 			int w, h;
 			dims(k, w, h);
-			return pgmFileOk(path(k), header(w, h).size() + (size_t)w * h);
+			return pgmFileOk(path(k), pgmFileSize(w, h));
 		};
 		bool all = true;
 		for (int k = 0; k < NFILES; k++) all = all && ready(k);

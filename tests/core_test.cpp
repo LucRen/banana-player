@@ -10140,8 +10140,8 @@ static void testTarX()
 
 // the visualizers' lut and lut2 lookups (src/vizcache.h): made once, named by the expression, giving the same
 // values as the expression; what can't or needn't be one stays as it was; the frame rate's rewrite
-// pgmFileOk: a pattern file is ready only if its size and its header both say so (a corrupt card left files of the
-// right size holding other bytes, and the style never made them again)
+// pgmFileOk: a pattern file is ready only if its size, its header and its checksum all say so (a corrupt card left
+// files of the right size holding other bytes: garbage, or another map's pixels, and the style never made them again)
 static void testPgmFileOk()
 {
 	char dir[] = "/tmp/bp-pgmok-XXXXXX";
@@ -10151,20 +10151,63 @@ static void testPgmFileOk()
 		std::ofstream(d + "/" + n, std::ios::binary) << s;
 		return d + "/" + n;
 	};
-	const std::string head = "P5\n4 3\n255\n";
-	const std::string good = head + std::string(12, 'x');
-	CHECK_EQ(pgmFileOk(put("good.pgm", good), good.size()), true);
-	CHECK_EQ(pgmFileOk(put("good16.pgm", "P5\n4 3\n65535\n" + std::string(24, 'x')), 13 + 24), true);
-	CHECK_EQ(pgmFileOk(put("ppm.pgm", "P6\n2 2\n255\n" + std::string(12, 'x')), 11 + 12), true);
-	// right size, other bytes
+	auto read = [](const std::string& p) {
+		std::ifstream in(p, std::ios::binary);
+		return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+	};
+	// written by the one writer: the layout, and passes
+	std::vector<unsigned char> px(12), px2(12), wide(24), rgb(12);
+	for (int i = 0; i < 12; i++) px[i] = (unsigned char)(i * 20), px2[i] = (unsigned char)(255 - i * 20), rgb[i] = (unsigned char)(i * 7);
+	for (int i = 0; i < 24; i++) wide[i] = (unsigned char)(i * 9);
+	const std::string a = d + "/a.pgm", b = d + "/b.pgm", w16 = d + "/w16.pgm", ppm = d + "/c.ppm";
+	CHECK_EQ(writePgmFile(a, 4, 3, 255, 1, px), true);
+	CHECK_EQ(writePgmFile(b, 4, 3, 255, 1, px2), true);
+	CHECK_EQ(writePgmFile(w16, 4, 3, 65535, 1, wide), true);
+	CHECK_EQ(writePgmFile(ppm, 2, 2, 255, 3, rgb), true);
+	CHECK_EQ(writePgmFile(d + "/short.pgm", 4, 4, 255, 1, px), false);	// (data of the wrong size: not written)
+	const std::string good = read(a);
+	CHECK_EQ(good.size(), pgmFileSize(4, 3));
+	CHECK_EQ(good.rfind("P5\n# bp ", 0), (size_t)0);
+	CHECK_EQ(good.substr(24, 11), std::string("\n4 3\n255\n") + std::string((const char*)px.data(), 2));
+	CHECK_EQ(read(w16).size(), pgmFileSize(4, 3, 65535));
+	CHECK_EQ(read(ppm).rfind("P6\n# bp ", 0) == 0 && read(ppm).size() == pgmFileSize(2, 2, 255, 3), true);
+	CHECK_EQ(pgmFileOk(a, pgmFileSize(4, 3)), true);
+	CHECK_EQ(pgmFileOk(w16, pgmFileSize(4, 3, 65535)), true);
+	CHECK_EQ(pgmFileOk(ppm, pgmFileSize(2, 2, 255, 3)), true);
+	// a good one read fresh (not just remembered from its write): the same bytes written again, passes
+	usleep(20000);
+	CHECK_EQ(pgmFileOk(put("a.pgm", good), good.size()), true);
+	// one data byte flipped, same size: fails (its checksum), though it passed a moment ago
+	std::string flipped = good;
+	flipped[flipped.size() - 5] ^= 0x10;
+	usleep(20000);
+	CHECK_EQ(pgmFileOk(put("a.pgm", flipped), good.size()), false);
+	// another map's whole file under this name (b's: the same size, whole in itself): fails, the checksum covers
+	// the file's name too; and this one's header over another's pixels
+	CHECK_EQ(pgmFileOk(b, good.size()), true);
+	CHECK_EQ(pgmFileOk(put("a.pgm", read(b)), good.size()), false);
+	CHECK_EQ(pgmFileOk(put("a.pgm", good.substr(0, good.size() - 12) + read(b).substr(good.size() - 12)), good.size()), false);
+	CHECK_EQ(pgmFileOk(put("a.pgm", good), good.size()), true);
+	// right size, other bytes; an old file (no checksum line), of its old size and of the new one
 	CHECK_EQ(pgmFileOk(put("junk.pgm", std::string(good.size(), 'A')), good.size()), false);
-	CHECK_EQ(pgmFileOk(put("text.pgm", "Apache License Version 2.0, January 2004"), 41), false);
-	// a header that doesn't match the size it should have
-	CHECK_EQ(pgmFileOk(put("liar.pgm", "P5\n4 4\n255\n" + std::string(12, 'x')), good.size()), false);
-	// short, and missing
+	const std::string old = "P5\n4 3\n255\n" + std::string((const char*)px.data(), 12);
+	CHECK_EQ(pgmFileOk(put("old.pgm", old), old.size()), false);
+	CHECK_EQ(pgmFileOk(put("old2.pgm", old + std::string(good.size() - old.size(), '\n')), good.size()), false);
+	// a header that doesn't match the size it should have; short; missing
+	CHECK_EQ(pgmFileOk(a, pgmFileSize(4, 4)), false);
 	CHECK_EQ(pgmFileOk(put("short.pgm", good.substr(0, 10)), good.size()), false);
 	CHECK_EQ(pgmFileOk(d + "/none.pgm", good.size()), false);
-	for (const char* n : {"good.pgm", "good16.pgm", "ppm.pgm", "junk.pgm", "text.pgm", "liar.pgm", "short.pgm"}) unlink((d + "/" + n).c_str());
+	// remembered good, then changed in place (a byte flipped, same size): the new mtime is read again, and fails
+	CHECK_EQ(pgmFileOk(a, good.size()), true);
+	usleep(20000);
+	{
+		std::fstream f(a, std::ios::binary | std::ios::in | std::ios::out);
+		f.seekp((std::streamoff)good.size() - 3);
+		f.put((char)(good[good.size() - 3] ^ 1));
+	}
+	CHECK_EQ(pgmFileOk(a, good.size()), false);
+	for (const char* n : {"a.pgm", "b.pgm", "w16.pgm", "c.ppm", "junk.pgm", "old.pgm", "old2.pgm", "short.pgm"})
+		unlink((d + "/" + n).c_str());
 	rmdir(d.c_str());
 }
 
@@ -10216,8 +10259,13 @@ static void testVizCache()
 		return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
 	};
 	const std::string f2 = d + "/" + vizLutFile(keys[0]), f1 = d + "/" + vizLutFile(keys[1]), f3 = d + "/" + vizLutFile(keys[2]);
-	std::string l2 = read(f2), l1 = read(f1);
-	CHECK_EQ(read(f3), std::string("="));
+	std::string l2, l1, l3;
+	CHECK_EQ(vizReadLut(d, keys[0], l2) && vizReadLut(d, keys[1], l1) && vizReadLut(d, keys[2], l3), true);
+	CHECK_EQ(l3, std::string("="));
+	// the file: "bplut <its name's hash> <checksum>\n" then the body
+	CHECK_EQ(read(f2).rfind("bplut " + vizLutFile(keys[0]).substr(4, 16) + " ", 0), (size_t)0);
+	CHECK_EQ(read(f2).size(), 6 + 16 + 1 + 16 + 1 + l2.size());
+	CHECK_EQ(read(f3).substr(read(f3).size() - 2), std::string("\n="));
 	CHECK_EQ(c.find("[p] [q] lut2=c0='" + l2 + "',split") != std::string::npos, true);
 	CHECK_EQ(c.find("scale=8:8,lut=c0='" + l1 + "' [t]") != std::string::npos, true);
 	std::vector<unsigned char> a, b;
@@ -10238,12 +10286,35 @@ static void testVizCache()
 	CHECK_EQ(vizCacheLuts(g, d, &missing), c);
 	stat(f2.c_str(), &st2);
 	CHECK_EQ(st1.st_ino == st2.st_ino && st1.st_mtime == st2.st_mtime, true);
+	// damaged files (a corrupt card): each fails, is removed, and comes back made again. Another key's valid lookup
+	// under this one's name (its whole file); a digit flipped in the body; a file from before the header line
+	const std::string good2 = read(f2), good1 = read(f1);
+	std::string body;
+	std::ofstream(f2, std::ios::binary | std::ios::trunc) << good1;
+	CHECK_EQ(vizReadLut(d, keys[0], body), false);
+	CHECK_EQ(access(f2.c_str(), F_OK) != 0, true);
+	std::string digit = good2;
+	size_t at = digit.find_first_of("0123456789", 6 + 16 + 1 + 16 + 1);
+	digit[at] = digit[at] == '9' ? '8' : (char)(digit[at] + 1);
+	std::ofstream(f2, std::ios::binary | std::ios::trunc) << digit;
+	CHECK_EQ(vizReadLut(d, keys[0], body), false);
+	std::ofstream(f2, std::ios::binary | std::ios::trunc) << l2;	// (the old format: the body alone)
+	CHECK_EQ(vizReadLut(d, keys[0], body), false);
+	CHECK_EQ(access(f2.c_str(), F_OK) != 0, true);
+	// the graph meanwhile: that one plain this time (not another's lookup), listed, then made again, the same
+	std::ofstream(f2, std::ios::binary | std::ios::trunc) << good1;
+	missing.clear();
+	CHECK_EQ(vizCacheLuts(g, d, &missing).find("[p] [q] lut2=c0='" + pal2 + "',split") != std::string::npos, true);
+	CHECK_EQ(missing, std::vector<std::string>{keys[0]});
+	CHECK_EQ(vizWriteLuts(missing, d), true);
+	CHECK_EQ(read(f2), good2);
+	CHECK_EQ(vizCacheLuts(g, d), c);
 	// what can't be a table: the size w, a NaN, a value past an int; such a file says "="
 	CHECK_EQ(vizLutTable("2:x*w", a), false);
 	CHECK_EQ(vizLutTable("2:0/0+x", a), false);
 	CHECK_EQ(vizLutTable("1:val*1e12", a), false);
 	CHECK_EQ(vizWriteLuts({"2:x*w"}, d), true);
-	CHECK_EQ(read(d + "/" + vizLutFile("2:x*w")), std::string("="));
+	CHECK_EQ(vizReadLut(d, "2:x*w", body) && body == "=", true);
 	CHECK_EQ(vizCacheLuts("[a] [b] bplut2=c0='x*w+y*h+x*x*0' [vo]", d), "[a] [b] lut2=c0='x*w+y*h+x*x*0' [vo]");
 	// a style changed: its old files go, the others stay
 	vizPruneLuts(d, {"[p] [q] bplut2=c0='" + pal2 + "' [vo]"});

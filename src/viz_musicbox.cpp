@@ -155,13 +155,8 @@ namespace bp
 
 	static bool mbWritePgm(const std::string& path, int w, int h, const std::vector<unsigned char>& data)
 	{
-		std::string tmp = path + ".tmp";
-		std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-		out << "P5\n" << w << " " << h << "\n255\n";
-		out.write((const char*)data.data(), (std::streamsize)data.size());
-		if (!out.flush()) return false;
-		out.close();
-		return rename(tmp.c_str(), path.c_str()) == 0;
+		// (src/vizcache.h: the format and its checksum in one place)
+		return writePgmFile(path, w, h, 255, 1, data);
 	}
 
 	bool writeMusicboxMaps(const std::string& dir)
@@ -170,8 +165,7 @@ namespace bp
 		bool ready = true;
 		for (int k = 0; k < 6 && ready; k++)
 		{
-			const std::string header = "P5\n" + std::to_string(ws[k]) + " " + std::to_string(hs[k]) + "\n255\n";
-			ready = pgmFileOk((dir + "/" + MB_FILES[k]), header.size() + (size_t)ws[k] * hs[k]);
+			ready = pgmFileOk((dir + "/" + MB_FILES[k]), pgmFileSize(ws[k], hs[k]));
 		}
 		if (ready) return true;
 		mkdir(dir.c_str(), 0755);

@@ -122,13 +122,8 @@ namespace bp
 
 	static bool bobaPgm(const std::string& path, int w, int h, const std::vector<unsigned char>& data)
 	{
-		std::string tmp = path + ".tmp";
-		std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-		out << "P5\n" << w << " " << h << "\n255\n";
-		out.write((const char*)data.data(), (std::streamsize)data.size());
-		if (!out.flush()) return false;
-		out.close();
-		return rename(tmp.c_str(), path.c_str()) == 0;
+		// (src/vizcache.h: the format and its checksum in one place)
+		return writePgmFile(path, w, h, 255, 1, data);
 	}
 
 	bool writeBobaMaps(const std::string& dir)
@@ -137,7 +132,7 @@ namespace bp
 		bool ready = true;
 		for (int k = 0; k < 4; k++)
 		{
-			size_t want = ("P5\n" + std::to_string(dims[k][0]) + " " + std::to_string(dims[k][1]) + "\n255\n").size() + (size_t)dims[k][0] * dims[k][1];
+			size_t want = pgmFileSize(dims[k][0], dims[k][1]);
 			ready = ready && pgmFileOk((dir + "/" + BOBA_FILES[k]), want);
 		}
 		if (ready) return true;

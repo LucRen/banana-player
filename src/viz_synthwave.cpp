@@ -107,10 +107,9 @@ namespace bp
 
 	bool writeSynthwaveMaps(const std::string& dir)
 	{
-		std::string header = "P6\n" + n(SW_W) + " " + n(SW_H) + "\n255\n";
 		size_t bytes = (size_t)SW_W * SW_H * 3;
 		std::string path = dir + "/" + SW_SCENE;
-		if (pgmFileOk(path, header.size() + bytes)) return true;
+		if (pgmFileOk(path, pgmFileSize(SW_W, SW_H, 255, 3))) return true;
 		std::vector<unsigned char> px(bytes);
 		// 2x2 samples a pixel (the sun's edge, the grid's lines)
 		for (int y = 0; y < SW_H; y++)
@@ -136,13 +135,7 @@ namespace bp
 			for (int k = 0; k < 3; k++) px[i + k] = (unsigned char)std::max<int>(px[i + k], (int)(255 * b));
 		}
 		mkdir(dir.c_str(), 0755);
-		std::string tmp = path + ".tmp";
-		std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-		out << header;
-		out.write((const char*)px.data(), (std::streamsize)px.size());
-		if (!out.flush()) return false;
-		out.close();
-		return rename(tmp.c_str(), path.c_str()) == 0;
+		return writePgmFile(path, SW_W, SW_H, 255, 3, px);
 	}
 
 	std::string synthwaveGraph(bool overCover, const std::string& mapsDir)

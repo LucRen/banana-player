@@ -73,18 +73,13 @@ namespace bp
 
 	static bool fbPgm(const std::string& path, int w, int h, const std::vector<unsigned char>& data)
 	{
-		std::string tmp = path + ".tmp";
-		std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-		out << "P5\n" << w << " " << h << "\n255\n";
-		out.write((const char*)data.data(), (std::streamsize)data.size());
-		if (!out.flush()) return false;
-		out.close();
-		return rename(tmp.c_str(), path.c_str()) == 0;
+		// (src/vizcache.h: the format and its checksum in one place)
+		return writePgmFile(path, w, h, 255, 1, data);
 	}
 
 	static size_t fbPgmSize(int w, int h)
 	{
-		return ("P5\n" + std::to_string(w) + " " + std::to_string(h) + "\n255\n").size() + (size_t)w * h;
+		return pgmFileSize(w, h);
 	}
 
 	static const int FB_DIMS[FB_COUNT][2] = {{W, H}, {W, H}, {W, H}, {W, H}, {W, SH}, {CW, 1}, {RAMP, 1}, {WWD, WHT}, {BW, 2 * BP}, {W, 2 * SBP}};
