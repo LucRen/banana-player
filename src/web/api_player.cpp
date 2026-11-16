@@ -319,6 +319,13 @@ namespace bp
 				return;
 			}
 			u.flushPlaylist(p);
+			// a photo (Files' "Show on handheld"): the photo viewer, as the handheld's browser opens one, over what plays
+			// and with its own controls on the bottom panel; not the player, which would show it with a video's
+			if (isPhotoFile(path) && !isNetPath(path))
+			{
+				u.openFile(path, p);
+				return;
+			}
 			// a network file (Recent's): as the handheld's Recent opens it, its server folder listed first, then the files
 			// beside it (it plays on the handheld only)
 			if (isNetPath(path))
