@@ -38,7 +38,8 @@ tools/make-sprite.py                                 # web/sprite.svg from the G
 
 ## Where things live
 
-- `src/main.cpp`: SDL, both windows, the event loop. `src/player.cpp`: libmpv, playlist, settings, graphs, overlays.
+- `src/main.cpp`: SDL, both windows, the event loop. `src/topscreen.*`: the top panel (the manga reader, the text
+  viewer, the frame taken from mpv under their pages, what's drawn each pass, its screenshot). `src/player.cpp`: libmpv, playlist, settings, graphs, overlays.
   `bpcore` = library code with no window (tests in `tests/core_test.cpp`): keep window/mpv-handle code out of it.
 - **Session** (`session.*`, bpcore): the one playback state and its pure reducer `apply()` (invariants I1–I13 + fuzz).
   `session_host.*` runs its effects on mpv once per loop pass. Every play/step/stop/output/track/shuffle/loop change,
