@@ -228,7 +228,9 @@ Ui (class declared in `src/ui.h`; file-static names shared by the files are in `
 | `ui_forms.cpp` | connection form, found servers, the on-screen keyboard |
 | `ui_playlists.cpp` | the Playlists pages, select/move/drag, picker, add, their drawing, edits from the web |
 | `ui_settings.cpp` | `settingRows`, `settingHelp`, groups, `changeSetting`, `drawSettings`, `drawPreview` |
-| `ui_main.cpp` | the playing screen (`drawMain`, `drawLeave`), photo view, predicted position, `musicKey`, `buttonRect` |
+| `ui_main.cpp` | photo view (`drawPhoto`, `drawLeave`), predicted position, `musicKey`, `buttonRect` |
+| `ui_player.cpp` | the playing screen (`Ui::PlayerPage`, the area for `Page::Main`): transport, chips, the Next line, its More list, Play on's sheet, the lock |
+| `ui_kit.cpp`, `ui_more.cpp` | the redesign's component kit (`Ui::Kit`: caps, keys, chips, line keys, the bar, sheets, rows) and the More sheet overlay; layout maths in `kitlayout.cpp` (bpcore) |
 | `ui_sound.cpp` | the Display popup, the Sound page (Equalizer, Effects) |
 | `ui_web.cpp` | the Web dashboard page and the header's globe |
 | `ui_home.cpp` | Home: the Recent strip, tiles, section header; what plays behind the browser: the mini bar, the playing row's chip |
@@ -326,8 +328,8 @@ CLAUDE.md now keeps one line per rule; this is the full text it had, kept here w
   libmpv, playlist, resume/history/settings, graphs, ASS overlays. Library code with no window is `bpcore`
   (tests in `tests/core_test.cpp`): keep window/mpv-handle code out of it.
 - **Ui** (class in `src/ui.h`; shared names in `src/ui_internal.h`, glyphs in `src/ui_glyphs.h`): `ui.cpp` core (init,
-  `press`, `pointer`, `act`, `tick`, `signature`), `ui_draw.cpp` primitives and page pieces, `ui_main.cpp` playing screen
-  and photos, `ui_home.cpp` Home, `ui_browse.cpp` the file list and sections, `ui_forms.cpp` connection form and keyboard,
+  `press`, `pointer`, `act`, `tick`, `signature`), `ui_draw.cpp` primitives and page pieces, `ui_player.cpp` the playing screen (on the
+  redesign's kit, `ui_kit.cpp`; docs/notes/2026-11-16-redesign-kit.md), `ui_main.cpp` photos, `ui_home.cpp` Home, `ui_browse.cpp` the file list and sections, `ui_forms.cpp` connection form and keyboard,
   `ui_playlists.cpp` playlists/select/picker, `ui_settings.cpp`, `ui_menus.cpp` (START, quick settings, popups, Info,
   Like), `ui_sound.cpp` (Display, Sound), `ui_web.cpp`. A table of what is in each: `docs/architecture.md`.
 - Web: `src/web/` (server, API), `web/app.js` (entry) + `web/js/*.js` (ES modules, no build step), `web/style.css`,

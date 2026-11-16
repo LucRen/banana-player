@@ -11,8 +11,9 @@ constraints this repo can't show), `docs/workflow.md` (harness, tests, bundle, r
 feature, control and setting: grep for yours; a new one gets its entry), `DEVELOPMENT.md` (detail, roadmap),
 `docs/notes/` (one note per investigation: read the one your brief names; an agent finishing one adds a note).
 `src/ui.h` is large: grep it, and work in the area's own header where there is one (`ui_docs.h`, `ui_sound.h`,
-`ui_web.h`, `ui_manga.h`, `ui_settings.h`, `ui_browse.h`; the browser's playlists and Home: `ui_playlists.h`,
-`ui_home.h`; the page reader Docs and Manga share: `ui_reader.h`).
+`ui_web.h`, `ui_manga.h`, `ui_settings.h`, `ui_browse.h`, `ui_player.h`; the browser's playlists and Home:
+`ui_playlists.h`, `ui_home.h`; the page reader Docs and Manga share: `ui_reader.h`; the redesign's components:
+`ui_kit.h`).
 
 ## Commands
 
@@ -48,6 +49,9 @@ tools/make-sprite.py                                 # web/sprite.svg from the G
   The browser (Home, Files, Playlists, Network, All recent): `ui_browse.h` (the area `Ui::Browse`; Files' operations
   `ui_fileops.cpp`, the Network form `ui_forms.cpp`), `ui_playlists.h` (`Ui::Playlists`, owned by it: the store, edits
   to the session, select mode, picker), `ui_home.h` (`Ui::Home`, owned by it: Home's strip and tiles, Recent).
+- **The redesign** (`docs/redesign/`; how to build a screen: docs/notes/2026-11-16-redesign-kit.md): layout maths
+  `kitlayout.*` (bpcore, `lay::`), components `ui_kit.h` + `ui_kit.cpp` (`Ui::Kit`), the More sheet `ui_more.cpp`; the
+  player screen `ui_player.h` + `ui_player.cpp` (`Ui::PlayerPage`) is built on them, the other screens not yet.
 - **Web:** `src/web/` (server, API, probe, subs, picsubs, remux), `web/app.js` + `web/js/*.js` (ES modules, no build),
   `web/style.css` (copies `src/theme.h` by hand), embedded by `cmake/EmbedWeb.cmake`.
 - Books and documents: `pagebook.*` (a chapter in one file: CBZ, CBR via libarchive, PDF via pdfium, a comic EPUB),
@@ -74,7 +78,8 @@ tools/make-sprite.py                                 # web/sprite.svg from the G
 - **Ui:** redraws only when `signature()` changes (new drawing state goes in it); a new dialog or sheet is a
   `Ui::Overlay` (`ui_overlay.cpp`, docs/notes/overlay-stack.md), not a flag checked in `press`/`pointer`/`draw`; an area's state and handlers go in its own struct and header
   (`Ui::Docs`, `ui_docs.h`; docs/notes/ui-areas.md), not `ui.h`; 640×480 units; colours/radii from
-  `theme.h` via `fillRound`/`drawBox`; path checks via `pseudoDir()`.
+  `theme.h` via `fillRound`/`drawBox`; path checks via `pseudoDir()`. A redesigned screen draws with `Ui::Kit`
+  on Rects from `kitlayout.h`, which its touches test too.
 - **Settings:** a new one is a member in `Settings` + one entry in `settingDefs()` (`settings.cpp`: key, default via the member, range, and the page row's group/label/help); `docs/notes/settings-table.md`.
 - **Threads:** background threads never touch `Player`/`Ui`; they push SDL user events. Never block on a server in a
   destructor; the Updater and `WebServer` are never destroyed.

@@ -428,7 +428,7 @@ masked), and the harness's state lines compared. `core-test` passes after each c
 | 5 | **Settings** (`ui_settings.cpp`) (done: `ui_settings.h`) | `Settings` | ~60 | `settingRows`/`changeSetting`/`drawSettingRow` are shared with Manga's settings page and START's menu tab: the area exposes those; `inMenu`/`menuTab` stay `Ui`'s. After Manga, so the shared row drawing has one more user known. |
 | 6 | **Playlists** (`ui_playlists.cpp`) (done: `ui_playlists.h`, a plain struct the browser owns) | (pseudo-folders of `Browse`) | ~90 | Not pages: `browseDir` `PLROOT`/`PLDIR`. `has()` can't tell by page, so this is a **helper struct** owned by the browser's area rather than an `Area`, or `has()` grows to "page and folder". The picker is an overlay first (overlay-stack.md, item 6). |
 | 7 | **Browse + Home + Files' operations** (`ui_browse.cpp`, `ui_home.cpp`, `ui_fileops.cpp`, `ui_forms.cpp`) (done: `ui_browse.h`, the area; Home a plain struct, `ui_home.h`) | `Browse` | ~350 | The most entangled: the list, Home, the sections, the network form and found servers (pseudo-folders), the clip, the file job, the mini bar. Cut inside it by pseudo-folder (Home, the form) once Playlists has shown how. The mini bar and what plays behind (`bgPlay`, lines 2526 on) are every page's: `Ui`'s. |
-| 8 | **Player** (`ui_main.cpp`, `ui_menus.cpp`) | `Main`, `Tracks`, `Chapters`, `UpNext`, `Info`, `About`, `Exit`, `Playing` | ~400 | Last: `press` and `pointer` are mostly this area's special cases today (the hold to play here, predicted position, L2/R2, the photo's pan and flick, START's menu over any of them). What remains in `Ui::press` after the others have left **is** the player; it moves when that code is short enough to read as one area's `key()`. |
+| 8 | **Player** (`ui_main.cpp`, `ui_menus.cpp`) (`Main` done with the redesign: `ui_player.h`, below; the other pages wait for their sheets) | `Main`, `Tracks`, `Chapters`, `UpNext`, `Info`, `About`, `Exit`, `Playing` | ~400 | Last: `press` and `pointer` are mostly this area's special cases today (the hold to play here, predicted position, L2/R2, the photo's pan and flick, START's menu over any of them). What remains in `Ui::press` after the others have left **is** the player; it moves when that code is short enough to read as one area's `key()`. |
 
 Expected: after 1–3 `ui.h` is about 2,500; after Manga about 1,400 (it is 1,356); after Settings, Playlists and Browse about 900;
 with the player out, `ui.h` is the frame (pages, areas, overlays, sliders, drawing helpers, the mini bar, the
@@ -646,3 +646,26 @@ Ten scenarios, 268 shot files (134 pairs):
 - A paste (Copy/Move carried out), Rename, Delete in Files, the file job's card: not driven (they write the library);
   the bodies are the old lines with `browse->`. The grip's drag in Edit by touch, Add files and Pick a folder, the
   picker opened from the player's Add square, the dashboard's playlist routes beyond the smoke test.
+
+## The player screen (the eighth, its first page): `Ui::PlayerPage` (2026-11-16)
+
+`src/ui_player.h`, `src/ui_player.cpp`; `Page::Main`. Not a pure move: the page was rebuilt on the redesign's
+component kit at the same time (docs/notes/2026-11-16-redesign-kit.md), so there is no byte-for-byte comparison;
+the before and after shots are compared by eye against `docs/redesign`.
+
+- **Moved (and rewritten):** the page's keys (the tail of `Ui::press`), its touches (the tail of `Ui::pointer`, the
+  lock's block, the Play key's hold on a lift), its drawing (`drawMain`), `chapterLineShown`; the state: the lock
+  (`touchLocked`, `lockHoldAt`, `lockNoticeAt`), the bar held after a drag (`seekHeld`), the List key's glow
+  (`listPulse*`), and new: `pressed`, the D-pad's `focus`. Its touch ids and Rects are its own (`Touch`, `rect()`):
+  the grid's `buttonRect` ids 0..9, `LINE1_BTN`, `LINE2_BTN`, `CHAPTER_BTN`, `LOCK_BTN`, `SCREEN_BTN`, `ADD_BTN`,
+  `LIKE_BTN`, `PLAY_GRID` and `GRID` are gone.
+- **Dispatch:** neither `pointerFirst()` nor `pointerDownLate()`: the area takes every touch at the readers' point
+  and so its own "<" (wider than `BACK_ICON`'s). What ran before that point for this page still does: the overlays,
+  the picker, the Display popup, the lock (`playerPage->lockPointer`), a photo's pan, a pressed button's lift.
+- **Stayed `Ui`'s:** the photo viewer (`photoKey`, `photoPointer`, `photoDown`, `drawPhoto`, the pan and flick's
+  state: the area hands them the page while a photo shows), Like and Add (`likeNow`, `likePopAt`, `addFlashUntil`:
+  START's Playing tab and the browser use them), `musicKey` and `modeLabel` (the dashboard's routes call the label),
+  the hold that takes over from a browser (`playHoldAt`, `release`, `tick`: the mini bar's play mark shares it),
+  `stopPressed`, `predicting` / `shownPosition` / `pageDrives`, the Display popup, and the pages still to come:
+  Tracks, Chapters, Up next, Info, START's menu (`Tracks`…`Playing` in the table).
+- **`touchIsLocked()`** (main's state line) forwards; `showBrowser` / `backFromPlayer` call `playerPage->unlock()`.
