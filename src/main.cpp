@@ -32,6 +32,7 @@
 #include "durations.h"
 #include "durworker.h"
 #include "coverworker.h"
+#include "mangalibworker.h"
 #include "netstream.h"
 #include "netpath.h"
 #ifdef BP_WEB
@@ -68,7 +69,7 @@ namespace bp
 }
 #endif
 
-static Uint32 evMpv, evRender, evTouch, evLevel, evNet, evFound, evWeb, evDur, evCover, evAmp;
+static Uint32 evMpv, evRender, evTouch, evLevel, evNet, evFound, evWeb, evDur, evCover, evAmp, evMangaLib;
 #ifdef BP_WEB
 // the dashboard's server for the sleep watch's thread (made on the main thread, never destroyed)
 static std::atomic<bp::WebServer*> webForWatch{nullptr};
@@ -288,7 +289,7 @@ int main(int argc, char** argv)
 		fprintf(stderr, "SDL: %s\n", SDL_GetError());
 		return 1;
 	}
-	evMpv = SDL_RegisterEvents(10);
+	evMpv = SDL_RegisterEvents(11);
 	evRender = evMpv + 1;
 	evTouch = evMpv + 2;
 	evLevel = evMpv + 3;
@@ -298,6 +299,7 @@ int main(int argc, char** argv)
 	evDur = evMpv + 7;	// the file rows' durations: some are ready (DurationWorker::take)
 	evCover = evMpv + 8;	// the manga library's covers: some are decoded (CoverWorker::take)
 	evAmp = evMpv + 9;	// a speaker amplifier didn't start (AmpWatch): the sound output opened again
+	evMangaLib = evMpv + 10;	// the Manga app's card library: a listing or chapter files read (MangaLibWorker::take)
 
 	// On the handheld (SDL's KMSDRM) each panel is a display and each window fills one; elsewhere, two windows
 	if (windowed < 0) windowed = strcmp(SDL_GetCurrentVideoDriver(), "KMSDRM") != 0;
@@ -501,6 +503,14 @@ int main(int argc, char** argv)
 			SDL_PushEvent(&ev);
 		});
 		ui.manga->coverWorker = coverWorker;
+		// the Manga app's card library, listed and its chapter files read off this thread (evMangaLib); never destroyed,
+		// its thread may be inside pdfium at exit
+		MangaLibWorker* mangaLibWorker = new MangaLibWorker([] {
+			SDL_Event ev{};
+			ev.type = evMangaLib;
+			SDL_PushEvent(&ev);
+		});
+		ui.manga->libWorker = mangaLibWorker;
 		ui.setStateDir(opts.stateDir);
 		// Find on the network: the servers that answer, on the main thread as evFound
 		Discovery discovery;
@@ -985,6 +995,12 @@ int main(int argc, char** argv)
 					// a cover arrived: into a texture on this thread, and the grid redraws (its serial is in signature)
 					if (haveUi) ui.manga->coversReady(coverWorker->take());
 					else coverWorker->take();	// (nothing draws them: dropped)
+				}
+				else if (e.type == evMangaLib)
+				{
+					// the library listed, or chapter files read: into the lists on this thread (its serial is in signature)
+					if (haveUi) ui.manga->mangaLibReady(mangaLibWorker->take());
+					else mangaLibWorker->take();
 				}
 				else if (e.type == evFound)
 				{
@@ -1645,6 +1661,7 @@ int main(int argc, char** argv)
 		mangaNet->setFetchOwner({});
 		mangaNet->stop();
 		coverWorker->stop();
+		mangaLibWorker->stop();
 		sleepWatch.stop();
 		levelWatch.stop();
 		bottomTouch.stop();

@@ -25,7 +25,8 @@ namespace bp
 				return p;
 			}
 			const auto& names = book->pages();
-			auto it = std::find(names.begin(), names.end(), source.substr(at + 1));
+			// "archive.cbz#": its first page, whatever it's called (the library lists archives without opening them)
+			auto it = at + 1 == source.size() ? names.begin() : std::find(names.begin(), names.end(), source.substr(at + 1));
 			if (it == names.end())
 			{
 				p.error = "No such page";

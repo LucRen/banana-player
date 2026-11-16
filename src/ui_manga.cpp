@@ -9,6 +9,7 @@
 #include "ui_playlists.h"
 #include "ui_home.h"
 #include "pagebook.h"
+#include "playlist.h"	// naturalLess: the listing's order kept when titles change
 #include "manga_ui_logic.h"
 #include <algorithm>
 #include <cmath>
@@ -74,6 +75,7 @@ namespace bp
 
 	void Ui::Manga::mangaOpen(Player& p)
 	{
+		Uint32 openAt = SDL_GetTicks();
 		// the network side's threads and stores, the first time the app is used with the reader on
 		if (mangaNet && p.settings.mangaOn) mangaNet->start();
 		mangaTab = MT_LIBRARY;	// the app opens on the library, as the mock has it
@@ -124,6 +126,8 @@ namespace bp
 		mangaBrowseReset(p);
 		// the Downloads sheet's page lists wait for the worker again; a queued chapter is the queue's, not this
 		mangaDownloadsReset();
+		// (what the panels waited for: a big card once froze them here for minutes)
+		fprintf(stderr, "manga: app opened in %u ms on the main thread\n", (unsigned)(SDL_GetTicks() - openAt));
 	}
 
 	void Ui::Manga::mangaScan()
@@ -138,43 +142,311 @@ namespace bp
 		std::vector<std::string> places;
 		places.reserve(ui.roots.size());
 		for (auto& r : ui.roots) places.push_back(r.path);
-		Uint32 t0 = SDL_GetTicks();
-		std::vector<LocalSeries> found;
-		for (auto& dir : mangaRoots(places))
+		std::vector<std::string> roots = mangaRoots(places);
+		if (!libWorker)
 		{
-			std::vector<LocalSeries> one = scanMangaFolder(dir);
-			found.insert(found.end(), one.begin(), one.end());
+			// (no worker: every file opened here, as the scan always was)
+			Uint32 t0 = SDL_GetTicks();
+			std::vector<LocalSeries> found;
+			for (auto& dir : roots)
+			{
+				std::vector<LocalSeries> one = scanMangaFolder(dir);
+				found.insert(found.end(), one.begin(), one.end());
+			}
+			mangaLocalSet(std::move(found));
+			fprintf(stderr, "manga: library read in %u ms (%d series, here, every file opened)\n", (unsigned)(SDL_GetTicks() - t0),
+				(int)mangaLocal.size());
+			return;
 		}
-		mangaLocal = std::move(found);
+		// in the background: the app shows the library as the store last knew it meanwhile, mangaLibReady takes the
+		// listing and then the chapter files read. The index of what each file held is a file of its own, apart from
+		// the page cache under manga/cache (Clear cache must neither throw it away nor count it)
+		if (!ui.stateDirPath.empty()) libWorker->setCacheFile(ui.stateDirPath + "/manga/library-index.txt");
+		mangaScanGen++;
+		mangaScanning = true;
+		mangaScanCount = 0;
+		mangaScanAt = SDL_GetTicks();
+		libWorker->scan(roots, mangaScanGen);
+	}
+
+	void Ui::Manga::mangaLibReady(std::vector<MangaLibWorker::Result> results)
+	{
+		for (auto& r : results)
+		{
+			if (r.kind == MangaLibWorker::Result::Progress)
+			{
+				if (r.gen == mangaScanGen) mangaScanCount = r.count;
+				continue;
+			}
+			if (r.kind == MangaLibWorker::Result::Listed)
+			{
+				if (r.gen != mangaScanGen) continue;	// a scan replaced by a newer one
+				fprintf(stderr, "manga: library listed in %u ms (%d series, %d chapters; %u ms after asking)\n", r.listMs, r.seriesN,
+					r.chaptersN, (unsigned)(SDL_GetTicks() - mangaScanAt));
+				mangaScanCount = r.series.size();
+				mangaLocalSet(std::move(r.series));
+				continue;
+			}
+			// chapter files read: by path, so an answer from before a newer listing still lands where it belongs
+			mangaLocalMetas(r.metas);
+			// the Downloads tab's card waited for some of these
+			for (const auto& f : r.metas)
+				if (f.series.empty()) { mdlCardStale = true; mangaLocalSerial++; break; }
+			if (r.scanDone && r.gen == mangaScanGen)
+			{
+				mangaScanning = false;
+				fprintf(stderr, "manga: library read in %u ms (%d series, %d chapters, %d files opened)\n", r.ms, r.seriesN,
+					r.chaptersN, r.opened);
+				mangaLocalSerial++;
+				if (mangaDirty) mangaSave();
+			}
+		}
+	}
+
+	void Ui::Manga::mangaLocalReindex()
+	{
 		mangaLocalById.clear();
 		for (size_t i = 0; i < mangaLocal.size(); i++)
 			mangaLocalById["local:" + mangaLocal[i].path] = i;
-		mangaScanned = true;
-		int64_t now = (int64_t)time(nullptr);
-		for (auto& s : mangaLocal)
+	}
+
+	void Ui::Manga::mangaLocalSort()
+	{
+		// each Manga folder's series together, in the folders' order, each folder's by title (as the listing gives
+		// them): a series is a child of its Manga folder, so its folder is its path's parent
+		auto parent = [](const std::string& p) {
+			size_t s = p.rfind('/');
+			return s == std::string::npos ? std::string() : p.substr(0, s);
+		};
+		std::vector<std::string> order;
+		for (const auto& s : mangaLocal)
+			if (std::find(order.begin(), order.end(), parent(s.path)) == order.end()) order.push_back(parent(s.path));
+		auto rank = [&](const LocalSeries& s) { return std::find(order.begin(), order.end(), parent(s.path)) - order.begin(); };
+		std::stable_sort(mangaLocal.begin(), mangaLocal.end(), [&](const LocalSeries& a, const LocalSeries& b) {
+			auto ra = rank(a), rb = rank(b);
+			if (ra != rb) return ra < rb;
+			if (naturalLess(a.title, b.title)) return true;
+			return !naturalLess(b.title, a.title) && naturalLess(a.path, b.path);
+		});
+	}
+
+	bool Ui::Manga::mangaLocalCommit(LocalSeries& s, int64_t now)
+	{
+		if (!mangaStore) return false;
+		std::string id = "local:" + s.path;
+		const MangaSeries* old = mangaStore->series(id);
+		// a series not read to its end keeps the title the store knew (its ComicInfo's), rather than flapping to the
+		// folder's name while its files are read again
+		if (old && !old->title.empty() && !seriesKnown(s)) s.title = old->title;
+		bool frontKnown = s.chapters.empty() || s.chapters.front().known;
+		bool fromSource = false;
+		for (const LocalChapter& c : s.chapters)
+			if (c.known && isSourceId(c.ciSeriesKey)) { fromSource = true; break; }
+		// a new series waits for its first chapter to be read: a folder of downloads must not go into the Library first
+		if (!old && !frontKnown && !fromSource) return false;
+		MangaSeries m;
+		m.id = id;
+		m.title = s.title;
+		m.source = "local";
+		m.cover = frontKnown || !old || old->cover.empty() ? s.cover : old->cover;
+		if (old)
 		{
-			std::string id = "local:" + s.path;
-			MangaSeries m;
-			m.id = id;
-			m.title = s.title;
-			m.source = "local";
-			m.cover = s.cover;
-			if (const MangaSeries* old = mangaStore->series(id))
-			{
-				m.added = old->added;
-				m.lastRead = old->lastRead;
-				m.inLibrary = old->inLibrary;
-				m.readingMode = old->readingMode;
-			}
-			else m.added = now;
-			// a folder of downloads isn't in the Library by being on the card: its series is, when the heart says so
-			for (const LocalChapter& c : s.chapters)
-				if (isSourceId(c.ciSeriesKey)) { m.inLibrary = false; break; }
-			mangaStore->putSeries(m);
+			m.added = old->added;
+			m.lastRead = old->lastRead;
+			m.inLibrary = old->inLibrary;
+			m.readingMode = old->readingMode;
 		}
-		fprintf(stderr, "manga: scanned %d series in %u ms\n", (int)mangaLocal.size(), (unsigned)(SDL_GetTicks() - t0));
+		else m.added = now;
+		// a folder of downloads isn't in the Library by being on the card: its series is, when the heart says so
+		if (fromSource) m.inLibrary = false;
+		if (old && old->title == m.title && old->cover == m.cover && old->inLibrary == m.inLibrary && old->source == m.source) return false;
+		mangaStore->putSeries(m);
+		return true;
+	}
+
+	void Ui::Manga::mangaLocalSet(std::vector<LocalSeries> found)
+	{
+		if (!mangaStore)
+		{
+			mangaStore = std::make_unique<MangaStore>();
+			mangaStore->load(ui.stateDirPath);
+		}
+		// the lists' cursors stay on what they were on: rows move under them
+		std::string listPath = mListCursor >= 0 && mListCursor < (int)mangaLocal.size() ? mangaLocal[mListCursor].path : "";
+		std::string chapterPath;
+		if (const LocalSeries* s = mangaLocalSeries(mangaSeriesId))
+			if (mserCursor >= 0 && mserCursor < (int)s->chapters.size()) chapterPath = s->chapters[mserCursor].path;
+		mangaLocal = std::move(found);
+		int64_t now = (int64_t)time(nullptr);
+		bool changed = false;
+		for (auto& s : mangaLocal) changed = mangaLocalCommit(s, now) || changed;
+		mangaLocalSort();
+		mangaLocalReindex();
+		mangaScanned = true;
+		mangaFillAsked.clear();
+		for (int i = 0; i < (int)mangaLocal.size() && !listPath.empty(); i++)
+			if (mangaLocal[i].path == listPath) { mListCursor = i; break; }
+		if (mListCursor >= (int)mangaLocal.size()) mListCursor = std::max(0, (int)mangaLocal.size() - 1);
+		mListScroll = std::clamp(mListScroll, std::max(0, mListCursor - MG_ROWS + 1), std::max(0, mListCursor));
+		if (const LocalSeries* s = mangaLocalSeries(mangaSeriesId))
+		{
+			for (int i = 0; i < (int)s->chapters.size() && !chapterPath.empty(); i++)
+				if (s->chapters[i].path == chapterPath) { mserCursor = i; break; }
+			if (mserCursor >= (int)s->chapters.size()) mserCursor = (int)s->chapters.size() - 1;
+			if (mserCursor >= 0) mserScroll = std::clamp(mserScroll, std::max(0, mserCursor - MG_SER_ROWS + 1), mserCursor);
+			// the series page open: its chapters' files read where they're new or changed
+			if (ui.page == Page::MangaSeries || ui.page == Page::MangaRead) mangaLocalWantFill(mangaSeriesId);
+		}
+		// covers that failed with the store's string, or had no series yet, are asked again with the listing's
+		for (auto it = coverFailed.begin(); it != coverFailed.end();)
+			it = it->rfind("local:", 0) == 0 ? coverFailed.erase(it) : std::next(it);
+		mangaLocalSerial++;
 		mangaCacheValid = false;
-		mangaSave();
+		if (changed) mangaSave();
+	}
+
+	void Ui::Manga::mangaLocalMetas(const std::vector<MangaLibWorker::Found>& metas)
+	{
+		std::unordered_set<size_t> touched;
+		for (const auto& f : metas)
+		{
+			if (f.series.empty()) continue;
+			auto it = mangaLocalById.find("local:" + f.series);
+			if (it == mangaLocalById.end() || it->second >= mangaLocal.size()) continue;
+			// the file as listed: one changed since is another answer's (a newer listing asks again)
+			for (LocalChapter& c : mangaLocal[it->second].chapters)
+				if (c.path == f.file.path && c.size == f.file.size && c.mtime == f.file.mtime)
+				{
+					applyChapterMeta(c, f.file.meta);
+					touched.insert(it->second);
+					break;
+				}
+		}
+		if (touched.empty()) return;
+		std::string listPath = mListCursor >= 0 && mListCursor < (int)mangaLocal.size() ? mangaLocal[mListCursor].path : "";
+		std::string chapterPath;
+		if (const LocalSeries* s = mangaLocalSeries(mangaSeriesId))
+			if (mserCursor >= 0 && mserCursor < (int)s->chapters.size()) chapterPath = s->chapters[mserCursor].path;
+		int64_t now = (int64_t)time(nullptr);
+		bool changed = false, retitled = false;
+		for (size_t i : touched)
+		{
+			LocalSeries& s = mangaLocal[i];
+			std::string was = s.title;
+			finishSeries(s);
+			changed = mangaLocalCommit(s, now) || changed;
+			retitled = retitled || s.title != was;
+			coverFailed.erase("local:" + s.path);
+		}
+		if (retitled)
+		{
+			mangaLocalSort();
+			mangaLocalReindex();
+			for (int i = 0; i < (int)mangaLocal.size() && !listPath.empty(); i++)
+				if (mangaLocal[i].path == listPath) { mListCursor = i; break; }
+			mListScroll = std::clamp(mListScroll, std::max(0, mListCursor - MG_ROWS + 1), std::max(0, mListCursor));
+		}
+		if (const LocalSeries* s = mangaLocalSeries(mangaSeriesId))
+			for (int i = 0; i < (int)s->chapters.size() && !chapterPath.empty(); i++)
+				if (s->chapters[i].path == chapterPath)
+				{
+					mserCursor = i;
+					mserScroll = std::clamp(mserScroll, std::max(0, i - MG_SER_ROWS + 1), i);
+					break;
+				}
+		mangaLocalSerial++;
+		mangaCacheValid = false;
+		// (a scan's probes come in batches: the store is written once at its end; a series page's fill at once)
+		if (changed)
+		{
+			mangaDirty = true;
+			if (!mangaScanning) mangaSave();
+		}
+	}
+
+	void Ui::Manga::mangaLocalWantFill(const std::string& id)
+	{
+		const LocalSeries* s = mangaLocalSeries(id);
+		if (!s || seriesKnown(*s)) return;
+		if (!libWorker)
+		{
+			LocalSeries& w = mangaLocal[mangaLocalById[id]];
+			fillMangaSeries(w, nullptr, false);
+			mangaLocalCommit(w, (int64_t)time(nullptr));
+			mangaLocalSerial++;
+			mangaCacheValid = false;
+			return;
+		}
+		// asked once; again after a while only if an answer went missing (a newer listing replaced the chapters)
+		Uint32 now = SDL_GetTicks();
+		auto it = mangaFillAsked.find(s->path);
+		if (it != mangaFillAsked.end() && now - it->second < 10000) return;
+		mangaFillAsked[s->path] = now;
+		libWorker->fill(*s);
+	}
+
+	bool Ui::Manga::mangaLocalFilling(const std::string& id) const
+	{
+		const LocalSeries* s = mangaLocalSeries(id);
+		return s && !seriesKnown(*s);
+	}
+
+	void Ui::Manga::mangaLocalForget(const std::vector<std::string>& paths)
+	{
+		// files deleted here: their chapters (and a series left with none) leave the list now, no scan needed
+		std::unordered_set<std::string> gone(paths.begin(), paths.end());
+		std::string listPath = mListCursor >= 0 && mListCursor < (int)mangaLocal.size() ? mangaLocal[mListCursor].path : "";
+		for (auto it = mangaLocal.begin(); it != mangaLocal.end();)
+		{
+			bool all = gone.count(it->path) > 0;
+			if (!all)
+			{
+				auto& chs = it->chapters;
+				size_t before = chs.size();
+				chs.erase(std::remove_if(chs.begin(), chs.end(), [&](const LocalChapter& c) { return gone.count(c.path) > 0; }), chs.end());
+				all = chs.empty();
+				if (!all && chs.size() != before) finishSeries(*it);
+			}
+			it = all ? mangaLocal.erase(it) : std::next(it);
+		}
+		mangaLocalReindex();
+		for (int i = 0; i < (int)mangaLocal.size() && !listPath.empty(); i++)
+			if (mangaLocal[i].path == listPath) { mListCursor = i; break; }
+		mangaLocalSerial++;
+		mangaCacheValid = false;
+	}
+
+	const LocalSeries* Ui::Manga::mangaLocalAddOne(const std::string& path)
+	{
+		// one folder listed here and now: a few names and stats, no file opened (the worker reads them after)
+		std::vector<std::string> places;
+		for (auto& r : ui.roots) places.push_back(r.path);
+		for (const std::string& root : mangaRoots(places))
+		{
+			LocalSeries one;
+			if (!listMangaSeries(root, path, libWorker ? libWorker->cache() : nullptr, one)) continue;
+			std::string id = "local:" + one.path;
+			auto it = mangaLocalById.find(id);
+			if (it != mangaLocalById.end() && it->second < mangaLocal.size()) mangaLocal[it->second] = std::move(one);
+			else mangaLocal.push_back(std::move(one));
+			mangaLocalSort();
+			mangaLocalReindex();
+			LocalSeries& s = mangaLocal[mangaLocalById[id]];
+			if (mangaLocalCommit(s, (int64_t)time(nullptr))) mangaSave();
+			mangaFillAsked.erase(s.path);
+			mangaLocalWantFill(id);
+			mangaLocalSerial++;
+			mangaCacheValid = false;
+			return mangaLocalSeries(id);
+		}
+		return nullptr;
+	}
+
+	std::string Ui::Manga::mangaReadingLine() const
+	{
+		std::string t = "Reading your library\xE2\x80\xA6";
+		if (mangaScanCount > 0) t += " " + std::to_string(mangaScanCount) + " series";
+		return t;
 	}
 
 	void Ui::Manga::mangaSave()
@@ -187,10 +459,10 @@ namespace bp
 	void Ui::Manga::mangaCache() const
 	{
 		uint64_t serial = mangaStore ? mangaStore->serial() : 0;
-		if (mangaCacheValid && mangaCacheSerial == serial && mangaCacheCount == (int)mangaLocal.size()) return;
+		if (mangaCacheValid && mangaCacheSerial == serial && mangaCacheCount == (int)mangaLocalSerial) return;
 		mangaCacheValid = true;
 		mangaCacheSerial = serial;
-		mangaCacheCount = (int)mangaLocal.size();
+		mangaCacheCount = (int)mangaLocalSerial;	// (the chapters, for the unread counts: a listing or files read)
 		// the series under the Library's cursor: the list is newest-read first, so the one just read goes to the
 		// top, and the cursor goes with it rather than staying on the place it left
 		std::string atId = mlibGrid >= 0 && mlibGrid < (int)mangaLib.size() ? mangaLib[mlibGrid].id : "";
@@ -374,6 +646,8 @@ namespace bp
 		mangaSeriesFrom = from;
 		mserCursor = -1;
 		mserScroll = 0;
+		// its chapter files not read yet (their ComicInfo numbers order the list): read now, off this thread
+		mangaLocalWantFill(id);
 		// a series that is one file (a PDF, a CBZ on its own): no chapters to choose, so the reader at once, where it
 		// was left (from the start again once it was read to its end); B goes back to the list (mangaCloseReader)
 		if (const LocalSeries* s = mangaSingleFile(id))
@@ -403,6 +677,8 @@ namespace bp
 		}
 		const LocalChapter& c = s.chapters[i];
 		mangaSeriesId = "local:" + s.path;
+		// (L2/R2 step through the chapters' order: the files that settle it are read meanwhile)
+		mangaLocalWantFill(mangaSeriesId);
 		ui.pageReader->mangaReadSeriesId = mangaSeriesId;
 		ui.pageReader->mangaReadChapterId = c.path;
 		ui.pageReader->mangaReadChapterTitle = c.title;
@@ -1169,13 +1445,22 @@ namespace bp
 		}
 		if (!coverWorker || coverAsked.count(seriesId) || coverFailed.count(seriesId)) return nullptr;
 		const LocalSeries* s = mangaLocalSeries(seriesId);
+		std::string source = s ? s->cover : "";
+		if (!s && seriesId.rfind("local:", 0) == 0 && (!mangaScanned || mangaScanning))
+		{
+			// the library as last known while the card is read: the cover the store kept (asked again with the
+			// listing's if it fails), else wait for the listing rather than give up on it
+			const MangaSeries* ms = mangaStore ? mangaStore->series(seriesId) : nullptr;
+			if (!ms || ms->cover.empty()) return nullptr;
+			source = ms->cover;
+		}
 		// nothing to read is nothing to ask: the generated cover is the answer
-		if (!s || s->cover.empty())
+		if (source.empty())
 		{
 			coverFailed.insert(seriesId);
 			return nullptr;
 		}
-		coverWorker->want(seriesId, s->cover, std::max(1, (int)std::lround(MG_COVER_W * sx)),
+		coverWorker->want(seriesId, source, std::max(1, (int)std::lround(MG_COVER_W * sx)),
 			std::max(1, (int)std::lround(MG_COVER_H * sy)));
 		coverAsked.insert(seriesId);
 		return nullptr;
@@ -1501,6 +1786,8 @@ namespace bp
 				mangaTab, mlibGrid, mlibScroll, mhisCursor, mhisScroll, mbrowseCursor, mListCursor,
 				mListScroll, (int)mBrowseList, mserCursor, mserScroll, (unsigned long long)(mangaStore ? mangaStore->serial() : 0),
 				(int)mangaLocal.size(), mangaPressed, mangaClearAt != 0, coverTex.size(), (unsigned long long)coverSerial);
+			// the card's library: a listing or chapter files read (mangaLocalSerial), the reading line's count
+			sig += "|mlib" + std::to_string(mangaLocalSerial) + (mangaScanning ? " r" + std::to_string(mangaScanCount) : "");
 			sig += std::string(mb) + "|" + mangaSeriesId + "|ml" + std::to_string(mlocSheet) + std::to_string(mlocCursor) +
 				std::to_string((int)mlocDeleteArmed) + "|me" + std::to_string((int)mengSheet) + std::to_string(mengCursor) + std::to_string((int)mengBusy) + std::to_string((int)mengUpgrade) + mangaEngineSignature();
 			// Sources: the sub-list and each list's place, a sheet, the sources installing, the manager's own changes
@@ -1751,7 +2038,15 @@ namespace bp
 		mangaCache();
 		// the label on the line under the tabs, then the cover grid right below it (no Continue reading strip)
 		ui.drawTextMid("Library \xC2\xB7 " + std::to_string(mangaLib.size()) + " series", 0, DIM, 16, MG_LIB_TOP - 14);
+		// the card read in the background: the grid is the library as last known until it ends, then updates in place
+		if (mangaScanning && !mangaLib.empty()) ui.drawTextMid(mangaReadingLine(), 0, DIM, 624, MG_LIB_TOP - 14, 360, 1);
 		int n = (int)mangaLib.size();
+		if (n == 0 && mangaScanning)
+		{
+			ui.drawEmpty(G_BOOK, mangaReadingLine(), "The series on your card show up here in a moment.", nullptr);
+			ui.drawHints({{"B", "Back"}});
+			return;
+		}
 		if (n == 0)
 		{
 			ui.drawEmpty(G_BOOK, "Your library is empty",
@@ -1975,6 +2270,12 @@ namespace bp
 		int n = (int)mangaLocal.size();
 		if (mBrowseList)
 		{
+			if (n == 0 && mangaScanning)
+			{
+				ui.drawEmpty(G_FOLDER, mangaReadingLine(), "The series on your card show up here in a moment.", nullptr);
+				ui.drawHints({{"B", "Back"}});
+				return;
+			}
 			if (n == 0)
 			{
 				ui.drawEmpty(G_FOLDER, "No series found", "Copy manga into " + mangaLocalFolder() + ". X shows how.", nullptr);
@@ -1998,7 +2299,9 @@ namespace bp
 					0, at ? DIM_ON : DIM, 608, mid, 160, 1);
 			}
 			ui.drawScrollBar(MG_ROW_TOP, MG_ROWS * ROW_H - 4, mListScroll, MG_ROWS, n);
-			ui.drawHints({{"A", "Open"}, {"Y", "Options"}, {"X", "How to add"}, {"B", "Back"}});
+			// while the card is read the footer says so (the list may still change); its keys work meanwhile
+			if (mangaScanning) ui.drawFooterText(mangaReadingLine(), DIM);
+			else ui.drawHints({{"A", "Open"}, {"Y", "Options"}, {"X", "How to add"}, {"B", "Back"}});
 			if (mlocSheet != MLS_NONE) drawMangaLocalSheet(p);
 			return;
 		}
@@ -2042,8 +2345,11 @@ namespace bp
 		ids.reserve(n);
 		for (auto& c : s->chapters) ids.push_back(c.path);
 		int unread = mangaStore ? mangaStore->unread(mangaSeriesId, ids) : 0;
-		ui.drawTextMid(std::to_string(n) + (n == 1 ? " chapter" : " chapters") + " \xC2\xB7 " + std::to_string(unread) + " unread",
-			0, DIM, 16, 68);
+		// its chapter files still being read (their order may change): said, and asked for if nothing asked yet
+		bool filling = !seriesKnown(*s);
+		if (filling) mangaLocalWantFill(mangaSeriesId);
+		ui.drawTextMid(std::to_string(n) + (n == 1 ? " chapter" : " chapters") + " \xC2\xB7 " + std::to_string(unread) + " unread" +
+			(filling ? " \xC2\xB7 Reading the chapters\xE2\x80\xA6" : ""), 0, DIM, 16, 68);
 		// Resume: the first started-but-unread chapter, else the first unread, else the first
 		std::vector<MangaChapterMark> marks;
 		marks.reserve(n);

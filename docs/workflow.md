@@ -18,7 +18,7 @@ Moved out of CLAUDE.md word for word (CLAUDE.md keeps the commands and a line on
   the owner test while anything longer runs; the full multi-size browser suite only before a release, in the background.
   Subagents don't run long suites unless asked. When a bug can't be pinned from `log.txt`, add logging that would.
 - **Test variables:** `BP_POWER_SUPPLY` (fake `/sys/class/power_supply`), `BP_BACKLIGHT_DIR` (fake `/sys/class/backlight`: `backlight0`/`backlight1` with `max_brightness` and `brightness`), `BP_OSD_FILE` (bananad's level file),
-  `BP_FONT_PROVIDER=none` (libass with no system fonts, as on BananaOS), `BP_SCREENSHOTS`, `BP_BOTTOM_SIZE=1024x768`,
+  `BP_FONT_PROVIDER=none` (libass with no system fonts, as on BananaOS), `BP_MANGA_SLOW=MS` (the Manga library read MS ms a series slower, as a slow card: its "Reading your library" line in a `shot:`), `BP_SCREENSHOTS`, `BP_BOTTOM_SIZE=1024x768`,
   `BP_AO_PCM=FILE` (sound out as raw 44.1 kHz s16 stereo, untimed), `BP_CRASH_TEST=segv|abort|throw|overflow` (crashes
   1.5 s after start), `BP_BACKLIGHT_DIR`/`BP_BACKLIGHT_STORE`, `BP_VOLUME_SCRIPT`, `BP_PACKAGE_DIR`/`BP_UPDATE_URL`;
   web: `BP_WEB_FORCE=1`, `BP_WEB_PIN`, `BP_WEB_PORT`, `BP_WEB_DIR` (serve `web/` from disk, not the embedded copy),

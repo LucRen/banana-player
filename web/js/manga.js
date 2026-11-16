@@ -78,7 +78,7 @@ function SeriesView({ id, data, onBack }) {
 			${info.source && info.source !== 'local' ? html`<div class="dim">${info.source}</div>` : null}
 		</div>
 	</div>`;
-	if (r.pending) return html`${back}${head}<p class="note">Asking the source for its chapters…</p>`;
+	if (r.pending) return html`${back}${head}<p class="note">${id.startsWith('local:') ? 'Reading the chapters on the card…' : 'Asking the source for its chapters…'}</p>`;
 	const items = r.items || [];
 	const local = !!info.local;
 	const unread = items.filter(c => !c.read && (c.download || {}).state !== 'onCard');

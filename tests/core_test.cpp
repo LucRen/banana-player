@@ -3933,6 +3933,130 @@ static void testMangaStore()
 	rmdir(root.c_str());
 }
 
+// the two-speed scan over testMangaLocal's tree (M; full: scanMangaFolder's answer): listing opens nothing, filling
+// gives the full scan's answer, and the index of what each file held makes a second listing whole with nothing opened
+#define CHECK(x) CHECK_EQ((bool)(x), true)
+static void testMangaLocalLazy(const std::string& M, const std::vector<LocalSeries>& full)
+{
+	auto find = [](const std::vector<LocalSeries>& v, const std::string& p) -> const LocalSeries* {
+		for (const LocalSeries& s : v)
+			if (s.path == p) return &s;
+		return nullptr;
+	};
+	auto same = [&](const std::vector<LocalSeries>& a) {
+		CHECK_EQ(a.size(), full.size());
+		for (size_t i = 0; i < a.size() && i < full.size(); i++)
+		{
+			CHECK_EQ(a[i].path, full[i].path);
+			CHECK_EQ(a[i].title, full[i].title);
+			CHECK_EQ(a[i].cover, full[i].cover);
+			CHECK_EQ(a[i].chapters.size(), full[i].chapters.size());
+			for (size_t j = 0; j < a[i].chapters.size() && j < full[i].chapters.size(); j++)
+			{
+				CHECK_EQ(a[i].chapters[j].path, full[i].chapters[j].path);
+				CHECK_EQ(a[i].chapters[j].number, full[i].chapters[j].number);
+				CHECK_EQ(a[i].chapters[j].volume, full[i].chapters[j].volume);
+				CHECK_EQ(a[i].chapters[j].pages, full[i].chapters[j].pages);
+				CHECK(a[i].chapters[j].known);
+			}
+		}
+	};
+
+	// listed: no archive opened, so the names alone
+	std::vector<LocalSeries> listed = listMangaFolder(M, nullptr);
+	CHECK_EQ(listed.size(), full.size());
+	if (const LocalSeries* s = find(listed, M + "/Meta"))
+	{
+		CHECK_EQ(s->title, std::string("Meta"));	// no ComicInfo read yet: the folder's name
+		CHECK(!s->chapters.empty() && !s->chapters[0].known);
+		if (!s->chapters.empty())
+		{
+			CHECK_EQ(s->chapters[0].pages, -1);
+			CHECK_EQ(s->chapters[0].number, -1.0);
+		}
+		CHECK_EQ(s->cover, M + "/Meta/whatever.cbz#");	// its first page, by position
+		CHECK(!seriesKnown(*s));
+	}
+	if (const LocalSeries* s = find(listed, M + "/Chaptered")) CHECK(seriesKnown(*s));	// folders are known by listing
+
+	// the probe: one file a series, into the index
+	ChapterMetaCache cache;
+	int opened = 0;
+	for (LocalSeries& s : listed) opened += fillMangaSeries(s, &cache, true);
+	CHECK_EQ(opened, 3);	// Cbz Chapters' first, Loose 7, Meta's one
+	if (const LocalSeries* s = find(listed, M + "/Meta")) CHECK_EQ(s->title, std::string("Test Series"));
+	if (const LocalSeries* s = find(listed, M + "/Cbz Chapters"))
+	{
+		CHECK(!seriesKnown(*s));
+		CHECK_EQ(s->title, std::string("Cbz Chapters"));	// one chapter's ComicInfo doesn't name the series
+		CHECK_EQ(s->cover, M + "/Cbz Chapters/Vol.1 Ch.1.cbz#001.jpg");
+	}
+	// the rest: the full scan's answer
+	for (LocalSeries& s : listed) opened += fillMangaSeries(s, &cache, false);
+	CHECK_EQ(opened, 4);
+	sortSeries(listed);
+	same(listed);
+	CHECK_EQ(cache.size(), (size_t)4);
+
+	// listed again with the index: whole, nothing to open
+	std::vector<LocalSeries> again = listMangaFolder(M, &cache);
+	int more = 0;
+	for (LocalSeries& s : again) more += fillMangaSeries(s, &cache, false);
+	CHECK_EQ(more, 0);
+	same(again);
+	LocalSeries one;
+	CHECK(listMangaSeries(M, M + "/Meta", &cache, one));
+	CHECK(seriesKnown(one));
+	CHECK_EQ(one.title, std::string("Test Series"));
+	CHECK(!listMangaSeries(M, M + "/Junk", &cache, one));
+	CHECK(!listMangaSeries(M, "/elsewhere/Meta", &cache, one));
+
+	// a file changed (another mtime or size) isn't the one remembered
+	ChapterFileMeta m;
+	struct stat st;
+	CHECK_EQ(stat((M + "/Meta/whatever.cbz").c_str(), &st), 0);
+	CHECK(cache.get(M + "/Meta/whatever.cbz", (int64_t)st.st_size, (int64_t)st.st_mtime, m));
+	CHECK_EQ(m.ciSeries, std::string("Test Series"));
+	CHECK(!cache.get(M + "/Meta/whatever.cbz", (int64_t)st.st_size, (int64_t)st.st_mtime + 1, m));
+	CHECK(!cache.get(M + "/Meta/whatever.cbz", (int64_t)st.st_size + 1, (int64_t)st.st_mtime, m));
+
+	// the file: written and read back; a garbled line and a torn last line are skipped, the rest kept
+	std::string file = M + "/../library-index.txt";
+	unlink(file.c_str());
+	ChapterMetaCache disk;
+	CHECK(!disk.load(file));
+	disk.put(M + "/odd\tname\\x.cbz", 5, 6, m);	// a tab and a backslash in a name survive the trip
+	disk.put(M + "/Meta/whatever.cbz", (int64_t)st.st_size, (int64_t)st.st_mtime, m);
+	CHECK(disk.save());
+	ChapterMetaCache back;
+	CHECK(back.load(file));
+	CHECK_EQ(back.size(), (size_t)2);
+	ChapterFileMeta b;
+	CHECK(back.get(M + "/odd\tname\\x.cbz", 5, 6, b));
+	CHECK_EQ(b.pages, m.pages);
+	CHECK_EQ(b.firstPage, m.firstPage);
+	CHECK_EQ(b.ciNumber, m.ciNumber);
+	CHECK_EQ(b.ciVolume, m.ciVolume);
+	CHECK_EQ(b.ciSeriesKey, m.ciSeriesKey);
+	unlink(file.c_str());
+	std::string text = cache.text();
+	size_t first = text.find('\n') + 1;	// (past the header)
+	std::string bad = text;
+	bad[first + 3] = bad[first + 3] == 'x' ? 'y' : 'x';	// one byte of the first entry's path garbled
+	bad.resize(bad.size() - 12);	// and the last line cut short
+	ChapterMetaCache torn;
+	torn.parse(bad);
+	CHECK_EQ(torn.size(), (size_t)2);
+	torn.parse("# bp manga files 1\nnot a line\n\t\t\t\n");
+	CHECK_EQ(torn.size(), (size_t)2);
+
+	// a whole scan that didn't see a file: it leaves; a file under another root stays
+	cache.put("/elsewhere/a.cbz", 1, 1, m);
+	cache.prune({M}, {M + "/Meta/whatever.cbz"});
+	CHECK_EQ(cache.size(), (size_t)2);
+	CHECK(cache.get("/elsewhere/a.cbz", 1, 1, m));
+}
+
 // the scanner over a real temporary tree: folders and CBZs the same bytes as tests/pages, so the fixture archives
 // carry their ComicInfo (Series "Test Series", Number 3, Volume 1) into the checks
 static void testMangaLocal()
@@ -4137,6 +4261,7 @@ static void testMangaLocal()
 	CHECK_EQ(byPath(M + "/__MACOSX"), nullptr);
 	CHECK_EQ(scanMangaFolder(M + "/gone").size(), (size_t)0);
 	CHECK_EQ(scanMangaFolder(M + "/Chaptered").size(), (size_t)3);	// a chapter folder scanned as a root: the chapters are one level up
+	testMangaLocalLazy(M, out);
 
 	// the places' Manga folders, each existing child folder once, nothing for a place without one
 	mk(D + "/p1");

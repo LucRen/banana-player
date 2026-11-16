@@ -22,6 +22,8 @@
 #include "mangafetch.h"
 #include "pagecache.h"
 #include "coverworker.h"
+#include "mangalibworker.h"
+#include <unordered_set>
 
 namespace bp
 {
@@ -93,6 +95,10 @@ namespace bp
 		// event, and the answers become textures here, on the main thread
 		CoverWorker* coverWorker = nullptr;
 		void coversReady(std::vector<CoverWorker::Result> results);
+		// the card's library, listed and its chapter files read on main's own worker (null: read here, all at once, as
+		// before); main forwards its event, and the answers go into mangaLocal here, on the main thread
+		MangaLibWorker* libWorker = nullptr;
+		void mangaLibReady(std::vector<MangaLibWorker::Result> results);
 
 		// ---- the pages ----
 		// A source's filter sheet (ui_manga_filters.cpp): the definitions filters() gave, the values Apply sends,
@@ -155,6 +161,14 @@ namespace bp
 		std::vector<LocalSeries> mangaLocal;	// On this handheld: each Manga folder's series, in reading order
 		std::unordered_map<std::string, size_t> mangaLocalById;
 		bool mangaScanned = false;	// the card was read at least once (the dashboard's local series can ask for it first)
+		// the library read in the background (docs/notes/2026-11-16-manga-library-scan.md): a scan under way (its gen, the
+		// series listed so far: the "Reading your library" line), the series whose chapter files were asked for, and a
+		// serial that grows with every change to mangaLocal (signature() follows it)
+		bool mangaScanning = false;
+		size_t mangaScanCount = 0;
+		uint64_t mangaScanGen = 0, mangaLocalSerial = 0;
+		Uint32 mangaScanAt = 0;
+		std::unordered_map<std::string, Uint32> mangaFillAsked;
 		bool mangaDirty = false;	// the store changed and wasn't written yet (mangaTick writes it once a second)
 		Uint32 mangaSavedAt = 0;
 		std::vector<std::string> mangaNotes;	// toasts made where no Player was at hand (mangaNotesTick shows them)
@@ -309,7 +323,17 @@ namespace bp
 			return {X[i], ui.miniUp ? 374 : 392, WIDTH[i], 44};
 		}
 		void mangaOpen(Player& p);		// openManga: the store loaded, the card scanned, the tabs reset
-		void mangaScan();				// each Manga folder read and its series put in the store
+		void mangaScan();				// each Manga folder read again (in the background) and its series put in the store
+		void mangaLocalSet(std::vector<LocalSeries> found);	// a listing in place: the cursors stay on their series
+		void mangaLocalMetas(const std::vector<MangaLibWorker::Found>& metas);	// chapter files read: lists re-sorted
+		bool mangaLocalCommit(LocalSeries& s, int64_t now);	// its store entry; true when the store changed
+		void mangaLocalWantFill(const std::string& id);	// its chapter files read, off the main thread
+		bool mangaLocalFilling(const std::string& id) const;	// asked and not all known yet
+		void mangaLocalForget(const std::vector<std::string>& paths);	// files deleted: their chapters and series leave
+		const LocalSeries* mangaLocalAddOne(const std::string& path);	// one series listed now (a download just written)
+		void mangaLocalReindex();
+		std::string mangaReadingLine() const;	// "Reading your library… N series" while the card is read
+		void mangaLocalSort();
 		void mangaCache() const;
 		void mangaSave();				// the store written now (the reader's: once a second, and on closing)
 		void mangaTick();				// the reader's page recorded, the store written when a second has passed
@@ -1008,6 +1032,8 @@ namespace bp
 		uint64_t mdlCardStamp = 0;	// what the last scan found, so an unchanged card doesn't redraw every frame
 		Uint32 mdlScanAt = 0;		// the scan is slow enough to be worth throttling
 		bool mdlCardOn = false;
+		bool mdlCardStale = false;	// chapter files the card's read waited for arrived: read again at once
+		std::unordered_set<std::string> mdlCardAsked;	// files (path, size, mtime) asked of the library worker once
 		uint64_t mdlLocal = 0;		// the tab's own changes (a scan, a delete), for signature()
 		int mdlCursor = 0, mdlScroll = 0;	// the queue, then Pause all, then the card's series
 		bool mdlCardOpen = false;	// A on a card series: its chapters

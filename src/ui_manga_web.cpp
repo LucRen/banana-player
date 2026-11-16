@@ -37,12 +37,33 @@ namespace bp
 		Uint32 now = SDL_GetTicks();
 		if (seriesId.rfind("local:", 0) == 0)
 		{
-			// the card's scan: the dashboard can ask before the handheld's Manga app was opened
-			if (!mangaScanned) mangaScan();
+			// the card's listing: the dashboard can ask before the handheld's Manga app was opened. It is read in the
+			// background, so the page is told to ask again (202), as for a source's list
+			if (!mangaScanned)
+			{
+				if (!mangaScanning) mangaScan();
+				if (!mangaScanned)
+				{
+					out.pending = true;
+					return false;
+				}
+			}
 			const LocalSeries* s = mangaLocalSeries(seriesId);
+			if (!s && mangaScanning)
+			{
+				out.pending = true;	// (a listing under way may still find it: a card just put in)
+				return false;
+			}
 			if (!s)
 			{
 				out.error = "No such series";
+				return false;
+			}
+			// its chapter files not all read: their numbers order the list, so the page waits for them
+			if (mangaLocalFilling(seriesId))
+			{
+				mangaLocalWantFill(seriesId);
+				out.pending = true;
 				return false;
 			}
 			out.local = true;

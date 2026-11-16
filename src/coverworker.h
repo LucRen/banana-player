@@ -29,8 +29,9 @@ namespace bp
 			bool ok = false;			// false: nothing to draw (the generated cover stays)
 		};
 		explicit CoverWorker(std::function<void()> ready) : ready(std::move(ready)) {}
-		// key: the owner's id; source: LocalSeries::cover (a path, or "archive.cbz#entry"); w, h: the tile in the
-		// panel's own pixels. A cover already waiting keeps one place in the queue, moved to the front
+		// key: the owner's id; source: LocalSeries::cover (a path, "archive.cbz#entry", or "archive.cbz#" for its first
+		// page); w, h: the tile in the panel's own pixels. A cover already waiting keeps one place in the queue, moved
+		// to the front
 		void want(const std::string& key, const std::string& source, int w, int h);
 		// the app closed or was read again: nothing of the queue is wanted any more (a decode under way finishes)
 		void cancel();

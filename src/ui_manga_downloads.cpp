@@ -104,10 +104,13 @@ namespace bp
 	void Ui::Manga::mangaDlEnsureCard(bool force)
 	{
 		Uint32 now = SDL_GetTicks();
+		if (mdlCardStale) force = true;	// (files it waited for were read)
 		if (!force && mdlCardOn && now - mdlScanAt < 5000) return;	// (a folder walk on the card: not every redraw)
 		mdlCardOn = true;
+		mdlCardStale = false;
 		mdlScanAt = now;
 		std::vector<MangaDlCardSeries> found;
+		std::vector<ChapterFileFound> misses;
 		std::string root = mangaNet ? mangaNet->downloadsRoot() : std::string();
 		DIR* top = root.empty() ? nullptr : opendir(root.c_str());
 		if (top)
@@ -130,29 +133,29 @@ namespace bp
 					std::string path = dir + "/" + name;
 					if (stat(path.c_str(), &sb) != 0 || !S_ISREG(sb.st_mode)) continue;
 					// only our own chapters: the same Manga folder may hold the card's own series, and those are
-					// On this handheld's, not downloads (ComicInfo's BPSource / BPSeriesKey say which is which)
-					ComicInfo ci;
-					int pages = 0;
-					Cbz z;
-					if (!z.open(path)) continue;
-					bool ours = false;
-					for (const auto& entry : z.entries())
-						if (entry.name == "ComicInfo.xml")
+					// On this handheld's, not downloads (ComicInfo's BPSource / BPSeriesKey say which is which).
+					// What a file holds comes from the library's index; one not read yet is read on the library's
+					// worker and shows when it answers (a big card's every CBZ opened here froze the tab)
+					ChapterFileMeta meta;
+					if (libWorker)
+					{
+						if (!libWorker->cached(path, (int64_t)sb.st_size, (int64_t)sb.st_mtime, meta))
 						{
-							std::vector<uint8_t> raw;
-							if (z.read(entry.name, raw)) ours = parseComicInfo(std::string(raw.begin(), raw.end()), ci);
-							break;
+							std::string key = path + "\n" + std::to_string((int64_t)sb.st_size) + " " + std::to_string((int64_t)sb.st_mtime);
+							if (mdlCardAsked.insert(key).second) misses.push_back({path, (int64_t)sb.st_size, (int64_t)sb.st_mtime, {}});
+							continue;
 						}
-					if (!ours || (ci.sourceId.empty() && ci.seriesKey.empty())) continue;
-					pages = ci.pageCount > 0 ? ci.pageCount : (int)z.pages().size();
+					}
+					else meta = readChapterFile(path);
+					if (!meta.comicInfo || (meta.ciSourceId.empty() && meta.ciSeriesKey.empty())) continue;
 					MangaDlCardChapter ch;
 					ch.path = path;
-					ch.title = ci.title.empty() ? baseNoExt(name) : ci.title;
-					ch.sourceId = ci.sourceId;
-					ch.seriesKey = ci.seriesKey;
-					ch.number = infoNumber(ci.number);
+					ch.title = meta.ciTitle.empty() ? baseNoExt(name) : meta.ciTitle;
+					ch.sourceId = meta.ciSourceId;
+					ch.seriesKey = meta.ciSeriesKey;
+					ch.number = infoNumber(meta.ciNumber);
 					if (ch.number < 0) ch.number = chapterNumber(ch.title);
-					ch.pages = pages;
+					ch.pages = meta.ciPageCount > 0 ? meta.ciPageCount : std::max(0, meta.pages);
 					ch.bytes = (uint64_t)sb.st_size;
 					series.bytes += ch.bytes;
 					series.chapters.push_back(std::move(ch));
@@ -168,6 +171,7 @@ namespace bp
 			}
 			closedir(top);
 		}
+		if (libWorker && !misses.empty()) libWorker->files(misses);
 		std::sort(found.begin(), found.end(), [](const MangaDlCardSeries& a, const MangaDlCardSeries& b) {
 			return naturalLess(a.name, b.name);
 		});
@@ -338,12 +342,15 @@ namespace bp
 		std::string seriesTitle = s.name, chapterTitle = c.title;
 		std::string localId = "local:" + s.path;
 		const LocalSeries* ls = mangaLocalSeries(localId);
-		if (!ls)
+		bool listed = false;
+		if (ls)
+			for (const auto& lc : ls->chapters) listed = listed || lc.path == c.path;
+		if (!listed)
 		{
-			// a chapter that finished while the app was open: the card's scan is from the app's start, so read it
-			// again before saying the series isn't there (closing the reader comes back to that page)
-			mangaScan();
-			ls = mangaLocalSeries(localId);
+			// a chapter that finished while the app was open: the card's listing is from the app's start, so its
+			// folder is listed again (names only, at once) before saying it isn't there (closing the reader comes back
+			// to that page)
+			ls = mangaLocalAddOne(s.path);
 		}
 		if (ls)
 		{
@@ -462,7 +469,7 @@ namespace bp
 						mdlDeletePath.clear();
 						mdlDeleteAt = 0;
 						mangaDlEnsureCard(true);
-						mangaScan();	// On this handheld reads the card's scan: it shows the files as they are now
+						mangaLocalForget({path});	// On this handheld shows the files as they are now
 						if (mdlCardAt >= (int)mdlCard.size()) mdlCardAt = (int)mdlCard.size() - 1;
 						if (mdlCardAt < 0) mdlCardOpen = false;
 						else if (mdlCardCursor >= (int)mdlCard[mdlCardAt].chapters.size())
@@ -580,15 +587,21 @@ namespace bp
 				if (mdlDeletePath == s.path && mdlDeleteAt && now - mdlDeleteAt < QUIT_WINDOW_MS)
 				{
 					int gone = 0;
+					std::vector<std::string> deleted{s.path};
 					for (const auto& ch : s.chapters)
-						if (remove(ch.path.c_str()) == 0) gone++;
-					rmdir(s.path.c_str());
+						if (remove(ch.path.c_str()) == 0)
+						{
+							gone++;
+							deleted.push_back(ch.path);
+						}
+					// (the folder only goes when nothing of the card's own is left in it)
+					if (rmdir(s.path.c_str()) != 0) deleted.erase(deleted.begin());
 					if (gone) p.osd("Deleted " + s.name, 1800);
 					else ui.alert("Couldn\xE2\x80\x99t delete the series", "Is the card read only?");
 					mdlDeletePath.clear();
 					mdlDeleteAt = 0;
 					mangaDlEnsureCard(true);
-					mangaScan();	// (as for a chapter)
+					mangaLocalForget(deleted);	// (as for a chapter)
 					int afterQ = mangaDlQueueCount();
 					int after = afterQ + (afterQ > 0 ? 1 : 0) + (int)mdlCard.size();
 					if (mdlCursor >= after) mdlCursor = std::max(0, after - 1);

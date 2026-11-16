@@ -396,10 +396,12 @@ namespace bp
 			SDL_Color ic = at ? ACCENT : DIM;
 			if (i == 0)
 			{
-				int count = (int)mangaLocal.size();
+				// (the card's listing not in yet: what it has found so far, not a "0 series")
+				int count = mangaScanning && !mangaScanned ? (int)mangaScanCount : (int)mangaLocal.size();
 				ui.drawGlyphMid(G_CARD, 44, mid, ic);
 				ui.drawTextMid("On this handheld", 1, at ? ACCENT : TEXT, 68, mid, 434);
-				ui.drawTextMid(count == 1 ? "1 series" : std::to_string(count) + " series", 0, at ? DIM_ON : DIM, 608, mid, 160, 1);
+				ui.drawTextMid(mangaScanning && !mangaScanned && count == 0 ? std::string("Reading\xE2\x80\xA6") :
+					count == 1 ? "1 series" : std::to_string(count) + " series", 0, at ? DIM_ON : DIM, 608, mid, 160, 1);
 				continue;
 			}
 			if (i <= nets)
@@ -2285,7 +2287,8 @@ namespace bp
 			mangaStore->removeSeries("local:" + s.path);
 			mangaSave();
 		}
-		mangaScan();
+		// the series leaves the list now (a scan of the whole card for one folder gone would be the slow way)
+		mangaLocalForget({s.path});
 		if (mListCursor >= (int)mangaLocal.size()) mListCursor = std::max(0, (int)mangaLocal.size() - 1);
 		if (mListScroll > mListCursor) mListScroll = mListCursor;
 		if (failed) ui.alert("Not all of it was deleted", "Some files of \"" + s.title + "\" couldn\xE2\x80\x99t be deleted.");
