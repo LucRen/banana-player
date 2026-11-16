@@ -18,7 +18,10 @@
 //   progress       the 14-tall bar with a knob and chapter marks (a slider: its knob grows and shows a tag when held)
 //   bar            a progress bar that isn't touched (3, 6 or 12 tall)
 //   sheet          a bottom sheet's body: the veil, the box, the grab mark, the header (lay::sheet gives its Rects)
-//   row            a list row: lead icon, name, pill, note, and a cap, a chevron or a switch at its end
+//   sheetBack      the same body without a header (the List sheet draws tabs and controls in its place)
+//   tabs           a strip of tabs 44 tall, a key cap at each end (a sheet's List / View)
+//   segment        a row of two or three small chips, the chosen one filled yellow (Repeat Off / All / One)
+//   row            a list row: lead icon or number, name, pill, note, and a cap, a chevron or a switch at its end
 //   pill, toggle   a mark on a row; a switch (never the touch target: its row is)
 //   lock           the lock over a screen whose touch is locked
 //   flat           a box with an edge and no lip (SURFACE pieces: chips, lines)
@@ -103,11 +106,23 @@ namespace bp
 			bool danger = false;
 		};
 		void sheet(const lay::Sheet& s, const SheetHead& h);
+		// the veil, the box and the grab mark: what a sheet draws before its own content (the header too, if it has
+		// one; the List sheet has tabs and controls instead)
+		void sheetBack(Rect box, Rect grab);
+
+		// ---- tabs and a segmented choice ----
+		// each tab's box: as wide as its label in F_P14 plus 26, 44 tall, 6 apart, the caps' room at both ends
+		std::vector<Rect> tabRects(Rect area, const std::vector<std::string>& labels) const;
+		// keys: the caps at its ends ("L/R" in a sheet); on: the open tab (-1 none)
+		void tabs(Rect area, const std::vector<std::string>& labels, int on, const std::string& keys = "L/R");
+		// options shared across `area` 6 apart, 40 tall (the caller's area): the chosen one yellow with black ink
+		void segment(Rect area, const std::vector<std::string>& options, int on);
 		enum class Pill { None, Live, Fact, Bad };	// yellow: live or wants attention; neutral: a fact; red: failed
 		enum class Trail { None, Chevron, SwitchOff, SwitchOn };
 		struct Row
 		{
 			const Glyph* glyph = nullptr;
+			std::string lead;	// a number in the icon's place (a list's place), when there is no icon
 			std::string name, note, key, pill;
 			Pill tone = Pill::Live;
 			Trail trail = Trail::None;

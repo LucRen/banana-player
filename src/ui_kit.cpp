@@ -263,12 +263,7 @@ namespace bp
 
 	void Ui::Kit::sheet(const lay::Sheet& s, const SheetHead& h)
 	{
-		// the page behind under a black veil; the sheet from the foot, its top corners round, an edge on three sides
-		ui.fill({0, 0, W, H}, sdl(theme::BG, (Uint8)(255 * theme::VEIL_SHEET / 100)));
-		ui.fillRound(s.box, edgeOf(SURFACE), theme::R_SHEET, ROUND_TL | ROUND_TR);
-		ui.fillRound({s.box.x + theme::EDGE, s.box.y + theme::EDGE, s.box.w - 2 * theme::EDGE, s.box.h - theme::EDGE}, SURFACE,
-			theme::R_SHEET - theme::EDGE, ROUND_TL | ROUND_TR);
-		ui.fillRound(s.grab, PRESSED, 2);
+		sheetBack(s.box, s.grab);
 		SDL_Color ink = h.danger ? DANGER : ACCENT;
 		int cy = s.head.y + s.head.h / 2, x = s.head.x, right = s.head.x + s.head.w;
 		if (h.glyph)
@@ -279,6 +274,58 @@ namespace bp
 		int noteW = std::min(260, textW(h.note, F_I12));
 		if (noteW) ui.drawTextMid(h.note, F_I12, DIM, right, cy, 260, 1);
 		ui.drawTextMid(h.title, F_P20, ink, x, cy, std::max(1, right - x - (noteW ? noteW + 12 : 0)));
+	}
+
+	void Ui::Kit::sheetBack(Rect box, Rect grab)
+	{
+		// the page behind under a black veil; the sheet from the foot, its top corners round, an edge on three sides
+		ui.fill({0, 0, W, H}, sdl(theme::BG, (Uint8)(255 * theme::VEIL_SHEET / 100)));
+		ui.fillRound(box, edgeOf(SURFACE), theme::R_SHEET, ROUND_TL | ROUND_TR);
+		ui.fillRound({box.x + theme::EDGE, box.y + theme::EDGE, box.w - 2 * theme::EDGE, box.h - theme::EDGE}, SURFACE,
+			theme::R_SHEET - theme::EDGE, ROUND_TL | ROUND_TR);
+		ui.fillRound(grab, PRESSED, 2);
+	}
+
+	// ---- tabs and a segmented choice ----
+
+	std::vector<Ui::Rect> Ui::Kit::tabRects(Rect area, const std::vector<std::string>& labels) const
+	{
+		std::vector<int> widths;
+		for (auto& l : labels) widths.push_back(std::max(44, textW(l, F_P14) + 2 * lay::TAB_PAD));
+		return lay::tabs(area, widths).tab;
+	}
+
+	void Ui::Kit::tabs(Rect area, const std::vector<std::string>& labels, int on, const std::string& keys)
+	{
+		std::vector<int> widths;
+		for (auto& l : labels) widths.push_back(std::max(44, textW(l, F_P14) + 2 * lay::TAB_PAD));
+		lay::Tabs t = lay::tabs(area, widths);
+		for (size_t i = 0; i < t.tab.size(); i++)
+		{
+			bool at = (int)i == on;
+			// (off: a button; on: yellow with its lip, as the mock-up's tab)
+			ui.drawBox(t.tab[i], at ? ACCENT : BUTTON, R_BUTTON);
+			ui.drawTextMid(labels[i], F_P14, at ? ON_ACCENT : TEXT, t.tab[i].x + t.tab[i].w / 2, t.tab[i].y + t.tab[i].h / 2,
+				t.tab[i].w - 8, 2);
+		}
+		if (keys.empty()) return;
+		// the caps that step it: the first name at the left end, the last at the right
+		auto names = capNames(keys);
+		int cy = area.y + area.h / 2;
+		if (!names.empty()) caps(names.front(), t.left.x, cy, ACCENT, SURFACE);
+		if (names.size() > 1) caps(names.back(), t.right.x, cy, ACCENT, SURFACE);
+	}
+
+	void Ui::Kit::segment(Rect area, const std::vector<std::string>& options, int on)
+	{
+		int n = (int)options.size();
+		for (int i = 0; i < n; i++)
+		{
+			Rect r = lay::cell(area, n, 6, i);
+			bool at = i == on;
+			flat(r, at ? ACCENT : TRACK, 9, at ? edgeOf(ACCENT) : edgeOf(BUTTON));
+			ui.drawTextMid(options[i], n >= 3 ? F_P13 : F_P14, at ? ON_ACCENT : DIM, r.x + r.w / 2, r.y + r.h / 2, r.w - 6, 2);
+		}
 	}
 
 	int Ui::Kit::pill(int right, int cy, const std::string& text, Pill tone)
@@ -310,6 +357,12 @@ namespace bp
 		if (row.glyph)
 		{
 			ui.drawGlyphMid(*row.glyph, x + 10, cy, ink);
+			x += 20 + 11;
+		}
+		else if (!row.lead.empty())
+		{
+			// a list's place, in the icon's slot ("17"), dim as the mock-up's numbers
+			ui.drawTextMid(row.lead, F_P14, off(DIM, row.off), x + 10, cy, 20, 2);
 			x += 20 + 11;
 		}
 		if (row.trail == Trail::Chevron)
