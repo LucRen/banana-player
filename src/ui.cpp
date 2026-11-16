@@ -211,12 +211,7 @@ namespace bp
 		{
 			if (p.settings.buttonHotkeys && !inMenu && p.playing() && !p.playingPhoto() && p.error.empty() &&
 				(page == Page::Main || page == Page::Tracks || page == Page::Chapters))
-			{
-				bool pred = predicting(p);
-				int t = p.stepChapter(b == Button::L2 ? -1 : 1, pred ? shownPosition(p) : -1);
-				if (pred && t >= 0 && t < (int)p.chapters.size()) noteSeek(p, p.chapters[t].time);
-				else if (pred && t == CHAPTER_FILE_START) noteSeek(p, 0);
-			}
+				chapterStep(b == Button::L2 ? -1 : 1, p);
 			return false;
 		}
 		if (inMenu)

@@ -112,7 +112,8 @@ namespace bp
 
 		// ---- tabs and a segmented choice ----
 		// each tab's box: as wide as its label in F_P14 plus 26, 44 tall, 6 apart, the caps' room at both ends
-		std::vector<Rect> tabRects(Rect area, const std::vector<std::string>& labels) const;
+		// (caps false: no key caps are drawn, so the strip starts at the area's left edge)
+		std::vector<Rect> tabRects(Rect area, const std::vector<std::string>& labels, bool caps = true) const;
 		// keys: the caps at its ends ("L/R" in a sheet); on: the open tab (-1 none)
 		void tabs(Rect area, const std::vector<std::string>& labels, int on, const std::string& keys = "L/R");
 		// options shared across `area` 6 apart, 40 tall (the caller's area): the chosen one yellow with black ink

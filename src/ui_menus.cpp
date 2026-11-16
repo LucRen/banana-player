@@ -124,6 +124,16 @@ namespace bp
 		scroll = std::clamp(cursor - 3, 0, std::max(0, n - ROWS_SHOWN));
 	}
 
+	void Ui::chapterStep(int dir, Player& p)
+	{
+		// L2/R2: the chapter before or after, over what plays and its two pages (the Chapters page's mark follows).
+		// Here rather than in Ui::press so the List sheet, which takes the keys first, passes it the same way
+		bool pred = predicting(p);
+		int t = p.stepChapter(dir, pred ? shownPosition(p) : -1);
+		if (pred && t >= 0 && t < (int)p.chapters.size()) noteSeek(p, p.chapters[t].time);
+		else if (pred && t == CHAPTER_FILE_START) noteSeek(p, 0);
+	}
+
 	void Ui::choose(int i, Player& p)
 	{
 		// ".." (row -1): up a folder: as B and "<" go, selecting or not

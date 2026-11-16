@@ -141,8 +141,8 @@ folders. Playlists have a section of their own, between Files and Network.
 - **A** on an item plays the playlist from there. **Play all** (the playlist's **X** menu) starts at the top, and
   **Play from here** (an item's **Y** menu) starts at that item.
 - **Shuffle play** turns **Shuffle** on and starts at a random item; the rest follow in a random order (the list keeps
-  its own order where it's shown). Shuffle stays on for what you play next, till you turn it off (**X** on the music
-  screen, or the web's Shuffle button).
+  its own order where it's shown). Shuffle stays on for what you play next, till you turn it off (the **Shuffle** chip
+  on a song, its switch in the **List** sheet, or the web's Shuffle button).
 - **L / R** go to the previous or next item, as in a folder. On **Loop all**, the playlist starts again after its last
   item.
 
@@ -228,7 +228,7 @@ Like a song or a video to keep it in **Liked**, a playlist of its own. Photos an
 | **L2 / R2** | Previous / next chapter (**F + L2** is still the screenshot) |
 | **DOWN / UP** | **DOWN** steps onto the chips (then **LEFT / RIGHT** choose one and **A** changes or opens it), **DOWN** again onto the **Next** line (**A** opens the list); **UP** or **B** goes back to the playing keys. They no longer change the speed: that is the **Speed** chip |
 | **X** | **More**: a sheet with **Lock touch**, **Screen off**, **Info** and **Stop** (in red) as its first four keys, then **Like**, **Add to playlist…**, **Show in folder** and, while a dashboard page that can play is open, **Play on…**. The D-pad moves, **A** chooses, **X** or **B** closes |
-| **Y** | **Up next** (the **List** key): the folder or playlist that plays, in its own order, the one playing marked **Now** |
+| **Y** | **List** (the **List** key): one sheet with **Up next** (the folder or playlist that plays, in its own order, the one playing marked **Now**) and **Chapters** (every chapter with its start; a file without chapters has only Up next), with **Shuffle**'s switch and **Repeat** (Off / All / One) in its header. **L / R** step the tabs, **UP / DOWN** move, **LEFT / RIGHT** page, **A** plays from the row, **L2 / R2** jump a chapter with the sheet open, **Y** or **B** closes |
 | **SELECT** | Video: **Tracks**, one page with four tabs in this order: **Chapters** (when the file has them), **Subtitles**, **Audio**, **Picture** (Fit, Fill, Stretch); **L / R** (or **Y / X**) switch them. It opens on the tab you used last (the first time: Chapters if the file has chapters, else Subtitles) · Music: the Display popup (what's shown, and the visualizer's style) |
 | **START** | Menu, on its **Playing** tab: Like, Add to playlist…, Show in folder, Info, Stop |
 | **L3** (press the stick, RG DS Plus) | Like / Unlike what plays |
@@ -253,15 +253,14 @@ Like a song or a video to keep it in **Liked**, a playlist of its own. Photos an
   **Y**) and **View** (**SELECT**: Tracks on a video, the Display popup on a song).
 - **The chips** under them say how it is set, and a tap changes or opens each: on a video **Subtitles**, **Audio** and
   **Picture** (each opens its tab of Tracks), **Speed** and **Repeat**; on a song **Sound** (the preset and effect:
-  the Sound page), **Top screen** (what the top screen shows: the Display popup), **Speed** and **Repeat**. A chip
-  whose value isn't the normal one is yellow with a dot (a speed that isn't 1x, a Loop, Fill or Stretch, an equalizer
-  or effect left on), so it can't go unnoticed. **Speed** steps round 0.5x, 1x, 1.5x, 2x, 2.5x. **Repeat** steps the
-  play mode, on a video as on a song: In order → Loop all → Loop one → Shuffle (with Loop all); it reads **Repeat**
-  Off / All / One, or **Shuffle** On (One or Once for the pairs the web dashboard can set).
+  the Sound page), **Top screen** (what the top screen shows: the Display popup), **Speed** and **Shuffle**. A chip
+  whose value isn't the normal one is yellow with a dot (a speed that isn't 1x, Repeat all or one, Shuffle, Fill or
+  Stretch, an equalizer or effect left on), so it can't go unnoticed. **Speed** steps round 0.5x, 1x, 1.5x, 2x, 2.5x.
+  **Repeat** (a video) opens the List sheet, where Off / All / One is chosen; on a song **Shuffle** turns on or off.
 - **The Next line** along the bottom names what plays after this (its place in the list; "shuffled" with Shuffle
   on, **A new shuffled round** at a round's end, **Nothing after this** at the end of a list played in order); a tap
-  opens the list, as **Y** does.
-- **Chapters:** tap the chapter line above the progress bar (`2 / 8 · its name`) for the Chapters tab.
+  opens the List sheet on Up next, as **Y** does.
+- **Chapters:** tap the chapter line above the progress bar (`2 / 8 · its name`) for the List sheet on Chapters.
 - **Lists:** tap to choose, drag to scroll.
 - **Back to the list:** tap **<** (top left): it keeps playing. **Stop** is in **More** (**⋯**, top right, or **X**),
   in red: it stops it, where **<** and **B** only leave the player.
@@ -276,12 +275,14 @@ what plays going on behind; the first time a playlist's song opens, the List key
 the list of playlists, the cursor on that playlist; back in the folder of what played (or the photo last viewed), the
 cursor is on it.
 
-Otherwise **Up next** (**Y**, or the **List** key) lists what plays from (a folder, a playlist, Recent's folder, a selection
-from the web) in its own order: Shuffle never reorders it. The one playing is marked **Now** (**Paused**, or **Browser**
-when a web page plays it), with each file's length where it's known; the page opens scrolled to it. **A** (or a tap)
-plays that row as picking it from its list would (Shuffle and Loop stay as they are; with Shuffle on, a new order from
-there), on the handheld or in the browser that plays the list; **A** on the one playing just goes back to it. **B**
-goes back.
+Otherwise **List** (**Y**, or the **List** key) opens its **Up next** tab: what plays from (a folder, a playlist, Recent's
+folder, a selection from the web) in its own order, which Shuffle never reorders. The one playing is marked **Now**
+(**Paused**, or **Browser** when a web page plays it), with each file's length where it's known; the sheet opens scrolled
+to it. **A** (or a tap) plays that row as picking it from its list would (Shuffle and Loop stay as they are; with Shuffle
+on, a new order from there), on the handheld or in the browser that plays the list; **A** on the one playing just goes
+back to it. **B** goes back. Its **Chapters** tab has every chapter of the file, the one playing marked, with **L2 / R2**
+jumping from either tab; a row's **A** plays from it. The header's **Shuffle** switch and **Repeat** Off / All / One are
+the two settings the two keys used to share.
 
 Under the progress bar you'll see the time played, the time left (at the current speed) and the total length.
 
@@ -289,7 +290,7 @@ The top line of the player shows what's playing from: the folder (`Videos / Movi
 name, then the server's name when the item is on one), and `3 / 12`, the file's place in its folder or playlist (with
 Shuffle on too: the list keeps its order). Under it the title, and on its right how it plays: **Playing**, **Paused**,
 or, while a dashboard page plays it, **In Chrome on Mac** (the Play key then says **Hold: play it here** and fills as
-you hold it). With Shuffle on the **Repeat** chip reads **Shuffle**.
+you hold it). A song's fourth chip is **Shuffle**; a video's fifth is **Repeat**.
 
 ### Looking at a photo
 
@@ -543,21 +544,18 @@ Songs show their title, artist and album on the top screen. While a song plays:
   **B** closes it. The Style row is greyed out for Album art and None, which don't show a visualizer, but it can still
   be changed. A song without art shows its title alone on Album art, and the visualizer on Art + visualizer. Album art
   can be inside the song file or a `cover.jpg` in the same folder.
-- **Y: Up next**, as on a video. A song or audiobook with chapters shows them on the line above the progress bar: tap
-  it for the **Chapters** page (**L2** / **R2** jump). The **Sound** page is the line under the buttons.
-- **X: Shuffle and Loop**, in turn: **In order** (the key says **Off** by the loop mark), **Loop all** (**All**: the
-  folder starts again after its last song), **Loop one** (**One**: the same song again) and **Shuffle** (**On** by the
-  shuffle mark: Shuffle with Loop all, so it never stops), then In order again. The screen says which as it changes.
-  - **Shuffle** never reorders what you see (the folder, the playlist, Up next keep their order): **Next** and a song's
-    end go to a random one not played yet in this round, **Previous** goes back the way it came. The song playing when
-    you turn it on (or off) plays on.
-  - With **Loop all**, each round is followed by a new random one (never the same song twice in a row); with Loop off
-    the list stops once every song has played; with **Loop one** the song repeats.
-  - Shuffle and Loop are settings: they stay as they are for every folder, playlist or file you play next, here or from
-    the web, and after a restart. The web sets them separately; a pair the key doesn't list shows the shuffle mark with
-    **One** (Loop one) or **Once** (no loop), and the next press goes to In order.
-  - Loop and Shuffle apply to videos as to songs (set them on a song's **X** key or in the web dashboard: a video's **X**
-    is its audio and subtitles).
+- **Y: List**, as on a video: **Up next**, and **Chapters** when the song or audiobook has them (**L2** / **R2** jump
+  from either tab); a tap on the chapter line above the progress bar opens its **Chapters** tab. **Shuffle**'s switch
+  and **Repeat** Off / All / One are in the sheet's header, and the song's fourth chip is a **Shuffle** switch of its own.
+- **X: More**, as on a video (Lock touch, Screen off, Info, Stop, Like, Add to playlist…, Show in folder, Play on…).
+  Shuffle and Repeat no longer share a key: each is set on its own.
+- **Shuffle** never reorders what you see (the folder, the playlist, Up next keep their order): **Next** and a song's
+  end go to a random one not played yet in this round, **Previous** goes back the way it came. The song playing when
+  you turn it on (or off) plays on. With **Loop all**, each round is followed by a new random one (never the same song
+  twice in a row); with Loop off the list stops once every song has played; with **Loop one** the song repeats.
+- Shuffle and Repeat are settings: they stay as they are for every folder, playlist or file you play next, here or
+  from the web, and after a restart. The web sets them separately. They apply to videos as to songs, from the same
+  List sheet (a video's **Repeat** chip opens it; a song's **Shuffle** chip turns Shuffle on or off).
 
 Settings › Music has the same two choices as **Music display** and **Visualizer**, and **Song info on top** (off by
 default): the song's title, artist and album over the top screen's picture, each line cut with "…" if it's too long.

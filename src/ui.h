@@ -386,6 +386,9 @@ namespace bp
 		// the file's chapters (the Tracks page's Chapters tab): the cursor on the one playing
 		void openChapters(const Player& p);
 		void drawChapters(const Player& p);
+		// L2/R2: the chapter before or after, over what plays (the Chapters page's mark follows; a page playing it
+		// takes the Session's Seek). Ui::press and the List sheet's open state both call it
+		void chapterStep(int dir, Player& p);
 		// Up next (Y on the player): the list that plays, in its own order (the Session's queue: Shuffle reorders
 		// nothing shown), the one playing marked, scrolled to it; A plays a row as a pick from that list does (the
 		// Session's Open: Shuffle and Loop stay as set)
@@ -427,6 +430,7 @@ namespace bp
 		struct PlayerPage;
 		std::unique_ptr<PlayerPage> playerPage;
 		struct PlayOnSheet;
+		struct ListSheet;
 
 		// the readers' Brightness sheet (ui_light.cpp): the screens' backlight, Extra dim, the reader's filter
 		// (an overlay: LightSheet, pushed by openLight)

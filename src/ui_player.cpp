@@ -57,14 +57,14 @@ namespace bp
 	bool Ui::PlayerPage::listAct(Player& p)
 	{
 		// List: a playlist's song opens that playlist's own page (its edits, its order), what plays going on behind;
-		// a folder, Recent or a selection: Up next
+		// a folder, Recent or a selection: the List sheet, on the tab it was left on
 		if (p.source().kind == SourceKind::Playlist && !p.source().id.empty() && !p.playingPhoto())
 		{
 			ui.showSourceAfterLeave = true;
 			focus = {};
 			return true;
 		}
-		ui.openUpNext(p);
+		openList(listTab, p);
 		return false;
 	}
 
@@ -134,8 +134,8 @@ namespace bp
 				show == SHOW_ART ? "Album art" : show == SHOW_BOTH ? "Art + " + style : show == SHOW_VIS ? style : "Title only", false);
 		}
 		add(C_SPEED, &G_SPEED, "Speed", speedLabel(p.speed), std::fabs(p.speed - 1) > 1e-6);
-		// the play mode, as X's round had it: the Loop (Off, All, One), or Shuffle with whichever Loop the web set
-		if (st.shuffle) add(C_MODE, &G_SHUFFLE, "Shuffle", st.loop == LOOP_ALL ? "On" : st.loop == LOOP_ONE ? "One" : "Once", true);
+		// Repeat is its own state now (Off / All / One), set in the List sheet; a song's fourth chip is Shuffle
+		if (p.playingAudio()) add(C_SHUFFLE, &G_SHUFFLE, "Shuffle", st.shuffle ? "On" : "Off", st.shuffle);
 		else add(C_MODE, &G_LOOP, "Repeat", LOOP_SHORT[std::clamp(st.loop, 0, LOOPS - 1)], st.loop != LOOP_OFF);
 		return out;
 	}
@@ -160,8 +160,12 @@ namespace bp
 			p.osd("Speed " + speedLabel(s));
 			break;
 		}
-		// In order, Loop all, Loop one, Shuffle, round (until List has its switches: "video-list")
-		case C_MODE: ui.musicKey(Button::X, p); break;
+		// the List sheet: Repeat and Shuffle are set there; a song's Shuffle chip turns it on or off
+		case C_MODE: openList(listTab, p); break;
+		case C_SHUFFLE:
+			SessionHost::get().setShuffle(!p.settings.shuffle);
+			p.osd(ui.modeLabel(p));
+			break;
 		}
 	}
 
@@ -209,7 +213,7 @@ namespace bp
 		// "<" over what plays leaves at once (it plays on behind the browser)
 		case T_BACK: focus = {}; return true;
 		case T_MORE: openMoreSheet(); return false;
-		case T_LINE: ui.openTracks(TRACKS_CHAPTERS, p); return false;
+		case T_LINE: openList(1, p); return false;
 		// a key on the screen: what its button does, whether the buttons themselves are on or not
 		case T_PREV: return ui.pressAnyway(Button::L, p);
 		case T_REW: return ui.pressAnyway(Button::Left, p);
@@ -220,7 +224,8 @@ namespace bp
 		case T_ADD:
 			if (p.playing()) ui.browse->playlists->openAddOne(p.currentPath(), p.title, p.loaded ? p.duration : -1, p);
 			return false;
-		case T_LIST: case T_NEXTLINE: return listAct(p);
+		case T_LIST: return listAct(p);
+		case T_NEXTLINE: openList(0, p); return false;
 		case T_VIEW: return ui.pressAnyway(Button::Select, p);
 		default: break;
 		}
@@ -502,6 +507,306 @@ namespace bp
 	{
 		pressed = T_NONE;
 		ui.openMore([this](const Player& p) { return moreSpec(p); });
+	}
+
+	// List (Y): what is in this file and what comes after it, side by side (docs/redesign, "video-list" and
+	// "video-chapters-long"). Two tabs, by lay::tabs: Up next (ui.upNextList, A = ui.playUpNext) and Chapters
+	// (p.chapters, A as the Chapters page chooses). Shuffle and Repeat sit in its header, above the list they change.
+	// L / R step the tabs, LEFT / RIGHT page the rows, L2 / R2 jump a chapter with the sheet open, Y / B close.
+	struct Ui::ListSheet : Ui::Overlay
+	{
+		enum Press { P_NONE, P_ROW, P_TAB, P_SHUFFLE, P_REPEAT };
+		int tab = 0, cursor = 0, scroll = 0, press = P_NONE, pressAt = -1;
+
+		ListSheet(Ui& u, int at, const Player& p) : Overlay(u)
+		{
+			tab = std::clamp(at, 0, tabCount(p) - 1);
+			// opened on what plays, three rows above it showing where the list allows (as the old page did)
+			int n = count(p), cur = current(p);
+			cursor = std::clamp(cur, 0, std::max(0, n - 1));
+			scroll = lay::listScroll(cursor, std::max(0, cursor - 3), shown(p), n);
+			ui.playerPage->listTab = tab;
+		}
+		const char* name() const override { return "list"; }
+
+		bool hasChapters(const Player& p) const { return !p.chapters.empty(); }
+		int tabCount(const Player& p) const { return hasChapters(p) ? 2 : 1; }
+		std::vector<std::string> labels(const Player& p) const
+		{
+			std::vector<std::string> out{"Up next"};
+			if (hasChapters(p)) out.push_back("Chapters " + std::to_string(p.chapters.size()));
+			return out;
+		}
+		int count(const Player& p) const
+		{
+			if (tab == 1) return (int)p.chapters.size();
+			int cur = -1;
+			return (int)ui.upNextList(p, cur).size();
+		}
+		int shown(const Player& p) const { return std::min(std::max(1, count(p)), lay::LIST_ROWS); }
+		lay::ListSheet layout(const Player& p) const { return lay::listSheet(shown(p)); }
+
+		// what plays in the tab shown: Up next's row, or the chapter playing (none before the first)
+		int current(const Player& p) const
+		{
+			if (tab == 1) return ui.shownChapter(p);
+			int cur = -1;
+			ui.upNextList(p, cur);
+			return cur;
+		}
+		void settle(const Player& p)
+		{
+			int n = count(p);
+			if (n <= 0) { cursor = scroll = 0; return; }
+			cursor = std::clamp(cursor, 0, n - 1);
+			scroll = lay::listScroll(cursor, scroll, shown(p), n);
+		}
+		void openTab(int t, const Player& p)
+		{
+			tab = std::clamp(t, 0, tabCount(p) - 1);
+			int n = count(p), cur = current(p);
+			cursor = std::clamp(cur, 0, std::max(0, n - 1));
+			scroll = lay::listScroll(cursor, std::max(0, cursor - 3), shown(p), n);
+			ui.playerPage->listTab = tab;
+		}
+
+		struct Head
+		{
+			Rect tabs, shuffleHit, shuffleLabel, shuffleGlyph, repeatGlyph, repeatArea;
+			int toggleX = 0;
+		};
+		// the header's right side: Shuffle's switch and Repeat's three chips, right-aligned; the tabs take the rest
+		Head head(const lay::ListSheet& s) const
+		{
+			Head h;
+			int cy = s.head.y + s.head.h / 2, right = s.head.x + s.head.w;
+			int segW = 3 * 42 + 2 * 6, repW = 16 + 6 + segW;
+			right -= repW;
+			h.repeatGlyph = {right, cy - 8, 16, 16};
+			h.repeatArea = {right + 22, cy - 20, segW, 40};
+			right -= 12;
+			int labelW = ui.kit->textW("Shuffle", F_I12);
+			int swW = 16 + 6 + labelW + 7 + 40;
+			right -= swW;
+			h.shuffleGlyph = {right, cy - 8, 16, 16};
+			h.shuffleLabel = {right + 22, cy - 7, labelW, 14};
+			h.toggleX = right + 22 + labelW + 7;
+			h.shuffleHit = {right, cy - 16, swW, 32};
+			h.tabs = {s.head.x, s.head.y, std::max(0, right - 12 - s.head.x), s.head.h};
+			return h;
+		}
+		std::vector<Rect> tabRects(const Player& p, const Head& h) const { return ui.kit->tabRects(h.tabs, labels(p), hasChapters(p)); }
+		std::vector<Rect> repeatRects(const Head& h) const
+		{
+			std::vector<Rect> out;
+			for (int i = 0; i < 3; i++) out.push_back(lay::cell(h.repeatArea, 3, 6, i));
+			return out;
+		}
+
+		void setShuffle(Player& p)
+		{
+			SessionHost::get().setShuffle(!p.settings.shuffle);
+			p.osd(ui.modeLabel(p));
+		}
+		void setLoop(int loop, Player& p)
+		{
+			Settings st = p.settings;
+			st.loop = std::clamp(loop, 0, LOOPS - 1);
+			p.setSettings(st);
+			p.osd(ui.modeLabel(p));
+		}
+
+		void choose(int i, Player& p)
+		{
+			if (tab == 0)
+			{
+				int cur = -1;
+				if (i < 0 || i >= (int)ui.upNextList(p, cur).size()) return;
+				close();
+				ui.playUpNext(i, p);
+				return;
+			}
+			if (i < 0 || i >= (int)p.chapters.size()) return;
+			// as Page::Chapters chooses: playing, the card says where, back to the player (this sheet closes)
+			close();
+			p.seekChapter(i);
+			if (!ui.pageIsOut()) p.unpause();
+			else ui.noteSeek(p, p.chapters[i].time);	// (a page playing it: the session's Seek, which the page follows)
+			p.showChapterCard(i);
+		}
+
+		bool key(Button b, Player& p) override
+		{
+			if (!p.playing() || p.playingPhoto() || ui.page != Page::Main) { close(); return false; }
+			int n = count(p);
+			if (n <= 0) { close(); return false; }
+			settle(p);
+			switch (b)
+			{
+			case Button::Up: cursor = (cursor + n - 1) % n; break;
+			case Button::Down: cursor = (cursor + 1) % n; break;
+			// a page at a time, as every list's LEFT / RIGHT (the mock-up's seven rows)
+			case Button::Left: cursor = std::max(0, cursor - shown(p)); break;
+			case Button::Right: cursor = std::min(n - 1, cursor + shown(p)); break;
+			// the tabs: L back, R on, no wrap
+			case Button::L: if (tab > 0) openTab(tab - 1, p); break;
+			case Button::R: if (tab + 1 < tabCount(p)) openTab(tab + 1, p); break;
+			case Button::A: choose(cursor, p); break;
+			// the chapter step over the sheet (Button hotkeys says whether they work at all)
+			case Button::L2:
+			case Button::R2:
+				if (p.settings.buttonHotkeys && p.error.empty())
+				{
+					ui.chapterStep(b == Button::L2 ? -1 : 1, p);
+					if (tab == 1) { cursor = std::clamp(ui.shownChapter(p), 0, n - 1); scroll = lay::listScroll(cursor, scroll, shown(p), n); }
+				}
+				break;
+			case Button::Y:
+			case Button::B: close(); break;
+			default: break;
+			}
+			settle(p);
+			return false;
+		}
+
+		bool pointer(const Pointer& pt, int x, int y, Player& p) override
+		{
+			// touch locked (the player's lock): the sheet is the buttons' until it is unlocked
+			if (ui.touchIsLocked()) return false;
+			if (!p.playing() || p.playingPhoto() || ui.page != Page::Main) { close(); return false; }
+			int n = count(p);
+			if (n <= 0) { close(); return false; }
+			settle(p);
+			lay::ListSheet s = layout(p);
+			Head h = head(s);
+			if (pt.kind == Pointer::Down)
+			{
+				press = P_NONE;
+				pressAt = -1;
+				// the veil: closed (the lift that follows presses nothing)
+				if (!s.box.hit(x, y)) { close(); ui.swallowTouch = true; return false; }
+				auto tabs = tabRects(p, h);
+				for (int i = 0; i < (int)tabs.size(); i++)
+					if (tabs[i].hit(x, y)) { press = P_TAB; pressAt = i; return false; }
+				if (h.shuffleHit.hit(x, y)) { press = P_SHUFFLE; pressAt = 0; return false; }
+				auto rep = repeatRects(h);
+				for (int i = 0; i < 3; i++)
+					if (rep[i].hit(x, y)) { press = P_REPEAT; pressAt = i; return false; }
+				for (int i = scroll; i < n && i < scroll + shown(p); i++)
+					if (s.row(i - scroll).hit(x, y)) { press = P_ROW; pressAt = i; cursor = i; return false; }
+				return false;
+			}
+			if (pt.kind != Pointer::Up) return false;
+			int kind = press, at = pressAt;
+			press = P_NONE;
+			pressAt = -1;
+			// let go off it: nothing (a finger that slid away changed its mind)
+			if (kind == P_ROW && at >= scroll && at < n && s.row(at - scroll).hit(x, y)) choose(at, p);
+			else if (kind == P_TAB)
+			{
+				auto tabs = tabRects(p, h);
+				if (at >= 0 && at < (int)tabs.size() && tabs[at].hit(x, y)) openTab(at, p);
+			}
+			else if (kind == P_SHUFFLE && h.shuffleHit.hit(x, y)) setShuffle(p);
+			else if (kind == P_REPEAT)
+			{
+				auto rep = repeatRects(h);
+				if (at >= 0 && at < 3 && rep[at].hit(x, y)) setLoop(at, p);
+			}
+			return false;
+		}
+
+		void draw(const Player& p) override
+		{
+			// (what it was about has gone: the last file ended under it, the player was left): closed
+			if (!p.playing() || p.playingPhoto() || ui.page != Page::Main) { close(); return; }
+			int n = count(p);
+			if (n <= 0) { close(); return; }
+			settle(p);
+			lay::ListSheet s = layout(p);
+			Head h = head(s);
+			Kit& k = *ui.kit;
+			k.sheetBack(s.box, s.grab);
+			k.tabs(h.tabs, labels(p), tab, hasChapters(p) ? "L/R" : "");
+
+			// the header's controls: Shuffle's switch, Repeat's three chips (the states they set)
+			const Settings& st = p.settings;
+			int cy = s.head.y + s.head.h / 2;
+			ui.drawGlyphMid(G_SHUFFLE, h.shuffleGlyph.x + 8, cy, DIM_ON);
+			ui.drawTextMid("Shuffle", F_I12, DIM_ON, h.shuffleLabel.x, cy, h.shuffleLabel.w);
+			k.toggle(h.toggleX, cy, st.shuffle);
+			ui.drawGlyphMid(G_LOOP, h.repeatGlyph.x + 8, cy, DIM_ON);
+			k.segment(h.repeatArea, {"Off", "All", "One"}, std::clamp(st.loop, 0, LOOPS - 1));
+
+			// the rows: Up next (its own order under Shuffle) or every chapter with its start
+			std::vector<std::string> list;
+			int cur = current(p);
+			if (tab == 0) list = ui.upNextList(p, cur);
+			int first = scroll, last = std::min(n, scroll + shown(p));
+			for (int i = first; i < last; i++)
+			{
+				Kit::Row row;
+				row.font = F_P16;
+				row.focused = i == cursor;
+				row.pressed = press == P_ROW && pressAt == i;
+				bool now = i == cur;
+				if (tab == 0)
+				{
+					const std::string& path = list[i];
+					row.name = entryTitle(path);
+					double d = now && p.duration > 0 ? p.duration : -1;
+					if (d <= 0 && !isNetPath(path)) cachedDuration(path, d);
+					if (d > 0) row.note = formatTime(d);
+				}
+				else
+				{
+					const Chapter& c = p.chapters[i];
+					row.name = chapterLabel(c, i + 1);
+					row.note = formatTime(c.time);
+				}
+				// the one playing: the play mark and its pill, as the old lists had it; the others their number
+				if (now)
+				{
+					row.glyph = ui.pageDrives(p) ? &G_WEB : p.paused ? &G_PAUSE : &G_PLAY;
+					row.pill = ui.pageDrives(p) ? "Browser" : p.paused ? "Paused" : "Now";
+					row.tone = ui.pageDrives(p) || p.paused ? Kit::Pill::Fact : Kit::Pill::Live;
+				}
+				else row.lead = std::to_string(i + 1);
+				k.row(s.row(i - first), row);
+			}
+			ui.drawScrollBar(s.rowsY, shown(p) * lay::LIST_ROW, scroll, shown(p), n);
+
+			std::vector<Hint> hints{{"UP/DOWN", "Move"}, {"LEFT/RIGHT", "Page"}, {"A", "Play from here"}};
+			if (hasChapters(p)) hints.push_back({"L/R", "Tab"});
+			if (tab == 1) hints.push_back({"L2/R2", "Chapter"});
+			hints.push_back({"Y/B", "Close"});
+			k.hints(hints);
+		}
+
+		std::string signature(const Player& p) const override
+		{
+			// the tab, the cursor and the finger here; the lists, what plays and the two settings (Settings' own are
+			// Ui::signature's, but the Session's queue is not)
+			int n = count(p), cur = current(p);
+			std::string sig = std::to_string(tab) + "," + std::to_string(cursor) + "," + std::to_string(scroll) + "," +
+				std::to_string(press) + "," + std::to_string(pressAt) + "," + std::to_string(n) + "," + std::to_string(cur) + "," +
+				std::to_string(SessionHost::get().version()) + "," + std::to_string(p.paused) + std::to_string(ui.pageDrives(p));
+			if (tab == 0)
+			{
+				int c = -1;
+				for (auto& path : ui.upNextList(p, c)) sig += "|" + path;
+			}
+			else
+				for (auto& c : p.chapters) sig += "|" + c.title + ":" + std::to_string((int)c.time);
+			return sig;
+		}
+	};
+
+	void Ui::PlayerPage::openList(int tab, Player& p)
+	{
+		pressed = T_NONE;
+		focus = {};
+		ui.pushOverlay(std::make_unique<ListSheet>(ui, tab, p));
 	}
 
 	// Play on: where it plays (the Session's output), the handheld or a dashboard page that can play. A sheet of rows;

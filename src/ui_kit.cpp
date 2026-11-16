@@ -288,11 +288,14 @@ namespace bp
 
 	// ---- tabs and a segmented choice ----
 
-	std::vector<Ui::Rect> Ui::Kit::tabRects(Rect area, const std::vector<std::string>& labels) const
+	std::vector<Ui::Rect> Ui::Kit::tabRects(Rect area, const std::vector<std::string>& labels, bool caps) const
 	{
 		std::vector<int> widths;
 		for (auto& l : labels) widths.push_back(std::max(44, textW(l, F_P14) + 2 * lay::TAB_PAD));
-		return lay::tabs(area, widths).tab;
+		lay::Tabs t = lay::tabs(area, widths);
+		int shift = caps ? 0 : lay::TAB_CAP + lay::TAB_GAP;
+		for (auto& b : t.tab) b.x -= shift;
+		return t.tab;
 	}
 
 	void Ui::Kit::tabs(Rect area, const std::vector<std::string>& labels, int on, const std::string& keys)
@@ -300,13 +303,15 @@ namespace bp
 		std::vector<int> widths;
 		for (auto& l : labels) widths.push_back(std::max(44, textW(l, F_P14) + 2 * lay::TAB_PAD));
 		lay::Tabs t = lay::tabs(area, widths);
+		int shift = keys.empty() ? lay::TAB_CAP + lay::TAB_GAP : 0;
 		for (size_t i = 0; i < t.tab.size(); i++)
 		{
+			Rect r = t.tab[i];
+			r.x -= shift;
 			bool at = (int)i == on;
 			// (off: a button; on: yellow with its lip, as the mock-up's tab)
-			ui.drawBox(t.tab[i], at ? ACCENT : BUTTON, R_BUTTON);
-			ui.drawTextMid(labels[i], F_P14, at ? ON_ACCENT : TEXT, t.tab[i].x + t.tab[i].w / 2, t.tab[i].y + t.tab[i].h / 2,
-				t.tab[i].w - 8, 2);
+			ui.drawBox(r, at ? ACCENT : BUTTON, R_BUTTON);
+			ui.drawTextMid(labels[i], F_P14, at ? ON_ACCENT : TEXT, r.x + r.w / 2, r.y + r.h / 2, r.w - 8, 2);
 		}
 		if (keys.empty()) return;
 		// the caps that step it: the first name at the left end, the last at the right

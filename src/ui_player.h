@@ -36,9 +36,9 @@ namespace bp
 		lay::PlayerFocus focus;
 
 		// ---- the chips ----
-		enum ChipKind { C_SUBS, C_AUDIO, C_PICTURE, C_SPEED, C_MODE, C_SOUND, C_TOP };
+		enum ChipKind { C_SUBS, C_AUDIO, C_PICTURE, C_SPEED, C_MODE, C_SHUFFLE, C_SOUND, C_TOP };
 		struct ChipDef { ChipKind kind; Kit::Chip look; };
-		// a video: Subtitles, Audio, Picture, Speed, Repeat; a song: Sound, Top screen, Speed, Repeat
+		// a video: Subtitles, Audio, Picture, Speed, Repeat; a song: Sound, Top screen, Speed, Shuffle
 		std::vector<ChipDef> chips(const Player& p) const;
 		void chipAct(ChipKind kind, Player& p);	// A on it, or a tap: what sets it
 
@@ -50,7 +50,11 @@ namespace bp
 			std::string path, note;
 		};
 		NextUp nextUp(const Player& p) const;	// what Next would play (the Session's nextPlace)
-		bool listAct(Player& p);	// List (Y, its key, the Next line): the playlist's page, or Up next
+		bool listAct(Player& p);	// List (Y, its key): the playlist's page, or the List sheet
+		// the List sheet (ui_player.cpp): tab 0 Up next, 1 Chapters, opened on the one last used; the Repeat chip,
+		// the chapter line and the Next line open it on theirs
+		int listTab = 0;
+		void openList(int tab, Player& p);
 
 		// ---- X: the More sheet's list, and Play on's sheet ----
 		MoreSpec moreSpec(const Player& p) const;
