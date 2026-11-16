@@ -313,8 +313,9 @@ namespace bp
 		void wakeHeld();	// heldUnplayed: the sound output reopened (mpv's ao-reload) as it starts to play
 	public:
 		// the sound output opened again (mpv's ao-reload): a speaker amplifier that didn't start gets another start
-		// (ampwatch.h); nothing while no sound plays
-		void reloadAudio();
+		// (ampwatch.h), or BananaOS moved the sound (headphones in or out, Bluetooth) and only a device opened after the
+		// move follows it; nothing while no sound plays. why: the log line's reason
+		void reloadAudio(const char* why = "a speaker's amplifier didn't start");
 	private:
 		void load();
 		// load()'s loadfile, with the network file's options (its folder's sidecars): at once, or once the folder's

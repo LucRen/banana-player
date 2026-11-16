@@ -1532,6 +1532,25 @@ int main(int argc, char** argv)
 				}
 			}
 			// a chapter or equalizer card shown: it goes the way the volume card does, after its time
+			// BananaOS moves the sound (headphones in or out, Bluetooth headphones on or off) by writing ALSA's default
+			// route to /run/banana/asound.conf; a device already open stays where it was, and each player is to watch the
+			// file and open its sound again (bananad.c, audio_route). A new file each time (written and renamed): its
+			// inode tells. Looked at twice a second; absent off the handheld
+			{
+				static Uint32 routeAt = 0;
+				static ino_t routeIno = 0;
+				if (now - routeAt >= 500)
+				{
+					routeAt = now;
+					struct stat rs;
+					ino_t ino = stat("/run/banana/asound.conf", &rs) == 0 ? rs.st_ino : 0;
+					if (ino != routeIno)
+					{
+						if (routeIno && ino) player.reloadAudio("BananaOS moved the sound: headphones or Bluetooth");
+						routeIno = ino;
+					}
+				}
+			}
 			if (int ms = std::max(player.takeCardShown(), photos.takeCardShown()))
 			{
 				levelUntil = now + ms;

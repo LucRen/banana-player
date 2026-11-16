@@ -711,10 +711,10 @@ namespace bp
 		prop("volume", std::to_string(boost));
 	}
 
-	void Player::reloadAudio()
+	void Player::reloadAudio(const char* why)
 	{
 		if (!mpv || !playing() || playingPhoto() || audioOut.empty() || audioOut == "-") return;
-		fprintf(stderr, "audio: the output opened again (a speaker's amplifier didn't start)\n");
+		fprintf(stderr, "audio: the output opened again (%s)\n", why);
 		const char* cmd[] = {"ao-reload", nullptr};
 		mpv_command_async(mpv, 0, cmd);
 	}
