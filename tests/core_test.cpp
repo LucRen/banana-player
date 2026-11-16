@@ -5847,8 +5847,9 @@ static void testSettingsTable()
 	}
 	// the page's rows come in their places, by group
 	auto controls = settingsOfGroup(SG_CONTROLS);
-	CHECK_EQ(std::string(defs[controls.front()].key), "same-brightness");
-	CHECK_EQ(std::string(defs[controls.back()].key), "lid-close");
+	CHECK_EQ(std::string(defs[controls.front()].key), "lid-close");
+	CHECK_EQ(std::string(defs[controls[1]].key), "same-brightness");
+	CHECK_EQ(std::string(defs[controls.back()].key), "screen-off-video");
 	auto files = settingsOfGroup(SG_FILES);
 	CHECK_EQ(files.size(), (size_t)4);
 	CHECK_EQ(std::string(defs[files[1]].key), "show-hidden-folders");	// (not the file's order: its row's)

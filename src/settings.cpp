@@ -653,7 +653,7 @@ namespace bp
 			D::choice("screen-off-video", &Settings::screenOffVideo, SCREEN_OFF_IDS, SCREEN_OFFS)
 				.page(SG_CONTROLS, 90, "Screen off (video)", "While a video plays, this screen goes dark after that long untouched. A touch brings it back.").shownAs(SCREEN_OFF_LABELS),
 			D::flag("lid-close", &Settings::lidKeepPlaying, "pause", "keep-playing")
-				.page(SG_CONTROLS, 95, "When the lid closes", "Keep playing: while something plays, BananaOS's \"Closing the lid\" is switched to stay awake, and back when it stops (then the handheld sleeps if the lid is shut).")
+				.page(SG_CONTROLS, 10, "When the lid closes", "Keep playing: while something plays, BananaOS's \"Closing the lid\" is switched to stay awake, and back when it stops (then the handheld sleeps if the lid is shut).")
 				.shownAs(SHOWN_LID),
 			D::flag("pan-area", &Settings::panRight, "left", "right")
 				.page(SG_PHOTOS, 20, "Pan area", "Which side the pan area (the small photo) is on.").shownAs(SHOWN_PAN),
