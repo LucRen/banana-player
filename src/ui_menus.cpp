@@ -302,17 +302,26 @@ namespace bp
 		return r;
 	}
 
+	void Ui::closeQuick()
+	{
+		if (Overlay* o = findOverlay("quick")) o->close();
+	}
+
 	void Ui::toggleQuick(Player& p)
 	{
-		quickOpen = !quickOpen;
 		slideDrop();	// (a bar of these, or of the page under them, still under a finger)
-		if (!quickOpen) return;
+		if (findOverlay("quick"))
+		{
+			closeQuick();
+			return;
+		}
 		if (!panel.on()) panel.set(true);	// the bottom panel back, to see them
 		sameBrightness = p.settings.sameBrightness;
 		volumePct = volume.get();
 		quickCursor = 0;
 		quickSub = 0;
 		pressedBtn = -1;
+		openQuick();
 	}
 
 	void Ui::quickAdjust(int row, int dir, Player& p)
@@ -373,7 +382,7 @@ namespace bp
 		else if (row == Q_WEB)
 		{
 			// its Settings button: the Web dashboard page (the QR code, the PIN, New PIN), the quick settings put away
-			if (quickSub == 1 && p.settings.webDashboard) { quickOpen = false; openWeb(); }
+			if (quickSub == 1 && p.settings.webDashboard) { closeQuick(); openWeb(); }
 			else webTurn(!p.settings.webDashboard, p);
 		}
 		else if (row == Q_INCOGNITO)
@@ -398,7 +407,7 @@ namespace bp
 		case Button::Down: quickCursor = (quickCursor + 1) % n; break;
 		case Button::Left: case Button::Right: quickAdjust(row, b == Button::Right ? 1 : -1, p); break;
 		case Button::A: quickChoose(row, p); break;
-		case Button::B: case Button::Start: quickOpen = false; break;
+		case Button::B: case Button::Start: closeQuick(); break;
 		default: break;
 		}
 		return false;
@@ -414,7 +423,7 @@ namespace bp
 			// outside: closed (the finger lifting presses nothing)
 			if (!quickPanel().hit(x, y))
 			{
-				quickOpen = false;
+				closeQuick();
 				swallowTouch = true;
 				return false;
 			}

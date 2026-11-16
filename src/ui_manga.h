@@ -224,9 +224,8 @@ namespace bp
 		std::string noticeText;
 		Uint32 noticeUntil = 0;
 		void mangaNotice(const std::string& text, Uint32 ms) { noticeText = text; noticeUntil = SDL_GetTicks() + ms; }
-		// a manga source that stands behind a browser check (Cloudflare, DDoS-Guard): a dialog says so, OK closes it.
-		// Opened once per error (mangaErrFor), over any page
-		bool mangaErrOpen = false;
+		// a manga source that stands behind a browser check (Cloudflare, DDoS-Guard): a dialog says so (the overlay
+		// "mangaerr", Ui::openMangaErr), over any page. Opened once per error (mangaErrFor)
 		// the error each asker last had a dialog for (0: a source's lists and series, 1: the reader's pages); forgotten
 		// once that asker's error clears (the source asked again), so the same error after a reopen is said again
 		std::string mangaErrFor[2], mangaErrText;

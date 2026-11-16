@@ -475,10 +475,7 @@ namespace bp
 		if (browse->playlists->addPending.serial && page == Page::Browse) browse->playlists->drawBusy();
 		if (popupShown(p)) drawUpdatePopup();
 		manga->drawExtNotice();
-		if (manga->mangaErrOpen) manga->drawMangaErr();
-		if (quickOpen) drawQuick(p);
 		if (kbOpen) drawKeyboard();
-		drawFileInfo();
 		drawOverlays(p);
 		drawFileJob();	// (over everything: it holds the panel until it ends)
 	}

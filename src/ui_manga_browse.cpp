@@ -898,7 +898,7 @@ namespace bp
 		{
 			mangaErrText = "This source needs a web browser to open its pages, and the handheld can\xE2\x80\x99t run one. "
 				"Try another source.";
-			mangaErrOpen = true;
+			ui.openMangaErr();
 			fprintf(stderr, "manga: a source that needs a browser engine (%s)\n", error.substr(0, error.find_first_of("\r\n")).c_str());
 			return;
 		}
@@ -911,7 +911,7 @@ namespace bp
 			size_t c = e.find(") : ");
 			if (e.compare(0, 9, "Exception") == 0 && c != std::string::npos) e = e.substr(c + 4);
 			mangaErrText = "The source didn\xE2\x80\x99t answer: " + e;
-			mangaErrOpen = true;
+			ui.openMangaErr();
 			fprintf(stderr, "manga: source error (%s)\n", error.c_str());
 			return;
 		}
@@ -924,7 +924,7 @@ namespace bp
 		else
 			mangaErrText = std::string("This source is behind a ") + (ddos ? "DDoS-Guard" : "Cloudflare") +
 				" check that Banana Player can\xE2\x80\x99t pass. Try another source, or try again later.";
-		mangaErrOpen = true;
+		ui.openMangaErr();
 		fprintf(stderr, "manga: a browser check (%s)\n", error.c_str());
 	}
 

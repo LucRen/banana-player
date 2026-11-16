@@ -118,6 +118,12 @@ and the new file's name in `CMakeLists.txt`. Nothing in `press`, `pointer`, `ren
   `lightNote` stay `Ui`'s: the readers' buttons use them while the sheet is closed.
 - **The message dialog** (`Ui::alert`, now in `src/ui_overlay.cpp`): `Ui::AlertBox`. `alert(title, text)` is as it
   was for its callers.
+- **The browser-check message, Files' Info card and the quick settings** (all in `src/ui_overlay.cpp`:
+  `Ui::MangaErrDialog`, `Ui::InfoSheet`, `Ui::QuickSheet`): `mangaErrOpen`, `infoOpen` and `quickOpen` left `ui.h` and
+  `ui_manga.h`. Each draws and takes the keys and touches with the code it already had (`drawMangaErr`,
+  `drawFileInfo`, `quickKey`/`quickPointer`/`drawQuick`), called by the thin overlay; `openMangaErr()`, `openInfo()`
+  and `openQuick()` push them (`toggleQuick` calls the last; `main.cpp` is untouched), and every `quickOpen = false`
+  became `closeQuick()`. `quickShown()` is `findOverlay("quick") != nullptr`.
 
 Checked with the scripted harness against a build of the commit before (`build-before`): 60 screenshots (the text
 reader's sheet closed, open, after each of Up/Down/Left/Right/A/B/Start, a drag on a bar, a tap inside, a tap outside,
@@ -139,28 +145,22 @@ drawn over a sheet that still took the input. Now the one on top takes it.
 In `press` and `pointer` the old `if (xyzOpen)` chain is checked after the stack, so a converted dialog is above every
 unconverted one for input, and drawn above them too (`drawOverlays` is near the end of `renderPage`). That is right
 only for dialogs that are already on top of everything, so the order to move them in is **from the top of the old
-chain down**; moving a lower one first would lift it over the ones still by hand.
+chain down**; moving a lower one first would lift it over the ones still by hand. (The first three below are moved:
+see "What moved".)
 
-1. **`mangaErrOpen`** (the browser-check message): the next in both chains, and it is a message: no class of its own,
-   `alert("…", mangaErrText)` with the title it has, or an `AlertBox` with another name. Its `mangaErrFor[]`
-   bookkeeping stays where it is.
-2. **`infoOpen`** (the file's Info card, `drawFileInfo`): any key or tap closes it. A ten-line overlay.
-3. **Quick settings** (`quickOpen`, `quickKey/quickPointer/drawQuick`, `quickDrag`): the same shape as the Brightness
-   sheet (rows, bars, a drag); `main.cpp` or the hotkey that toggles it would ask `findOverlay("quick")`. Check the
-   dark-panel rule in `press` first (`!quickOpen` there) and the level card.
-4. **The manga dialogs that are plain modals**: `mstModal` (source details/options/repo/remove), `mstJavaModal`,
+1. **The manga dialogs that are plain modals**: `mstModal` (source details/options/repo/remove), `mstJavaModal`,
    `mstAvMenu`, `mangaServerModal`, `mangaSrvMenu`, `mlibMenu`, `mhisMenu`, the Download sheet. Each already has its
    own `…Key/…Pointer/draw…/…Box/…RowRect` set and a slice of `mangaNetSignature()`/`mangaDlSignature()`; they are
    dispatched inside the Manga pages' own key and pointer handlers, so each can move by itself without the ordering
    concern above. The biggest win in lines of `ui.h`.
-5. **`docMenu` and `mangaMenu`** (the readers' Options sheets): modal over their page and closed when the page is
+2. **`docMenu` and `mangaMenu`** (the readers' Options sheets): modal over their page and closed when the page is
    left. As overlays, leaving the page must close them: the reader's close path calls `findOverlay(...)->close()`, or
    see `alive()` below.
-6. **`ctxOpen`** (the browser's Options menu, and the mini bar's hold menu) and **`pickerOpen`** (Add to playlist):
+3. **`ctxOpen`** (the browser's Options menu, and the mini bar's hold menu) and **`pickerOpen`** (Add to playlist):
    fit, but each is checked at two places in `pointer` today (the picker before and after the page's own handling,
    by page), and `ctxArmed`/`ctxStatus`/`pressedBtn` are shared with the page. Move after the simpler ones, with
    screenshots of each entry point.
-7. **The on-screen keyboard** (`kbOpen`): modal, but it works together with what is under it (the form's field, the
+4. **The on-screen keyboard** (`kbOpen`): modal, but it works together with what is under it (the form's field, the
    EQ preset's name, the manga search), blinks its caret (already a signature term) and has a `panel.on()` condition
    in `pointer`. It fits as an overlay that takes a "where the text goes" callback; last of the modals.
 

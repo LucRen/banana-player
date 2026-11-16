@@ -628,7 +628,7 @@ namespace bp
 			infoRows.push_back({"Access", browse->netWritable ? "Read and write" : "Read only (for this account)"});
 			NetPath np;
 			if (parseNetPath(path, np)) infoRows.push_back({"Path", np.path});
-			infoOpen = true;
+			openInfo();
 			return;
 		}
 		infoTitle = title.empty() ? nameOf(path) : title;
@@ -667,12 +667,11 @@ namespace bp
 			infoRows.push_back({"Modified", when});
 		}
 		infoRows.push_back({"Path", path});
-		infoOpen = true;
+		openInfo();
 	}
 
 	void Ui::drawFileInfo()
 	{
-		if (!infoOpen) return;
 		Rect box{32, 40, 576, 388};
 		drawDialog(box, infoTitle);
 		int y = box.y + 74;

@@ -128,14 +128,9 @@ namespace bp
 	{
 		// a key while a finger holds a slider: the slider is let go where it is (the key may close what it's on)
 		slideEnd(p);
-		// an overlay (the readers' Brightness sheet, a message's dialog) takes the keys while it shows
+		// an overlay (the readers' Brightness sheet, a message's dialog, the quick settings, Files' Info card) takes the
+		// keys while it shows
 		if (topOverlay()) return overlayKey(b, p);
-		// the browser-check dialog takes the keys while it shows: A or B closes it
-		if (manga->mangaErrOpen)
-		{
-			if (b == Button::A || b == Button::B) manga->mangaErrOpen = false;
-			return false;
-		}
 		sameBrightness = p.settings.sameBrightness;
 		mangaOn = p.settings.mangaOn;
 		webInputAt = SDL_GetTicks();
@@ -147,7 +142,7 @@ namespace bp
 		{
 			bool playKey = b == Button::A || b == Button::Left || b == Button::Right || b == Button::L || b == Button::R ||
 						   b == Button::L2 || b == Button::R2 || b == Button::Up || b == Button::Down || b == Button::L3;
-			bool overPlayer = page == Page::Main && !inMenu && !quickOpen && !kbOpen && p.playing() && !p.playingPhoto();
+			bool overPlayer = page == Page::Main && !inMenu && !quickShown() && !kbOpen && p.playing() && !p.playingPhoto();
 			if (!(playKey && overPlayer))
 			{
 				panel.set(true);
@@ -156,9 +151,6 @@ namespace bp
 		}
 		// a copy or move running: only its Cancel answers (ui_fileops.cpp)
 		if (fileJob) return fileJobKey(b);
-		// Info's sheet: any key closes it
-		if (infoOpen) { infoOpen = false; return false; }
-		if (quickOpen) return quickKey(b, p);
 		if (kbOpen)
 		{
 			kbPress(b);
@@ -484,7 +476,7 @@ namespace bp
 		int offSecs = screenOffSeconds(p.playingAudio() ? p.settings.screenOffAfter : p.settings.screenOffVideo);
 		bool viewing = p.playingPhoto() || pageReader->readerStatus.open;
 		if (offSecs > 0 && panel.on() && p.playing() && !viewing && !p.paused && !p.loading() && p.error.empty() &&
-			!kbOpen && !quickOpen && !popupShown(p) && !slide.on && SDL_GetTicks() - webInputAt >= (Uint32)offSecs * 1000)
+			!kbOpen && !quickShown() && !popupShown(p) && !slide.on && SDL_GetTicks() - webInputAt >= (Uint32)offSecs * 1000)
 			panel.set(false);
 		// a dragged row near the list's top or bottom: the list scrolls under it, a row each 150 ms
 		if (browse->playlists->plDrag.on && page == Page::Browse && isPlDir(browse->browseDir) && SDL_GetTicks() - browse->playlists->plDrag.scrollAt >= 150)
@@ -629,15 +621,8 @@ namespace bp
 			slideEnd(p);
 		}
 		if (topOverlay()) return overlayPointer(pt, x, y, p);
-		if (manga->mangaErrOpen)
-		{
-			// OK, or a tap anywhere: closed
-			if (pt.kind == Pointer::Up) manga->mangaErrOpen = false;
-			return false;
-		}
 		mangaOn = p.settings.mangaOn;
 		if (fileJob) return fileJobPointer(pt, x, y);
-		if (infoOpen) { if (pt.kind == Pointer::Up) infoOpen = false; return false; }
 		if (browse->clipPointer(pt, x, y, p)) return false;
 		// All recent's tabs: a tap on one shows that kind
 		if (page == Page::Browse && browse->browseDir == RECENT && !inMenu && !ctxOpen && p.settings.keepHistory && browse->homeView->recentCounts[0] && y < ROW_Y)
@@ -679,7 +664,6 @@ namespace bp
 			if (pt.kind == Pointer::Up) swallowTouch = false;
 			return false;
 		}
-		if (quickOpen) return quickPointer(pt, x, y, p);
 		// Add to... over what plays (or the Playing tab) as over the browser
 		if (browse->playlists->pickerOpen) return browse->playlists->pickerPointer(pt, x, y, p);
 		playOnOpen = playOnOpen && inMenu && page == Page::Playing && playingTabShown(p);
@@ -1001,9 +985,8 @@ namespace bp
 			snprintf(pb, sizeof pb, "|photo %.4f %.4f %.4f %d %d %d %d", v.zoom, v.panX, v.panY, v.rotate, v.fill, p.thumbId, p.photoWidth());
 			photo = pb;
 		}
-		// the backlights' levels while their rows show (the keys change them too)
-		std::string upd = quickOpen ? "|quick" + std::to_string(quickCursor) + " " + std::to_string(volumePct) + " " + std::to_string(pressedBtn) +
-			" " + std::to_string(backlight.permille(Backlight::TOP)) + "," + std::to_string(backlight.permille(Backlight::BOTTOM)) : "";
+		// the updater's pop-up: its state, and the button a finger is on
+		std::string upd;
 		if (updater)
 			upd += "|upd" + std::to_string((int)updater->state()) + " " + std::to_string(updater->progress()) + " " + updater->available() +
 				" " + std::to_string(popupShown(p)) + std::to_string(popupCursor) + std::to_string(pressedBtn);
@@ -1077,9 +1060,8 @@ namespace bp
 		if (browse->browseDir == EXTDIR && area() != manga.get()) photo += manga->extSignature();
 		// Files' copy or move: how far, and the file on its way; what's held for Copy / Move
 		photo += fileJobSignature();
-		if (infoOpen) photo += "|info" + infoTitle + std::to_string(infoRows.size());
 		if (Area* a = area()) photo += a->signature(p);
-		return buf + photo + overlaySignature(p) + "|me" + std::to_string((int)manga->mangaErrOpen) + "|ld" + (loaderShown ? std::to_string(SDL_GetTicks() / 110) : std::string()) + "|xn" + manga->extNoticeText() + "|" + p.title + "|" + p.error + "|" + serializeSettings(p.settings) + "|bat" + std::to_string(battery.percent) + (battery.charging ? "c" : "") + (inMenu ? "|menu" + std::to_string(menuTab) : "") + (ctxOpen ? "|ctx" + std::to_string(ctxCursor) + std::to_string(pressedBtn) + ctxStatus + (ctxArmed ? "!" : "") : "") + upd
+		return buf + photo + overlaySignature(p) + "|ld" + (loaderShown ? std::to_string(SDL_GetTicks() / 110) : std::string()) + "|xn" + manga->extNoticeText() + "|" + p.title + "|" + p.error + "|" + serializeSettings(p.settings) + "|bat" + std::to_string(battery.percent) + (battery.charging ? "c" : "") + (inMenu ? "|menu" + std::to_string(menuTab) : "") + (ctxOpen ? "|ctx" + std::to_string(ctxCursor) + std::to_string(pressedBtn) + ctxStatus + (ctxArmed ? "!" : "") : "") + upd
 			+ (kbOpen ? "|kb" + sound->eqNameNote + std::to_string(kbCursor) + "," + std::to_string(kbPressed) + "," + std::to_string((int)kbShift) + (kbSymbols ? "s" : "") + std::to_string(kbEdit.caret) + kbEdit.text + (kbCaretShown() ? "|" : "") : "");
 	}
 }

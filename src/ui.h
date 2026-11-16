@@ -192,7 +192,7 @@ namespace bp
 		// F alone: quick settings over whatever's on the bottom panel (volume, brightness, Same for both screens, Quit);
 		// F again, B or a tap outside closes them
 		void toggleQuick(Player& p);
-		bool quickShown() const { return quickOpen; }
+		bool quickShown() const { return findOverlay("quick") != nullptr; }
 		// a level from bananad (its keys: "volume" or "brightness", percent): the quick settings show it
 		void levelChanged(const std::string& what, int percent) { if (what == "volume") volumePct = std::min(100, percent); }	// (the handheld's own: past 100 is the player's gain)
 
@@ -417,6 +417,15 @@ namespace bp
 		// (an overlay: LightSheet, pushed by openLight)
 		struct LightSheet;
 		void openLight();
+		// the same kind (ui_overlay.cpp): the browser-check message ("mangaerr", from Ui::Manga's mangaErrCheck),
+		// Files' Info card ("info", from openFileInfo) and the quick settings ("quick", from toggleQuick). Each is a thin
+		// overlay over the code it had (drawMangaErr, drawFileInfo, quickKey/quickPointer/drawQuick)
+		struct MangaErrDialog;
+		struct InfoSheet;
+		struct QuickSheet;
+		void openMangaErr();
+		void openInfo();
+		void openQuick();
 		int& lightFilter(Settings& s) const;	// the reader's own filter: the text viewer's, the PDF/comic viewer's, Manga's
 		// what the reader's Brightness button says while Extra dim or a filter is on ("Warm · 30%"); empty: neither
 		std::string lightNote(const Player& p) const;
@@ -437,7 +446,7 @@ namespace bp
 		std::string fileJobSignature() const;
 		int fileJobPressed = -1;
 		// Info (Files' Y menu, the manga reader's series menu): a sheet of what a file or folder is, any key closes it
-		bool infoOpen = false;
+		// (the InfoSheet overlay: openFileInfo pushes it)
 		std::string infoTitle;
 		std::vector<std::pair<std::string, std::string>> infoRows;
 		void openFileInfo(const std::string& path, const std::string& title, std::vector<std::pair<std::string, std::string>> extra = {});
@@ -884,10 +893,10 @@ namespace bp
 		bool sameBrightness = true;	// the setting's, kept here for settingRows (no Player there)
 		Volume volume;
 		int volumePct = -1;	// as read when the quick settings opened, then as set there
-		bool quickOpen = false;
 		int quickCursor = 0;
 		enum QuickRow { Q_VOLUME, Q_BRIGHT, Q_BOTTOM, Q_SAME, Q_WEB, Q_INCOGNITO, Q_QUIT };
 		int quickSub = 0;	// Web dashboard's row: 0 its switch, 1 New PIN (LEFT/RIGHT)
+		void closeQuick();	// (its overlay, if open: B, START, the Web button, a tap outside)
 		std::vector<int> quickRows() const;
 		bool quickKey(Button b, Player& p);
 		bool quickPointer(const Pointer& pt, int x, int y, Player& p);
