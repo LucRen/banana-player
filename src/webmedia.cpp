@@ -1,5 +1,6 @@
 #include <cctype>
 #include "webmedia.h"
+#include "codepages.h"
 #include <algorithm>
 #include <cerrno>
 #include <cstdio>
@@ -154,6 +155,8 @@ namespace bp
 		// text in `charset` as UTF-8; false when iconv can't open it or meets a byte that isn't in it
 		bool convertFrom(const char* charset, const std::string& in, std::string& out)
 		{
+			// a single-byte page: the built-in tables (the handheld has no iconv tables: codepages.h)
+			if (knownCodePage(charset)) return codePageToUtf8(charset, in.data(), in.size(), out, true);
 			iconv_t cd = iconv_open("UTF-8", charset);
 			if (cd == (iconv_t)-1) return false;
 			out.clear();

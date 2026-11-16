@@ -18,6 +18,7 @@
 #include "challenge.h"
 #include "crashlog.h"
 #include "durations.h"
+#include "codepages.h"
 #include "durprobe.h"
 extern "C"
 {
@@ -10796,6 +10797,32 @@ static void testSlider()
 	CHECK_EQ(sent >= 8, true);
 }
 
+// the built-in code pages (issue #12: no iconv tables on the handheld, every code page showed "?")
+static void testCodePages()
+{
+	const std::string czech = "\xC4\x9B\xC5\xA1\xC4\x8D\xC5\x99\xC5\xBE\xC3\xBD\xC3\xA1\xC3\xAD\xC3\xA9";	// ěščřžýáíé
+	const std::string cp1250 = "\xEC\x9A\xE8\xF8\x9E\xFD\xE1\xED\xE9", latin2 = "\xEC\xB9\xE8\xF8\xBE\xFD\xE1\xED\xE9";
+	std::string out;
+	CHECK(codePageToUtf8("CP1250", cp1250.data(), cp1250.size(), out));
+	CHECK_EQ(out, czech);
+	CHECK(codePageToUtf8("windows-1250", cp1250.data(), cp1250.size(), out));	// (uchardet's spelling)
+	CHECK_EQ(out, czech);
+	CHECK(codePageToUtf8("iso-8859-2", latin2.data(), latin2.size(), out));
+	CHECK_EQ(out, czech);
+	CHECK(utf8ToCodePage("cp1250", "Ah " + czech, out));	// (a search's text, back to the file's bytes)
+	CHECK_EQ(out, "Ah " + cp1250);
+	CHECK(!utf8ToCodePage("cp1250", "\xD0\x96", out));	// Ж isn't in it
+	const std::string koi = "\xF0\xD2\xC9\xD7\xC5\xD4";
+	CHECK(codePageToUtf8("KOI8-R", koi.data(), koi.size(), out));
+	CHECK_EQ(out, std::string("\xD0\x9F\xD1\x80\xD0\xB8\xD0\xB2\xD0\xB5\xD1\x82"));	// Привет
+	// an undefined byte: a mark, or false when strict (a subtitle's guess then tries the next page)
+	CHECK(codePageToUtf8("cp1250", "\x81", 1, out));
+	CHECK_EQ(out, std::string("\xEF\xBF\xBD"));
+	CHECK(!codePageToUtf8("cp1250", "\x81", 1, out, true));
+	CHECK(!knownCodePage("SHIFT_JIS"));	// (multi-byte: iconv's, where the system has it)
+	CHECK(knownCodePage("cp852") && knownCodePage("IBM852") && knownCodePage("koi8-u"));
+}
+
 int main()
 {
 	testSlider();
@@ -10838,6 +10865,7 @@ int main()
 	testTime();
 	testDurations();
 	testDurationFile();
+	testCodePages();
 	testMangaNames();
 	testReaderFetchPlan();
 	testSeekRun();

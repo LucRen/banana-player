@@ -1,5 +1,6 @@
 #include "textdoc.h"
 #include "webmedia.h"	// guessCharset (uchardet)
+#include "codepages.h"
 #include <algorithm>
 #include <cerrno>
 #include <cstring>
@@ -297,10 +298,11 @@ namespace bp
 			}
 			return o;
 		}
-		// a code page: iconv for this piece alone
+		// a code page: the built-in tables (codepages.h; the handheld has no iconv tables), else iconv for this piece
 		std::string conv;
-		iconv_t cd = iconv_open("UTF-8", enc.c_str());
-		if (cd != (iconv_t)-1)
+		iconv_t cd = (iconv_t)-1;
+		if (codePageToUtf8(enc, (const char*)p, n, conv)) {}
+		else if ((cd = iconv_open("UTF-8", enc.c_str())) != (iconv_t)-1)
 		{
 			conv.resize(n * 4 + 8);
 			char* in = (char*)p;
@@ -342,7 +344,12 @@ namespace bp
 			return o;
 		}
 		if (enc == "UTF-8") return utf8;
-		// a code page: through iconv, once
+		// a code page: the built-in tables, else through iconv, once
+		if (knownCodePage(enc))
+		{
+			std::string out;
+			return utf8ToCodePage(enc, utf8, out) ? out : "";
+		}
 		iconv_t cd = iconv_open(enc.c_str(), "UTF-8");
 		if (cd == (iconv_t)-1) return "";
 		std::string out(utf8.size() * 4 + 8, '\0');

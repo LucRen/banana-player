@@ -642,8 +642,8 @@ namespace bp
 		}
 		if (n > shown) ui.drawScrollBar(MENU_TOP, shown * MENU_ROW_H, docMenuScroll, shown, n);
 		if (marks) ui.drawHints({{"A", docMenuCursor == 0 ? "Add" : "Go"}, {"X", "Delete"}, {"B", "Close"}});
-		else if (contents) ui.drawHints({{"A", "Go"}, {"Y", "Close"}, {"B", "Close"}});
-		else ui.drawHints({{"LEFT/RIGHT", "Change"}, {"START", "Close"}, {"B", "Close"}});
+		else if (contents) ui.drawHints({{"A", "Go"}, {"Y/B", "Close"}});
+		else ui.drawHints({{"LEFT/RIGHT", "Change"}, {"START/B", "Close"}});
 	}
 
 	// ---- the keys ----
