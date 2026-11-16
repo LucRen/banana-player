@@ -283,6 +283,66 @@ static void testDurations()
 	av_log_set_level(level);
 }
 
+// the durations kept across runs: the file a cache writes, a torn last line, and mpv's own length recorded
+static void testDurationFile()
+{
+	char dir[] = "/tmp/bp-durfile-XXXXXX";
+	if (!mkdtemp(dir)) { failures++; return; }
+	std::string D = dir, file = D + "/durations.txt";
+	auto a = durationKey("/media/a.mp3", 10, 100), b = durationKey("/media/b.mkv", 20, 200), c = durationKey("/media/c.mp4", 30, 300);
+	{
+		DurationCache cache;
+		CHECK_EQ(cache.load(file), true);	// (no file yet: made, empty)
+		cache.put(a, 214.5);
+		cache.put(b, -1);	// a known "none" is kept across runs too
+		cache.put(c, 3600);
+	}
+	{
+		DurationCache cache;
+		CHECK_EQ(cache.load(file), true);
+		double d = 0;
+		CHECK_EQ(cache.size(), (size_t)3);
+		CHECK_EQ(cache.find(a, d) && d == 214.5, true);
+		CHECK_EQ(cache.find(b, d) && d == -1, true);
+		CHECK_EQ(cache.find(c, d) && d == 3600, true);
+		cache.put(durationKey("/media/d.avi", 40, 400), 12.25);	// after load: appended, so the next run has it
+	}
+	{
+		DurationCache cache;
+		CHECK_EQ(cache.load(file), true);
+		double d = 0;
+		CHECK_EQ(cache.size(), (size_t)4);
+		CHECK_EQ(cache.find(durationKey("/media/d.avi", 40, 400), d) && d == 12.25, true);
+		// a torn last line (the card lost power while writing it): every whole line before it still loads
+		std::ofstream(file, std::ios::app | std::ios::binary) << "torn line";
+	}
+	{
+		DurationCache cache;
+		CHECK_EQ(cache.load(file), true);
+		double d = 0;
+		CHECK_EQ(cache.size(), (size_t)4);
+		CHECK_EQ(cache.find(c, d) && d == 3600, true);
+	}
+	// recordDuration: a real file under its real path, size and mtime, read back the way the lists do
+	{
+		std::string clip = D + "/clip.mp4";
+		std::ofstream(clip, std::ios::binary) << std::string(200000, 'x');
+		recordDuration(clip, 95.5);
+		// recordDuration keys it by its real path (on a Mac /tmp is /private/tmp), as the lists look it up
+		char real[PATH_MAX] = {0};
+		std::string realPath = realpath(clip.c_str(), real) ? real : "";
+		double d = 0;
+		CHECK_EQ(realPath.empty(), false);
+		CHECK_EQ(cachedDuration(realPath, d) && d == 95.5, true);
+		recordDuration(clip, 0);	// not a sane length: the known one stays
+		CHECK_EQ(cachedDuration(realPath, d) && d == 95.5, true);
+		unlink(clip.c_str());
+	}
+	unlink(file.c_str());
+	unlink((file + ".tmp").c_str());
+	rmdir(dir);
+}
+
 static void testMangaNames()
 {
 	// pages: the picture kinds whatever their case, and nothing else
@@ -10568,6 +10628,7 @@ int main()
 	testAspect();
 	testTime();
 	testDurations();
+	testDurationFile();
 	testMangaNames();
 	testReaderFetchPlan();
 	testSeekRun();

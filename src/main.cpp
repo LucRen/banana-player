@@ -29,6 +29,7 @@
 #include "battery.h"
 #include "netstore.h"
 #include "networker.h"
+#include "durations.h"
 #include "durworker.h"
 #include "coverworker.h"
 #include "netstream.h"
@@ -409,6 +410,15 @@ int main(int argc, char** argv)
 		{
 			fprintf(stderr, "mpv could not start\n");
 			return 1;
+		}
+		// the file lists' lengths kept from the last run: loaded before the prober or the dashboard starts (both probe
+		// through the same cache), so a folder opened before is known without opening its files again
+		if (!opts.stateDir.empty())
+		{
+			Uint32 t0 = SDL_GetTicks();
+			DurationCache& durations = DurationCache::shared();
+			durations.load(opts.stateDir + "/durations.txt");
+			fprintf(stderr, "durations: %zu kept from the last run (%u ms)\n", durations.size(), SDL_GetTicks() - t0);
 		}
 		// The photo viewer: a second mpv, photos only, with no sound output, drawn on the top panel in place of the
 		// first while a photo is up. What plays goes on in the first (a video's picture off meanwhile: hideVideo), so a

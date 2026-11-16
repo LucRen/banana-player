@@ -2,6 +2,7 @@
 // the handheld's background prober (durworker) and the web server's pool threads, both probing through durprobe.
 #pragma once
 #include <cstddef>
+#include <cstdio>
 #include <list>
 #include <mutex>
 #include <string>
@@ -16,7 +17,15 @@ namespace bp
 	class DurationCache
 	{
 	public:
-		explicit DurationCache(size_t cap = 5000) : cap(cap) {}
+		explicit DurationCache(size_t cap = 50000) : cap(cap) {}
+		~DurationCache();
+		// The state folder's durations.txt, kept across runs: a line per entry, realPath TAB size TAB mtime TAB seconds
+		// (-1 the known none), read in order so a later line wins. Every put() after load appends its own line under
+		// the same mutex (the file opened once for appending), which keeps it current without a flusher thread. A path
+		// with a tab or a newline is skipped (it can't sit on one line). Malformed lines and a torn last one are
+		// dropped, so a card pulled mid-write only loses the line being written. Compacts at load when the file has
+		// grown well past the cache. False: the file couldn't be opened for appending.
+		bool load(const std::string& file);
 		bool find(const std::string& key, double& secs);
 		void put(const std::string& key, double secs);
 		size_t size();
@@ -25,10 +34,13 @@ namespace bp
 
 	private:
 		using Order = std::list<std::pair<std::string, double>>;	// most recently used first
+		void setLocked(const std::string& key, double secs);
+		void appendLocked(const std::string& key, double secs);
 		size_t cap;
 		std::mutex m;
 		Order order;
 		std::unordered_map<std::string, Order::iterator> index;
+		FILE* out = nullptr;	// the append stream; null before load() or when it couldn't be opened
 	};
 
 	// a probe's answer made safe: NaN, negative, zero or absurd -> -1. Absurd: over a week, or (size >= 0) under 64 bits
@@ -53,4 +65,8 @@ namespace bp
 
 	// a local file's cached duration (stat()s it: size and mtime make the key); false: not cached (or not a file)
 	bool cachedDuration(const std::string& realPath, double& secs, long long* size = nullptr);
+
+	// mpv's exact length for a file it played, in place of a probe's guess: realpath()/stat() it and keep it only when
+	// it's a sane length (saneDuration), keyed as cachedDuration reads it. Does nothing for a path that isn't a file
+	void recordDuration(const std::string& path, double secs);
 }

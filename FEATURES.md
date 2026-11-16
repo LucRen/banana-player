@@ -66,7 +66,8 @@ Folders come first, then files in natural order (episode 2 before episode 10). E
 song, photo), and each file shows its size. Songs and videos on the card show their length too (`3:34 · 3.5 MB`; a
 video you stopped part-way, `at 12:03 / 1:45:00 · 1.2 GB`), filled in a moment after the folder opens, the rows on
 screen first. A file whose format keeps no length in its header (MPEG-TS `.ts`/`.m2ts`/`.mts`, `.mpg`/`.mpeg`/`.vob`,
-raw `.aac`) or that can't be read (empty, cut short, broken) shows only its size; so do network files. Anything you
+raw `.aac`) or that can't be read (empty, cut short, broken) shows only its size; so do network files. Lengths are kept
+in the player's state folder, so a folder you've opened before shows them at once on the next launch. Anything you
 stopped part-way through shows where you left off. The line
 under the header shows where you are (`share / Movies`), and the bottom line shows what each button does there: the
 button's name in yellow, then what it does. See [Playlists](#playlists).

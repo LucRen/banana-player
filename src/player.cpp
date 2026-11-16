@@ -1,4 +1,5 @@
 #include "player.h"
+#include "durations.h"
 #include "filesave.h"
 #include "format.h"
 #include "levelcard.h"
@@ -776,7 +777,16 @@ namespace bp
 					break;
 				}
 				case TIME_POS: position = p->format == MPV_FORMAT_DOUBLE ? *(double*)p->data : -1; break;
-				case DURATION: duration = p->format == MPV_FORMAT_DOUBLE ? *(double*)p->data : -1; break;
+				case DURATION:
+				{
+					duration = p->format == MPV_FORMAT_DOUBLE ? *(double*)p->data : -1;
+					// mpv has just read the whole length: a better answer than a probe's guess for the lists. Only a
+					// local file (a network path or a URL's length is that stream's, not the file's, and realpath() fails)
+					std::string path = currentPath();
+					if (duration > 0 && !isNetPath(path) && path.find("://") == std::string::npos)
+						recordDuration(path, duration);
+					break;
+				}
 				case PAUSE: paused = p->format == MPV_FORMAT_FLAG && *(int*)p->data; break;
 				case SPEED: if (p->format == MPV_FORMAT_DOUBLE) speed = *(double*)p->data; break;
 				case PAUSED_FOR_CACHE: pausedForCache = p->format == MPV_FORMAT_FLAG && *(int*)p->data; break;
