@@ -89,11 +89,11 @@ and `pointer()` ask it.** `PlayerPage::rect(id, layout)` is the only place an id
 
 ## Not in the kit yet (components.md names them)
 
-Section rail, the header with a title and badges, the mini bar's pills, tabs and filter chips, the settings row's
-stepper, form rows, alert / confirm / busy sheets (today's `alert()` and dialogs still draw the centred box), tiles
-with a summary, cover cells, cards, the empty state, the notice row, the top screen's cards. `Kit::bar`, `pill`,
-`toggle` and `row`'s chevron and switch are written and drawn by Play on's sheet or nothing yet: checked by eye only
-where a screen uses them.
+Section rail, the header with a title and badges, the mini bar's pills, filter chips used as filters, the settings
+row's stepper, form rows, alert / confirm / busy sheets (today's `alert()` and dialogs still draw the centred box),
+tiles with a summary, cover cells, cards, the empty state, the notice row, the top screen's cards. `Kit::bar`, `pill`,
+`toggle`, `row`'s chevron and switch, `tabs` and `segment` are written and drawn by Play on's sheet or the List sheet:
+checked by eye only where a screen uses them.
 
 ## The player screen as built
 
@@ -151,9 +151,11 @@ Stopped at a clean point by the owner's word. Everything below "done" is committ
    theme tokens, fonts and glyphs, the old `drawMain` and its ids removed, FEATURES.md.
 3. `363fd99` this note, ui-areas.md, architecture.md, CLAUDE.md.
 4. `ecb11b6` a dimmed Next still answers a tap.
+5. Step A of the list below: Y · List as a sheet (the tabs, the Shuffle switch and Repeat choice, Chapters beside Up
+   next), with `2026-11-16-redesign-list.md` for what it is and what was checked.
 
-Of the brief's scope: the kit (1) and the player screen with X › More (2) are whole. Y · List and SELECT · View
-(the optional part) were not started: the keys open today's pages.
+Of the brief's scope: the kit (1) and the player screen with X › More (2) are whole, and so is step A (the List
+sheet). SELECT · View (the optional part) is not started: the key opens today's pages.
 
 ### Build and check
 
@@ -236,7 +238,8 @@ off; the songs must be longer than 30 s).
 
 ### The steps left, each small and testable
 
-**A. Y · List as a sheet** (`docs/redesign/src/screens.js`: `video-list`, `video-chapters-long`).
+**A. Y · List as a sheet** (`docs/redesign/src/screens.js`: `video-list`, `video-chapters-long`). **Done: see
+`2026-11-16-redesign-list.md`.** The steps below are what it took.
 1. `kitlayout`: `lay::tabs(area, widths, gap)` (44 tall, 6 apart, caps at both ends) and a `lay::listSheet(rows
    shown, header)`; a pure `lay::listScroll(cursor, scroll, shown, n)`. Tests in `testKitLayout`.
 2. `ui_kit`: `Kit::tabs(Rect, labels, on, keys)`, `Kit::segment(Rect, options, on)` (Repeat Off / All / One), and use
