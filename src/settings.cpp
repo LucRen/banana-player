@@ -563,6 +563,7 @@ namespace bp
 		static const char* SHOWN_DNS[2] = {"Off", "Cloudflare (1.1.1.1)"};
 		static const char* SHOWN_PAN[2] = {"Left", "Right"};
 		static const char* SHOWN_DRAG[2] = {"The photo", "The box"};
+		static const char* SHOWN_LID[2] = {"Pause", "Keep playing"};
 		static const int VIZ_FPS[] = {30, 45, 60};
 		static const int VOLUME_TOPS[] = {100, 120, 150};
 		static const std::vector<SettingDef> table = {
@@ -651,6 +652,9 @@ namespace bp
 				.page(SG_CONTROLS, 80, "Screen off (music)", "While a song plays, this screen goes dark after that long untouched. A touch brings it back.").shownAs(SCREEN_OFF_LABELS),
 			D::choice("screen-off-video", &Settings::screenOffVideo, SCREEN_OFF_IDS, SCREEN_OFFS)
 				.page(SG_CONTROLS, 90, "Screen off (video)", "While a video plays, this screen goes dark after that long untouched. A touch brings it back.").shownAs(SCREEN_OFF_LABELS),
+			D::flag("lid-close", &Settings::lidKeepPlaying, "pause", "keep-playing")
+				.page(SG_CONTROLS, 95, "When the lid closes", "Keep playing: while something plays, BananaOS's \"Closing the lid\" is switched to stay awake, and back when it stops (then the handheld sleeps if the lid is shut).")
+				.shownAs(SHOWN_LID),
 			D::flag("pan-area", &Settings::panRight, "left", "right")
 				.page(SG_PHOTOS, 20, "Pan area", "Which side the pan area (the small photo) is on.").shownAs(SHOWN_PAN),
 			D::flag("pan-drag", &Settings::dragBox, "photo", "box")

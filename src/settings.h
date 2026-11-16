@@ -119,6 +119,9 @@ namespace bp
 		bool showHiddenFolders = false;
 		// the battery's percent beside its icon on the bottom panel (the icon is always there)
 		bool batteryPercent = false;
+		// closing the lid while something plays: pause (false), or keep playing (BananaOS's lid sleep switched off while
+		// it plays: lidsleep_host.h)
+		bool lidKeepPlaying = false;
 		// the time left of the battery (Settings › Controls & screen): 24-hour, 12-hour or none
 		int clock = CLOCK_24;
 		// the bottom panel off by itself (Settings › Controls & screen) while a song or video plays and nothing is touched

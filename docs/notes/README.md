@@ -25,5 +25,6 @@ Write the way the rest of the repo does: plain and precise, with the why. Say wh
 - [2026-11-09 iOS Safari history](2026-11-09-ios-safari-history.md): the web player's chevron leaving the page on iPhone.
 - [2026-11-09 crash log](2026-11-09-crash-log.md): why `crash.log` exists and how it is bounded.
 - [2026-11-10 Photos over media](2026-11-10-photos-over-media.md): photos in their own mpv, what plays goes on under them (a video decoding on, unseen).
+- [2026-11-16 lid and unplug](2026-11-16-lid-and-unplug.md): Keep playing with the lid shut (BananaOS's `lid_sleep` switched and put back, the launcher's undo), a pause when the headphones go.
 - [2026-11-14 button rows](button-rows.md): one helper for rows of buttons on the bottom panel (rowCell, gridCell, drawKeyedLabel).
 - [settings table](settings-table.md): a setting is one `SettingDef` entry (key, member, range, page row); what keeps custom code, how to add one.

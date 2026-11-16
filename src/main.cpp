@@ -26,6 +26,7 @@
 #include "session_host.h"
 #include "updater.h"
 #include "idlesleep_host.h"
+#include "lidsleep_host.h"
 #include "battery.h"
 #include "netstore.h"
 #include "networker.h"
@@ -69,7 +70,7 @@ namespace bp
 }
 #endif
 
-static Uint32 evMpv, evRender, evTouch, evLevel, evNet, evFound, evWeb, evDur, evCover, evAmp, evMangaLib;
+static Uint32 evMpv, evRender, evTouch, evLevel, evNet, evFound, evWeb, evDur, evCover, evAmp, evMangaLib, evUnplug;
 #ifdef BP_WEB
 // the dashboard's server for the sleep watch's thread (made on the main thread, never destroyed)
 static std::atomic<bp::WebServer*> webForWatch{nullptr};
@@ -255,6 +256,11 @@ int main(int argc, char** argv)
 	}
 	// a crash's record in <state>/crash.log, kept across runs (log.txt keeps two)
 	bp::crashlog::install(opts.stateDir, BP_VERSION, BP_COMMIT);
+	// BananaOS's lid sleep, if a run that kept playing with the lid shut ended without putting it back (the power
+	// went): put back before anything else, so the handheld's own setting is never left changed
+	LidGuard lidGuard;
+	lidGuard.configure(opts.stateDir);
+	lidGuard.recover();
 	// a socket the other end closed: its write fails (EPIPE) instead of the signal ending the player silently.
 	// libsmb2 writes with write(), not send(MSG_NOSIGNAL), so a server dropping a manga folder listing's
 	// connection killed the process with no crash.log line (SIGPIPE isn't a crash signal)
@@ -289,7 +295,7 @@ int main(int argc, char** argv)
 		fprintf(stderr, "SDL: %s\n", SDL_GetError());
 		return 1;
 	}
-	evMpv = SDL_RegisterEvents(11);
+	evMpv = SDL_RegisterEvents(12);
 	evRender = evMpv + 1;
 	evTouch = evMpv + 2;
 	evLevel = evMpv + 3;
@@ -300,6 +306,7 @@ int main(int argc, char** argv)
 	evCover = evMpv + 8;	// the manga library's covers: some are decoded (CoverWorker::take)
 	evAmp = evMpv + 9;	// a speaker amplifier didn't start (AmpWatch): the sound output opened again
 	evMangaLib = evMpv + 10;	// the Manga app's card library: a listing or chapter files read (MangaLibWorker::take)
+	evUnplug = evMpv + 11;	// the headphones went (SleepWatch): a pause, if something plays here
 
 	// On the handheld (SDL's KMSDRM) each panel is a display and each window fills one; elsewhere, two windows
 	if (windowed < 0) windowed = strcmp(SDL_GetCurrentVideoDriver(), "KMSDRM") != 0;
@@ -579,9 +586,19 @@ int main(int argc, char** argv)
 
 		// the lid closed, the handheld slept: paused at once (from the watch's thread), and the place kept
 		static std::atomic<bool> slept{false};
+		// When the lid closes: Keep playing (set by the main loop: the watch's thread reads it)
+		static std::atomic<bool> keepOnLid{false};
+		keepOnLid = player.settings.lidKeepPlaying;
 		IdleSleep idleSleep;
 		SleepWatch sleepWatch;
 		sleepWatch.start([&player, &photos](bool lid) {
+			// Keep playing: the lid shut is only the panels going dark (BananaOS's lid sleep is off while it plays,
+			// LidGuard). If the handheld sleeps after all, the SIGCONT after it pauses as always
+			if (lid && keepOnLid.load())
+			{
+				fprintf(stderr, "lid: closed, keeps playing\n");
+				return;
+			}
 			player.pauseNow();
 			photos.pauseNow();
 			slept = true;
@@ -598,6 +615,12 @@ int main(int argc, char** argv)
 			// back (or never gone: lid sleep off): the pages' "asleep" undone; the state follows (woke: webForce)
 			if (WebServer* ws = webForWatch.load(); ws && ws->running()) ws->notify("awake", "{}");
 #endif
+		}, [](const std::string& what) {
+			// the main thread decides: it pauses only if something plays here
+			SDL_Event ev{};
+			ev.type = evUnplug;
+			ev.user.data1 = new std::string(what);
+			SDL_PushEvent(&ev);
 		});
 
 		// the bottom touchscreen, read on its own thread; where there's none, SDL's mouse and touch stand in
@@ -953,6 +976,19 @@ int main(int argc, char** argv)
 						heldNext = SDL_GetTicks() + 400;
 					}
 					if (ui.press(b, shown())) leave();
+				}
+				else if (e.type == evUnplug)
+				{
+					std::unique_ptr<std::string> what((std::string*)e.user.data1);
+					// the sound would go on out of the speakers: paused as A pauses (the session's Pause, then mpv).
+					// Plugging back in never plays
+					if (player.playing() && !player.paused && !SessionHost::get().pageIsOutput())
+					{
+						fprintf(stderr, "audio: %s, paused\n", what ? what->c_str() : "?");
+						SessionHost::get().play(false);
+						player.pauseNow();
+					}
+					else fprintf(stderr, "audio: %s (nothing playing here)\n", what ? what->c_str() : "?");
 				}
 				else if (e.type == evAmp)
 				{
@@ -1547,6 +1583,17 @@ int main(int argc, char** argv)
 					idleSleep.tick(now, h);
 				}
 			}
+			// When the lid closes: Keep playing. BananaOS's lid sleep off while something plays here, back after
+			{
+				static Uint32 lidTickAt = 0;
+				if (now - lidTickAt >= 250)
+				{
+					lidTickAt = now;
+					keepOnLid = player.settings.lidKeepPlaying;
+					bool plays = player.playing() && !player.paused && !player.playingPhoto();
+					lidGuard.tick(now, player.settings.lidKeepPlaying && plays, sleepWatch.lidClosed());
+				}
+			}
 			// a chapter or equalizer card shown: it goes the way the volume card does, after its time
 			// BananaOS moves the sound (headphones in or out, Bluetooth headphones on or off) by writing ALSA's default
 			// route to /run/banana/asound.conf; a device already open stays where it was, and each player is to watch the
@@ -1662,6 +1709,8 @@ int main(int argc, char** argv)
 		mangaNet->stop();
 		coverWorker->stop();
 		mangaLibWorker->stop();
+		// (before the watch stops: it knows the lid)
+		lidGuard.release(sleepWatch.lidClosed());
 		sleepWatch.stop();
 		levelWatch.stop();
 		bottomTouch.stop();

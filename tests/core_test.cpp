@@ -4,6 +4,7 @@
 #include "aspect.h"
 #include "battery.h"
 #include "idlesleep.h"
+#include "lidsleep.h"
 #include "comicinfo.h"
 #include "cbz.h"
 #include "pagebook.h"
@@ -5847,7 +5848,7 @@ static void testSettingsTable()
 	// the page's rows come in their places, by group
 	auto controls = settingsOfGroup(SG_CONTROLS);
 	CHECK_EQ(std::string(defs[controls.front()].key), "same-brightness");
-	CHECK_EQ(std::string(defs[controls.back()].key), "screen-off-video");
+	CHECK_EQ(std::string(defs[controls.back()].key), "lid-close");
 	auto files = settingsOfGroup(SG_FILES);
 	CHECK_EQ(files.size(), (size_t)4);
 	CHECK_EQ(std::string(defs[files[1]].key), "show-hidden-folders");	// (not the file's order: its row's)
@@ -6406,6 +6407,87 @@ static void testIdleSleep()
 	CHECK_EQ(f, true);
 	CHECK_EQ(parseAutosleepMinutes("# autosleep_minutes = 5\n", f), 0.0);
 	CHECK_EQ(f, false);
+}
+
+// When the lid closes: Keep playing. bananad's reading of the conf, the rewrite and its undo (lidsleep.h)
+static void testLidSleepConf()
+{
+	bool f = true;
+	// bananad's rules: '#' first is a comment, trimmed key and value, yes/1 true, anything else false, last wins
+	CHECK_EQ(lidSleepIn("# lid_sleep = no\n", f), false);
+	CHECK_EQ(f, false);
+	CHECK_EQ(lidSleepIn("  lid_sleep\t=  yes \r\n", f), true);
+	CHECK_EQ(f, true);
+	CHECK_EQ(lidSleepIn("lid_sleep = 1\nlid_sleep = off\n", f), false);
+	CHECK_EQ(lidSleepIn("lid_sleep = no\nlid_sleep=1", f), true);
+	CHECK_EQ(lidSleepIn("lid_sleeps = no\n", f), false);
+	CHECK_EQ(f, false);
+	// on by default; /data over /etc
+	CHECK_EQ(lidSleepEffective("", ""), true);
+	CHECK_EQ(lidSleepEffective("lid_sleep = no\n", ""), false);
+	CHECK_EQ(lidSleepEffective("lid_sleep = no\n", "lid_sleep = yes\n"), true);
+	CHECK_EQ(lidSleepEffective("lid_sleep = yes\n", "volume_step = 5\n"), true);
+
+	// changed: only the last lid_sleep line, every other byte kept; the undo gives back the file exactly
+	const std::string conf = "# BananaOS\nvolume_step = 5\nlid_sleep = yes\nautosleep_minutes = 10\nlid_sleep=yes  \nled_brightness = 0";
+	LidNote n;
+	std::string off = lidSleepOff(conf, true, n);
+	CHECK_EQ(n.mode, std::string("changed"));
+	CHECK_EQ(n.was, std::string("lid_sleep=yes  "));
+	CHECK_EQ(off, std::string("# BananaOS\nvolume_step = 5\nlid_sleep = yes\nautosleep_minutes = 10\nlid_sleep = no\nled_brightness = 0"));
+	CHECK_EQ(lidSleepEffective("", off), false);
+	n.conf = "/data/banana/bananad.conf";
+	LidNote back;
+	CHECK_EQ(parseLidNote(lidNoteText(n), back), true);
+	CHECK_EQ(back.was, n.was);
+	CHECK_EQ(back.conf, n.conf);
+	std::string out;
+	CHECK_EQ((int)lidRestore(off, true, back, out), (int)LidRestore::Write);
+	CHECK_EQ(out, conf);
+	// another setting changed meanwhile (BananaOS's Settings): kept, the line still put back
+	std::string other = off + "\ndim_minutes = 3\n";
+	CHECK_EQ((int)lidRestore(other, true, back, out), (int)LidRestore::Write);
+	CHECK_EQ(out, conf + "\ndim_minutes = 3\n");
+	// the user's own choice since (Closing the lid set again): theirs wins, nothing written
+	std::string theirs = off;
+	theirs.replace(theirs.find("lid_sleep = no"), 14, "lid_sleep = yes");
+	CHECK_EQ((int)lidRestore(theirs, true, back, out), (int)LidRestore::Skip);
+	CHECK_EQ((int)lidRestore(off + "\nlid_sleep = no ", true, back, out), (int)LidRestore::Skip);	// not our bytes
+	CHECK_EQ((int)lidRestore("", false, back, out), (int)LidRestore::Skip);	// the file gone
+
+	// added: no line in /data (the default, or /etc's yes): one appended, and taken out again
+	const std::string noLine = "volume_step = 5\n";
+	off = lidSleepOff(noLine, true, n);
+	CHECK_EQ(n.mode, std::string("added"));
+	CHECK_EQ(off, noLine + "lid_sleep = no\n");
+	CHECK_EQ((int)lidRestore(off, true, n, out), (int)LidRestore::Write);
+	CHECK_EQ(out, noLine);
+	// ... a file without its last newline gets one before the line, and loses it again
+	off = lidSleepOff("volume_step = 5", true, n);
+	CHECK_EQ(n.nl, true);
+	CHECK_EQ(off, std::string("volume_step = 5\nlid_sleep = no\n"));
+	CHECK_EQ((int)lidRestore(off, true, n, out), (int)LidRestore::Write);
+	CHECK_EQ(out, std::string("volume_step = 5"));
+	// created: no file at all; removed after, unless something else went in it meanwhile
+	off = lidSleepOff("", false, n);
+	CHECK_EQ(n.mode, std::string("created"));
+	CHECK_EQ(off, std::string("lid_sleep = no\n"));
+	CHECK_EQ((int)lidRestore(off, true, n, out), (int)LidRestore::Remove);
+	CHECK_EQ((int)lidRestore(off + "dim_minutes = 3\n", true, n, out), (int)LidRestore::Write);
+	CHECK_EQ(out, std::string("dim_minutes = 3\n"));
+	// a note that isn't one
+	CHECK_EQ(parseLidNote("mode=what\nwrote=x\nconf=/c\n", back), false);
+	CHECK_EQ(parseLidNote("", back), false);
+
+	// the USB sound cards in /proc/asound/cards
+	std::vector<int> usb = usbSoundCards(
+		" 0 [rockchiprk817 ]: rockchip_rk817 - rockchip,rk817-codec\n"
+		"                      rockchip,rk817-codec\n"
+		" 1 [Device        ]: USB-Audio - USB Audio Device\n"
+		"                      GeneralPlus USB Audio Device at usb-xhci-hcd.0.auto-1, full speed\n");
+	CHECK_EQ(usb.size(), (size_t)1);
+	CHECK_EQ(usb.empty() ? -1 : usb[0], 1);
+	CHECK_EQ(usbSoundCards("--- no soundcards ---\n").empty(), true);
 }
 
 static void testBattery()
@@ -10750,6 +10832,7 @@ int main()
 	testClock();
 	testBattery();
 	testIdleSleep();
+	testLidSleepConf();
 	testAspect();
 	testTime();
 	testDurations();

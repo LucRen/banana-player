@@ -1262,7 +1262,19 @@ combination instead.)
   turns it back on (that press does nothing else). Elsewhere (a list), any button turns it back on. It also turns off by itself
   while a song or video plays and nothing is touched (Settings › Controls & screen › **Screen off (music)** and
   **Screen off (video)**).
-- **Lid:** closing it pauses; opening it keeps it paused until you press play.
+- **Lid:** closing it pauses; opening it keeps it paused until you press play. Settings › Controls & screen › **When
+  the lid closes: Pause / Keep playing** (Pause by default). With **Keep playing**, while a song or a video plays on the
+  handheld (not paused, not stopped, not a dashboard page playing it), the player switches BananaOS's own *Closing the
+  lid* setting to stay awake (the `lid_sleep` line of `/data/banana/bananad.conf` set to `no`, nothing else in the file
+  touched) and puts it back a few seconds after playing pauses, stops or ends, or when the player quits. If the lid is
+  shut by then, the handheld goes to sleep as if the lid had just closed. If you changed *Closing the lid* in BananaOS's
+  Settings meanwhile, your choice stays. After a crash the launcher puts it back; after a power loss, the next start
+  does. `log.txt`: `lid: sleep off while playing…`, `lid: sleep restored`, `lid: restore skipped, changed in BananaOS
+  Settings`. With BananaOS's lid sleep already off, nothing is changed and closing the lid keeps playing.
+- **Headphones out:** pulling the headphones out of the jack, Bluetooth headphones disconnecting, or a USB sound card
+  unplugged while something plays pauses it, so the sound doesn't go on from the speakers. Plugging back in doesn't play
+  (press play). `log.txt`: `audio: headphones out, paused` (or `Bluetooth headphones disconnected`, `USB sound card
+  unplugged`).
 - **Sleep:** when nothing plays, the handheld sleeps after BananaOS's idle minutes (its `autosleep_minutes`, 10 unless
   changed in `/data/banana/bananad.conf`; 0 is never), counted from the last button, touch or page turn in the player.
   The player asks bananad for the sleep as the menu's Sleep does. It stays awake while: a song or video plays (paused

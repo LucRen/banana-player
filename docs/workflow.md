@@ -21,6 +21,9 @@ Moved out of CLAUDE.md word for word (CLAUDE.md keeps the commands and a line on
   `BP_FONT_PROVIDER=none` (libass with no system fonts, as on BananaOS), `BP_MANGA_SLOW=MS` (the Manga library read MS ms a series slower, as a slow card: its "Reading your library" line in a `shot:`), `BP_SCREENSHOTS`, `BP_BOTTOM_SIZE=1024x768`,
   `BP_AO_PCM=FILE` (sound out as raw 44.1 kHz s16 stereo, untimed), `BP_CRASH_TEST=segv|abort|throw|overflow` (crashes
   1.5 s after start), `BP_BACKLIGHT_DIR`/`BP_BACKLIGHT_STORE`, `BP_VOLUME_SCRIPT`, `BP_PACKAGE_DIR`/`BP_UPDATE_URL`;
+  BananaOS's power side: `BP_RUN_DIR` (fake `/run/banana`; also `bt/audio` for Bluetooth headphones), `BP_BANANAD_CONF`
+  (a folder with `etc.conf` and `data.conf` for the two bananad.conf), `BP_IDLE_SLEEP_S`, `BP_ASOUND_CARDS` (fake
+  `/proc/asound/cards`), and `BP_LID_RESTORE_ONLY=STATEDIR packaging/launch.sh` (only the launcher's lid undo);
   web: `BP_WEB_FORCE=1`, `BP_WEB_PIN`, `BP_WEB_PORT`, `BP_WEB_DIR` (serve `web/` from disk, not the embedded copy),
   `BP_WEB_IP` (`none` = no Wi-Fi), `BP_WEB_FAIL`, `BP_WEB_KEEPALIVE`. Crash log: `<state>/crash.log` (DEVELOPMENT.md).
 - **Linux-only code** (evdev touch, lid, inotify, backlight) compiles only on Linux: after touching `touch.*`,
