@@ -1,4 +1,5 @@
 // The parts without a window: aspect modes, track labels, mpv's track-list, times.
+#include "kitlayout.h"
 #include "slider.h"
 #include "filesave.h"
 #include "aspect.h"
@@ -8646,6 +8647,261 @@ namespace
 	};
 }
 
+// The redesign kit's layout maths (src/kitlayout.h): rows, the transport, the bar's marks, the sheet, the player
+static void testKitLayout()
+{
+	using namespace lay;
+	// a row's cells end on the area's right edge whatever the division leaves (five across 608: 115 x 4 + 116)
+	Box area{16, 338, 608, 52};
+	int widths5[5] = {115, 115, 115, 115, 116};
+	for (int i = 0; i < 5; i++)
+	{
+		Box c = cell(area, 5, 8, i);
+		CHECK_EQ(c.w, widths5[i]);
+		CHECK_EQ(c.y, 338);
+		CHECK_EQ(c.h, 52);
+		if (i) CHECK_EQ(c.x, cell(area, 5, 8, i - 1).x + cell(area, 5, 8, i - 1).w + 8);
+	}
+	CHECK_EQ(cell(area, 5, 8, 0).x, 16);
+	CHECK_EQ(cell(area, 5, 8, 4).x + cell(area, 5, 8, 4).w, 624);
+	CHECK_EQ(cell(area, 4, 8, 0).w, 146);
+	CHECK_EQ(cell(area, 4, 8, 3).x + cell(area, 4, 8, 3).w, 624);
+	CHECK_EQ(cell({0, 0, 100, 10}, 3, 2, 0).w, 32);	// 96 / 3
+	CHECK_EQ(cell({0, 0, 101, 10}, 3, 2, 2).w, 33);	// the spare unit goes to the last
+	CHECK_EQ(cell({0, 0, 101, 10}, 3, 2, 2).x + 33, 101);
+	CHECK_EQ(cell({0, 0, 102, 10}, 3, 2, 1).w, 33);	// two spare: the last two
+	CHECK_EQ(cell({0, 0, 102, 10}, 3, 2, 2).x + 33, 102);
+	// the transport: four of 100 and the play key 176
+	int tw[5] = {100, 100, 176, 100, 100}, tx = 16;
+	for (int i = 0; i < 5; i++)
+	{
+		Box c = transportCell({16, 188, 608, 74}, i);
+		CHECK_EQ(c.x, tx);
+		CHECK_EQ(c.w, tw[i]);
+		tx += tw[i] + 8;
+	}
+	// (a width that four sides don't divide: the play key takes what's left, the row still ends on the edge)
+	CHECK_EQ(transportCell({0, 0, 610, 74}, 4).x + transportCell({0, 0, 610, 74}, 4).w, 610);
+	CHECK_EQ(transportCell({0, 0, 610, 74}, 2).w, 178);
+
+	// the bar: the knob centred on the share; a notch a chapter but the first, none too close, none past 100 chapters
+	Box track{16, 138, 608, 14};
+	CHECK_EQ(barKnob(track, 0).x, 12);
+	CHECK_EQ(barKnob(track, 1).x + 4, 624);
+	CHECK_EQ(barKnob(track, 0.5).y, 133);
+	CHECK_EQ(barKnob(track, 0.5).h, 24);
+	CHECK_EQ(barKnob(track, 2).x, barKnob(track, 1).x);
+	auto marks = barMarks(track, 90, {0, 12, 30, 48});
+	CHECK_EQ(marks.size(), (size_t)3);
+	CHECK_EQ(marks[0], 16 + (int)(608 * 12.0 / 90));
+	CHECK_EQ(barMarks(track, 90, {0, 30, 30.2, 30.4, 60}).size(), (size_t)2);	// 2 units apart: one notch
+	CHECK_EQ(barMarks(track, 0, {0, 12}).size(), (size_t)0);
+	CHECK_EQ(barMarks(track, 90, {0, 95}).size(), (size_t)0);	// past the end: none
+	std::vector<double> many;
+	for (int i = 0; i < 101; i++) many.push_back(i);
+	CHECK_EQ(barMarks(track, 200, many).size(), (size_t)0);
+	many.pop_back();
+	CHECK(barMarks(track, 200, many).size() > 40);	// (a hundred fit: one each 6 units at the closest)
+
+	// a centred row of hints: 15 apart while they fit, closer when they don't, never left of the edge
+	auto xs = spread({100, 50}, 15, 8, 632);
+	CHECK_EQ(xs[0], 8 + (624 - 165) / 2);
+	CHECK_EQ(xs[1], xs[0] + 115);
+	xs = spread({300, 300, 20}, 15, 8, 632);
+	CHECK_EQ(xs[0], 8);
+	CHECK_EQ(xs[1], 314);	// (the gap never under minGap, 6: the row then runs past the right edge, cut by who draws it)
+	xs = spread({300, 300, 20}, 15, 8, 632, 2);
+	CHECK_EQ(xs[2] + 20, 632);
+	CHECK_EQ(spread({}, 15, 8, 632).size(), (size_t)0);
+
+	// the More sheet: four tiles over two columns of rows
+	SheetSpec spec{4, 4, 2, 0};
+	Sheet sh = sheet(spec);
+	CHECK_EQ(sh.box.x, 0);
+	CHECK_EQ(sh.box.w, 640);
+	CHECK_EQ(sh.box.y + sh.box.h, 480);
+	CHECK_EQ(sh.box.h, 11 + 54 + 68 + 92 + 8 + 30);
+	CHECK_EQ(sh.tile(0).x, 14);
+	CHECK_EQ(sh.tile(0).w, 147);
+	CHECK_EQ(sh.tile(0).h, 60);
+	CHECK_EQ(sh.tile(3).x + sh.tile(3).w, 626);
+	CHECK_EQ(sh.row(0).w, 299);
+	CHECK_EQ(sh.row(1).x, 14 + 299 + 14);
+	CHECK_EQ(sh.row(2).y, sh.row(0).y + 46);
+	CHECK_EQ(sh.row(3).y + sh.row(3).h + 8, sh.hints.y);	// the rows end clear of the hint bar
+	CHECK_EQ(sh.tile(0).y + 60 + 8, sh.row(0).y);
+	CHECK(sh.item(2).x == sh.tile(2).x && sh.item(5).x == sh.row(1).x);
+	CHECK_EQ(sheet({0, 1, 1, 0}).box.h, 226);	// never shorter
+	CHECK_EQ(sheet({0, 20, 1, 0}).box.h, 470);	// nor taller
+	// the cursor: along the tiles, down to the column under them, across the columns, up to the tile over
+	CHECK_EQ(sheetMove(spec, 0, Dir::Right), 1);
+	CHECK_EQ(sheetMove(spec, 3, Dir::Right), 3);
+	CHECK_EQ(sheetMove(spec, 0, Dir::Left), 0);
+	CHECK_EQ(sheetMove(spec, 0, Dir::Up), 0);
+	CHECK_EQ(sheetMove(spec, 0, Dir::Down), 4);
+	CHECK_EQ(sheetMove(spec, 1, Dir::Down), 4);
+	CHECK_EQ(sheetMove(spec, 2, Dir::Down), 5);
+	CHECK_EQ(sheetMove(spec, 3, Dir::Down), 5);
+	CHECK_EQ(sheetMove(spec, 4, Dir::Right), 5);
+	CHECK_EQ(sheetMove(spec, 5, Dir::Right), 5);
+	CHECK_EQ(sheetMove(spec, 5, Dir::Left), 4);
+	CHECK_EQ(sheetMove(spec, 4, Dir::Down), 6);
+	CHECK_EQ(sheetMove(spec, 6, Dir::Down), 6);
+	CHECK_EQ(sheetMove(spec, 6, Dir::Up), 4);
+	CHECK_EQ(sheetMove(spec, 4, Dir::Up), 0);
+	CHECK_EQ(sheetMove(spec, 5, Dir::Up), 2);
+	// three rows in two columns (no Play on): the odd last row has nothing to its right, nor under the right column
+	SheetSpec three{4, 3, 2, 0};
+	CHECK_EQ(sheetMove(three, 6, Dir::Right), 6);
+	CHECK_EQ(sheetMove(three, 5, Dir::Down), 5);
+	CHECK_EQ(sheetMove(three, 4, Dir::Down), 6);
+	CHECK_EQ(sheetMove(three, 99, Dir::Left), 6);	// (a cursor past the end: clamped first)
+	// one column, no tiles: a plain list
+	SheetSpec list{0, 3, 1, 0};
+	CHECK_EQ(sheetMove(list, 0, Dir::Down), 1);
+	CHECK_EQ(sheetMove(list, 2, Dir::Down), 2);
+	CHECK_EQ(sheetMove(list, 0, Dir::Up), 0);
+	CHECK_EQ(sheetMove(list, 1, Dir::Right), 1);
+	CHECK_EQ(sheetMove({0, 0, 1, 0}, 3, Dir::Down), 0);
+
+	// the player screen: everything inside the panel, nothing over anything else, every key a finger's size
+	for (int chips : {4, 5})
+	{
+		PlayerLayout l = playerLayout(chips);
+		std::vector<Box> all{l.back, l.more, l.title, l.line, l.bar, l.times, l.next, l.hints};
+		for (auto& b : l.transport) all.push_back(b);
+		for (auto& b : l.keys) all.push_back(b);
+		for (int i = 0; i < l.chips; i++) all.push_back(l.chip[i]);
+		CHECK_EQ(l.chips, chips);
+		for (size_t i = 0; i < all.size(); i++)
+		{
+			CHECK(all[i].x >= 0 && all[i].y >= 0 && all[i].x + all[i].w <= PANEL_W && all[i].y + all[i].h <= PANEL_H);
+			for (size_t j = i + 1; j < all.size(); j++)
+			{
+				bool apart = all[i].x + all[i].w <= all[j].x || all[j].x + all[j].w <= all[i].x || all[i].y + all[i].h <= all[j].y ||
+					all[j].y + all[j].h <= all[i].y;
+				if (!apart) fprintf(stderr, "player layout: %zu over %zu (%d chips)\n", i, j, chips);
+				CHECK(apart);
+			}
+		}
+		for (auto& b : l.transport) CHECK(b.h >= 56 && b.w >= 56);
+		for (auto& b : l.keys) CHECK(b.h >= 56);
+		CHECK_EQ(l.transport[2].w, 176);
+		CHECK_EQ(l.chip[chips - 1].x + l.chip[chips - 1].w, 624);
+		// the touch areas: the header's keys to the panel's edges; the bar's row and the chapter line's don't meet
+		CHECK(l.backHit.hit(0, 0) && l.moreHit.hit(639, 0) && !l.backHit.hit(l.moreHit.x, 10));
+		CHECK(l.lineHit.y + l.lineHit.h <= l.barHit.y);
+		CHECK(l.barHit.y + l.barHit.h <= l.transport[0].y);
+		CHECK(l.barHit.hit(l.bar.x, l.bar.y) && l.barHit.hit(l.times.x + 4, l.times.y + 4));
+	}
+	CHECK_EQ(playerLayout(9).chips, PLAYER_CHIPS_MAX);
+
+	// the D-pad's focus: DOWN onto the chips, then the Next line; UP back; LEFT / RIGHT along the chips only
+	PlayerFocus f;
+	CHECK_EQ(playerFocusMove(f, Dir::Left, 5, true) == f, true);	// nothing lit: LEFT is the seek's, not the focus's
+	CHECK_EQ(playerFocusMove(f, Dir::Up, 5, true) == f, true);
+	f = playerFocusMove(f, Dir::Down, 5, true);
+	CHECK_EQ(f.zone, 1);
+	CHECK_EQ(f.chip, 0);
+	f = playerFocusMove(f, Dir::Left, 5, true);
+	CHECK_EQ(f.chip, 0);	// no wrap
+	for (int i = 0; i < 7; i++) f = playerFocusMove(f, Dir::Right, 5, true);
+	CHECK_EQ(f.chip, 4);
+	f = playerFocusMove(f, Dir::Down, 5, true);
+	CHECK_EQ(f.zone, 2);
+	CHECK_EQ(playerFocusMove(f, Dir::Right, 5, true) == f, true);
+	CHECK_EQ(playerFocusMove(f, Dir::Down, 5, true) == f, true);
+	f = playerFocusMove(f, Dir::Up, 5, true);
+	CHECK_EQ(f.zone, 1);
+	CHECK_EQ(f.chip, 4);	// back on the chip it left
+	// (a song after a video: four chips, the fifth's focus comes back onto the last)
+	CHECK_EQ(playerFocusMove(f, Dir::Left, 4, true).chip, 2);
+	CHECK_EQ(playerFocusMove(PlayerFocus{1, 4}, Dir::Down, 4, true).chip, 3);
+	f = playerFocusMove(f, Dir::Up, 5, true);
+	CHECK_EQ(f.zone, 0);
+	CHECK_EQ(playerFocusMove(PlayerFocus{1, 2}, Dir::Down, 5, false).zone, 1);	// no Next line: it stays
+	CHECK_EQ(playerFocusMove(PlayerFocus{}, Dir::Down, 0, true).zone, 2);	// no chips: straight to the line
+	CHECK_EQ(playerFocusMove(PlayerFocus{2, 0}, Dir::Up, 0, true).zone, 0);
+
+	// a chip's value for a track: the language; two in one language: what tells them apart; none: its number
+	Track en;
+	en.type = TrackType::Audio;
+	en.lang = "eng";
+	en.codec = "ac3";
+	Track commentary = en;
+	commentary.title = "Commentary";
+	Track fr = en;
+	fr.lang = "fre";
+	Track none;
+	none.type = TrackType::Audio;
+	CHECK_EQ(chipTrack(en, 1, {en, fr}), std::string("English"));
+	CHECK_EQ(chipTrack(commentary, 2, {en, commentary, fr}), std::string("English \xC2\xB7 Commentary"));
+	CHECK_EQ(chipTrack(en, 1, {en, commentary}), std::string("English \xC2\xB7 ") + codecName("ac3"));
+	CHECK_EQ(chipTrack(none, 3, {en, none}), std::string("Track 3"));
+	Track sub = en;
+	sub.type = TrackType::Sub;	// (the same language in another kind of track doesn't count)
+	CHECK_EQ(chipTrack(en, 1, {en, sub}), std::string("English"));
+	CHECK_EQ(caps("Top screen 2"), std::string("TOP SCREEN 2"));
+}
+
+// Session: nextPlace, what the player's "Next" line names (Step's own choice, read without stepping)
+static void testSessionNextPlace()
+{
+	Session s;
+	CHECK_EQ(nextPlace(s), NEXT_NONE);	// nothing plays
+	s.queue = {"/a", "/b", "/c"};
+	s.index = 0;
+	CHECK_EQ(nextPlace(s), 1);
+	s.index = 2;
+	CHECK_EQ(nextPlace(s), NEXT_NONE);	// In order, at the last one
+	CHECK_EQ(hasNext(s), false);
+	s.loop = SESSION_LOOP_ALL;
+	CHECK_EQ(nextPlace(s), 0);	// a Loop: round
+	s.loop = SESSION_LOOP_ONE;
+	CHECK_EQ(nextPlace(s), 0);	// (Next under Loop one moves on: only an end repeats)
+	s.index = 1;
+	CHECK_EQ(nextPlace(s), 2);
+	// Shuffle: along the hidden order, whatever the list's own
+	s.loop = SESSION_LOOP_OFF;
+	s.shuffle = true;
+	s.order = {1, 0, 2};
+	CHECK_EQ(nextPlace(s), 0);
+	s.index = 0;
+	CHECK_EQ(nextPlace(s), 2);
+	s.index = 2;
+	CHECK_EQ(nextPlace(s), NEXT_ROUND);	// the round's end: a new one, not drawn yet
+	CHECK_EQ(hasNext(s), true);
+	// one item: Next has nowhere else, in any mode
+	Session one;
+	one.queue = {"/a"};
+	one.index = 0;
+	CHECK_EQ(nextPlace(one), NEXT_NONE);
+	one.loop = SESSION_LOOP_ALL;
+	CHECK_EQ(nextPlace(one), NEXT_NONE);
+	one.shuffle = true;
+	one.order = {0};
+	CHECK_EQ(nextPlace(one), NEXT_NONE);
+	// and it agrees with Step wherever Step moves within the list: stepped, the item is the one it named
+	for (int loop : {SESSION_LOOP_OFF, SESSION_LOOP_ALL, SESSION_LOOP_ONE})
+		for (int at = 0; at < 3; at++)
+		{
+			Session q;
+			q.queue = {"/a", "/b", "/c"};
+			q.index = at;
+			q.loop = loop;
+			q.out = q.pref = handheldOut();
+			int want = nextPlace(q);
+			Intent st;
+			st.type = IntentType::Step;
+			st.n = 1;
+			st.origin = "hh";
+			st.seq = 1;
+			st.basis = q.v;
+			Result r = apply(q, st, 1000);
+			CHECK_EQ(r.s.index, want == NEXT_NONE ? at : want);
+		}
+}
+
 static void testSessionNamed()
 {
 	{
@@ -10911,6 +11167,8 @@ int main()
 	testCbz();
 	testStrip();
 	testLabels();
+	testKitLayout();
+	testSessionNextPlace();
 	testTrackList();
 	testSuwayomi();
 	testMangaJava();

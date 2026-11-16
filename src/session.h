@@ -133,6 +133,11 @@ namespace bp
 	// with Shuffle: where the item is in the hidden order (-1 none). Next has somewhere to go (either mode)
 	int shufflePlace(const Session& s);
 	bool hasNext(const Session& s);
+	// where Next would go, for the player's "Next" line: the queue's place, NEXT_NONE (nothing plays, or In order at
+	// the last one) or NEXT_ROUND (Shuffle at its round's end: a new random round, not yet drawn). As Step's own
+	// choice (apply): along the hidden order with Shuffle, round with a Loop, else the next of the list
+	constexpr int NEXT_NONE = -1, NEXT_ROUND = -2;
+	int nextPlace(const Session& s);
 	// where it has got to by now: pos, run on while it plays on a loaded output (not one waiting for a tap), within the
 	// item's length
 	double posNow(const Session& s, int64_t now);

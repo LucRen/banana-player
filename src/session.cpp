@@ -75,6 +75,20 @@ namespace bp
 		return s.index + 1 < (int)s.queue.size();
 	}
 
+	int nextPlace(const Session& s)
+	{
+		int size = (int)s.queue.size();
+		if (s.index < 0 || s.index >= size) return NEXT_NONE;
+		if (s.shuffle && (int)s.order.size() == size)
+		{
+			int at = shufflePlace(s);
+			if (at + 1 >= size) return size > 1 ? NEXT_ROUND : NEXT_NONE;	// (one item: only itself again)
+			return s.order[std::max(0, at + 1)];
+		}
+		int to = s.loop != SESSION_LOOP_OFF ? (s.index + 1) % size : std::min(s.index + 1, size - 1);
+		return to == s.index ? NEXT_NONE : to;
+	}
+
 	std::string outOrigin(const Session& s) { return s.out.kind == OutKind::Handheld ? "hh" : s.out.tab; }
 
 	namespace
