@@ -42,6 +42,7 @@ namespace bp
 		std::vector<int> swFds;	// input devices with a lid or headphone switch
 		std::atomic<bool> lidShut{false};
 		bool jackIn = false, btIn = false;
+		int btGone = 0;	// looks in a row that found no Bluetooth headphones
 		std::vector<int> usbCards;
 	};
 }
