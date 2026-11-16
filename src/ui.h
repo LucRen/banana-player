@@ -988,6 +988,10 @@ namespace bp
 		struct AlertBox;
 	public:
 		void alert(const std::string& title, const std::string& text = "");
+		// the first start with no lid-close in settings.conf: what closing the lid does, asked once (Pause first);
+		// the answer is saved, so it isn't asked again (LidAskBox in ui_overlay.cpp)
+		void askLid();
+		struct LidAskBox;
 	private:
 
 		// ---- playing behind the browser ----

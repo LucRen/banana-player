@@ -795,6 +795,7 @@ namespace bp
 	{
 		Settings s;
 		s.style = parseSubStyle(text);	// it leaves out the keys below
+		s.lidAsk = true;	// (until its line is read below)
 		const auto& defs = settingDefs();
 		std::istringstream in(text);
 		std::string line;
@@ -809,6 +810,7 @@ namespace bp
 			std::string key = trim(line.substr(0, eq)), value = trim(line.substr(eq + 1));
 			for (const auto& d : defs)
 				if (key == d.key) { readSetting(d, s, value); break; }
+			if (key == "lid-close") s.lidAsk = false;
 			// the one setting before 0.1.1, kept: auto, cover-bars, bars, waves, spectrum, cover
 			if (key == "audio-display")
 			{

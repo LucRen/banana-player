@@ -1263,7 +1263,8 @@ combination instead.)
   while a song or video plays and nothing is touched (Settings › Controls & screen › **Screen off (music)** and
   **Screen off (video)**).
 - **Lid:** closing it pauses; opening it keeps it paused until you press play. Settings › Controls & screen › **When
-  the lid closes: Pause / Keep playing** (Pause by default). With **Keep playing**, while a song or a video plays on the
+  the lid closes: Pause / Keep playing** (Pause by default; the first start without the setting asks, Pause
+  first, and says where to change it). With **Keep playing**, while a song or a video plays on the
   handheld (not paused, not stopped, not a dashboard page playing it), the player switches BananaOS's own *Closing the
   lid* setting to stay awake (the `lid_sleep` line of `/data/banana/bananad.conf` set to `no`, nothing else in the file
   touched) and puts it back a few seconds after playing pauses, stops or ends, or when the player quits. If the lid is

@@ -455,6 +455,9 @@ int main(int argc, char** argv)
 		// Player, and a page of its own)
 		ui.mainPlayer = &player;
 		bool haveUi = bottom && ui.init(bottom, opts.fontsDir);
+		// what closing the lid does, asked once at a start whose settings.conf names none (not in a scripted run:
+		// its steps and pictures expect the panel as it is; BP_ASK_LID=1 asks there too)
+		if (haveUi && player.settings.lidAsk && (steps.empty() || getenv("BP_ASK_LID"))) ui.askLid();
 		// the built-in updater: for the installed package (bin/ beside VERSION), not a build on a computer
 		// (BP_PACKAGE_DIR stands in for one in tests)
 		// never destroyed: a download under way doesn't hold up quitting (the process ends it; the next start clears

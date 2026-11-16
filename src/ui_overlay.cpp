@@ -121,6 +121,79 @@ namespace bp
 		std::string signature(const Player&) const override { return title + "\n" + text; }
 	};
 
+	// The first start (no lid-close in settings.conf): what closing the lid does, asked once. Pause is first and is
+	// what B or a tap outside choose, as the setting's default; either answer is saved, so it's never asked again.
+	// The words say where it changes later (Settings, Controls & screen: its first row)
+	struct Ui::LidAskBox : Ui::Overlay
+	{
+		int cursor = 0;	// 0 Pause, 1 Keep playing
+
+		explicit LidAskBox(Ui& u) : Overlay(u) {}
+		const char* name() const override { return "lidask"; }
+
+		static constexpr const char* TEXT_ =
+			"Keep playing: music goes on with the screens off, and the handheld sleeps when it stops. "
+			"Change it any time in Settings \xE2\x80\xBA Controls & screen.";
+		Rect box() const
+		{
+			int lines = (int)ui.wrapText(TEXT_, 0, 480 - 56, 5).size();
+			int h = 164 + lines * 24;
+			return {80, (H - h) / 2 - 10, 480, h};
+		}
+		Rect button(int i) const
+		{
+			Rect b = box();
+			return {b.x + 24 + i * 222, b.y + b.h - 70, 210, 48};
+		}
+		void choose(int i, Player& p)
+		{
+			close();
+			Settings s = p.settings;
+			s.lidKeepPlaying = i == 1;
+			s.lidAsk = false;
+			p.setSettings(s);	// (saved: the line is in settings.conf from now on)
+			fprintf(stderr, "lid: asked at start, chose %s\n", i ? "Keep playing" : "Pause");
+		}
+		bool key(Button b, Player& p) override
+		{
+			if (b == Button::Left || b == Button::Right || b == Button::Up || b == Button::Down) cursor ^= 1;
+			else if (b == Button::A) choose(cursor, p);
+			else if (b == Button::B) choose(0, p);
+			return false;
+		}
+		bool pointer(const Pointer& pt, int x, int y, Player& p) override
+		{
+			if (pt.kind != Pointer::Up) return false;
+			for (int i = 0; i < 2; i++)
+				if (button(i).hit(x, y)) { choose(i, p); return false; }
+			if (!box().hit(x, y)) choose(0, p);	// outside: as B
+			return false;
+		}
+		void draw(const Player&) override
+		{
+			Rect b = box();
+			ui.drawDialog(b, "");
+			ui.drawGlyphMid(G_MOON, b.x + 40, b.y + 38, ACCENT);
+			ui.drawTextMid("When you close the lid", 1, TEXT, b.x + 64, b.y + 38, b.w - 88);
+			auto lines = ui.wrapText(TEXT_, 0, b.w - 56, 5);
+			for (size_t i = 0; i < lines.size(); i++) ui.drawTextMid(lines[i], 0, DIM_ON, b.x + 28, b.y + 80 + (int)i * 24, b.w - 56);
+			for (int i = 0; i < 2; i++)
+			{
+				Rect r = button(i);
+				bool at = i == cursor;
+				ui.drawBox(r, at ? ACCENT : BUTTON, R_BUTTON);
+				ui.drawTextMid(i ? "Keep playing" : "Pause", 1, at ? ON_ACCENT : TEXT, r.x + r.w / 2, r.y + r.h / 2, r.w - 16, 2);
+			}
+			ui.drawHints({{"A", "Choose"}, {"B", "Pause"}});
+		}
+		std::string signature(const Player&) const override { return std::to_string(cursor); }
+	};
+
+	void Ui::askLid()
+	{
+		pushOverlay(std::make_unique<LidAskBox>(*this));
+	}
+
 	void Ui::alert(const std::string& title, const std::string& text)
 	{
 		pushOverlay(std::make_unique<AlertBox>(*this, title, text));
