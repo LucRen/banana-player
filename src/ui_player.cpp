@@ -273,8 +273,9 @@ namespace bp
 					});
 				return false;
 			}
+			// (a dimmed Next still answers: its press says "This is the last one", as the R button's does)
 			for (int id = T_PREV; id < T_COUNT; id++)
-				if (rect(id, l).hit(x, y) && usable(id, p)) pressed = id;
+				if (rect(id, l).hit(x, y) && (usable(id, p) || id == T_NEXT)) pressed = id;
 			// Play while a page plays it: held, it plays here (Ui::tick times it); let go sooner, the page's play / pause
 			if (pressed == T_PLAY && p.error.empty() && ui.pageDrives(p))
 			{
@@ -294,7 +295,7 @@ namespace bp
 			return false;
 		}
 		// let go off the key: nothing (a finger that slid away changed its mind)
-		return rect(id, l).hit(x, y) && usable(id, p) && act(id, p);
+		return rect(id, l).hit(x, y) && (usable(id, p) || id == T_NEXT) && act(id, p);
 	}
 
 	// ---- Lock ----
