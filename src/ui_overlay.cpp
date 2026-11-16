@@ -131,13 +131,22 @@ namespace bp
 		explicit LidAskBox(Ui& u) : Overlay(u) {}
 		const char* name() const override { return "lidask"; }
 
-		static constexpr const char* TEXT_ =
-			"Keep playing: music goes on with the screens off, and the handheld sleeps when it stops. "
-			"Change it any time in Settings \xE2\x80\xBA Controls & screen.";
+		// one paragraph a choice, then where it changes
+		static std::vector<std::string> paragraphs()
+		{
+			return {"Pause: playback pauses and the handheld sleeps, as usual.",
+				"Keep playing: music goes on with the screens off, and the handheld sleeps when it stops.",
+				"Change it any time in Settings \xE2\x80\xBA Controls & screen."};
+		}
+		int textHeight() const
+		{
+			int h = 0;
+			for (auto& t : paragraphs()) h += (int)ui.wrapText(t, 0, 480 - 56, 4).size() * 24 + 10;
+			return h - 10;
+		}
 		Rect box() const
 		{
-			int lines = (int)ui.wrapText(TEXT_, 0, 480 - 56, 5).size();
-			int h = 164 + lines * 24;
+			int h = 160 + textHeight();
 			return {80, (H - h) / 2 - 10, 480, h};
 		}
 		Rect button(int i) const
@@ -175,8 +184,16 @@ namespace bp
 			ui.drawDialog(b, "");
 			ui.drawGlyphMid(G_MOON, b.x + 40, b.y + 38, ACCENT);
 			ui.drawTextMid("When you close the lid", 1, TEXT, b.x + 64, b.y + 38, b.w - 88);
-			auto lines = ui.wrapText(TEXT_, 0, b.w - 56, 5);
-			for (size_t i = 0; i < lines.size(); i++) ui.drawTextMid(lines[i], 0, DIM_ON, b.x + 28, b.y + 80 + (int)i * 24, b.w - 56);
+			int y = b.y + 80;
+			for (auto& t : paragraphs())
+			{
+				for (auto& line : ui.wrapText(t, 0, b.w - 56, 4))
+				{
+					ui.drawTextMid(line, 0, DIM_ON, b.x + 28, y, b.w - 56);
+					y += 24;
+				}
+				y += 10;
+			}
 			for (int i = 0; i < 2; i++)
 			{
 				Rect r = button(i);
