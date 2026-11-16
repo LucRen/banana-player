@@ -1586,7 +1586,10 @@ int main(int argc, char** argv)
 					idleSleep.tick(now, h);
 				}
 			}
-			// When the lid closes: Keep playing. BananaOS's lid sleep off while something plays here, back after
+			// When the lid closes: Keep playing. BananaOS's lid sleep off while something plays here, back after; and the
+			// whole time the web dashboard runs, since a browser playing from it (the output moved there, the handheld
+			// paused) needs the handheld awake: lid sleep put back as the handheld paused let a shut lid sleep it, and
+			// the page's sound with it
 			{
 				static Uint32 lidTickAt = 0;
 				if (now - lidTickAt >= 250)
@@ -1594,6 +1597,9 @@ int main(int argc, char** argv)
 					lidTickAt = now;
 					keepOnLid = player.settings.lidKeepPlaying;
 					bool plays = player.playing() && !player.paused && !player.playingPhoto();
+#ifdef BP_WEB
+					plays = plays || (webServer && webServer->running());
+#endif
 					lidGuard.tick(now, player.settings.lidKeepPlaying && plays, sleepWatch.lidClosed());
 				}
 			}
