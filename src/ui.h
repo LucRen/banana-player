@@ -361,17 +361,15 @@ namespace bp
 		// Ui::pointer's)
 		bool listDown(int x, int y, Player& p);
 		void openMenu(Page pg, const Player& p);
-		// Tracks: one page, four tabs in this order, those that apply (tracksTabs): Chapters (a file with chapters; the
-		// Chapters page, Page::Chapters), Subtitles, Audio and Picture (Fit, Fill, Stretch) (a video; Page::Tracks).
-		// L/R (and Y/X) step between them. SELECT on a video opens the last one shown (openTracksPage); none shown yet:
-		// Chapters where there are some, else Subtitles. A line of the player's opens its own tab
+		// Tracks: the old page, still Settings' way back to the Subtitles list (its style row: openTracks(TRACKS_SUBS)).
+		// Four tabs in this order, those that apply (tracksTabs): Chapters (a file with chapters, the Chapters page),
+		// Subtitles, Audio and Picture (Fit, Fill, Stretch) (a video; Page::Tracks). L/R (and Y/X) step between them.
+		// The player's SELECT is View's sheet now (Ui::ViewSheet); a file's tracks, size and speed are set there
 		enum TracksTab { TRACKS_CHAPTERS, TRACKS_SUBS, TRACKS_AUDIO, TRACKS_PICTURE };
 		int tracksTab = TRACKS_SUBS;
-		bool tracksTabUsed = false;	// a tab was shown this run (X opens it again)
 		TrackType trackType() const { return tracksTab == TRACKS_AUDIO ? TrackType::Audio : TrackType::Sub; }
 		std::vector<int> tracksTabs(const Player& p) const;
 		void openTracks(int tab, const Player& p);
-		void openTracksPage(const Player& p);
 		void stepTracksTab(int dir, const Player& p);	// the tab before (-1) or after (+1), no wrap
 		// the i-th of n tabs shown: three or fewer 152 wide, four share the room before the clock
 		// the tabs share the room between the back key and the header's status (clock, Wi-Fi, battery): tabsRight, set
@@ -431,6 +429,7 @@ namespace bp
 		std::unique_ptr<PlayerPage> playerPage;
 		struct PlayOnSheet;
 		struct ListSheet;
+		struct ViewSheet;
 
 		// the readers' Brightness sheet (ui_light.cpp): the screens' backlight, Extra dim, the reader's filter
 		// (an overlay: LightSheet, pushed by openLight)

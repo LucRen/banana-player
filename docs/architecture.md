@@ -80,7 +80,7 @@ Moved out of `CLAUDE.md`, which keeps the one-line rules and the map; the reason
   `video-out-params` of the last file (or the idle window) can't tell.
 - **Chapters** come by `observe_property` (`chapter-list`, `chapter`), as the track list does; `chapterTarget` in bpcore
   computes each L2/R2 jump, a pending chapter covers quick repeated presses, and the L2/R2 card shares `osd-overlay` id 2 with the volume card.
-- **`Ui`** is the whole bottom panel (its definitions are split over `src/ui*.cpp` by area: see "Where things live" below): pages (Main, Tracks (SELECT on a video; tabs Chapters, Subtitles, Audio, Picture (Fit/Fill/Stretch): `tracksTabs()`; the Chapters tab is `Page::Chapters`), Up next (`Page::UpNext`: the Session's queue, `upNextList`; a row is a `PlayRequest` of that list), Settings, Browse, Info, About, Exit, Sound (Equalizer & Effects tabs)), START's tabbed
+- **`Ui`** is the whole bottom panel (its definitions are split over `src/ui*.cpp` by area: see "Where things live" below): pages (Main (the player, `PlayerPage`: its SELECT is the View sheet, `ViewSheet`, with tabs Subtitles, Audio, Picture and Speed), Tracks (the old page, still Settings' way back to the Subtitles list; tabs Chapters, Subtitles, Audio, Picture (Fit/Fill/Stretch): `tracksTabs()`; the Chapters tab is `Page::Chapters`), Up next (`Page::UpNext`: the Session's queue, `upNextList`; a row is a `PlayRequest` of that list), Settings, Browse, Info, About, Exit, Sound (Equalizer & Effects tabs)), START's tabbed
   menu (`inMenu`: Playing (`Page::Playing`, while a song or video plays: Like, Add to playlist…; `menuTabs`), Settings, About; no Quit: quick settings and F + START quit), the Options menu (X), Lock, Screen off. The browser's first page is **Home**
   (`browseDir` `HOMEDIR`, `drawHome`, `homeKey`, `homePointer`): the Recent strip (`recent`, built by `listRecent` from the
   history and resume.tsv's positions and `#duration` lines; cards `CARD_W` wide, `STRIDE` apart, the focused one kept in
@@ -229,7 +229,7 @@ Ui (class declared in `src/ui.h`; file-static names shared by the files are in `
 | `ui_playlists.cpp` | the Playlists pages, select/move/drag, picker, add, their drawing, edits from the web |
 | `ui_settings.cpp` | `settingRows`, `settingHelp`, groups, `changeSetting`, `drawSettings`, `drawPreview` |
 | `ui_main.cpp` | photo view (`drawPhoto`, `drawLeave`), predicted position, `musicKey`, `buttonRect` |
-| `ui_player.cpp` | the playing screen (`Ui::PlayerPage`, the area for `Page::Main`): transport, chips, the Next line, its More list, Play on's sheet, the lock |
+| `ui_player.cpp` | the playing screen (`Ui::PlayerPage`, the area for `Page::Main`): transport, chips, the Next line, its More list, Play on's sheet, the List sheet (`ListSheet`), the View sheet (`ViewSheet`), the lock |
 | `ui_kit.cpp`, `ui_more.cpp` | the redesign's component kit (`Ui::Kit`: caps, keys, chips, line keys, the bar, sheets, rows) and the More sheet overlay; layout maths in `kitlayout.cpp` (bpcore) |
 | `ui_sound.cpp` | the Display popup, the Sound page (Equalizer, Effects) |
 | `ui_web.cpp` | the Web dashboard page and the header's globe |

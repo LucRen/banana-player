@@ -145,21 +145,23 @@ namespace bp
 		if (!p.error.empty()) return;
 		switch (kind)
 		{
-		// a video's: its tab of Tracks
-		case C_SUBS: ui.openTracks(TRACKS_SUBS, p); break;
-		case C_AUDIO: ui.openTracks(TRACKS_AUDIO, p); break;
-		case C_PICTURE: ui.openTracks(TRACKS_PICTURE, p); break;
+		// a video's: View's tabs (its tracks, its size, its speed), the sheet over the controls
+		case C_SUBS: openView(0, p); break;
+		case C_AUDIO: openView(1, p); break;
+		case C_PICTURE: openView(2, p); break;
 		// a song's: the Sound page, the Display popup
 		case C_SOUND: ui.sound->open(p, false); break;
 		case C_TOP: ui.musicKey(Button::Select, p); break;
 		case C_SPEED:
-		{
-			// round its choices (until View has its Speed tab: docs/redesign, "video-speed")
-			double s = stepSpeed(p.speed, 1, true);
-			p.setSpeed(s);
-			p.osd("Speed " + speedLabel(s));
+			// a video: View's Speed tab, the one place speed is set now; a song's View is still today's popup, so its
+			// chip keeps stepping round the choices
+			if (!p.playingAudio()) { openView(3, p); break; }
+			{
+				double s = stepSpeed(p.speed, 1, true);
+				p.setSpeed(s);
+				p.osd("Speed " + speedLabel(s));
+			}
 			break;
-		}
 		// the List sheet: Repeat and Shuffle are set there; a song's Shuffle chip turns it on or off
 		case C_MODE: openList(listTab, p); break;
 		case C_SHUFFLE:
@@ -404,8 +406,8 @@ namespace bp
 		case Button::Start: ui.openMainMenu(p, ui.playingTabShown(p) ? TAB_PLAYING : TAB_SETTINGS); break;
 		// the stick pressed in (the RG DS Plus): Like, at once (over a photo it turns it, above)
 		case Button::L3: ui.likeNow(p); break;
-		// a song: the Display popup; a video: Tracks (Chapters, Subtitles, Audio, Picture)
-		case Button::Select: if (!ui.musicKey(b, p)) ui.openTracksPage(p); break;
+		// a song: the Display popup; a video: View (its tracks, size and speed as tabs of one sheet)
+		case Button::Select: if (!ui.musicKey(b, p)) openView(viewTab, p); break;
 		// (a page playing it: from where it should be by now; the jump is passed on to the page)
 		case Button::Left:
 		case Button::Right:
@@ -807,6 +809,243 @@ namespace bp
 		pressed = T_NONE;
 		focus = {};
 		ui.pushOverlay(std::make_unique<ListSheet>(ui, tab, p));
+	}
+
+	// View (SELECT) on a video: what is in the file and how it plays, as a sheet over the controls (docs/redesign,
+	// "video-view", "video-speed"). Subtitles, Audio and Picture are Ui::rows' rows, the ones the old Tracks page
+	// listed, and Ui::choose does each one's action (a track by its id, a picture size); Speed is format.h's five
+	// speeds, and A sets it at once. It stays open on a choice (several are made here), unless the row leaves for
+	// Settings (the subtitle style). L / R step the tabs, UP / DOWN move, LEFT / RIGHT page, A chooses, SELECT / B
+	// close; a tap on a tab or a row acts on the lift, outside closes.
+	struct Ui::ViewSheet : Ui::Overlay
+	{
+		enum Tab { TAB_SUBS, TAB_AUDIO, TAB_PICTURE, TAB_SPEED, TABS };
+		enum Press { P_NONE, P_ROW, P_TAB };
+		int tab = 0, cursor = 0, scroll = 0, press = P_NONE, pressAt = -1;
+
+		ViewSheet(Ui& u, int at, const Player& p) : Overlay(u)
+		{
+			tab = std::clamp(at, 0, TABS - 1);
+			ui.playerPage->viewTab = tab;
+			// opened on what is in use: the chosen track (Off among the subtitles too), the size, the speed
+			int n = count(p), cur = current(p);
+			cursor = std::clamp(cur, 0, std::max(0, n - 1));
+			scroll = lay::listScroll(cursor, std::max(0, cursor - 3), shown(p), n);
+		}
+		const char* name() const override { return "view"; }
+
+		static std::vector<std::string> labels() { return {"Subtitles", "Audio", "Picture", "Speed"}; }
+		static int tracksTabFor(int t) { return t == TAB_AUDIO ? TRACKS_AUDIO : t == TAB_PICTURE ? TRACKS_PICTURE : TRACKS_SUBS; }
+		// Ui::rows reads the tab it is on: point it at this one while asking, and put it back (asking is not choosing)
+		std::vector<Ui::Row> rowsFor(int t, const Player& p) const
+		{
+			if (t == TAB_SPEED)
+			{
+				std::vector<Row> out;
+				for (double s : speedChoices())
+					out.push_back({(int64_t)std::lround(s * 100), speedLabel(s), std::fabs(p.speed - s) < 1e-6,
+						std::fabs(s - 1) < 1e-6 ? "Normal" : ""});
+				return out;
+			}
+			int keep = ui.tracksTab;
+			ui.tracksTab = tracksTabFor(t);
+			auto out = ui.rows(p);
+			ui.tracksTab = keep;
+			return out;
+		}
+		int count(const Player& p) const { return (int)rowsFor(tab, p).size(); }
+		int current(const Player& p) const
+		{
+			auto r = rowsFor(tab, p);
+			for (size_t i = 0; i < r.size(); i++)
+				if (r[i].selected) return (int)i;
+			return 0;
+		}
+		int shown(const Player& p) const { return std::min(std::max(1, count(p)), lay::LIST_ROWS); }
+		lay::ListSheet layout(const Player& p) const { return lay::listSheet(shown(p)); }
+		void settle(const Player& p)
+		{
+			int n = count(p);
+			if (n <= 0) { cursor = scroll = 0; return; }
+			cursor = std::clamp(cursor, 0, n - 1);
+			scroll = lay::listScroll(cursor, scroll, shown(p), n);
+		}
+		void openTab(int t, const Player& p)
+		{
+			tab = std::clamp(t, 0, TABS - 1);
+			int n = count(p), cur = current(p);
+			cursor = std::clamp(cur, 0, std::max(0, n - 1));
+			scroll = lay::listScroll(cursor, std::max(0, cursor - 3), shown(p), n);
+			ui.playerPage->viewTab = tab;
+		}
+		// what the header says on the tabs' right: how many there are to choose
+		std::string headNote(const Player& p) const
+		{
+			if (tab == TAB_SPEED) return "";
+			if (tab == TAB_PICTURE) return "3 sizes";
+			int n = (int)p.tracksOf(tab == TAB_AUDIO ? TrackType::Audio : TrackType::Sub).size();
+			return n == 0 ? "None in this file" : n == 1 ? "1 track" : std::to_string(n) + " tracks";
+		}
+		struct Head { Rect tabs, note; };
+		Head head(const lay::ListSheet& s, const Player& p) const
+		{
+			Head h;
+			std::string note = headNote(p);
+			int w = note.empty() ? 0 : ui.kit->textW(note, F_I12);
+			h.tabs = {s.head.x, s.head.y, std::max(0, s.head.w - (w ? w + 16 : 0)), s.head.h};
+			h.note = {s.head.x + s.head.w - w, s.head.y + s.head.h / 2 - 7, w, 14};
+			return h;
+		}
+
+		void choose(int i, Player& p)
+		{
+			auto r = rowsFor(tab, p);
+			if (i < 0 || i >= (int)r.size()) return;
+			cursor = i;
+			if (tab == TAB_SPEED)
+			{
+				// (the radio moves at once; p.speed answers from mpv a moment later, and the OSD says it meanwhile)
+				double s = speedChoices()[i];
+				p.setSpeed(s);
+				p.osd("Speed " + speedLabel(s));
+				return;
+			}
+			// the style row leaves for Settings (its page draws there): the sheet closes first. A track or a size
+			// changes under it, as the old page did, and it stays for the next choice
+			int keep = ui.tracksTab;
+			ui.tracksTab = tracksTabFor(tab);
+			bool style = r[i].id == STYLE_ROW;
+			if (style) close();
+			ui.choose(i, p);
+			ui.tracksTab = keep;
+		}
+
+		bool key(Button b, Player& p) override
+		{
+			// (nothing plays any more, it became a song, or the player was left under the sheet: closed)
+			if (!p.playing() || p.playingPhoto() || p.playingAudio() || ui.page != Page::Main) { close(); return false; }
+			int n = count(p);
+			if (n <= 0) { close(); return false; }
+			settle(p);
+			switch (b)
+			{
+			case Button::Up: cursor = (cursor + n - 1) % n; break;
+			case Button::Down: cursor = (cursor + 1) % n; break;
+			// a page at a time when there are more rows than show (the List sheet's LEFT / RIGHT)
+			case Button::Left: cursor = std::max(0, cursor - shown(p)); break;
+			case Button::Right: cursor = std::min(n - 1, cursor + shown(p)); break;
+			// the tabs: L back, R on, no wrap
+			case Button::L: if (tab > 0) openTab(tab - 1, p); break;
+			case Button::R: if (tab + 1 < TABS) openTab(tab + 1, p); break;
+			case Button::A: choose(cursor, p); break;
+			case Button::Select:
+			case Button::B:
+			case Button::Y: close(); break;	// (Y opens the List elsewhere: here the sheet closes first)
+			default: break;
+			}
+			settle(p);
+			return false;
+		}
+
+		bool pointer(const Pointer& pt, int x, int y, Player& p) override
+		{
+			// touch locked (the player's lock): the sheet is the buttons' until it is unlocked
+			if (ui.touchIsLocked()) return false;
+			if (!p.playing() || p.playingPhoto() || p.playingAudio() || ui.page != Page::Main) { close(); return false; }
+			int n = count(p);
+			if (n <= 0) { close(); return false; }
+			settle(p);
+			lay::ListSheet s = layout(p);
+			Head h = head(s, p);
+			if (pt.kind == Pointer::Down)
+			{
+				press = P_NONE;
+				pressAt = -1;
+				// the veil: closed (the lift that follows presses nothing)
+				if (!s.box.hit(x, y)) { close(); ui.swallowTouch = true; return false; }
+				auto tabs = ui.kit->tabRects(h.tabs, labels(), true);
+				for (int i = 0; i < (int)tabs.size(); i++)
+					if (tabs[i].hit(x, y)) { press = P_TAB; pressAt = i; return false; }
+				for (int i = scroll; i < n && i < scroll + shown(p); i++)
+					if (s.row(i - scroll).hit(x, y)) { press = P_ROW; pressAt = i; cursor = i; return false; }
+				return false;
+			}
+			if (pt.kind != Pointer::Up) return false;
+			int kind = press, at = pressAt;
+			press = P_NONE;
+			pressAt = -1;
+			// let go off it: nothing (a finger that slid away changed its mind)
+			if (kind == P_ROW && at >= scroll && at < n && s.row(at - scroll).hit(x, y)) choose(at, p);
+			else if (kind == P_TAB)
+			{
+				auto tabs = ui.kit->tabRects(h.tabs, labels(), true);
+				if (at >= 0 && at < (int)tabs.size() && tabs[at].hit(x, y)) openTab(at, p);
+			}
+			return false;
+		}
+
+		void draw(const Player& p) override
+		{
+			// (what it was about has gone: closed)
+			if (!p.playing() || p.playingPhoto() || p.playingAudio() || ui.page != Page::Main) { close(); return; }
+			int n = count(p);
+			if (n <= 0) { close(); return; }
+			settle(p);
+			lay::ListSheet s = layout(p);
+			Head h = head(s, p);
+			Kit& k = *ui.kit;
+			k.sheetBack(s.box, s.grab);
+			k.tabs(h.tabs, labels(), tab, "L/R");
+			std::string note = headNote(p);
+			if (!note.empty()) ui.drawTextMid(note, F_I12, DIM, h.note.x, h.note.y + h.note.h / 2, h.note.w, 1);
+
+			// a choice a row: its radio (the track in use, the size, the speed) and its note
+			auto list = rowsFor(tab, p);
+			int first = scroll, last = std::min(n, scroll + shown(p));
+			for (int i = first; i < last; i++)
+			{
+				const Row& r = list[i];
+				Kit::Row row;
+				row.font = F_P16;
+				row.name = r.label;
+				row.note = r.note;
+				row.focused = i == cursor;
+				row.pressed = press == P_ROW && pressAt == i;
+				// (a message row — "No audio in this file" — is no choice: no radio, and dim)
+				row.radio = r.id >= 0;
+				row.radioOn = row.radio && r.selected;
+				row.trail = r.id == STYLE_ROW ? Kit::Trail::Chevron : Kit::Trail::None;
+				row.off = r.id < 0 && r.id != STYLE_ROW;
+				k.row(s.row(i - first), row);
+			}
+			ui.drawScrollBar(s.rowsY, shown(p) * lay::LIST_ROW, scroll, shown(p), n);
+
+			std::vector<Hint> hints{{"UP/DOWN", "Move"}};
+			if (n > shown(p)) hints.push_back({"LEFT/RIGHT", "Page"});
+			hints.push_back({"A", tab == TAB_SPEED ? "Set" : "Choose"});
+			hints.push_back({"L/R", "Tab"});
+			hints.push_back({"SELECT/B", "Close"});
+			k.hints(hints);
+		}
+
+		std::string signature(const Player& p) const override
+		{
+			// the tab, the cursor and the finger here; the rows (their names and notes arrive with the file's
+			// tracks), what is in use and the lock. Settings' own, the speed and the chosen ids are Ui::signature's
+			std::string sig = std::to_string(tab) + "," + std::to_string(cursor) + "," + std::to_string(scroll) + "," +
+				std::to_string(press) + "," + std::to_string(pressAt) + "," + std::to_string(ui.touchIsLocked()) + "," +
+				std::to_string(p.playingAudio());
+			for (auto& r : rowsFor(tab, p))
+				sig += "|" + r.label + ":" + r.note + (r.selected ? "s" : "") + std::to_string(r.id);
+			return sig;
+		}
+	};
+
+	void Ui::PlayerPage::openView(int tab, Player& p)
+	{
+		pressed = T_NONE;
+		focus = {};
+		ui.pushOverlay(std::make_unique<ViewSheet>(ui, tab, p));
 	}
 
 	// Play on: where it plays (the Session's output), the handheld or a dashboard page that can play. A sheet of rows;

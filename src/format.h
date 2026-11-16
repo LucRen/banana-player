@@ -1,13 +1,16 @@
 #pragma once
 #include <string>
+#include <vector>
 
 namespace bp
 {
 	// 75 -> "1:15", 3725 -> "1:02:05"; a negative or unknown time -> "--:--"
 	std::string formatTime(double seconds);
 
-	// the speeds offered: 0.5x 1x 1.5x 2x 2.5x. stepSpeed goes to the next one up (dir 1) or down (-1) from any speed,
-	// stopping at the ends, or going round with wrap
+	// the speeds offered: 0.5x 1x 1.5x 2x 2.5x, in that order (View's Speed tab lists them)
+	const std::vector<double>& speedChoices();
+	// stepSpeed goes to the next one up (dir 1) or down (-1) from any speed, stopping at the ends, or going round
+	// with wrap
 	double stepSpeed(double current, int dir, bool wrap = false);
 	std::string speedLabel(double speed);	// "1.5x"
 

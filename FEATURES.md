@@ -103,7 +103,7 @@ the list while the playing screen was up.
   Tap the bar to go back to the playing screen; tap the mark on its left to play or pause and stay where you are; hold
   the bar for its menu: **Now playing**, **Play** / **Pause**, **Like**, **Add to playlist…**, **Show in folder**,
   **Stop**. It's hidden while you select files, type, fill in a connection, with a popup menu or a sheet over the
-  page, and on the player's own screens (the playing screen, Tracks, Chapters, Up next, Info) and START's Playing,
+  page, and on the player's own screens (the playing screen, Up next, Info) and START's Playing,
   About and Exit tabs; Settings and its groups, Sound and the web dashboard have it.
 - **The header** shows three small yellow bars left of the clock while something plays behind the list (dim and still
   when it's paused).
@@ -229,7 +229,7 @@ Like a song or a video to keep it in **Liked**, a playlist of its own. Photos an
 | **DOWN / UP** | **DOWN** steps onto the chips (then **LEFT / RIGHT** choose one and **A** changes or opens it), **DOWN** again onto the **Next** line (**A** opens the list); **UP** or **B** goes back to the playing keys. They no longer change the speed: that is the **Speed** chip |
 | **X** | **More**: a sheet with **Lock touch**, **Screen off**, **Info** and **Stop** (in red) as its first four keys, then **Like**, **Add to playlist…**, **Show in folder** and, while a dashboard page that can play is open, **Play on…**. The D-pad moves, **A** chooses, **X** or **B** closes |
 | **Y** | **List** (the **List** key): one sheet with **Up next** (the folder or playlist that plays, in its own order, the one playing marked **Now**) and **Chapters** (every chapter with its start; a file without chapters has only Up next), with **Shuffle**'s switch and **Repeat** (Off / All / One) in its header. **L / R** step the tabs, **UP / DOWN** move, **LEFT / RIGHT** page, **A** plays from the row, **L2 / R2** jump a chapter with the sheet open, **Y** or **B** closes |
-| **SELECT** | Video: **Tracks**, one page with four tabs in this order: **Chapters** (when the file has them), **Subtitles**, **Audio**, **Picture** (Fit, Fill, Stretch); **L / R** (or **Y / X**) switch them. It opens on the tab you used last (the first time: Chapters if the file has chapters, else Subtitles) · Music: the Display popup (what's shown, and the visualizer's style) |
+| **SELECT** | Video: **View**, a sheet over the controls with four tabs: **Subtitles** (Off, the file's tracks, and **Subtitle style…**), **Audio**, **Picture** (Fit, Fill, Stretch) and **Speed** (0.5x to 2.5x). **L / R** switch tabs, **UP / DOWN** move, **LEFT / RIGHT** page a long list, **A** chooses, **SELECT** or **B** closes; it opens on the tab you used last · Music: the Display popup (what's shown, and the visualizer's style) |
 | **START** | Menu, on its **Playing** tab: Like, Add to playlist…, Show in folder, Info, Stop |
 | **L3** (press the stick, RG DS Plus) | Like / Unlike what plays |
 | **B** (or **Back**) | Back to the list: it keeps playing (see [Playing while you browse](#playing-while-you-browse)) |
@@ -250,12 +250,13 @@ Like a song or a video to keep it in **Liked**, a playlist of its own. Photos an
 - **Buttons:** they act when you lift your finger, so slide off one to cancel.
 - **The transport row:** **Prev**, **5 s** back, **Play / Pause** (the wide yellow key), **10 s** forward, **Next**.
 - **The second row**, the same on a video and a song: **Like**, **Playlist** (Add to playlist…), **List** (Up next,
-  **Y**) and **View** (**SELECT**: Tracks on a video, the Display popup on a song).
+  **Y**) and **View** (**SELECT**: View's sheet on a video, the Display popup on a song).
 - **The chips** under them say how it is set, and a tap changes or opens each: on a video **Subtitles**, **Audio** and
-  **Picture** (each opens its tab of Tracks), **Speed** and **Repeat**; on a song **Sound** (the preset and effect:
-  the Sound page), **Top screen** (what the top screen shows: the Display popup), **Speed** and **Shuffle**. A chip
-  whose value isn't the normal one is yellow with a dot (a speed that isn't 1x, Repeat all or one, Shuffle, Fill or
-  Stretch, an equalizer or effect left on), so it can't go unnoticed. **Speed** steps round 0.5x, 1x, 1.5x, 2x, 2.5x.
+  **Picture** (each opens its tab of View), **Speed** (View's Speed tab) and **Repeat**; on a song **Sound** (the preset
+  and effect: the Sound page), **Top screen** (what the top screen shows: the Display popup), **Speed** and **Shuffle**.
+  A chip whose value isn't the normal one is yellow with a dot (a speed that isn't 1x, Repeat all or one, Shuffle, Fill
+  or Stretch, an equalizer or effect left on), so it can't go unnoticed. A song's **Speed** steps round 0.5x, 1x, 1.5x,
+  2x, 2.5x; a video's opens View's Speed tab.
   **Repeat** (a video) opens the List sheet, where Off / All / One is chosen; on a song **Shuffle** turns on or off.
 - **The Next line** along the bottom names what plays after this (its place in the list; "shuffled" with Shuffle
   on, **A new shuffled round** at a round's end, **Nothing after this** at the end of a list played in order); a tap
@@ -504,7 +505,7 @@ text viewer's sun gets a dot).
 
 ## Picture size
 
-On a video, **SELECT** › **Tracks** › **Picture** (the last tab): **A** chooses, the one in use is ticked.
+On a video, **SELECT** › **View** › **Picture**: **A** chooses, the one in use has its radio filled.
 
 | | |
 |---|---|
@@ -608,7 +609,7 @@ marks them:
 - The top screen shows a card on each jump: **Chapter 3 of 12** and the chapter's title.
 - The line above the progress bar on the Main page shows the chapter you're in (its title, or "Chapter 3 of 12" if it
   has none). Tap it for the list.
-- That line, or **SELECT** on a video (the **Chapters** tab of **Tracks**), opens the chapters: every chapter with its start
+- That line, or the **Chapters** tab of **List** (**Y**), opens the chapters: every chapter with its start
   time, and the one playing marked. **A** (or a tap) plays from the chapter you pick, and **L2** / **R2** still work
   there.
 - Marks on the progress bar show where each chapter starts.

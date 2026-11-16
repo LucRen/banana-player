@@ -21,7 +21,7 @@
 //   sheetBack      the same body without a header (the List sheet draws tabs and controls in its place)
 //   tabs           a strip of tabs 44 tall, a key cap at each end (a sheet's List / View)
 //   segment        a row of two or three small chips, the chosen one filled yellow (Repeat Off / All / One)
-//   row            a list row: lead icon or number, name, pill, note, and a cap, a chevron or a switch at its end
+//   row            a list row: lead icon, number or radio, name, pill, note, and a cap, a chevron or a switch at its end
 //   pill, toggle   a mark on a row; a switch (never the touch target: its row is)
 //   lock           the lock over a screen whose touch is locked
 //   flat           a box with an edge and no lip (SURFACE pieces: chips, lines)
@@ -124,6 +124,8 @@ namespace bp
 		{
 			const Glyph* glyph = nullptr;
 			std::string lead;	// a number in the icon's place (a list's place), when there is no icon
+			bool radio = false;	// a choice's mark in the icon's place (View's tracks, sizes and speeds)
+			bool radioOn = false;	// the one in use: G_RADIO_ON in yellow
 			std::string name, note, key, pill;
 			Pill tone = Pill::Live;
 			Trail trail = Trail::None;

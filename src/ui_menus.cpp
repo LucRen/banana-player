@@ -87,20 +87,8 @@ namespace bp
 	void Ui::openTracks(int tab, const Player& p)
 	{
 		tracksTab = tab;
-		tracksTabUsed = true;
 		if (tab == TRACKS_CHAPTERS) { openChapters(p); return; }
 		openMenu(Page::Tracks, p);
-	}
-
-	void Ui::openTracksPage(const Player& p)
-	{
-		auto tabs = tracksTabs(p);
-		if (tabs.empty()) return;
-		int want = tracksTabUsed ? tracksTab : p.chapters.empty() ? TRACKS_SUBS : TRACKS_CHAPTERS;
-		// (the last one shown isn't this file's: no chapters here) Subtitles, else the first there is
-		if (std::find(tabs.begin(), tabs.end(), want) == tabs.end())
-			want = std::find(tabs.begin(), tabs.end(), (int)TRACKS_SUBS) != tabs.end() ? TRACKS_SUBS : tabs[0];
-		openTracks(want, p);
 	}
 
 	void Ui::stepTracksTab(int dir, const Player& p)
@@ -117,7 +105,6 @@ namespace bp
 	{
 		page = Page::Chapters;
 		tracksTab = TRACKS_CHAPTERS;
-		tracksTabUsed = true;
 		// on the one playing, three rows above it showing where the list allows (what came before it, a little)
 		int n = (int)p.chapters.size();
 		cursor = std::clamp(shownChapter(p), 0, std::max(0, n - 1));

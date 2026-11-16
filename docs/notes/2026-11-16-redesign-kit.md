@@ -103,12 +103,13 @@ checked by eye only where a screen uses them.
 - **Keys:** A play / pause (hold: take over from a browser); LEFT / RIGHT 5 s back / 10 s forward; L / R previous /
   next; L2 / R2 chapters; DOWN onto the chips, then the Next line, UP or B back; X More; Y the list; SELECT the view;
   L3 Like; START the menu; B back (it keeps playing).
-- **Still today's pages**, until their sheets are built: Y opens Up next (or a playlist's own page), SELECT opens
-  Tracks (a video) or the Display popup (a song), the Subtitles / Audio / Picture chips open their tab of Tracks,
-  Sound opens the Sound page, START opens the menu with its Playing tab.
-- **Interim, until `video-list` and `video-speed` exist:** the Speed chip steps the speed round its five choices; the
-  Repeat chip steps the old X round (In order, Loop all, Loop one, Shuffle) and reads Repeat Off / All / One or
-  Shuffle On / One / Once. When List has its Shuffle switch and Repeat choice, both chips open their sheet instead.
+- **Still today's pages**, until their sheets are built: SELECT opens **View**'s sheet (a video: Subtitles, Audio,
+  Picture, Speed; a song: the Display popup), the Subtitles / Audio / Picture chips open their View tab and Speed its
+  Speed tab, Sound opens the Sound page, START opens the menu with its Playing tab. Y opens the List sheet (or a
+  playlist's own page).
+- **Left for its own step:** a song's View (Display, Equalizer, Effects, Speed) is still the Display popup and the
+  Sound page; its Speed chip therefore still steps round the five choices. Adjust and the picture looks are new
+  features, not built; a video's Repeat chip opens the List sheet on its last tab.
 - **The photo viewer** is `Page::Main` too and was not redesigned in this step: `PlayerPage` hands its keys, touches
   and drawing to Ui's `photoKey`, `photoDown`, `drawPhoto` (ui_main.cpp).
 
@@ -141,8 +142,10 @@ Desktop build (macOS), `core-test` and `manga-test` pass. Scripted runs (`--pres
 
 ## Handover (2026-11-16): where it stopped, and the steps left
 
-Stopped at a clean point by the owner's word. Everything below "done" is committed on `redesign`, builds, and
-`core-test` / `manga-test` pass. Nothing is half-done or uncommitted.
+Stopped at a clean point by the owner's word. Everything in steps 1-5 below is committed on `redesign`, builds, and
+`core-test` / `manga-test` pass. Step B's video part (item 6) is finished in the working tree; this session's
+`opencode.json` allows only `git status` / `diff` / `log`, so `git add` and `git commit` were refused and the owner
+has to make that commit.
 
 ### Done (commits on `redesign`, oldest first)
 
@@ -153,9 +156,13 @@ Stopped at a clean point by the owner's word. Everything below "done" is committ
 4. `ecb11b6` a dimmed Next still answers a tap.
 5. Step A of the list below: Y · List as a sheet (the tabs, the Shuffle switch and Repeat choice, Chapters beside Up
    next), with `2026-11-16-redesign-list.md` for what it is and what was checked.
+6. Step B's video part (finished here, left for the owner to commit): SELECT · View as a sheet over the player —
+   Subtitles / Audio / Picture / Speed, radio rows, Speed set at once; the track chips open its tabs and a video's
+   Speed chip opens Speed. See `2026-11-17-redesign-view.md`.
 
-Of the brief's scope: the kit (1) and the player screen with X › More (2) are whole, and so is step A (the List
-sheet). SELECT · View (the optional part) is not started: the key opens today's pages.
+Of the brief's scope: the kit (1) and the player screen with X › More (2) are whole, and so are step A (the List
+sheet) and the video's half of step B (the View sheet). A song's View is still the Display popup and the Sound page;
+Adjust and picture looks were not in this step.
 
 ### Build and check
 
@@ -256,12 +263,15 @@ off; the songs must be longer than 30 s).
 5. Shots: both tabs, 42 chapters (a generated ffmetadata), a long name, Shuffle on, each Repeat.
 
 **B. SELECT · View as a sheet** (`video-view`, `video-speed`, `video-picture`, `music-view`, `music-eq`).
-1. `struct Ui::ViewSheet : Ui::Overlay`, tabs Subtitles / Audio / Picture / Speed on a video (rows from
-   `ui.rows(p)` per `tracksTab`: `Ui::choose` has each row's action; a track is chosen by id, `chooseTrack`), radio
-   rows (`Kit::Row` needs a `lead` for the radio: `G_RADIO` / `G_RADIO_ON`). Speed: five rows, `p.setSpeed` + the osd.
-2. Then the Speed chip opens it on Speed (remove the stepping in `chipAct`), the track chips on their tab.
-3. A song's View (Display, Equalizer, Effects, Speed) is the Display popup and the Sound page moved into tabs: larger;
-   do the video's first and leave the song on today's popup and page.
+1. **Done for a video: see `2026-11-17-redesign-view.md`.** `struct Ui::ViewSheet : Ui::Overlay`, tabs Subtitles /
+   Audio / Picture / Speed (rows from `ui.rows(p)` per `tracksTab`: `Ui::choose` has each row's action; a track is
+   chosen by id, `chooseTrack`), radio rows (`Kit::Row::radio`, `G_RADIO` / `G_RADIO_ON`). Speed: five rows from
+   `format.h`'s `speedChoices()`, `p.setSpeed` + the osd. A song keeps today's popup and Sound page (and its Speed
+   chip still steps).
+2. **Done for a video**: SELECT opens it on the tab last used; the track chips open their tab and the Speed chip opens
+   Speed.
+3. Left: a song's View (Display, Equalizer, Effects, Speed) is the Display popup and the Sound page moved into tabs:
+   larger; leave the song on today's popup and page until then.
 4. "Adjust" and picture looks in the mock-ups are new features, not in this scope.
 
 **C. Smaller, independent.**

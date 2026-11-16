@@ -364,10 +364,14 @@ namespace bp
 			ui.drawGlyphMid(*row.glyph, x + 10, cy, ink);
 			x += 20 + 11;
 		}
-		else if (!row.lead.empty())
+		else if (row.radio || !row.lead.empty())
 		{
-			// a list's place, in the icon's slot ("17"), dim as the mock-up's numbers
-			ui.drawTextMid(row.lead, F_P14, off(DIM, row.off), x + 10, cy, 20, 2);
+			// a list's place, in the icon's slot ("17"), dim as the mock-up's numbers; a choice's radio, yellow
+			// when it is the one in use (the sheet's tracks, sizes and speeds)
+			if (row.radio)
+				ui.drawGlyphMid(row.radioOn ? G_RADIO_ON : G_RADIO, x + 10, cy,
+					off(row.radioOn ? ACCENT : row.focused ? DIM_ON : DIM, row.off));
+			else ui.drawTextMid(row.lead, F_P14, off(DIM, row.off), x + 10, cy, 20, 2);
 			x += 20 + 11;
 		}
 		if (row.trail == Trail::Chevron)

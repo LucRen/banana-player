@@ -15,8 +15,9 @@ namespace bp
 		return buf;
 	}
 
-	static const double SPEEDS[] = {0.5, 1.0, 1.5, 2.0, 2.5};
-	static const int NSPEEDS = sizeof SPEEDS / sizeof *SPEEDS;
+	// the one list the player's Speed chip and View's Speed tab show, so a new speed is one line here
+	static const std::vector<double> SPEEDS{0.5, 1.0, 1.5, 2.0, 2.5};
+	const std::vector<double>& speedChoices() { return SPEEDS; }
 
 	double stepSpeed(double current, int dir, bool wrap)
 	{
@@ -24,11 +25,11 @@ namespace bp
 		{
 			for (double s : SPEEDS)
 				if (s > current + 1e-6) return s;
-			return wrap ? SPEEDS[0] : SPEEDS[NSPEEDS - 1];
+			return wrap ? SPEEDS.front() : SPEEDS.back();
 		}
-		for (int i = NSPEEDS - 1; i >= 0; i--)
+		for (int i = (int)SPEEDS.size() - 1; i >= 0; i--)
 			if (SPEEDS[i] < current - 1e-6) return SPEEDS[i];
-		return wrap ? SPEEDS[NSPEEDS - 1] : SPEEDS[0];
+		return wrap ? SPEEDS.back() : SPEEDS.front();
 	}
 
 	std::string speedLabel(double speed)
