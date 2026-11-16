@@ -8714,6 +8714,40 @@ static void testKitLayout()
 	CHECK_EQ(xs[2] + 20, 632);
 	CHECK_EQ(spread({}, 15, 8, 632).size(), (size_t)0);
 
+	// tabs: 44 tall in a 54-tall header, the caps at both ends, 6 apart
+	Tabs strip = tabs({16, 60, 608, 54}, {80, 100});
+	CHECK_EQ(strip.tab.size(), (size_t)2);
+	CHECK_EQ(strip.tab[0].x, 16 + 19 + 6);
+	CHECK_EQ(strip.tab[0].y + strip.tab[0].h, 60 + 5 + 44);
+	CHECK_EQ(strip.tab[0].h, 44);
+	CHECK_EQ(strip.tab[1].x, 41 + 80 + 6);
+	CHECK_EQ(strip.right.x, 127 + 100 + 6);
+	CHECK_EQ(strip.left.y, strip.tab[0].y + (44 - 19) / 2);
+	CHECK_EQ(strip.right.y, strip.left.y);
+	CHECK_EQ(tabs({0, 0, 100, 44}, {30}).tab[0].x, 25);
+	CHECK_EQ(tabs({0, 0, 100, 44}, {}).tab.size(), (size_t)0);
+
+	// the List sheet: a header, seven rows 46 tall, the rows clear of the hint bar
+	ListSheet ls = listSheet(7);
+	CHECK_EQ(ls.box.h, 11 + 54 + 7 * 46 + 8 + 30);
+	CHECK_EQ(ls.box.y + ls.box.h, 480);
+	CHECK_EQ(ls.head.h, 54);
+	CHECK_EQ(ls.row(0).y, ls.head.y + 54);
+	CHECK_EQ(ls.row(0).h, 46);
+	CHECK_EQ(ls.row(6).y + 46 + 8, ls.hints.y);
+	CHECK_EQ(ls.row(0).w, 612);
+	CHECK_EQ(listSheet(0).box.h, 11 + 54 + 8 + 30);
+	CHECK_EQ(listSheet(3, 40).rowsY, listSheet(3, 40).head.y + 40);
+	// the scroll that keeps the cursor shown, kept inside the list
+	CHECK_EQ(listScroll(0, 0, 7, 42), 0);
+	CHECK_EQ(listScroll(6, 0, 7, 42), 0);
+	CHECK_EQ(listScroll(7, 0, 7, 42), 1);
+	CHECK_EQ(listScroll(20, 0, 7, 42), 14);
+	CHECK_EQ(listScroll(3, 10, 7, 42), 3);
+	CHECK_EQ(listScroll(41, 30, 7, 42), 35);
+	CHECK_EQ(listScroll(2, 0, 7, 3), 0);
+	CHECK_EQ(listScroll(9, 99, 7, 0), 0);
+
 	// the More sheet: four tiles over two columns of rows
 	SheetSpec spec{4, 4, 2, 0};
 	Sheet sh = sheet(spec);

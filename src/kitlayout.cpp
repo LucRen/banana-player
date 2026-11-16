@@ -64,6 +64,51 @@ namespace bp
 			return xs;
 		}
 
+		// ---- tabs, and the List sheet ----
+
+		Tabs tabs(Box area, const std::vector<int>& widths, int gap)
+		{
+			Tabs out;
+			out.area = area;
+			// the strip 44 tall in the header it is given (54), its caps 19 tall in the strip's middle
+			int y = area.y + (area.h - TAB_H) / 2, cy = y + (TAB_H - TAB_CAP) / 2;
+			out.left = {area.x, cy, TAB_CAP, TAB_CAP};
+			int x = area.x + TAB_CAP + (widths.empty() ? 0 : gap);
+			for (int w : widths)
+			{
+				out.tab.push_back({x, y, w, TAB_H});
+				x += w + gap;
+			}
+			out.right = {widths.empty() ? area.x + TAB_CAP + gap : x, cy, TAB_CAP, TAB_CAP};
+			return out;
+		}
+
+		ListSheet listSheet(int rows, int header)
+		{
+			ListSheet out;
+			out.rows = std::max(0, rows);
+			out.header = std::max(0, header);
+			// the grab mark's 11, the header, the rows, 8 clear of the hint bar
+			int h = 11 + out.header + out.rows * LIST_ROW + 8 + HINTS_H;
+			out.box = {0, PANEL_H - h, PANEL_W, h};
+			out.grab = {PANEL_W / 2 - 22, out.box.y + 7, 44, 4};
+			out.head = {SHEET_PAD, out.box.y + 11, PANEL_W - 2 * SHEET_PAD, out.header};
+			out.rowsY = out.head.y + out.header;
+			out.hints = {0, PANEL_H - HINTS_H, PANEL_W, HINTS_H};
+			return out;
+		}
+
+		Box ListSheet::row(int i) const { return {SHEET_PAD, rowsY + i * LIST_ROW, PANEL_W - 2 * SHEET_PAD, LIST_ROW}; }
+
+		int listScroll(int cursor, int scroll, int shown, int n)
+		{
+			if (n <= 0 || shown <= 0) return 0;
+			cursor = std::clamp(cursor, 0, n - 1);
+			if (cursor < scroll) scroll = cursor;
+			if (cursor >= scroll + shown) scroll = cursor - shown + 1;
+			return std::clamp(scroll, 0, std::max(0, n - shown));
+		}
+
 		Sheet sheet(const SheetSpec& s)
 		{
 			Sheet out;

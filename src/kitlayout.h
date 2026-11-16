@@ -39,6 +39,31 @@ namespace bp
 		// the row starts at `left` (its end is cut by whoever draws it)
 		std::vector<int> spread(const std::vector<int>& widths, int gap, int left, int right, int minGap = 6);
 
+		// ---- tabs, and the List sheet (Y on the player: Up next / Chapters) ----
+		constexpr int TAB_H = 44, TAB_GAP = 6, TAB_PAD = 13, TAB_CAP = 19;
+		struct Tabs
+		{
+			Box area;
+			Box left, right;	// the key caps at the ends ("L", "R")
+			std::vector<Box> tab;
+		};
+		// a strip 44 tall: the left cap, each tab as wide as `widths` says, 6 apart, the right cap. The caps are
+		// their own boxes (19 wide, TAB_H tall, centred in the strip)
+		Tabs tabs(Box area, const std::vector<int>& widths, int gap = TAB_GAP);
+		// the List sheet: the grab mark, a header (the tabs and the two controls), `rows` rows 46 tall, the hint bar
+		constexpr int LIST_HEAD = 54, LIST_ROW = 46, LIST_ROWS = 7;
+		struct ListSheet
+		{
+			int rows = 0, header = LIST_HEAD;
+			Box box, grab, head, hints;
+			int rowsY = 0;
+			Box row(int i) const;
+		};
+		ListSheet listSheet(int rows, int header = LIST_HEAD);
+		// the first row shown so that `cursor` is one of them, the scroll kept inside the list: what LEFT / RIGHT
+		// paging and a tap leave behind
+		int listScroll(int cursor, int scroll, int shown, int n);
+
 		// ---- the bottom sheet (the More sheet: tiles, then rows in one or two columns) ----
 		constexpr int SHEET_HEAD = 54, SHEET_PAD = 14, SHEET_ROW = 46, SHEET_TILE = 60, SHEET_MIN = 226, SHEET_MAX = 470;
 		struct SheetSpec
