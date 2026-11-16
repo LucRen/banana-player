@@ -41,7 +41,7 @@
     "launch": "launch.sh",
     "ports": false,
     "media": {
-     "image": "share/banana-player/icon.png"
+     "image": "share/banana-player/bananaplayer-tile.png"
     }
    }
   }

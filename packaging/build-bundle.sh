@@ -264,6 +264,10 @@ echo "$VERSION" > "$B/VERSION"
 # back), else the generated pixel art
 if [ -f /src/packaging/icon/app-icon-experiment.png ]; then cp /src/packaging/icon/app-icon-experiment.png "$B/share/banana-player/icon.png"
 else python3 /src/packaging/icon/make-icon.py "$B/share/banana-player/icon.png" 16; fi
+# the same picture under a name no other app uses: the Store copies a tile's picture into one shared folder by its file
+# name alone (/data/store/tiles/images), so an icon.png replaced every other app's icon.png. icon.png stays for
+# catalogs that still name it
+cp "$B/share/banana-player/icon.png" "$B/share/banana-player/bananaplayer-tile.png"
 
 # what the player loads that BananaOS doesn't have: libmpv and everything it needs, minus the system's own
 SYSTEM='^(linux-vdso|ld-linux|libc\.|libm\.|libdl\.|libpthread\.|librt\.|libresolv\.|libstdc\+\+|libgcc_s|libSDL2|libasound|libfreetype|libz\.|libpng|libdrm|libEGL|libGLES|libGL\.|libgbm|libGLdispatch|libGLX|libX|libxcb|libwayland|libbz2|libbrotli|libcrypto|libssl|libcurl)'
