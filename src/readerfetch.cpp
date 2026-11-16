@@ -51,6 +51,7 @@ namespace bp
 	{
 		end();
 		net = n;
+		failLogged = false;
 		cache = pc;
 		reader = r;
 		urls = pageUrls;
@@ -147,6 +148,21 @@ namespace bp
 			if (check != BrowserCheck::None) error = browserCheckMessage(check);
 			fprintf(stderr, "reader: page %d fetch done in %llu ms, %llu bytes (failed: %s)\n", index + 1,
 				(unsigned long long)ms, (unsigned long long)bytes, error.c_str());
+			// the first failure of a chapter in full: the address asked (its query left out: it may carry a token), the
+			// headers sent by name, and what the server said, so a refusal (an HTTP 400) says why from log.txt alone
+			if (!failLogged && index >= 0 && index < (int)urls.size())
+			{
+				failLogged = true;
+				std::string u = urls[index];
+				size_t q = u.find('?');
+				std::string names;
+				for (auto& h : headers) names += (names.empty() ? "" : ", ") + h.first;
+				std::string said = r.bodyStart.substr(0, 200);
+				for (auto& c : said) if (c == '\n' || c == '\r') c = ' ';
+				fprintf(stderr, "reader: page %d asked %s%s (headers: %s); the server said: %s\n", index + 1,
+					u.substr(0, q).c_str(), q == std::string::npos ? "" : "?…", names.empty() ? "none" : names.c_str(),
+					said.empty() ? "(nothing)" : said.c_str());
+			}
 			reader->pageFailed(index, error);
 		}
 		return true;

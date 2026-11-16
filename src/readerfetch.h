@@ -42,6 +42,7 @@ namespace bp
 		MangaReader* reader = nullptr;
 		std::vector<std::string> urls;
 		MangaReader::Headers headers;
+		bool failLogged = false;	// the chapter's first failed page logged in full
 		uint64_t limit = 0;
 		std::map<uint64_t, int> byId;	// a request's id -> its page
 		std::map<int, uint64_t> inFlight;	// a page -> its request's id
