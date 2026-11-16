@@ -26,12 +26,11 @@
 #include "ui_manga.h"
 #include "ui_sound.h"
 #include "ui_web.h"
+#include "ui_player.h"
 #include "durworker.h"
 
 namespace bp
 {
-	constexpr Ui::Rect Ui::BAR;
-
 	bool Ui::init(SDL_Window* window, const std::string& dir)
 	{
 		fontsDir = dir;
@@ -69,7 +68,7 @@ namespace bp
 			"NotoSansArabic.ttf", "NotoSansHebrew.ttf", "NotoSansDevanagari.ttf"};
 		for (const char* name : FALLBACKS)
 		{
-			std::array<TTF_Font*, 3> f = {};
+			std::array<TTF_Font*, FONT_COUNT> f = {};
 			for (int i = 0; i < 3; i++)
 			{
 				// Fusion Pixel is a 12-pixel font: at whole multiples of 12 its pixels stay square
@@ -77,7 +76,7 @@ namespace bp
 				if (name == FALLBACKS[0]) px = std::max(12, (int)std::lround(SIZES[i] * sy / 12.0) * 12);
 				f[i] = TTF_OpenFont((fontsDir + "/" + name).c_str(), px);
 			}
-			if (f[0] && f[1] && f[2]) fallbacks.push_back(f);
+			if (f[0] && f[1] && f[2]) { fallbacks.push_back(f); fallbackFiles.push_back(name); }
 			else for (auto* x : f) if (x) TTF_CloseFont(x);
 		}
 		return true;
@@ -99,6 +98,9 @@ namespace bp
 		areas.push_back(settingsPage.get());
 		browse = std::make_unique<Browse>(*this);
 		areas.push_back(browse.get());
+		kit = std::make_unique<Kit>(*this);	// (not an area: the redesign's components, drawn by the areas rebuilt on them)
+		playerPage = std::make_unique<PlayerPage>(*this);
+		areas.push_back(playerPage.get());
 	}
 
 	Ui::Area* Ui::area() const
@@ -120,7 +122,7 @@ namespace bp
 			if (f) TTF_CloseFont(f);
 		if (pinFont) TTF_CloseFont(pinFont);
 		for (auto& f : fallbacks)
-			for (auto* x : f) TTF_CloseFont(x);
+			for (auto* x : f) if (x) TTF_CloseFont(x);
 		if (ren) SDL_DestroyRenderer(ren);
 	}
 
@@ -135,13 +137,14 @@ namespace bp
 		mangaOn = p.settings.mangaOn;
 		webInputAt = SDL_GetTicks();
 		// dark (Screen off, or off by itself): over what plays, the playback keys work blind and leave it dark (play
-		// and pause, seek, next and previous, chapters, speed, like: issue #3, watching with the bottom screen off);
+		// and pause, seek, next and previous, chapters, like: issue #3, watching with the bottom screen off; not UP /
+		// DOWN since they stopped being the speed: they move a focus nobody can see);
 		// any other button, or anywhere else (a list: A there would open whatever the cursor is on), brings the
 		// panel back and does nothing else, as a touch does. F + START still quits, in main
 		if (!panel.on())
 		{
 			bool playKey = b == Button::A || b == Button::Left || b == Button::Right || b == Button::L || b == Button::R ||
-						   b == Button::L2 || b == Button::R2 || b == Button::Up || b == Button::Down || b == Button::L3;
+						   b == Button::L2 || b == Button::R2 || b == Button::L3;
 			bool overPlayer = page == Page::Main && !inMenu && !quickShown() && !kbOpen && p.playing() && !p.playingPhoto();
 			if (!(playKey && overPlayer))
 			{
@@ -275,77 +278,8 @@ namespace bp
 			if (b == Button::B) page = home(p);
 			return false;
 		}
-		if (page != Page::Main) return listKey(b, p);
-		if (p.playingPhoto() && photoKey(b, p)) return false;
-		// the network dropped it: A tries again, from where it stopped (the session reloads it there)
-		if (!p.error.empty() && p.errorNet && b == Button::A)
-		{
-			fprintf(stderr, "net: trying %s again\n", p.currentPath().c_str());
-			SessionHost::get().playLive(true);	// (live: its reload runs now, as Next's does)
-			return false;
-		}
-		// a file that didn't open: nothing to pause, choose or speed up (Prev, Next, Up next, the menu and leaving still go)
-		if (!p.error.empty() && (b == Button::A || b == Button::X || b == Button::Select || b == Button::Up || b == Button::Down))
-			return false;
-		switch (b)
-		{
-		case Button::A:
-			// a page plays it: the page's play/pause as A lets go (release()), here only once held (tick())
-			if (pageDrives(p)) { if (!playHoldAt) { playHoldAt = SDL_GetTicks(); playHoldTouch = false; } break; }
-			// the page is the output but can't hear (its tab gone a moment): play here
-			if (pageIsOut()) { takeOver(p); break; }
-			SessionHost::get().play(p.paused);	// (mpv answers the flip later: paused is still the old state)
-			p.togglePause();
-			break;
-		// out of the player at once: what plays goes on behind the browser (nothing is lost, so a pocket's press costs
-		// nothing); a photo closes
-		case Button::B: return true;
-		// the play mode (a song or a video)
-		case Button::X: musicKey(b, p); break;
-		// List: a playlist's song opens that playlist's own page (its edits, its order), what plays going on behind;
-		// a folder, Recent or a selection: Up next
-		case Button::Y:
-			if (p.source().kind == SourceKind::Playlist && !p.source().id.empty() && !p.playingPhoto())
-			{
-				showSourceAfterLeave = true;
-				return true;
-			}
-			openUpNext(p);
-			break;
-		// the menu opens on what plays (Like, Add to playlist...): Settings is a tab along
-		case Button::Start: openMainMenu(p, playingTabShown(p) ? TAB_PLAYING : TAB_SETTINGS); break;
-		// the stick pressed in (the RG DS Plus): Like, at once (over a photo it turns it, above)
-		case Button::L3: likeNow(p); break;
-		// a song: the Display popup; a video: Tracks (Chapters, Subtitles, Audio, Picture)
-		case Button::Select: if (!musicKey(b, p)) openTracksPage(p); break;
-		// (a page playing it: from where it should be by now; the jump is passed on to the page)
-		case Button::Left:
-		case Button::Right:
-			if (predicting(p))
-			{
-				double t = std::clamp(shownPosition(p) + (b == Button::Left ? -BACK_S : FORWARD_S), 0.0, p.duration);
-				p.seekFraction(t / p.duration);
-				noteSeek(p, t);
-			}
-			else p.seekRelative(b == Button::Left ? -BACK_S : FORWARD_S);
-			break;
-		case Button::L:
-		case Button::R:
-			// the session's Step (Previous RESTART_S in restarts; a burst counts every press; a page playing it moves on
-			// there, the copy here following held). What the session doesn't have (it disagrees: logged), as before
-			if (SessionHost::get().stepsHere(p)) { SessionHost::get().step(b == Button::R ? 1 : -1); break; }
-			if (b == Button::L ? !p.back() : !p.next()) p.osd(b == Button::L ? "This is the first one" : "This is the last one");
-			break;
-		case Button::Up: case Button::Down:
-		{
-			double s = stepSpeed(p.speed, b == Button::Up ? 1 : -1);
-			p.setSpeed(s);
-			p.osd("Speed " + speedLabel(s));
-			break;
-		}
-		default: break;
-		}
-		return false;
+		// (Page::Main, the player and a photo's viewer, is an area: PlayerPage::key, above)
+		return listKey(b, p);
 	}
 
 	bool Ui::popupKey(Button b, Player& p)
@@ -388,10 +322,6 @@ namespace bp
 	{
 		// the Display popup's arrows have rested on a style: it's applied now (displayKey)
 		if (displayPending >= 0 && SDL_GetTicks() - displayPendingAt >= DISPLAY_SETTLE_MS) displayApplyPending(p);
-		// the bar held at a released drag: let go once playback is there, or after 6 s whatever happens (a network file buffers a while)
-		if (seekHeld >= 0 && !slideHeld(SL_SEEK) &&
-			(p.duration <= 0 || std::fabs(shownPosition(p) - seekHeld * p.duration) < 1.0 || SDL_GetTicks() - seekHeldAt > 6000))
-			seekHeld = -1;
 		// a held slider whose target is told at a pace: a finger resting on a new value, sent when it's due
 		slideLive(p);
 		manga->mangaVideoGuard(p);
@@ -435,7 +365,7 @@ namespace bp
 		{
 			playHoldAt = 0;
 			playHoldMini = false;
-			if (playHoldTouch) { pressedBtn = -1; swallowTouch = true; }	// the finger's lift presses nothing
+			if (playHoldTouch) { pressedBtn = -1; playerPage->dropTouch(); swallowTouch = true; }	// the finger's lift presses nothing
 			takeOver(barPlayer(p));
 		}
 		// a finger held on the mini bar: its menu (the lift that follows chooses nothing)
@@ -447,7 +377,6 @@ namespace bp
 			if (miniBarShown(p)) openNowMenu(p);
 		}
 		if (landFlashUntil && SDL_GetTicks() >= landFlashUntil) landFlashUntil = 0;
-		if (listPulseAt && SDL_GetTicks() - listPulseAt >= LIST_PULSE_MS) listPulseAt = 0;
 		// Home's Recent: listed again when what plays changes (the next song started by itself: its card comes first)
 		if (page == Page::Browse && !inMenu && browse->atHome() && !browse->homeView->homeTouch && !ctxOpen && p.currentPath() != browse->homeView->homeListedFor)
 		{
@@ -476,7 +405,7 @@ namespace bp
 		int offSecs = screenOffSeconds(p.playingAudio() ? p.settings.screenOffAfter : p.settings.screenOffVideo);
 		bool viewing = p.playingPhoto() || pageReader->readerStatus.open;
 		if (offSecs > 0 && panel.on() && p.playing() && !viewing && !p.paused && !p.loading() && p.error.empty() &&
-			!kbOpen && !quickShown() && !popupShown(p) && !slide.on && SDL_GetTicks() - webInputAt >= (Uint32)offSecs * 1000)
+			!kbOpen && !topOverlay() && !popupShown(p) && !slide.on && SDL_GetTicks() - webInputAt >= (Uint32)offSecs * 1000)
 			panel.set(false);
 		// a dragged row near the list's top or bottom: the list scrolls under it, a row each 150 ms
 		if (browse->playlists->plDrag.on && page == Page::Browse && isPlDir(browse->browseDir) && SDL_GetTicks() - browse->playlists->plDrag.scrollAt >= 150)
@@ -527,17 +456,12 @@ namespace bp
 
 	bool Ui::act(int id, Player& p)
 	{
-		// "<" over what plays closes it at once (the place kept); B and Close ask twice, a pocket's press being one
+		// "<" over a photo closes it at once (the player's own "<" is its area's: PlayerPage::act)
 		if (id == BACK_ICON && page == Page::Main && p.playing()) return true;
 		// elsewhere (a page over what plays, START's menu): B, back a step
 		if (id == BACK_ICON && (inMenu || (page != Page::Browse && page != Page::Main))) return pressAnyway(Button::B, p);
-		// Main's Stop (over a photo: Close); "<" elsewhere: B
-		if (id == QUIT_BTN)
-		{
-			if (p.playingPhoto()) return true;
-			stopPressed = true;
-			return false;
-		}
+		// a photo's Close
+		if (id == QUIT_BTN) return p.playingPhoto();
 		// adding files: the header's key is a ✕ that cancels at once (B goes up a folder there)
 		if (id == BACK_ICON && page == Page::Browse && (browse->playlists->selMode == SEL_ADD || browse->playlists->selMode == SEL_PICK)) { browse->playlists->selBack(p, true); return false; }
 		if (id == BACK_ICON) return pressAnyway(Button::B, p);
@@ -555,31 +479,9 @@ namespace bp
 		if (id == MOVE_CANCEL || id == MOVE_DONE) { browse->playlists->moveEnd(id == MOVE_DONE, p); return false; }
 		if (id == BUSY_CANCEL) { browse->playlists->cancelAdd(p); return false; }
 		if (id >= manga->EXT_TILE && id <= manga->EXT_DONE) return manga->extAct(id, p);
-		if (id == LIKE_BTN) { likeNow(p); return false; }
-		if (id == ADD_BTN)
-		{
-			if (p.playing()) browse->playlists->openAddOne(p.currentPath(), p.title, p.loaded ? p.duration : -1, p);
-			return false;
-		}
 		if (id >= PLAY_ROW && id < PLAY_ROW + 7) return playingChoose(id - PLAY_ROW, p);
-		// a song's line under the buttons: the Sound page
-		if (page == Page::Main && p.playingAudio() && id == LINE1_BTN)
-		{
-			sound->open(p, false);
-			return false;
-		}
-		// a video's lines and the chapter line: their tab of Tracks
-		if (id == LINE1_BTN || id == LINE2_BTN) { openTracks(id == LINE1_BTN ? TRACKS_AUDIO : TRACKS_SUBS, p); return false; }
-		if (id == CHAPTER_BTN) { openTracks(TRACKS_CHAPTERS, p); return false; }
 		if (id == GROUP_PREV || id == GROUP_NEXT) { settingsPage->stepGroup(id == GROUP_NEXT ? 1 : -1); return false; }
-		if (id == SCREEN_BTN) { panel.set(false); return false; }
 		if (id == EXIT_BTN) { quitRequested = true; return false; }
-		if (id == LOCK_BTN)
-		{
-			touchLocked = true;
-			p.osd("Touch locked: hold the lock 1 s to unlock");
-			return false;
-		}
 		if (id >= PHOTO_BTN && id < PHOTO_BTN + PHOTO_BTNS)
 		{
 			static const Button PHOTO_KEYS[PHOTO_BTNS] = {Button::L, Button::R, Button::Down, Button::Up, Button::L3,
@@ -595,15 +497,6 @@ namespace bp
 			infoAt = 0;	// read at once
 			return false;
 		}
-		// the grid's Like and Add (L3's place and the one with no key)
-		if (page == Page::Main && (id == 1 || id == 3)) return act(id == 1 ? LIKE_BTN : ADD_BTN, p);
-		Button b = GRID[id / 5][id % 5].button;
-		if (b != Button::Up) return pressAnyway(b, p);
-		if (!p.error.empty()) return false;
-		// a tap on the speed goes round its choices
-		double s = stepSpeed(p.speed, 1, true);
-		p.setSpeed(s);
-		p.osd("Speed " + speedLabel(s));
 		return false;
 	}
 
@@ -704,19 +597,8 @@ namespace bp
 			return false;
 		}
 		if (Area* a = area(); a && a->pointerFirst()) return a->pointer(pt, x, y, p);
-		// locked, over a video: Screen off goes through; a hold on the lock (draw() times it) releases it; nothing else
-		if (touchLocked && p.playing() && !p.playingPhoto() && page == Page::Main && pressedBtn != SCREEN_BTN)
-		{
-			if (pt.kind == Pointer::Down && buttonRect(LOCK_BTN).hit(x, y)) lockHoldAt = SDL_GetTicks();
-			else if (pt.kind == Pointer::Down && buttonRect(SCREEN_BTN).hit(x, y)) pressedBtn = SCREEN_BTN;
-			else if (pt.kind == Pointer::Up) lockHoldAt = 0;	// let go too soon: still locked
-			else if (pt.kind == Pointer::Down && SDL_GetTicks() - lockNoticeAt > 3000)
-			{
-				lockNoticeAt = SDL_GetTicks();
-				p.osd("Touch locked: hold the lock 1 s to unlock");
-			}
-			return false;
-		}
+		// locked, over a video or a song: a hold on the lock (draw() times it) releases it; nothing else answers a finger
+		if (page == Page::Main && playerPage->locked(p)) return playerPage->lockPointer(pt, x, y, p);
 
 		if (popupShown(p))
 		{
@@ -808,12 +690,6 @@ namespace bp
 				if (on && buttonRect(id).hit(x, y) && pageDrives(barPlayer(p))) toggleBrowser(barPlayer(p));
 				return false;
 			}
-			if (id == PLAY_GRID && page == Page::Main && !inMenu && ((playHoldTouch && playHoldAt) || pageDrives(p)))
-			{
-				playHoldAt = 0;
-				if (buttonRect(id).hit(x, y) && pageDrives(p)) toggleBrowser(p);
-				return false;
-			}
 			// let go off the button: nothing (a finger that slid away changed its mind)
 			Rect r = id >= PHOTO_BTN && id < PHOTO_BTN + PHOTO_BTNS ? photoBtn(id - PHOTO_BTN, p) : buttonRect(id);
 			return r.hit(x, y) && act(id, p);
@@ -887,66 +763,8 @@ namespace bp
 				if (tracksTabRect(i, (int)tabs.size()).hit(x, y) && tabs[i] != cur) openTracks(tabs[i], p);
 			return false;
 		}
-		if (page != Page::Main) return listDown(x, y, p);
-		if (p.playingPhoto())
-		{
-			if (panRect(p).hit(x, y))
-			{
-				panTouch = true;
-				panMoved = false;
-				flickAt = 0;
-				flickVX = flickVY = 0;
-				panDownX = lastX = x;
-				panDownY = lastY = y;
-				lastAt = SDL_GetTicks();
-				panStartX = p.photo().panX;
-				panStartY = p.photo().panY;
-				return false;
-			}
-			for (int i = 0; i < PHOTO_BTNS; i++)
-				if (photoBtn(i, p).hit(x, y)) pressedBtn = PHOTO_BTN + i;
-			if (buttonRect(QUIT_BTN).hit(x, y)) pressedBtn = QUIT_BTN;
-			return false;
-		}
-		// the chapter line first: the bar's room around it reaches up over its lower part
-		if (chapterLineShown(p) && buttonRect(CHAPTER_BTN).hit(x, y)) { pressedBtn = CHAPTER_BTN; return false; }
-		// a video's track lines: each opens its tab
-		if (!p.playingAudio() && p.error.empty())
-			for (int id : {LINE1_BTN, LINE2_BTN})
-				if (buttonRect(id).hit(x, y)) { pressedBtn = id; return false; }
-		// a song's: its first line opens Sound
-		if (p.playingAudio() && p.error.empty() && buttonRect(LINE1_BTN).hit(x, y)) { pressedBtn = LINE1_BTN; return false; }
-		// the bar is easier to hit with some room around it
-		if (Rect{BAR.x - 8, BAR.y - 20, BAR.w + 16, BAR.h + 40}.hit(x, y) && p.duration > 0)
-		{
-			// a trackpad's scrub: a slide moves the place on by the finger's travel, a tap jumps there as it lifts
-			// (drawMain shows slide.value while it's held). The picture
-			// follows too, keyframes only and no more often than the decoder keeps up with (SCRUB_MS); lifted, the
-			// exact seek to where it was left, and the bar held there until playback arrives (seekHeld)
-			slideGrab(SL_SEEK, 0, {BAR, {0, 1, 0}, false, SCRUB_MS, seekHeld >= 0 ? seekHeld : shownPosition(p) >= 0 ? std::clamp(shownPosition(p) / p.duration, 0.0, 1.0) : 0}, x, y, p, [this, scrubs = 0](double f, bool last, Player& p) mutable {
-				if (!last)
-				{
-					scrubs++;
-					p.scrub(f);
-					return;
-				}
-				fprintf(stderr, "seek bar: let go at %.4f after %d scrubs\n", f, scrubs);
-				p.seekFraction(f);
-				noteSeek(p, f * p.duration);
-				seekHeld = f;
-				seekHeldAt = SDL_GetTicks();
-			});
-			return false;
-		}
-		for (int id : {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, QUIT_BTN, SCREEN_BTN, INFO_BTN, LOCK_BTN})
-			if (buttonRect(id).hit(x, y)) pressedBtn = id;
-		// Play while a page plays it: held, it plays here (tick() times it); let go sooner, the page's play/pause
-		if (pressedBtn == PLAY_GRID && page == Page::Main && !inMenu && p.error.empty() && pageDrives(p))
-		{
-			playHoldAt = SDL_GetTicks();
-			playHoldTouch = true;
-		}
-		return false;
+		// (Page::Main's touches are its area's: PlayerPage::pointer, above)
+		return listDown(x, y, p);
 	}
 
 	bool Ui::listDown(int x, int y, Player& p)
@@ -970,12 +788,11 @@ namespace bp
 		char buf[256];
 		snprintf(buf, sizeof buf, "%d %d %d %d %ld %ld %d %d %lld %lld %zu %d %d %.2f %d %d %d %d|", (int)page, cursor, scroll,
 			p.paused + setGroup * 2 + 2, (long)std::floor(shownPosition(p)) * 2 + (predicting(p) && pagePlaying()), (long)p.duration, (int)p.aspect, p.loaded, a ? (long long)a->id : 0LL,
-			s ? (long long)s->id : 0LL, p.tracks.size(), slideHeld(SL_SEEK) + 2 * (seekHeld >= 0), slideHeld(SL_SEEK) ? (int)(slide.value * 1000) : 0, p.speed,
-			p.index(), p.count(), pressedBtn + touchLocked * 100 + (lockHoldAt != 0) * 1000, listTouch * 1000 + browse->browseVersion + (clearArmed != 0) * 100000 + (int)p.history().items().size() * 1000000);
+			s ? (long long)s->id : 0LL, p.tracks.size(), (int)slideHeld(SL_SEEK), slideHeld(SL_SEEK) ? (int)(slide.value * 1000) : 0, p.speed,
+			p.index(), p.count(), pressedBtn, listTouch * 1000 + browse->browseVersion + (clearArmed != 0) * 100000 + (int)p.history().items().size() * 1000000);
 		std::string photo;	// (the browser's section and its listing: Browse::signature)
 		// a slider under a finger: which, and where the finger has it (what draws differently while held reads these)
 		if (slide.on) photo += "|sl" + std::to_string(slide.id) + "." + std::to_string(slide.sub) + ":" + std::to_string(slide.value);
-		if (touchLocked && lockHoldAt) photo += "|hold" + std::to_string((SDL_GetTicks() - lockHoldAt) / 100);
 		if (playHoldAt) photo += "|phold" + std::to_string((SDL_GetTicks() - playHoldAt) / 50);
 		if (pageDrives(p)) photo += pagePlaying() ? "|pageplay" : "|pagepause";
 		if (p.playingPhoto())
@@ -1042,7 +859,7 @@ namespace bp
 		// frame while it moves), what was stopped for a photo
 		{
 			char bb[160];
-			snprintf(bb, sizeof bb, "|bg%d %d %d %d %d %d %d %d %.0f", bgPlay, miniBarShown(p), chipKind, landFlashUntil != 0 ? 1 : listPulseAt ? 2 + (int)((SDL_GetTicks() - listPulseAt) / 33) : 0, playHoldMini,
+			snprintf(bb, sizeof bb, "|bg%d %d %d %d %d %d %d %d %.0f", bgPlay, miniBarShown(p), chipKind, landFlashUntil != 0 ? 1 : 0, playHoldMini,
 				markW(p), markW(p) && markLive(p) && panel.on() ? (int)(SDL_GetTicks() / 166) : -1, p.loading(), 0.0);
 			photo += bb + chipPath + "|" + p.currentPath();
 		}

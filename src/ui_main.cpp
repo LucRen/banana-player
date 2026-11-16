@@ -98,6 +98,7 @@ namespace bp
 		if (displayShown(p)) return false;	// a held key would spin the chips round
 		if (b == Button::Left || b == Button::Right) return page != Page::Tracks && page != Page::Chapters;
 		if (b == Button::L || b == Button::R) return false;	// (the browser's tabs)
+		// (the player: UP / DOWN move the focus a step a press, onto the chips and back)
 		return page != Page::Main && (b == Button::Up || b == Button::Down);
 	}
 
@@ -132,11 +133,6 @@ namespace bp
 		sh.setShuffle(shuffle);
 		p.osd(modeLabel(p));
 		return true;
-	}
-
-	int Ui::playMode(const Player& p) const
-	{
-		return p.settings.shuffle ? MODE_SHUFFLE : std::clamp(p.settings.loop, 0, LOOPS - 1);
 	}
 
 	std::string Ui::modeLabel(const Player& p) const
@@ -240,9 +236,6 @@ namespace bp
 
 	Ui::Rect Ui::buttonRect(int id) const
 	{
-		if (id == LINE1_BTN) return {24, LINE1_Y - 12, 592, 24};
-		if (id == LINE2_BTN) return {24, LINE2_Y - 12, 592, 24};
-		if (id == CHAPTER_BTN) return {24, CHAPTER_Y - 14, 592, 24};
 		// Sound's
 		if (id == SOUND_TAB0 || id == SOUND_TAB1) return sound->tabRect(id - SOUND_TAB0);
 		if (id == EQ_SWITCH) return {16, 70, 136, 52};
@@ -269,12 +262,9 @@ namespace bp
 		if (id == EMPTY_BTN) return page == Page::Browse && browse->browseDir == NETROOT ? Rect{160, 300, 320, 52} : Rect{200, 300, 240, 52};	// (Find on the network: a longer label)
 		if (id == GROUP_PREV) return {16, 58, 172, 30};
 		if (id == GROUP_NEXT) return {452, 58, 172, 30};
-		if (id == SCREEN_BTN) return {320, 428, 140, 44};
-		if (id == INFO_BTN) return {172, 428, 140, 44};
-		if (id == LOCK_BTN) return {24, 428, 140, 44};
 		if (id == EXIT_BTN) return {170, 200, 300, 80};
 		if (id == BACK_ICON) return {8, 8, 48, 48};
-		return {24 + id % 5 * BTN_STEP, id / 5 ? ROW2_Y : ROW1_Y, BTN_W, BTN_H};
+		return {0, 0, 0, 0};	// (the player screen's keys are its own: PlayerPage::rect)
 	}
 
 	void Ui::drawPhoto(const Player& p)
@@ -359,379 +349,38 @@ namespace bp
 		if (hints) drawTextMid("A", 0, ACCENT, 24, miniUp ? 396 : 450), drawTextMid("Zoom to 2x, or the whole photo", 0, DIM, 24 + (int)std::lround(textWidth("A", 0) / sx) + 7, miniUp ? 396 : 450, 400);
 	}
 
-	bool Ui::chapterLineShown(const Player& p) const
-	{
-		// before the first chapter starts there's none to name (and nothing to tap)
-		return p.playing() && !p.playingPhoto() && !p.loading() && p.error.empty() && !p.chapters.empty() &&
-			shownChapter(p) >= 0 && shownChapter(p) < (int)p.chapters.size();
-	}
-
-	void Ui::drawMain(const Player& p)
-	{
-		if (listPulseArm)
-		{
-			listPulseArm = false;
-			// (once per playlist: the first of its songs opened; another row of it, or the player opened again, not)
-			bool pl = p.playing() && !p.playingPhoto() && p.source().kind == SourceKind::Playlist;
-			if (pl && p.source().id != listPulsedFor)
-			{
-				listPulseAt = SDL_GetTicks();
-				fprintf(stderr, "ui: the List key glows (a playlist's first song)\n");
-			}
-			if (p.playing() && !p.playingPhoto()) listPulsedFor = pl ? p.source().id : std::string();
-		}
-		if (p.playingPhoto()) { drawPhoto(p); return; }
-		std::string name = p.currentPath().substr(p.currentPath().rfind('/') + 1);
-		bool err = !p.error.empty();
-		bool actions = headerActions(p);
-		drawHeader(!p.title.empty() ? p.title : err ? name : "Opening...", p);
-		if (roots.empty()) roots = browseRoots();	// (started with a file: the browser never read them)
-		drawSource(p);
-		bool hotkeys = p.settings.buttonHotkeys;
-		// the status line: how it plays (or what went wrong), and on its right the count or what a press does now
-		std::string right = p.count() > 1 ? std::to_string(p.index() + 1) + " / " + std::to_string(p.count()) : "";
-		SDL_Color rightInk = DIM;
-		if (touchLocked) { right = "Hold the lock 1 s to unlock"; rightInk = ACCENT; }
-		if (err)
-		{
-			drawGlyphMid(G_ALERT, 35, STATUS_Y, DANGER);
-			drawTextMid(!p.errorNet ? "Can't play this file" : p.errorNetFound ? "Lost the connection" : "Can't reach it", 1, DANGER, 56, STATUS_Y, 300);
-			auto lines = wrapText(p.errorNet ? p.error + ". A tries again from where it stopped" : p.error, 0, 592, 2);
-			for (size_t i = 0; i < lines.size(); i++) drawTextMid(lines[i], 0, TEXT, 24, STATUS_Y + 32 + (int)i * 24, 592);
-		}
-		else
-		{
-			std::string status = p.loading() ? "Loading" + std::string(SDL_GetTicks() / 400 % 4, '.') : predicting(p) ? (SessionHost::get().pageWaits() ? "Waiting for " : pagePlaying() ? "Playing in " : "Paused in ") + pageName()
-				: p.paused ? "Paused" : "Playing";
-			if (p.settings.shuffle) status += " \xC2\xB7 Shuffle";
-			if (std::fabs(p.speed - 1) > 1e-6) status += " \xC2\xB7 " + speedLabel(p.speed);
-			if (!hotkeys) status += " \xC2\xB7 buttons off";
-			int x = 24;
-			if (!p.loading())
-			{
-				drawGlyphMid(p.paused && !(predicting(p) && pagePlaying()) ? G_PAUSE : G_PLAY, 32, STATUS_Y, ACCENT);
-				x = 52;
-			}
-			drawTextMid(status, 1, ACCENT, x, STATUS_Y, 330);
-
-			// the chapter playing, between the status line and the bar: its title (the Y button has its number), or
-			// "Chapter 3 of 12" dim when it has none. A tap opens the list
-			if (chapterLineShown(p))
-			{
-				int c = shownChapter(p), n = (int)p.chapters.size();
-				if (pressedBtn == CHAPTER_BTN) drawBox(buttonRect(CHAPTER_BTN), PRESSED, R_BUTTON);
-				drawGlyphMid(G_CHAPTERS, 35, CHAPTER_Y, DIM);
-				if (chapterUntitled(p.chapters[c].title))
-					drawTextMid("Chapter " + std::to_string(c + 1) + " of " + std::to_string(n), 0, DIM, 52, CHAPTER_Y, 540);
-				else drawTextMid(p.chapters[c].title, 0, TEXT, 52, CHAPTER_Y, 540);
-				drawGlyphMid(G_RIGHT, 604, CHAPTER_Y, DIM);
-			}
-
-			// (while dragged, and just after until playback catches up: where the finger is or left it)
-			double pos = shownPosition(p);
-			bool dragging = slideHeld(SL_SEEK), held = dragging || seekHeld >= 0;
-			double heldFrac = dragging ? slide.value : seekHeld;
-			double frac = held ? heldFrac : p.duration > 0 && pos >= 0 ? std::clamp(pos / p.duration, 0.0, 1.0) : 0;
-			drawLevel(BAR, (int)(BAR.w * frac), TRACK);
-			// where each chapter starts: a notch through the bar (none too close to the last, none at all past 100:
-			// they'd be a comb)
-			if (p.duration > 0 && p.chapters.size() <= 100)
-			{
-				int last = -1000;
-				for (auto& c : p.chapters)
-				{
-					if (c.time <= 0) continue;
-					int x = BAR.x + (int)(BAR.w * std::min(1.0, c.time / p.duration));
-					if (x - last < 6) continue;
-					fill({x - 1, BAR.y, 2, BAR.h}, BG);
-					last = x;
-				}
-			}
-			Rect knob{BAR.x + (int)(BAR.w * frac) - 4, BAR.y - 6, 8, BAR.h + 12};
-			if (dragging)
-			{
-				// under a finger: the knob grown, the time there over it (the chapter's name goes under the bar)
-				drawSlideKnob(knob);
-				drawSlideTag(BAR, frac, formatTime(frac * p.duration) + " / " + formatTime(p.duration));
-			}
-			else fillRound(knob, KNOB, R_KNOB);
-			drawText(formatTime(held ? heldFrac * p.duration : pos), 1, TEXT, BAR.x, BAR.y + 32);
-			drawText(formatTime(p.duration), 1, DIM, BAR.x + BAR.w, BAR.y + 32, 0, 1);
-			// how long is left, at the speed it plays (half at 2x)
-			double left = timeLeft(held ? heldFrac * p.duration : pos, p.duration, p.speed);
-			// dragging the bar of a file with chapters: the chapter under the finger instead ("3 · The Dragon")
-			int under = -1;
-			if (dragging && p.duration > 0)
-				for (int i = 0; i < (int)p.chapters.size(); i++)
-					if (p.chapters[i].time <= slide.value * p.duration) under = i;
-			if (under >= 0)
-				drawText(std::to_string(under + 1) + " \xC2\xB7 " + chapterLabel(p.chapters[under], under + 1), 0, TEXT,
-					BAR.x + BAR.w / 2, BAR.y + 36, 300, 2);
-			else if (left >= 0) drawText(formatTime(left) + " left", 0, DIM, BAR.x + BAR.w / 2, BAR.y + 36, 0, 2);
-		}
-		if (!right.empty()) drawTextMid(right, 0, rightInk, 616, STATUS_Y, 250, 1);
-		// a file with chapters, the buttons on: what L2/R2 do, left of the count (a message in yellow takes the place)
-		if (!err && !p.chapters.empty() && hotkeys && !touchLocked)
-		{
-			int x = 616;
-			if (!right.empty())
-			{
-				x -= (int)std::lround(textWidth(right, 0) / sx) + 12;
-				fill({x, STATUS_Y - 8, 1, 16}, SCREEN);
-				x -= 12;
-			}
-			int vw = (int)std::lround(textWidth(" Chapters", 0) / sx);
-			drawTextMid(" Chapters", 0, DIM, x, STATUS_Y, 0, 1);
-			drawTextMid("L2/R2", 0, ACCENT, x - vw, STATUS_Y, 0, 1);
-		}
-
-		for (int r = 0; r < 2; r++)
-			for (int c = 0; c < 5; c++)
-			{
-				Rect b{24 + c * BTN_STEP, r ? ROW2_Y : ROW1_Y, BTN_W, BTN_H};
-				Button which = GRID[r][c].button;
-				std::string label;
-				const Glyph* g = nullptr;
-				bool off = false;
-				switch (which)
-				{
-				case Button::L: label = "Prev"; g = &G_PREV; break;	// never dimmed: it can always go back to the start
-				// Like and Add work on a file that didn't open too (it's still a file)
-				case Button::L3: label = likedNow(p) ? "Liked" : "Like"; g = likedNow(p) ? &G_HEART : &G_HEART_O; off = !actions; break;
-				case Button::A:
-				{
-					// a page plays it: the page's play and pause (a hold plays here)
-					bool still = err || (pageDrives(p) ? !pagePlaying() : p.paused);
-					label = playHoldAt ? "Hold..." : still ? "Play" : "Pause";
-					g = still ? &G_PLAY : &G_PAUSE;
-					break;
-				}
-				case Button::None: label = "Add"; g = addFlashUntil && SDL_GetTicks() < addFlashUntil ? &G_CHECK : &G_PL_ADD; off = !actions; break;
-				case Button::R:
-				{
-					// (only In order has no Next at the last one: Shuffle starts a new round, a Loop goes back to the first)
-					const Session& ss = SessionHost::get().session();
-					label = "Next";
-					g = &G_NEXT;
-					off = ss.index >= 0 && p.currentPath() == ss.queue[ss.index] ? !hasNext(ss)
-						: !p.settings.shuffle && p.settings.loop == LOOP_OFF && p.index() + 1 >= p.count();
-					break;
-				}
-				// Up next, both; music: loop, the Display popup; a video: Tracks, picture size
-				case Button::Y: label = "List"; g = &G_PLAYLIST; break;	// (Up next: "List" fits the key)
-				case Button::X:
-				{
-					// the play mode, songs and videos alike (the Loop's mark and word, or Shuffle's mark and "On" (Shuffle
-					// with Loop all), "One" or "Once" for the pairs the web can set; "Shuffle" doesn't fit beside it)
-					int mode = playMode(p);
-					label = mode != MODE_SHUFFLE ? LOOP_SHORT[mode] : p.settings.loop == LOOP_ALL ? "On" : p.settings.loop == LOOP_ONE ? "One" : "Once";
-					g = mode == MODE_SHUFFLE ? &G_SHUFFLE : &G_LOOP;
-					break;
-				}
-				case Button::Select:
-					if (!p.playingAudio()) break;	// (a video's Tracks: drawn below)
-					label = SHOW_SHORT[std::clamp(p.settings.musicShow, 0, SHOWS - 1)];
-					g = showGlyph(p.settings.musicShow, p.settings.visualizer);
-					break;
-				case Button::Up: label = speedLabel(p.speed); break;
-				default: label = "Menu"; break;
-				}
-				// a file that didn't open: only what leads elsewhere (the next file, Up next, the menu), and Like / Add
-				if (err && which != Button::L && which != Button::R && which != Button::Y && which != Button::Start && which != Button::L3 && which != Button::None &&
-					!(which == Button::A && p.errorNet)) off = true;
-				if (err && p.errorNet && which == Button::A) { label = "Retry"; g = &G_REFRESH; }
-				// the speed when it isn't 1x: a yellow key (as Locked is), so a changed speed can't go unnoticed
-				bool fast = which == Button::Up && !off && std::fabs(p.speed - 1) > 1e-6;
-				bool down = (pressedBtn == r * 5 + c || (which == Button::A && playHoldAt)) && !off;
-				drawBox(b, down ? PRESSED : fast ? ACCENT : BUTTON, R_BUTTON);
-				if (which == Button::Y && listPulseAt && !down)
-				{
-					// two soft yellow swells (sin²), over the key's own ground
-					double t = (SDL_GetTicks() - listPulseAt) / (double)(LIST_PULSE_MS / 2), sw = std::sin(M_PI * t);
-					SDL_Color glow = ACCENT;
-					glow.a = (Uint8)std::lround(90 * sw * sw);
-					if (glow.a) fillRound({b.x + 2, b.y + 2, b.w - 4, b.h - 6}, glow, R_BUTTON - 2);
-				}
-				if (which == Button::A && playHoldAt)
-				{
-					// the hold that plays it here, filling as it goes (as the lock's)
-					double f = std::min(1.0, (SDL_GetTicks() - playHoldAt) / (double)PLAY_HOLD_MS);
-					fillRound({b.x + 6, b.y + b.h - 7, (int)((b.w - 12) * f), 4}, ACCENT, 2);
-				}
-				const char* key = hotkeys ? GRID[r][c].hint : nullptr;
-				if (which == Button::Select && !p.playingAudio())
-				{
-					// a video's Tracks: its tabs' marks in their order (chapters when it has some, subtitles, audio), no words
-					SDL_Color ink = off ? DIM : TEXT;
-					std::vector<const Glyph*> marks;
-					if (!p.chapters.empty()) marks.push_back(&G_CHAPTERS);
-					marks.insert(marks.end(), {&G_CC, &G_SPEAKER});
-					int gap = 8, w = gap * ((int)marks.size() - 1);
-					for (auto* m : marks) w += glyphW(*m);
-					int x = b.x + b.w / 2 - w / 2;
-					int y = key ? b.y + b.h * 2 / 5 : b.y + b.h / 2;
-					for (auto* m : marks)
-					{
-						drawGlyphMid(*m, x + glyphW(*m) / 2, y, ink);
-						x += glyphW(*m) + gap;
-					}
-					if (key) drawTextMid(key, 0, off ? DIM : ACCENT, b.x + b.w / 2, b.y + b.h * 4 / 5 - 2, b.w - 6, 2);
-				}
-				else if (which == Button::L3)
-				{
-					// the heart: yellow once liked; its key only where there's an L3 (the RG DS Plus, the 1024x768 one)
-					bool hasL3 = sx > 1.2f;
-					drawButton(b, g, label, hasL3 ? key : nullptr, off, 1, likedNow(p) && !off);
-				}
-				else if (which == Button::None)
-				{
-					// Add to playlist: no key of its own, so what it adds to under it, as Sound's button says Sound
-					drawButton({b.x, b.y, b.w, b.h * 4 / 5}, g, label, nullptr, off, 1, g == &G_CHECK);
-					drawTextMid("Playlist", 0, off ? DIM : DIM_ON, b.x + b.w / 2, b.y + b.h * 4 / 5 - 2, b.w - 6, 2);
-				}
-				// the button it stands for, while the buttons work here (Button hotkeys); else the name alone, centred
-				else if (fast && !down)
-				{
-					// dark ink on the yellow key, its button name too
-					bool hint = key && *key;
-					drawTextMid(label, 1, ON_ACCENT, b.x + b.w / 2, hint ? b.y + b.h * 2 / 5 : b.y + b.h / 2, b.w - 12, 2);
-					if (hint) drawTextMid(key, 0, ON_ACCENT, b.x + b.w / 2, b.y + b.h * 4 / 5 - 2, b.w - 6, 2);
-				}
-				else drawButton(b, g, label, key, off, 1);
-			}
-
-		const Track* a = p.selected(TrackType::Audio);
-		const Track* s = p.selected(TrackType::Sub);
-		auto label = [&](const Track* t, TrackType type) {
-			if (!t) return std::string("Off");
-			auto list = p.tracksOf(type);
-			int n = 1;
-			for (size_t i = 0; i < list.size(); i++)
-				if (list[i].id == t->id) n = (int)i + 1;
-			return trackLabel(*t, n);
-		};
-		// what's chosen, each after its mark: the sound, then the subtitles (a song: its artist and album)
-		// a video's lines open their tab of Audio & Subtitles: a chevron says so
-		bool video = !p.playingAudio();
-		auto lineEnd = [&](int id, int y) {
-			if (pressedBtn == id) drawBox(buttonRect(id), PRESSED, R_BUTTON);
-			drawGlyphMid(G_RIGHT, 604, y, DIM);
-		};
-		if (!err)
-		{
-			lineEnd(LINE1_BTN, LINE1_Y);
-			int trackW = 540;
-			if (!video)
-			{
-				// a song's line opens Sound: on its right what it's set to ("Rock", "Rock · Hall", "EQ off · Hall",
-				// "EQ off"), the effect drawn first and the preset cut to what's left of 180. What changes the sound is
-				// yellow (the mark too), as a changed speed's key is, so an EQ or effect left on can't go unnoticed
-				const Settings& st = p.settings;
-				bool fx = st.soundFx != SoundFx::None;
-				auto w = [&](const std::string& t, int maxW) { return std::min(maxW, (int)std::lround(textWidth(t, 0) / sx)); };
-				int x = 592;
-				if (!st.eqOn && !fx)
-				{
-					drawTextMid("EQ off", 0, DIM, x, LINE1_Y, 0, 1);
-					x -= w("EQ off", 180);
-				}
-				else
-				{
-					if (fx)
-					{
-						std::string tail = std::string(st.eqOn ? " \xC2\xB7 " : "") + FX_SHORT[(int)st.soundFx];
-						drawTextMid(tail, 0, ACCENT, x, LINE1_Y, 0, 1);
-						x -= w(tail, 180);
-					}
-					if (!st.eqOn)
-					{
-						drawTextMid("EQ off \xC2\xB7 ", 0, DIM, x, LINE1_Y, 0, 1);
-						x -= w("EQ off \xC2\xB7 ", 180);
-					}
-					else
-					{
-						std::string preset = st.eqPreset.empty() ? CUSTOM_NAME : st.eqPreset;
-						int room = std::max(40, 180 - (592 - x));
-						drawTextMid(preset, 0, ACCENT, x, LINE1_Y, room, 1);
-						x -= w(preset, room);
-					}
-				}
-				drawGlyphMid(G_EQ, x - 8 - glyphW(G_EQ) / 2, LINE1_Y, st.eqOn || fx ? ACCENT : DIM);
-				trackW = x - 8 - glyphW(G_EQ) - 12 - 52;
-			}
-			drawGlyphMid(G_SPEAKER, 33, LINE1_Y, DIM);
-			drawTextMid(label(a, TrackType::Audio), 0, TEXT, 52, LINE1_Y, trackW);
-		}
-		if (err) {}
-		else if (p.playingAudio())
-		{
-			std::string by = p.artist();
-			if (!p.album().empty()) by += (by.empty() ? "" : " \xC2\xB7 ") + p.album();
-			if (!by.empty())
-			{
-				drawGlyphMid(G_NOTE, 33, LINE2_Y, DIM);
-				drawTextMid(by, 0, TEXT, 52, LINE2_Y, 564);
-			}
-		}
-		else
-		{
-			lineEnd(LINE2_BTN, LINE2_Y);
-			drawGlyphMid(G_CC, 33, LINE2_Y, DIM);
-			drawTextMid(label(s, TrackType::Sub), 0, TEXT, 52, LINE2_Y, 540);
-		}
-
-		// the row along the bottom: Lock, Info, Screen off, and leaving
-		Rect lk = buttonRect(LOCK_BTN), inf = buttonRect(INFO_BTN), so = buttonRect(SCREEN_BTN), q = buttonRect(QUIT_BTN);
-		bool holding = touchLocked && lockHoldAt;
-		drawBox(lk, holding ? PRESSED : touchLocked ? ACCENT : pressedBtn == LOCK_BTN ? PRESSED : BUTTON, R_BUTTON);
-		if (holding)
-		{
-			// the hold, filling as it goes (inside the edge, over the lip)
-			double f = std::min(1.0, (SDL_GetTicks() - lockHoldAt) / (double)UNLOCK_HOLD_MS);
-			fillRound({lk.x + 6, lk.y + lk.h - 7, (int)((lk.w - 12) * f), 4}, ACCENT, 2);
-		}
-		SDL_Color lkInk = touchLocked && !holding ? ON_ACCENT : TEXT;
-		{
-			const char* t = touchLocked ? (holding ? "Hold..." : "Locked") : "Lock";
-			int tw = (int)std::lround(textWidth(t, 0) / sx), gw = glyphW(G_LOCK), x = lk.x + lk.w / 2 - (gw + 8 + tw) / 2;
-			drawGlyphMid(G_LOCK, x + gw / 2, lk.y + lk.h / 2, lkInk);
-			drawTextMid(t, 0, lkInk, x + gw + 8, lk.y + lk.h / 2);
-		}
-		drawBox(inf, pressedBtn == INFO_BTN ? PRESSED : BUTTON, R_BUTTON);
-		drawButton(inf, &G_INFO, "Info", nullptr, false, 0);
-		drawBox(so, pressedBtn == SCREEN_BTN ? PRESSED : BUTTON, R_BUTTON);
-		drawButton(so, &G_MOON, "Screen off", nullptr, false, 0);
-		drawLeave(p);
-		if (touchLocked)
-		{
-			// locked: everything but the lock and Screen off dimmed (they're all that a finger does now)
-			// from just under the header (its back icon ends at 56): the source line's card mark starts above 64
-			SDL_Color veil = sdl(theme::BG, 170);
-			fill({0, 58, W, lk.y - 58}, veil);
-			fill(inf, veil);
-			fill(q, veil);
-			// what unlocks it stays readable over the veil
-			drawTextMid("Hold the lock 1 s to unlock", 0, ACCENT, 616, STATUS_Y, 250, 1);
-		}
-	}
-
 	void Ui::drawLeave(const Player& p)
 	{
+		// a photo's Close, as B (a song's or a video's Stop is in X's More sheet: PlayerPage::moreSpec)
 		Rect q = buttonRect(QUIT_BTN);
-		bool hotkeys = p.settings.buttonHotkeys;
 		drawBox(q, pressedBtn == QUIT_BTN ? PRESSED : BUTTON, R_BUTTON);
+		std::string t = "Close", key = p.settings.buttonHotkeys ? "B" : "";
+		const Glyph& g = G_CROSS;
+		int tw = (int)std::lround(textWidth(t, 0) / sx), gw = glyphW(g), kw = key.empty() ? 0 : (int)std::lround(textWidth(key, 0) / sx) + 10;
+		int x = q.x + q.w / 2 - (gw + 8 + tw + kw) / 2;
+		drawGlyphMid(g, x + gw / 2, q.y + q.h / 2, TEXT);
+		drawTextMid(t, 0, TEXT, x + gw + 8, q.y + q.h / 2);
+		if (!key.empty()) drawTextMid(key, 0, ACCENT, x + gw + 8 + tw + 10, q.y + q.h / 2);
+	}
+
+	bool Ui::photoDown(int x, int y, Player& p)
+	{
+		if (panRect(p).hit(x, y))
 		{
-			// a song or video: Stop, one tap (B only leaves the player: it plays on); a photo: Close, as B
-			bool photo = p.playingPhoto();
-			std::string t = photo ? "Close" : "Stop";
-			const Glyph& g = photo ? G_CROSS : G_STOP;
-			std::string key = hotkeys && photo ? "B" : "";
-			int tw = (int)std::lround(textWidth(t, 0) / sx), gw = glyphW(g), kw = key.empty() ? 0 : (int)std::lround(textWidth(key, 0) / sx) + 10;
-			int x = q.x + q.w / 2 - (gw + 8 + tw + kw) / 2;
-			SDL_Color ink = photo ? TEXT : DANGER;
-			drawGlyphMid(g, x + gw / 2, q.y + q.h / 2, ink);
-			drawTextMid(t, 0, ink, x + gw + 8, q.y + q.h / 2);
-			if (!key.empty()) drawTextMid(key, 0, ACCENT, x + gw + 8 + tw + 10, q.y + q.h / 2);
+			panTouch = true;
+			panMoved = false;
+			flickAt = 0;
+			flickVX = flickVY = 0;
+			panDownX = lastX = x;
+			panDownY = lastY = y;
+			lastAt = SDL_GetTicks();
+			panStartX = p.photo().panX;
+			panStartY = p.photo().panY;
+			return false;
 		}
+		for (int i = 0; i < PHOTO_BTNS; i++)
+			if (photoBtn(i, p).hit(x, y)) pressedBtn = PHOTO_BTN + i;
+		if (buttonRect(QUIT_BTN).hit(x, y)) pressedBtn = QUIT_BTN;
+		return false;
 	}
 }

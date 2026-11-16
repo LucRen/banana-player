@@ -9,6 +9,7 @@
 #include "backlight.h"
 #include "volume.h"
 #include "slider.h"
+#include "kitlayout.h"
 #include "netstore.h"
 #include "networker.h"
 #include <SDL.h>
@@ -47,6 +48,8 @@ namespace bp
 	{
 	public:
 		static constexpr int W = 640, H = 480;
+		// the panel's type by size index (ui_internal.h's F_*: three of every page's, then the redesign kit's)
+		static constexpr int FONT_COUNT = 12;
 		// a small picture: rows of cells, '#' drawn (ui.cpp's G_*)
 		struct Glyph { const char* const* rows; int h; };
 
@@ -98,7 +101,7 @@ namespace bp
 		{
 			return page == Page::Main || page == Page::Tracks || page == Page::Chapters || page == Page::Info || page == Page::UpNext;
 		}
-		// the player's own Stop (Main's Stop, START › Playing › Stop, the mini bar's menu), once: main stops what plays
+		// the player's own Stop (X's More sheet, START › Playing › Stop, the mini bar's menu), once: main stops what plays
 		bool takeStopPressed() { bool r = stopPressed; stopPressed = false; return r; }
 		// the mini bar's tap over a photo: the photo closes and the player of what plays takes the screen (once; main
 		// does it: only it can close the photo viewer)
@@ -198,7 +201,7 @@ namespace bp
 
 		// the bottom panel's backlight: off from its button, on again at the next touch
 		bool screenOn() const { return panel.on(); }
-		bool touchIsLocked() const { return touchLocked; }
+		bool touchIsLocked() const;	// (the player screen's lock: PlayerPage, ui_player.h)
 		// START's menu's open tab ("playing", "settings", "about", "exit"), "" while it's closed: for test runs
 		const char* menuTabName() const
 		{
@@ -289,7 +292,7 @@ namespace bp
 		friend struct WebPlaylistGlue;
 		enum class Page { Main, Tracks, Chapters, Settings, Browse, Info, About, Exit, Sound, Web, Playing, UpNext, Manga,
 			Extensions, MangaSeries, MangaRead, MangaSettings, MangaSources, DocText, DocPages };
-		struct Rect { int x, y, w, h; bool hit(int px, int py) const { return px >= x && py >= y && px < x + w && py < y + h; } };
+		using Rect = lay::Box;	// (kitlayout.h: the kit's layout maths give and take the same box)
 		// An overlay: a dialog or a sheet over the page (ui_overlay.cpp; docs/notes/overlay-stack.md). While it is on
 		// the stack it gets the keys and the touches (the topmost one only: it is modal), is drawn over the page (all
 		// of them, the oldest first) and has its state in signature(): press, pointer, renderPage and signature ask
@@ -390,11 +393,6 @@ namespace bp
 		void openUpNext(const Player& p);
 		void playUpNext(int i, Player& p);
 		void drawUpNext(const Player& p);
-		// the chapter line over the bar (the one playing), and the two track lines under the buttons: each opens its
-		// page. Their ids are apart from buttonRect's grid and the photo's
-		static constexpr int LINE1_BTN = 500, LINE2_BTN = 501, CHAPTER_BTN = 502;
-		static constexpr int CHAPTER_Y = 126;
-		bool chapterLineShown(const Player& p) const;
 		void choose(int i, Player& p);
 		// Settings opens on its groups (setGroup -1); A or a tap opens one, B goes back to them
 		// (Web dashboard is a tile like the groups, but its own page: openGroup and stepGroup open Page::Web)
@@ -412,6 +410,23 @@ namespace bp
 		// one before or after (no wrap), at its top; the header's markers by touch. The section shown and where each
 		// was left are the browser's (Browse::browseTab, tabDir)
 		enum BrowseTab { TAB_LOCAL, TAB_PLAYLISTS, TAB_NETWORK, TAB_EXT, BROWSE_TABS };
+
+		// ---- the redesign's component kit (ui_kit.h / ui_kit.cpp; docs/notes/2026-11-16-redesign-kit.md) ----
+		// the pieces the redesigned screens are drawn from (key caps, keys, chips, line keys, the bar, sheets, rows):
+		// each takes its inputs and draws, and holds no screen's state
+		struct Kit;
+		std::unique_ptr<Kit> kit;
+		// the More sheet (ui_more.cpp): a bottom sheet of tiles and rows, fed a list each time it is drawn (MoreSpec,
+		// ui_kit.h), as an overlay. X on the player opens the player's (PlayerPage::moreSpec)
+		struct MoreItem;
+		struct MoreSpec;
+		struct MoreSheet;
+		void openMore(std::function<MoreSpec(const Player&)> build);
+		// ---- the player screen (Page::Main: a video, a song; a photo's viewer is still here in Ui): an area,
+		// ui_player.h / ui_player.cpp ----
+		struct PlayerPage;
+		std::unique_ptr<PlayerPage> playerPage;
+		struct PlayOnSheet;
 
 		// the readers' Brightness sheet (ui_light.cpp): the screens' backlight, Extra dim, the reader's filter
 		// (an overlay: LightSheet, pushed by openLight)
@@ -466,9 +481,6 @@ namespace bp
 		// the select mode's uses (Playlists::selMode): Edit (a playlist's items), Add (files), Pick (a folder)
 		enum SelMode { SEL_NONE, SEL_EDIT, SEL_ADD, SEL_PICK };
 		std::string whereOf(const std::string& dir) const;	// "Videos / Shows", "MY-PC / Media / Movies"
-		// the Main page's line under the title: what plays from (a folder, a network folder, a playlist)
-		void drawSource(const Player& p);
-		static constexpr int SOURCE_Y = 70;
 		std::string ctxTitle, ctxNote;	// a playlist's menu: its title, and the line under it ("12 items", why it's missing)
 		// a playlist's network items: their folders listed for their subtitles and covers (Player::netFolderWanted),
 		// each once a play; the answers by serial
@@ -621,6 +633,9 @@ namespace bp
 		bool playOnKey(Button b, Player& p);
 		bool playOnPointer(const Pointer& pt, int x, int y, Player& p);
 		void playOnChoose(int i, Player& p);
+		// the output moved to that choice (the Session's SetOutput), unless it plays there already: the dialog's pick
+		// and the player's Play on sheet (PlayOnSheet, ui_player.cpp)
+		void playOnSend(const OutChoice& c, Player& p);
 		void drawPlayOn(const Player& p);
 		Rect playOnBox() const { int n = (int)outChoices().size(); int h = 122 + std::min(n, PLAYON_SHOWN) * 60; return {70, std::max(16, (436 - h) / 2), 500, h}; }
 		Rect playOnRow(int i) const { Rect b = playOnBox(); return {b.x + 20, b.y + 106 + (i - playOnScroll) * 60, b.w - 40, 54}; }
@@ -636,18 +651,16 @@ namespace bp
 		// the Playing tab's "In Road trip": the playlists the file is in, read again when they or the file change
 		mutable std::string playingIn, playingInPath;
 		mutable int playingInSerial = -1;
-		// Main's header squares (a song or a video): Add to playlist, Like
+		// what plays can be liked and added to a playlist (a song or a video, a state folder to keep them in)
 		bool headerActions(const Player& p) const;
 		void drawExit(const Player& p);
 		bool clearHistory(Player& p);	// true when it cleared (the second time)
 		bool act(int id, Player& p);	// a touch button let go of on it
 		bool pressAnyway(Button b, Player& p);
-		// music playing: X loop, Y chapters (none: nothing), SELECT the Display popup (a video: audio, subtitles,
-		// picture size)
+		// SELECT on a song: the Display popup (true; a video's is Tracks: false). X: the play mode's round (In order,
+		// Loop all, Loop one, Shuffle): the player's Repeat chip steps it (X itself is More now)
 		bool musicKey(Button b, Player& p);
-		// the music key's mode: MODE_SHUFFLE when Shuffle is on (with whichever Loop), else the Loop (LOOP_*)
-		int playMode(const Player& p) const;
-		std::string modeLabel(const Player& p) const;	// what the screen says as X changes it
+		std::string modeLabel(const Player& p) const;	// what the top screen says as the play mode changes
 		// Display, over a song's page (SELECT): what the top panel shows, and the visualizer's style; each change
 		// applied at once (the player rebuilds the graph once the changes stop)
 		bool displayOpen = false;
@@ -681,6 +694,7 @@ namespace bp
 		// phone, a flick glides, a double-tap zooms; no swipe to the next: Prev/Next do that) beside its buttons
 		bool photoKey(Button b, Player& p);	// true: it was a photo's
 		bool photoPointer(const Pointer& pt, int x, int y, Player& p);
+		bool photoDown(int x, int y, Player& p);	// a finger down on its page: the pan area, or a button
 		void photoZoomTo(double zoom, double panX, double panY, Player& p);
 		void drawPhoto(const Player& p);
 		Rect panRect(const Player& p) const { return {p.settings.panRight ? 288 : 16, 80, PAN_W, PAN_H}; }
@@ -700,8 +714,7 @@ namespace bp
 		std::string signature(const Player& p) const;
 
 		void renderPage(const Player& p);	// the page into the renderer, not yet shown
-		void drawMain(const Player& p);
-		void drawLeave(const Player& p);	// Close (Quit): B twice, or a tap twice
+		void drawLeave(const Player& p);	// a photo's Close
 		void drawTracks(const Player& p);
 		// the pieces of a page: the header ("<", the title, the battery), a tab, the footer's hints (a button's name in
 		// yellow, what it does), the cursor's row, a list's scroll bar, a page with nothing to list
@@ -739,7 +752,6 @@ namespace bp
 		// and key fit labelW/keyW units wide (0: the button less 6)
 		void drawKeyedLabel(Rect b, const std::string& label, const std::string& key, bool off = false, int labelW = 0, int keyW = 0);
 		void drawButton(Rect b, const Glyph* g, const std::string& label, const char* key, bool off, int size, bool lit = false);	// lit: the glyph and label in yellow (on, as the heart once liked)
-		static constexpr int STATUS_Y = 100, LINE1_Y = 378, LINE2_Y = 403;	// the player's status line, its two track lines
 		static constexpr int FOOT_Y = 458, SUB_Y = 70;	// the footer's line, the browser's "where" line (their middles)
 		void drawInfo(const Player& p);
 		// the Media info page's lines: a row's value wrapped to the width, read again each second while it's open
@@ -756,7 +768,7 @@ namespace bp
 		// the same, the line's middle (its capitals') on cy: labels centred in their boxes at any panel size
 		void drawTextMid(const std::string& s, int size, SDL_Color c, int x, int cy, int maxW = 0, int align = 0);
 		void drawTextAt(const std::string& s, int size, SDL_Color c, int x, int y, int maxW, int align, bool middle);
-		int capHeight[3] = {};	// in pixels
+		mutable int capHeight[FONT_COUNT] = {};	// in pixels
 		void fill(Rect r, SDL_Color c);
 		// rounded corners (theme.h's radii, in 640x480 units): corners a mask of ROUND_TL, _TR, _BL, _BR. SDL_Renderer
 		// has none: a box is its middle and sides as rects, its corners copies of one anti-aliased quarter circle
@@ -782,10 +794,14 @@ namespace bp
 		int glyphW(const Glyph& g, int cell = 2) const;
 
 		SDL_Renderer* ren = nullptr;
-		TTF_Font* fonts[3] = {};	// small, normal, large
+		// small, normal, large (opened at the start), then the kit's sizes, each opened when first drawn (font())
+		mutable TTF_Font* fonts[FONT_COUNT] = {};
+		TTF_Font* font(int size) const;
 		// for text Pixelify Sans has no glyphs for, at the same sizes: Fusion Pixel (Chinese, Japanese, Korean,
-		// Vietnamese, Greek), then Noto Sans Thai, Arabic, Hebrew, Devanagari
-		std::vector<std::array<TTF_Font*, 3>> fallbacks;
+		// Vietnamese, Greek), then Noto Sans Thai, Arabic, Hebrew, Devanagari (the kit's sizes: as font())
+		mutable std::vector<std::array<TTF_Font*, FONT_COUNT>> fallbacks;
+		std::vector<std::string> fallbackFiles;	// each one's file, in fallbacks' order
+		TTF_Font* fallbackFont(size_t k, int size) const;
 		// the text in pieces, each with a font that has its characters: one piece in one font when one font has
 		// them all (no mix of looks in a name), else a font a run of characters (an Arabic name's ".mkv")
 		std::vector<std::pair<TTF_Font*, std::string>> runs(const std::string& s, int size) const;
@@ -851,15 +867,7 @@ namespace bp
 		}
 		// the finger may shift this far along the track without moving the slider (landing, lifting)
 		static constexpr int SLIDE_SLACK = 6;
-		// let go, the bar stays where the finger left it until playback gets there (the exact seek takes a moment, a buffering one longer;
-		// and until then the position is still the old one: the bar flicked back and forth); -1 none
-		double seekHeld = -1;
-		Uint32 seekHeldAt = 0;
 		BottomPanel panel;
-		// Lock: over a video, touch does nothing but Screen off and a 1 s hold on the lock (its release); the
-		// buttons go on as Button hotkeys says
-		bool touchLocked = false;
-		Uint32 lockHoldAt = 0, lockNoticeAt = 0;
 		bool swallowTouch = false;	// the touch that woke the panel: it presses nothing
 		int pressedBtn = -1;		// a touch button under the finger: it acts when the finger lifts on it
 		bool listTouch = false, listScrolled = false;	// a finger on a track list: a tap chooses, a drag scrolls
@@ -878,8 +886,6 @@ namespace bp
 		const std::vector<BrowseRoot>& places() const { return roots; }
 	private:
 
-		static constexpr Rect BAR{24, 150, 592, 24};
-		static constexpr int BTN_W = 108, BTN_H = 60, BTN_STEP = 121, ROW1_Y = 228, ROW2_Y = 300;
 		static constexpr int ROW_Y = 84, ROW_H = 48, ROWS_SHOWN = 7;	// 7 rows end at 420, above the hints (and the mini bar)
 		// the settings' rows by id: the subtitle style's, and the actions and pages that have their own code (the rest are
 		// the settings table's: SET_ROW0 + the index in settingDefs(), ui_internal.h). Shown a group at a time
@@ -922,7 +928,7 @@ namespace bp
 		// (6 rows end at 368: the help's two lines at 400 stay clear of them; a longer group scrolls)
 		static constexpr int SET_Y = 92, SET_H = 46, SET_SHOWN = 6, HELP_Y = 400;
 		static constexpr int64_t STYLE_ROW = -2;	// the subtitle menu's last row: the settings page
-		static constexpr int QUIT_BTN = 10, SCREEN_BTN = 12, INFO_BTN = 13, LOCK_BTN = 14, EXIT_BTN = 15,
+		static constexpr int QUIT_BTN = 10, INFO_BTN = 13, EXIT_BTN = 15,	// (a photo's Close and Info; the Exit page's)
 			BACK_ICON = 16,	// "<" at the top left of every page: B
 			EMPTY_BTN = 17,	// an empty page's button (no connections: Find on the network)
 			GROUP_PREV = 18, GROUP_NEXT = 19;	// a settings group's neighbours, either side of its title (Y, X)
@@ -931,9 +937,8 @@ namespace bp
 		// the select mode's bar (and Move's), the busy dialog's Cancel, the Add to... picker's rows (PICK_ROW + i)
 		static constexpr int SEL_ALL = 530, SEL_MOVE = 531, SEL_ACT = 532, SEL_CANCEL = 533, MOVE_CANCEL = 534, MOVE_DONE = 535,
 			BUSY_CANCEL = 536, PICK_ROW = 900;
-		// Main's header squares, the Playing tab's rows (PLAY_ROW + i)
-		static constexpr int ADD_BTN = 503, LIKE_BTN = 504, PLAY_ROW = 550;
-		static constexpr int PLAY_GRID = 2;	// the grid's Play/Pause (A's place)
+		// the Playing tab's rows (PLAY_ROW + i)
+		static constexpr int PLAY_ROW = 550;
 		// Sound's touch buttons, apart from the grid's and the photo's; its dialogs' rows from DLG_ROW, the Display
 		// popup's chips from CHIP_BTN (row * CHIP_STRIDE + chip, up to 664)
 		static constexpr int SOUND_TAB0 = 510, SOUND_TAB1 = 511, EQ_SWITCH = 520, EQ_PREV = 521, EQ_NEXT = 522, EQ_NAME_ZONE = 523,
@@ -1043,12 +1048,6 @@ namespace bp
 		int rowChip(int i) const;	// the chip of the browser's row i (0 none)
 		// back from the player: the playing file's row (and the bar's edge) lit a moment
 		Uint32 landFlashUntil = 0;
-		// the player opened on a playlist's first song: its List key (the way to the playlist) glows a subtle yellow
-		// twice
-		bool listPulseArm = false;
-		std::string listPulsedFor;	// the playlist it glowed for (cleared when something else plays)
-		Uint32 listPulseAt = 0;
-		static constexpr Uint32 LIST_PULSE_MS = 1400;
 		bool markAnim = false;	// drawBattery drew the playing mark moving
 		int markW(const Player& p) const;	// its room in the header (0 none)
 		// Incognito mode (Quick settings' Incognito mode): nothing played goes in Recent (Player::incognito) and

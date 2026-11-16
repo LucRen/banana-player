@@ -18,6 +18,8 @@
 	--picked: #2A2618; --e-picked: #6B5A22;
 	--rule: #222128; --dot: rgba(232, 226, 211, .07); --scrim: rgba(0, 0, 0, .72);
 	--r-chip: 6px; --r-field: 6px; --r-btn: 10px; --r-card: 14px; --r-dialog: 20px; --r-track: 5px;
+	/* the handheld redesign kit's (theme.h's R_CAP, R_TRACK, R_GRIP, R_SHEET; VEIL_SHEET, OFF): not used by the dashboard yet */
+	--r-cap: 5px; --r-slider: 7px; --r-grip: 3px; --r-sheet: 18px; --veil-sheet: rgba(0, 0, 0, .68); --off: .45;
 	--bw: 2px; --lip: 3px; --hit: 44px;
 	--s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 20px; --s6: 24px; --s7: 32px; --s8: 40px; --s9: 56px;
 	--gutter: 20px;

@@ -46,6 +46,12 @@ namespace bp
 		constexpr int R_KNOB = 2;
 		constexpr int R_TOP_CARD = 18;
 		constexpr int R_TOP_BAR = 4;
+		// the redesign kit's (docs/redesign/components.md, src/ui_kit.h)
+		constexpr int R_CAP = 5;	// a key cap (the button's name in its outline), a pill
+		constexpr int R_TRACK = 7;	// the 14-tall slider and progress track
+		constexpr int R_GRIP = 3;	// its knob
+		constexpr int R_SHEET = 18;	// a bottom sheet's top corners
+		constexpr int R_LOCK = 30;	// the 120-square key of the lock
 		constexpr int EDGE = 2;	// a box's edge, inside its outline
 		constexpr int LIP = 3;	// the darker band above its bottom edge
 
@@ -61,6 +67,16 @@ namespace bp
 		constexpr Rgb lipOf(Rgb c)
 		{
 			return {(unsigned char)((c.r * 7 + 5) / 10), (unsigned char)((c.g * 7 + 5) / 10), (unsigned char)((c.b * 7 + 5) / 10)};
+		}
+
+		// the kit's strengths, in percent: the black veil under a sheet and under the lock, what is left of a control
+		// that can't be used, the darker part of a key filling as it is held, the red behind a red pill
+		constexpr int VEIL_SHEET = 68, VEIL_LOCK = 80, OFF = 45, HOLD_FILL = 28, TINT = 20;
+		// c at `percent` strength over `under` (an unavailable control over black; a tinted pill's ground)
+		constexpr Rgb mix(Rgb under, Rgb c, int percent)
+		{
+			return {(unsigned char)(under.r + (c.r - under.r) * percent / 100), (unsigned char)(under.g + (c.g - under.g) * percent / 100),
+				(unsigned char)(under.b + (c.b - under.b) * percent / 100)};
 		}
 
 		// "&HBBGGRR&", as ASS writes a colour

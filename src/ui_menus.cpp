@@ -1186,12 +1186,20 @@ namespace bp
 		SessionHost& sh = SessionHost::get();
 		std::string cur = sh.pageIsOutput() ? sh.session().out.tab : "";
 		if (list[i].tab == cur) return;	// where it plays already: just closed
-		fprintf(stderr, "ui: play on %s\n", list[i].tab.empty() ? "the handheld" : list[i].tab.c_str());
-		sh.sendTo(list[i].tab.empty() ? handheldOut() : browserOut(list[i].tab));
-		if (list[i].tab.empty()) p.osd(sh.session().playing ? "Playing on the handheld" : "On the handheld");
+		playOnSend(list[i], p);
 		// on the playing screen, where what it does next shows (the top panel names the page)
 		closeMenu(p);
 		showPlayer();
+	}
+
+	void Ui::playOnSend(const OutChoice& c, Player& p)
+	{
+		SessionHost& sh = SessionHost::get();
+		std::string cur = sh.pageIsOutput() ? sh.session().out.tab : "";
+		if (c.tab == cur) return;
+		fprintf(stderr, "ui: play on %s\n", c.tab.empty() ? "the handheld" : c.tab.c_str());
+		sh.sendTo(c.tab.empty() ? handheldOut() : browserOut(c.tab));
+		if (c.tab.empty()) p.osd(sh.session().playing ? "Playing on the handheld" : "On the handheld");
 	}
 
 	bool Ui::playOnKey(Button b, Player& p)

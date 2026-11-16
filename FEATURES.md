@@ -200,10 +200,11 @@ Playlists.
 
 Like a song or a video to keep it in **Liked**, a playlist of its own. Photos and folders can't be liked.
 
-- **Like:** the **Like** button (the heart, left of Play) while something plays, **START** → **Like** (the menu opens
-  on it), or **L3** on the RG DS Plus. The heart turns yellow and the top screen says **Added to Liked** with the title
+- **Like:** the **Like** key (the heart, under the transport row) while something plays, **X** → **Like**, **START** →
+  **Like** (the menu opens on it), or **L3** on the RG DS Plus. The heart turns yellow and the top screen says **Added to Liked** with the title
   (**Removed from Liked** when you press it again). A like is the file's, wherever it plays from.
-- **Add to playlist:** the **Add** button (right of Play), or **START** → **Add to playlist…**. **New playlist…** comes
+- **Add to playlist:** the **Playlist** key (beside Like), **X** → **Add to playlist…**, or **START** → **Add to
+  playlist…**. **New playlist…** comes
   first, then the playlists you changed last. A playlist that already has it says **✓ Added**: choosing it asks
   **Add again?**, and a second **A** adds another copy. **New playlist…** names one on the keyboard and adds to it. The
   button shows a check and the top screen says where it went.
@@ -222,11 +223,11 @@ Like a song or a video to keep it in **Liked**, a playlist of its own. Photos an
 | Button | What it does |
 |---|---|
 | **A** | Play / pause |
-| **LEFT / RIGHT** | Back 5 seconds / forward 10 seconds (hold to keep going; there's no on-screen button for these: drag the bar) |
+| **LEFT / RIGHT** | Back 5 seconds / forward 10 seconds (hold to keep going); the **5 s** and **10 s** keys either side of Play do the same by touch |
 | **L / R** | Previous (5 s or more in: back to the start) / next file in the folder |
 | **L2 / R2** | Previous / next chapter (**F + L2** is still the screenshot) |
-| **UP / DOWN** | Faster / slower (0.5x, 1x, 1.5x, 2x, 2.5x); the speed button becomes a yellow key when it isn't 1x |
-| **X** | The play mode, on a video as on a song: In order → Loop all → Loop one → Shuffle (with Loop all); the key shows the loop mark with Off / All / One, or the shuffle mark with On / One / Once |
+| **DOWN / UP** | **DOWN** steps onto the chips (then **LEFT / RIGHT** choose one and **A** changes or opens it), **DOWN** again onto the **Next** line (**A** opens the list); **UP** or **B** goes back to the playing keys. They no longer change the speed: that is the **Speed** chip |
+| **X** | **More**: a sheet with **Lock touch**, **Screen off**, **Info** and **Stop** (in red) as its first four keys, then **Like**, **Add to playlist…**, **Show in folder** and, while a dashboard page that can play is open, **Play on…**. The D-pad moves, **A** chooses, **X** or **B** closes |
 | **Y** | **Up next** (the **List** key): the folder or playlist that plays, in its own order, the one playing marked **Now** |
 | **SELECT** | Video: **Tracks**, one page with four tabs in this order: **Chapters** (when the file has them), **Subtitles**, **Audio**, **Picture** (Fit, Fill, Stretch); **L / R** (or **Y / X**) switch them. It opens on the tab you used last (the first time: Chapters if the file has chapters, else Subtitles) · Music: the Display popup (what's shown, and the visualizer's style) |
 | **START** | Menu, on its **Playing** tab: Like, Add to playlist…, Show in folder, Info, Stop |
@@ -247,15 +248,25 @@ Like a song or a video to keep it in **Liked**, a playlist of its own. Photos an
   fingertip as it lifts changes nothing. While you slide it shows a bigger knob, and its value where the finger
   doesn't hide it.
 - **Buttons:** they act when you lift your finger, so slide off one to cancel.
-- **Audio and subtitles:** on a video, tap the audio or subtitle line under the buttons for that tab of Tracks.
-- **Sound:** on a song, tap the line under the buttons (it shows the preset and effect) to open the Sound page.
-- **Chapters:** tap the chapter line above the progress bar for the Chapters tab.
-- **The keys' second row**, the same on a video and a song: **List** (Up next, **Y**) under **Prev**, the play mode
-  (**X**) under **Like**, then **Tracks** on a video (its tabs' marks, **SELECT**) or the music display on a song
-  (**SELECT**), the speed (**UP/DOWN**) and **Menu** (**START**).
+- **The transport row:** **Prev**, **5 s** back, **Play / Pause** (the wide yellow key), **10 s** forward, **Next**.
+- **The second row**, the same on a video and a song: **Like**, **Playlist** (Add to playlist…), **List** (Up next,
+  **Y**) and **View** (**SELECT**: Tracks on a video, the Display popup on a song).
+- **The chips** under them say how it is set, and a tap changes or opens each: on a video **Subtitles**, **Audio** and
+  **Picture** (each opens its tab of Tracks), **Speed** and **Repeat**; on a song **Sound** (the preset and effect:
+  the Sound page), **Top screen** (what the top screen shows: the Display popup), **Speed** and **Repeat**. A chip
+  whose value isn't the normal one is yellow with a dot (a speed that isn't 1x, a Loop, Fill or Stretch, an equalizer
+  or effect left on), so it can't go unnoticed. **Speed** steps round 0.5x, 1x, 1.5x, 2x, 2.5x. **Repeat** steps the
+  play mode, on a video as on a song: In order → Loop all → Loop one → Shuffle (with Loop all); it reads **Repeat**
+  Off / All / One, or **Shuffle** On (One or Once for the pairs the web dashboard can set).
+- **The Next line** along the bottom names what plays after this (its place in the list; "shuffled" with Shuffle
+  on, **A new shuffled round** at a round's end, **Nothing after this** at the end of a list played in order); a tap
+  opens the list, as **Y** does.
+- **Chapters:** tap the chapter line above the progress bar (`2 / 8 · its name`) for the Chapters tab.
 - **Lists:** tap to choose, drag to scroll.
-- **Back to the list:** tap **<** (top left): it keeps playing. **Stop** (bottom right, in red) stops it, one tap.
-- **Lock**, **Info** and **Screen off** are along the bottom, beside Stop.
+- **Back to the list:** tap **<** (top left): it keeps playing. **Stop** is in **More** (**⋯**, top right, or **X**),
+  in red: it stops it, where **<** and **B** only leave the player.
+- **Lock touch**, **Screen off** and **Info** are in **More** too. Locked, the controls go dark under one large lock:
+  hold it for a second to unlock (the buttons still work, and **X** → **Unlock touch** unlocks as well).
 - **<** is at the top left of every page and does what **B** does: in the file list it goes up a folder, on a page or
   in the menu it goes back. Home has none: **B** there asks to quit.
 
@@ -274,10 +285,11 @@ goes back.
 
 Under the progress bar you'll see the time played, the time left (at the current speed) and the total length.
 
-The top line of the Main page shows what's playing from: the folder (`Videos / Movies`), or a playlist (its name, with a
-list icon), then the card or the server it's on: **Local** or the server's name. With Shuffle on the status line says
-**Playing · Shuffle**. On the right of the status line, `3 / 12` is the file's place in its folder or playlist (with
-Shuffle on too: the list keeps its order).
+The top line of the player shows what's playing from: the folder (`Videos / Movies`), or a playlist (**Playlist ·** its
+name, then the server's name when the item is on one), and `3 / 12`, the file's place in its folder or playlist (with
+Shuffle on too: the list keeps its order). Under it the title, and on its right how it plays: **Playing**, **Paused**,
+or, while a dashboard page plays it, **In Chrome on Mac** (the Play key then says **Hold: play it here** and fills as
+you hold it). With Shuffle on the **Repeat** chip reads **Shuffle**.
 
 ### Looking at a photo
 
@@ -1256,10 +1268,11 @@ combination instead.)
   With Max volume at 120 or 150 its bar runs to that top, with a mark at 100 and the part above it yellow (red past
   120). The manga reader's zoom shows its percent in the same card.
 - **Loading:** a file that takes a moment to open (a big photo, a slow card) shows a spinner on the top screen.
-- **Lock:** locks the touch screen while playing; Screen off still works. Hold the lock for a second to unlock.
-- **Screen off:** turns the bottom screen off to save battery. While the player is showing, the playback buttons
-  keep working with it off (**A**, **LEFT/RIGHT**, **L/R**, **L2/R2**, **UP/DOWN**, **L3**); a touch or any other button
-  turns it back on (that press does nothing else). Elsewhere (a list), any button turns it back on. It also turns off by itself
+- **Lock** (**X** → **Lock touch**): locks the touch screen while playing; the buttons still work (**X** → **Screen
+  off** too). Hold the large lock for a second to unlock, or **X** → **Unlock touch**.
+- **Screen off** (**X** → **Screen off**): turns the bottom screen off to save battery. While the player is showing,
+  the playback buttons keep working with it off (**A**, **LEFT/RIGHT**, **L/R**, **L2/R2**, **L3**); a touch or any
+  other button turns it back on (that press does nothing else). Elsewhere (a list), any button turns it back on. It also turns off by itself
   while a song or video plays and nothing is touched (Settings › Controls & screen › **Screen off (music)** and
   **Screen off (video)**).
 - **Lid:** closing it pauses; opening it keeps it paused until you press play. Settings › Controls & screen › **When

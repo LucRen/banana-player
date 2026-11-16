@@ -1160,50 +1160,6 @@ namespace bp
 		ui.drawHints({{"B", "Cancel"}});
 	}
 
-	void Ui::drawSource(const Player& p)
-	{
-		const PlaySource& src = p.source();
-		if (src.id.empty()) return;
-		// on the right where it comes from (drawn first: the left gets what's left): a playlist's item, the card or
-		// the server it's on
-		bool pl = src.kind == SourceKind::Playlist, net = isNetPath(p.currentPath());
-		std::string right = !pl ? (src.kind == SourceKind::NetFolder ? "Network" : "Local") : !net ? std::string("Local") : "";
-		if (pl && net)
-		{
-			NetPath np;
-			const NetServer* sv = netStore && parseNetPath(p.currentPath(), np) ? netStore->find(np.server) : nullptr;
-			right = sv ? serverName(*sv) : "Network";
-		}
-		int rw = std::min(200, (int)std::lround(textWidth(right, 0) / sx));
-		drawTextMid(right, 0, DIM, 616, SOURCE_Y, 200, 1);
-		int rightW = rw;
-		if (pl)
-		{
-			const Glyph& g = net ? G_NETWORK : G_CARD;
-			drawGlyphMid(g, 616 - rw - 8 - glyphW(g) / 2, SOURCE_Y, DIM);
-			rightW += glyphW(g) + 8;
-		}
-		int maxW = 616 - 52 - rightW - 24;
-		if (pl)
-		{
-			// the playlist's name, cut at its end (Liked: its heart)
-			drawGlyphMid(plIsLiked(src.id) ? G_HEART : G_PLAYLIST, 35, SOURCE_Y, ACCENT);
-			drawTextMid(src.title, 0, TEXT, 52, SOURCE_Y, maxW);
-			return;
-		}
-		// the folder, as the browser says it, its end kept
-		drawGlyphMid(src.kind == SourceKind::NetFolder ? G_NETWORK : G_CARD, 35, SOURCE_Y, DIM);
-		std::string where = elideLeft(whereOf(src.id), 0, maxW);
-		size_t cut = where.rfind(" / ");
-		if (cut == std::string::npos) drawTextMid(where, 0, TEXT, 52, SOURCE_Y);
-		else
-		{
-			std::string head = where.substr(0, cut + 3);
-			drawTextMid(head, 0, DIM, 52, SOURCE_Y);
-			drawTextMid(where.substr(cut + 3), 0, TEXT, 52 + (int)std::lround(textWidth(head, 0) / sx), SOURCE_Y);
-		}
-	}
-
 	// ---- playlists edited from the web dashboard ----
 
 	std::string Ui::Playlists::plWebFile(const std::string& id) const
@@ -1302,7 +1258,7 @@ namespace bp
 
 	// ---- Ui's, out of ui.h (they read the playlists' state) ----
 
-	bool Ui::animating() const { return (area() && area()->animating()) || loaderShown || playHoldAt != 0 || flickAt != 0 || browse->playlists->plDrag.on || slideWaiting() || browse->homeView->stripT0 != 0 || likePopAt != 0 || addFlashUntil != 0 || landFlashUntil != 0 || listPulseAt != 0; }
+	bool Ui::animating() const { return (area() && area()->animating()) || loaderShown || playHoldAt != 0 || flickAt != 0 || browse->playlists->plDrag.on || slideWaiting() || browse->homeView->stripT0 != 0 || likePopAt != 0 || addFlashUntil != 0 || landFlashUntil != 0; }
 	void Ui::flushPlaylist(Player& p) { browse->playlists->plFlush(p); }
 	int Ui::playlistSerial() const { return browse->playlists->plStore ? browse->playlists->plStore->serial() : -1; }
 	bool Ui::plIsLiked(const std::string& file) const { return browse->playlists->plStore && browse->playlists->plStore->isBuiltinFile(file); }

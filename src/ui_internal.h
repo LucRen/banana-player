@@ -29,24 +29,31 @@ namespace bp
 	using theme::R_BAR;
 	using theme::R_KNOB;
 	inline const int SIZES[3] = {18, 24, 32};
+	// The panel's type, by the size index every text call takes: small, normal and large are every page's (Pixelify
+	// Sans at SIZES); the rest are the redesign kit's (src/ui_kit.h, docs/redesign/components.md): Pixelify Sans at
+	// the mock-ups' sizes and Inter for what is read (notes, hints, small capitals). In 640x480 units, opened at the
+	// panel's own pixels; the kit's are opened when first drawn (Ui::font)
+	enum { F_SMALL, F_NORMAL, F_LARGE, F_P12, F_P13, F_P14, F_P16, F_P20, F_P28, F_I11B, F_I12, F_I14, F_COUNT };
+	struct FontDef { const char* file; double units; bool pixel; };
+	inline const FontDef FONT_DEFS[F_COUNT] = {
+		{"PixelifySans-Regular.ttf", 18, true}, {"PixelifySans-Regular.ttf", 24, true}, {"PixelifySans-Regular.ttf", 32, true},
+		{"PixelifySans-Regular.ttf", 12, true},	// a key cap's letters
+		{"PixelifySans-Regular.ttf", 13, true},	// a chip's value
+		{"PixelifySans-Regular.ttf", 14, true},	// a transport key's and a tile's label
+		{"PixelifySans-Regular.ttf", 16, true},	// a 56-tall key's label, the player's state, a line key's text
+		{"PixelifySans-Regular.ttf", 20, true},	// a sheet's title
+		{"PixelifySans-Regular.ttf", 28, true},	// the player's title
+		{"Inter-Bold.ttf", 11, false},	// small capitals (a chip's label, "NEXT"), a pill
+		{"Inter-Regular.ttf", 12.5, false},	// notes, hints, the header's crumb
+		{"Inter-Regular.ttf", 14, false},	// a sentence
+	};
+	static_assert(F_COUNT == Ui::FONT_COUNT, "Ui::FONT_COUNT is the font table's length");
 	inline const Uint32 QUIT_WINDOW_MS = 2000, SCRUB_MS = 100;
 	inline const int DRAG_SLOP = 8;	// the progress bar: a finger that moves this far is a drag, not a tap
 	inline const double BACK_S = 5, FORWARD_S = 10;
 
-	constexpr Ui::Rect Ui::BAR;
-
 	inline float sx = 1, sy = 1;	// logical 640x480 -> the panel's pixels
 
-
-	// the two rows of buttons: what each does is the button it stands for
-	// LEFT/RIGHT (-5 s, +10 s) have no button of their own: their keys, and the bar, seek. Their places hold Like (L3
-	// on the RG DS Plus) and Add to playlist (no key: START › Playing has it), around Play, with Prev and Next under
-	// the shoulders they answer to
-	struct GridKey { Button button; const char* hint; };
-	inline const GridKey GRID[2][5] = {
-		{{Button::L, "L"}, {Button::L3, "L3"}, {Button::A, "A"}, {Button::None, nullptr}, {Button::R, "R"}},
-		{{Button::Y, "Y"}, {Button::X, "X"}, {Button::Select, "SELECT"}, {Button::Up, "UP/DOWN"}, {Button::Start, "START"}},
-	};
 
 	// a Settings row made from the settings table (settings.h's SettingDef): SET_ROW0 + its index in settingDefs()
 	inline constexpr int SET_ROW0 = 1000;
@@ -117,10 +124,7 @@ namespace bp
 		struct stat st;
 		return stat(path.c_str(), &st) == 0 && S_ISREG(st.st_mode) ? (long long)st.st_size : -1;
 	}
-	inline const char* SHOW_SHORT[SHOWS] = {"Art", "Both", "Viz", "None"};	// MusicShow on a button
-	inline const char* LOOP_SHORT[LOOPS] = {"Off", "All", "One"};		// Loop on a button (beside its mark)
-	// the music key's modes (Ui::playMode): the Loops, then Shuffle (with any Loop)
-	constexpr int MODE_SHUFFLE = LOOPS;
+	inline const char* LOOP_SHORT[LOOPS] = {"Off", "All", "One"};		// Loop as a chip's value
 	inline const Ui::Glyph* const VIS_GLYPHS[VISUALIZERS] = {&G_VIS_BARS, &G_VIS_WAVES, &G_VIS_SPECTRUM, &G_VIS_CIRCLE, &G_VIS_PEAKS, &G_VIS_PEAKS_BANANA, &G_VIS_POCKET, &G_VIS_LED, &G_VIS_SYNTHWAVE, &G_VIS_BANANA, &G_VIS_CITY, &G_VIS_SCOPE, &G_VIS_HEART, &G_VIS_FIRE, &G_VIS_AURORA, &G_VIS_GARDEN, &G_VIS_VINYL, &G_VIS_SEA, &G_VIS_BUNNY, &G_VIS_BOBA, &G_VIS_JELLY, &G_VIS_MUSICBOX, &G_VIS_FISHBOWL, &G_VIS_DISCO, &G_VIS_DANCER, &G_VIS_CAT, &G_VIS_POPCORN, &G_VIS_WOBBLE, &G_VIS_TUBEMAN, &G_VIS_LONGCAT, &G_VIS_WASHER};
 	// a show mode's mark: the visualizer ones take the style's
 	inline const Ui::Glyph* showGlyph(int show, int vis)

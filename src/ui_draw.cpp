@@ -21,6 +21,7 @@
 #include "ui_home.h"
 #include "ui_reader.h"
 #include "ui_manga.h"
+#include "ui_player.h"
 
 namespace bp
 {
@@ -44,9 +45,42 @@ namespace bp
 		return out;
 	}
 
+	TTF_Font* Ui::font(int size) const
+	{
+		// the kit's sizes: opened the first time one is drawn (the three every page uses are opened by init)
+		if (!fonts[size])
+		{
+			const FontDef& d = FONT_DEFS[size];
+			fonts[size] = TTF_OpenFont((fontsDir + "/" + d.file).c_str(), (int)std::lround(d.units * sy));
+			if (!fonts[size])
+			{
+				SDL_Log("font %s: %s", d.file, TTF_GetError());
+				return fonts[F_SMALL];
+			}
+			int minx, maxx, miny, maxy, adv;
+			capHeight[size] = TTF_GlyphMetrics(fonts[size], 'H', &minx, &maxx, &miny, &maxy, &adv) == 0 ? maxy : TTF_FontAscent(fonts[size]) * 3 / 4;
+		}
+		return fonts[size];
+	}
+
+	TTF_Font* Ui::fallbackFont(size_t k, int size) const
+	{
+		TTF_Font*& f = fallbacks[k][size];
+		if (!f)
+		{
+			// (as init opens the first three: Fusion Pixel, a 12-pixel font, at whole multiples of 12)
+			int px = (int)std::lround(FONT_DEFS[size].units * sy);
+			if (k == 0) px = std::max(12, (int)std::lround(FONT_DEFS[size].units * sy / 12.0) * 12);
+			f = TTF_OpenFont((fontsDir + "/" + fallbackFiles[k]).c_str(), px);
+			if (!f) return fallbacks[k][F_SMALL];
+		}
+		return f;
+	}
+
 	std::vector<std::pair<TTF_Font*, std::string>> Ui::runs(const std::string& s, int size) const
 	{
-		return unligated(shapeRuns(s, size), fonts[size]);
+		// (only Pixelify Sans has the ligature to cut: Inter's sizes pass through)
+		return unligated(shapeRuns(s, size), FONT_DEFS[size].pixel ? font(size) : nullptr);
 	}
 
 	std::vector<std::pair<TTF_Font*, std::string>> Ui::shapeRuns(const std::string& s, int size) const
@@ -71,17 +105,18 @@ namespace bp
 				if (c.first >= 0x20 && !TTF_GlyphIsProvided32(f, c.first)) return false;
 			return true;
 		};
-		if (hasAll(fonts[size])) return {{fonts[size], s}};
-		for (auto& f : fallbacks)
-			if (hasAll(f[size])) return {{f[size], s}};
+		TTF_Font* own = font(size);
+		if (hasAll(own)) return {{own, s}};
+		for (size_t k = 0; k < fallbacks.size(); k++)
+			if (hasAll(fallbackFont(k, size))) return {{fallbackFont(k, size), s}};
 		// no one font has them all: Pixelify Sans where it can, else the first fallback that has the character
 		std::vector<std::pair<TTF_Font*, std::string>> out;
 		for (auto& c : chars)
 		{
-			TTF_Font* f = fonts[size];
+			TTF_Font* f = own;
 			if (c.first >= 0x20 && !TTF_GlyphIsProvided32(f, c.first))
-				for (auto& fb : fallbacks)
-					if (TTF_GlyphIsProvided32(fb[size], c.first)) { f = fb[size]; break; }
+				for (size_t k = 0; k < fallbacks.size(); k++)
+					if (TTF_GlyphIsProvided32(fallbackFont(k, size), c.first)) { f = fallbackFont(k, size); break; }
 			if (!out.empty() && out.back().first == f) out.back().second += c.second;
 			else out.push_back({f, c.second});
 		}
@@ -207,8 +242,8 @@ namespace bp
 		{
 			// in another font (Arabic, Thai, CJK...): its box's middle (their capitals aren't Pixelify's)
 			bool own = true;
-			for (auto& r : runs(str, size)) own = own && r.first == fonts[size];
-			py -= own ? TTF_FontAscent(fonts[size]) - capHeight[size] / 2 : h / 2;
+			for (auto& r : runs(str, size)) own = own && r.first == font(size);
+			py -= own ? TTF_FontAscent(font(size)) - capHeight[size] / 2 : h / 2;
 		}
 		if (align == 1) px -= w;
 		else if (align == 2) px -= w / 2;
@@ -364,14 +399,7 @@ namespace bp
 		if (manga->mangaCacheAt && SDL_GetTicks() - manga->mangaCacheAt >= QUIT_WINDOW_MS) manga->mangaCacheAt = 0;
 		if (manga->mangaJavaAt && SDL_GetTicks() - manga->mangaJavaAt >= QUIT_WINDOW_MS) manga->mangaJavaAt = 0;
 		if (!batteryAt || SDL_GetTicks() - batteryAt >= 10000) readPower();
-		// the lock held long enough: released (the finger still down presses nothing)
-		if (touchLocked && lockHoldAt && SDL_GetTicks() - lockHoldAt >= UNLOCK_HOLD_MS)
-		{
-			touchLocked = false;
-			lockHoldAt = 0;
-			swallowTouch = true;	// the button shows "Lock" again
-		}
-		if (!touchLocked) lockHoldAt = 0;
+		playerPage->lockTimer();	// the lock held long enough: released
 		if (!panel.on())
 		{
 			// black once (a computer has no backlight to switch off), then nothing drawn till it is on again
@@ -463,8 +491,7 @@ namespace bp
 		else if (page == Page::Playing) drawPlaying(p);
 		else if (page == Page::UpNext) drawUpNext(p);
 		else if (Area* a = area()) a->draw(p);
-		else if (page != Page::Main) drawTracks(p);
-		else drawMain(p);
+		else drawTracks(p);	// (Page::Main is an area: PlayerPage::draw)
 		if (miniUp) drawMiniBar(p);
 		browse->drawClipBar();
 		if (displayShown(p)) drawDisplay(p);
@@ -565,7 +592,7 @@ namespace bp
 			if (!c.empty())
 			{
 				if (cr - (int)std::lround(textWidth(c, 0) / sx) < minX) return;
-				drawTextMid(c, 0, touchLocked && page == Page::Main ? DIM : TEXT, cr, y + 8, 0, 1);
+				drawTextMid(c, 0, TEXT, cr, y + 8, 0, 1);
 				cr -= (int)std::lround(textWidth(c, 0) / sx) + 10;
 			}
 			if (markW(p) && cr - 18 >= minX)

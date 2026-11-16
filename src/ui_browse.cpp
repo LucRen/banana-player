@@ -17,6 +17,7 @@
 #endif
 #include "ui_internal.h"
 #include "ui_browse.h"
+#include "ui_player.h"
 #include "ui_playlists.h"
 #include "ui_home.h"
 #include "ui_docs.h"
@@ -116,7 +117,7 @@ namespace bp
 		menuReturnScroll = b.menuReturnScroll;
 		bgPlay = p.playing();
 		ctxOpen = false;
-		touchLocked = false;	// the lock is the video's
+		playerPage->unlock();	// the lock is the player's
 		if (bgPlay) landFlashUntil = SDL_GetTicks() + 900;	// the mini bar's edge lit a moment: it's still playing
 		dropTouch();
 		// played from a playlist's page: back to the list of playlists, the cursor on that one (the owner's rule: Back
@@ -152,7 +153,7 @@ namespace bp
 		if (roots.empty()) roots = browseRoots();	// (started with a file: the browser never read them)
 		// its row lit a moment, and the mini bar's edge: it's still playing, here
 		if (bgPlay) landFlashUntil = SDL_GetTicks() + 900;
-		touchLocked = false;	// the lock is the video's
+		playerPage->unlock();	// the lock is the player's
 		dropTouch();
 		if (inMenu && menuTab == TAB_PLAYING) inMenu = false;	// (its tab is what played: gone with it)
 		if (!showAfterLeave.empty())
@@ -205,6 +206,7 @@ namespace bp
 		panTouch = panMoved = listTouch = browse->homeView->homeTouch = false;
 		slideDrop();
 		pressedBtn = browse->homeView->homePress = -1;
+		playerPage->dropTouch();
 		flickAt = tapAt = holdAt = browse->homeView->homeHoldAt = 0;
 	}
 
@@ -1633,7 +1635,7 @@ namespace bp
 	void Ui::showPlayer()
 	{
 		if (!onPlayer) playerBack = {true, page, inMenu, menuTab, setGroup, cursor, scroll, menuReturnDir, menuReturnCursor, menuReturnScroll, browse->browseDir, browse->browseTab};
-		if (!onPlayer) listPulseArm = true;	// (a playlist's song: the List key glows twice, drawMain)
+		if (!onPlayer) playerPage->listPulseArm = true;	// (a playlist's song: the List key glows twice, PlayerPage::draw)
 		onPlayer = true;
 		page = Page::Main;
 		inMenu = false;
