@@ -20,6 +20,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <dirent.h>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -643,6 +644,7 @@ namespace bp
 		const std::string& path = playlist[current];
 		std::string fileOpts = pendingOpts;
 		if (isNet) fileOpts += netFileOptions(path);
+		else if (!isAudio && !isPhoto) fileOpts += localSubOptions(path);
 		// (the file's options take loadfile's index argument before them: -1, "replace" has no place)
 		const char* cmd[] = {"loadfile", path.c_str(), "replace", "-1", fileOpts.c_str(), nullptr};
 		mpv_command_async(mpv, LOAD_REPLY + (uint64_t)loadSerial, cmd);
@@ -717,6 +719,102 @@ namespace bp
 		fprintf(stderr, "audio: the output opened again (%s)\n", why);
 		const char* cmd[] = {"ao-reload", nullptr};
 		mpv_command_async(mpv, 0, cmd);
+	}
+
+	namespace
+	{
+		// UTF-8 already (or UTF-16 with its mark, which mpv reads itself): nothing to convert
+		bool subtitleIsUnicode(const std::string& s)
+		{
+			if (s.size() >= 2 && (((uint8_t)s[0] == 0xFF && (uint8_t)s[1] == 0xFE) || ((uint8_t)s[0] == 0xFE && (uint8_t)s[1] == 0xFF)))
+				return true;
+			for (size_t i = 0; i < s.size();)
+			{
+				uint8_t c = (uint8_t)s[i];
+				if (c < 0x80) { i++; continue; }
+				int len = (c >> 5) == 6 ? 2 : (c >> 4) == 14 ? 3 : (c >> 3) == 30 ? 4 : 0;
+				if (!len || i + len > s.size()) return false;
+				for (int k = 1; k < len; k++)
+					if (((uint8_t)s[i + k] >> 6) != 2) return false;
+				i += len;
+			}
+			return true;
+		}
+
+		// "movie.cs.srt" for "movie.mkv": "cs", the language the converter weighs its guess by ("" none)
+		std::string subtitleLang(const std::string& videoName, const std::string& subName)
+		{
+			size_t vd = videoName.rfind('.'), sd = subName.rfind('.');
+			std::string vb = videoName.substr(0, vd), sb = subName.substr(0, sd);
+			if (sb.size() <= vb.size() + 1 || sb.compare(0, vb.size(), vb) != 0) return "";
+			std::string tag = sb.substr(sb.rfind('.') + 1);
+			return tag.size() >= 2 && tag.size() <= 3 ? tag : "";
+		}
+	}
+
+	std::string Player::localSubOptions(const std::string& path) const
+	{
+		if (opts.stateDir.empty()) return "";
+		size_t slash = path.rfind('/');
+		if (slash == std::string::npos) return "";
+		std::string dir = path.substr(0, slash), name = path.substr(slash + 1);
+		std::vector<std::string> names;
+		if (DIR* d = opendir(dir.c_str()))
+		{
+			while (dirent* e = readdir(d)) names.push_back(e->d_name);
+			closedir(d);
+		}
+		std::vector<std::string> subs = subtitleFilesFor(name, names);
+		if (subs.empty()) return "";
+		// the copies of the file before this one go: one video's at a time (mpv has read what it took)
+		std::string out = opts.stateDir + "/subs-utf8";
+		if (DIR* d = opendir(out.c_str()))
+		{
+			while (dirent* e = readdir(d))
+				if (e->d_name[0] != '.') unlink((out + "/" + e->d_name).c_str());
+			closedir(d);
+		}
+		std::vector<std::string> files;
+		bool converted = false;
+		for (auto& n : subs)
+		{
+			std::string full = dir + "/" + n, ext = n.substr(n.rfind('.') + 1);
+			for (auto& c : ext) c = (char)tolower((unsigned char)c);
+			struct stat st;
+			bool text = ext == "srt" || ext == "ass" || ext == "ssa" || ext == "vtt";
+			// (a text file, and not a film's worth: 8 MB is far past any real one)
+			if (!text || stat(full.c_str(), &st) != 0 || st.st_size > 8 * 1024 * 1024)
+			{
+				files.push_back(full);
+				continue;
+			}
+			std::string bytes = readFile(full);
+			if (subtitleIsUnicode(bytes))
+			{
+				files.push_back(full);
+				continue;
+			}
+			// (the copy keeps the file's name: the track's name in the Subtitles list stays the same)
+			mkdir(out.c_str(), 0755);
+			std::string copy = out + "/" + n;
+			if (!writeFileAtomic(copy, subtitleTextToUtf8(bytes, subtitleLang(name, n))))
+			{
+				files.push_back(full);
+				continue;
+			}
+			fprintf(stderr, "subtitles: %s converted to UTF-8 for mpv\n", n.c_str());
+			files.push_back(copy);
+			converted = true;
+		}
+		if (!converted) return "";
+		// mpv finds none itself (it would add the old code page's too): these, the copies in place of the originals
+		std::string v;
+		for (auto& f : files)
+		{
+			if (!v.empty()) v += ':';
+			for (char c : f) v += c == ':' ? std::string("\\:") : std::string(1, c);
+		}
+		return ",sub-auto=no,sub-files=%" + std::to_string(v.size()) + "%" + v;
 	}
 
 	std::string Player::netFileOptions(const std::string& path) const

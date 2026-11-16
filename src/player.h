@@ -340,6 +340,9 @@ namespace bp
 		const std::vector<std::string>& namesIn(const std::string& dir) const;
 		void keepNames(const std::string& dir, const std::vector<std::string>& names);
 		std::string netFileOptions(const std::string& path) const;	// loadfile's options for a network file
+		// a local video's subtitle files in an old code page, as UTF-8 copies mpv is given instead (mpv's own conversion
+		// goes through iconv, which has no code pages on BananaOS: issue #12); "" when every one is UTF-8 already
+		std::string localSubOptions(const std::string& path) const;
 		void refreshTracks(mpv_node* trackList);
 		void clearChapters();
 		int cardMs = 0;
