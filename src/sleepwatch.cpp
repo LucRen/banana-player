@@ -110,10 +110,16 @@ namespace bp
 	// the Bluetooth headphones and the USB sound cards: what's there now against what was (first: only taken)
 	void SleepWatch::lookAtSound(bool first)
 	{
+		// connected: the bluetooth script's bt/audio, or BananaOS's route still through bluez-alsa. Both are files written
+		// again from time to time (bt/audio replaced, the route renamed over), and a look between the two writes saw the
+		// headphones gone while they played on: gone only when neither says so at two looks in a row (a second apart)
 		struct stat st;
-		bool bt = stat((runDir() + "/bt/audio").c_str(), &st) == 0;
-		if (!first && btIn && !bt && onUnplug) onUnplug("Bluetooth headphones disconnected");
-		btIn = bt;
+		bool bt = stat((runDir() + "/bt/audio").c_str(), &st) == 0 ||
+				  slurp((runDir() + "/asound.conf").c_str()).find("bluealsa") != std::string::npos;
+		btGone = bt ? 0 : btGone + 1;
+		if (!first && btIn && btGone == 2 && onUnplug) onUnplug("Bluetooth headphones disconnected");
+		if (bt) btIn = true;
+		else if (btGone >= 2) btIn = false;
 		const char* cardsPath = getenv("BP_ASOUND_CARDS");
 		std::vector<int> usb = usbSoundCards(slurp(cardsPath ? cardsPath : "/proc/asound/cards"));
 		if (!first && onUnplug)

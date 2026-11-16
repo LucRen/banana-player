@@ -1608,9 +1608,15 @@ int main(int argc, char** argv)
 			// route to /run/banana/asound.conf; a device already open stays where it was, and each player is to watch the
 			// file and open its sound again (bananad.c, audio_route). A new file each time (written and renamed): its
 			// inode tells. Looked at twice a second; absent off the handheld
+			// The file is written again (renamed over) more often than the sound moves: with Bluetooth headphones every
+			// few seconds, the route the same. Opening the output again each time cut the sound, and in the middle of a
+			// file opening left it with none (a video then waited for ever): only a route that says something else counts,
+			// and not while a file opens (taken once it's open)
 			{
 				static Uint32 routeAt = 0;
 				static ino_t routeIno = 0;
+				static std::string routeText;
+				static bool routeMoved = false;
 				if (now - routeAt >= 500)
 				{
 					routeAt = now;
@@ -1618,8 +1624,23 @@ int main(int argc, char** argv)
 					ino_t ino = stat("/run/banana/asound.conf", &rs) == 0 ? rs.st_ino : 0;
 					if (ino != routeIno)
 					{
-						if (routeIno && ino) player.reloadAudio("BananaOS moved the sound: headphones or Bluetooth");
+						std::string text;
+						if (ino)
+							if (FILE* f = fopen("/run/banana/asound.conf", "r"))
+							{
+								char buf[1024];
+								size_t n = fread(buf, 1, sizeof buf, f);
+								fclose(f);
+								text.assign(buf, n);
+							}
+						if (routeIno && ino && text != routeText) routeMoved = true;
 						routeIno = ino;
+						if (ino) routeText = text;
+					}
+					if (routeMoved && !player.loading())
+					{
+						routeMoved = false;
+						player.reloadAudio("BananaOS moved the sound: headphones or Bluetooth");
 					}
 				}
 			}
