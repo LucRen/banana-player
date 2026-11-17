@@ -103,8 +103,8 @@ video's list while the playing screen was up; a song's list ending keeps the son
   Tap the bar to go back to the playing screen; tap the mark on its left to play or pause and stay where you are; hold
   the bar for its menu: **Now playing**, **Play** / **Pause**, **Like**, **Add to playlist…**, **Show in folder**,
   **Stop**. It's hidden while you select files, type, fill in a connection, with a popup menu or a sheet over the
-  page, and on the player's own screens (the playing screen, Up next, Info) and START's Playing,
-  About and Exit tabs; Settings and its groups, Sound and the web dashboard have it.
+  page, and on the player's own screens (the playing screen, Up next, Info) and START's Playing and Exit tabs (About is
+  the last Settings group now); Settings and its groups, Sound and the web dashboard have it.
 - **The header** shows three small yellow bars left of the clock while something plays behind the list (dim and still
   when it's paused).
 - **The playing file's row** carries a chip: **Playing**, **Paused** or **In browser** (the web dashboard plays it). Its card on Home says **Now** with its time and bar running. **A** on that row or card goes back to it,
@@ -227,10 +227,10 @@ Like a song or a video to keep it in **Liked**, a playlist of its own. Photos an
 | **LEFT / RIGHT** | Back 5 seconds / forward 10 seconds (hold to keep going); the **5 s** and **10 s** keys either side of Play do the same by touch |
 | **L / R** | Previous (5 s or more in: back to the start) / next file in the folder |
 | **L2 / R2** | Previous / next chapter (**F + L2** is still the screenshot) |
-| **DOWN / UP** | **DOWN** steps onto the **Next** line (**A** opens the list); **UP** or **B** goes back to the playing keys. The chips are touch only: the D-pad never lands on them. They no longer change the speed: that is the **Speed** chip |
+| **UP / DOWN** | Nothing: the Next line is a tap, and the chips are touch only. (They no longer change the speed; that is the **Speed** chip or View's Speed tab) |
 | **X** | **More**: a sheet with **Lock touch**, **Screen off**, **Info** and **Stop** (in red) as its first four keys, then **Like**, **Add to playlist…**, **Show in folder** and, while a dashboard page that can play is open, **Play on…**. The D-pad moves, **A** chooses, **X** or **B** closes |
 | **Y** | **List** (the **List** key): one sheet with **Up next** (the folder or playlist that plays, in its own order, the one playing marked **Now**) and **Chapters** (every chapter with its start; a file without chapters has only Up next), with **Shuffle**'s switch and **Repeat** (Off / All / One) in its header. **L / R** step the tabs, **UP / DOWN** move, **LEFT / RIGHT** page, **A** plays from the row, **L2 / R2** jump a chapter with the sheet open, **Y** or **B** closes |
-| **SELECT** | **View**, a sheet over the controls. A video: **Subtitles** (Off, the file's tracks, and **Subtitle style…**), **Audio**, **Picture** (Fit, Fill, Stretch) and **Speed** (0.5x to 2.5x). A song: **Display** (what the top screen shows, and the visualizer's style), **Equalizer**, **Effects** and **Speed**. **L / R** switch tabs, **UP / DOWN** move, **LEFT / RIGHT** page a long list, **A** chooses, **SELECT** or **B** closes (on a song's Display, **SELECT** steps the Show mode); it opens on the tab you used last |
+| **SELECT** | **View**, a sheet over the controls. A video: **Subtitles** (Off, the file's tracks, and **Subtitle style…**), **Audio**, **Picture** (Fit, Fill, Stretch) and **Speed** (0.5x to 2.5x). A song: **Display** (the four Show modes and a **Visualizer style** row), **Visualizer** (the twenty styles as a grid), **Equalizer**, **Effects** and **Speed**. **L / R** switch tabs, **UP / DOWN** move, **LEFT / RIGHT** page a long list, **A** chooses, **SELECT** or **B** closes (on a song's Display, **SELECT** steps the Show mode); it opens on the tab you used last |
 | **START** | Menu, on its **Playing** tab: Like, Add to playlist…, Show in folder, Info, Stop |
 | **L3** (press the stick, RG DS Plus) | Like / Unlike what plays |
 | **B** (or **Back**) | Back to the list: it keeps playing (see [Playing while you browse](#playing-while-you-browse)) |
@@ -251,11 +251,13 @@ Like a song or a video to keep it in **Liked**, a playlist of its own. Photos an
 - **Buttons:** they act when you lift your finger, so slide off one to cancel.
 - **The transport row:** **Prev**, **5 s** back, **Play / Pause** (the wide yellow key), **10 s** forward, **Next**.
 - **The second row**, the same on a video and a song: **Like**, **Playlist** (Add to playlist…), **List** (Up next,
-  **Y**) and **View** (**SELECT**: a video's tracks and speed, or a song's display, equalizer and effects).
+  **Y**) and **Stop** (at the right edge, in plain ink: it stops everywhere, the place kept; **X** › **More** has
+  the same Stop in red). **SELECT** opens **View** (a video's tracks and speed, or a song's display, visualizer,
+  equalizer and effects); the hint bar says **SELECT View**.
 - **The chips** under them say how it is set, and a tap changes or opens each (they are touch only: the D-pad never
   lands on one): on a video **Subtitles**, **Audio** and **Picture** (each opens its tab of View), **Speed** (View's
   Speed tab) and **Repeat**; on a song **Sound** (View's Equalizer tab: the preset and effect), **Top screen** (View's
-  Display tab), **Speed** (View's Speed tab) and **Shuffle**.
+  Display tab; its value is the Show mode's name only, never the style), **Speed** (View's Speed tab) and **Shuffle**.
   A chip whose value isn't the normal one is yellow with a dot (a speed that isn't 1x, Repeat all or one, Shuffle, Fill
   or Stretch, an equalizer or effect left on), so it can't go unnoticed. **Speed** opens View's Speed tab on both; the
   speed is set there.
@@ -265,8 +267,8 @@ Like a song or a video to keep it in **Liked**, a playlist of its own. Photos an
   this** at the end of a list played in order. A tap opens the List sheet on Up next, as **Y** does.
 - **Chapters:** tap the chapter line above the progress bar (`2 / 8 · its name`) for the List sheet on Chapters.
 - **Lists:** tap to choose, drag to scroll.
-- **Back to the list:** tap **<** (top left): it keeps playing. **Stop** is in **More** (**⋯**, top right, or **X**),
-  in red: it stops it, where **<** and **B** only leave the player.
+- **Back to the list:** tap **<** (top left): it keeps playing. **Stop** is the second row's fourth key, at the right
+  (and in **More**, **⋯** or **X**, in red): it stops it, where **<** and **B** only leave the player.
 - **Lock touch**, **Screen off** and **Info** are in **More** too. Locked, the controls go dark under one large lock:
   hold it for a second to unlock (the buttons still work, and **X** → **Unlock touch** unlocks as well).
 - **<** is at the top left of every page and does what **B** does: in the file list it goes up a folder, on a page or
@@ -340,16 +342,16 @@ What's playing can't be moved, renamed or deleted.
 
 ### The menu (START)
 
-Two tabs, three while a song or video plays. Switch with **L/R** or a tap; **B**, **START** or **<** closes it. (What
-you played last is on Home.)
+Two tabs while a song or video plays, **Playing** (the tab it opens on) and **Settings**; with nothing playing, START
+opens Settings itself, under its own header. **L/R** or a tap switch the tabs on Playing; **B**, **START** or **<**
+closes the menu. (What you played last is on Home.)
 
 - **Playing** (only while a song or video plays, and the tab it opens on, from the lists too): **Now playing** (from
   the lists: back to the playing screen), **Like** / **Liked**, **Add to playlist…** (with the playlists it's already
   in), **Play on** (while a [web dashboard](#web-dashboard) page that can play is open; it says where it plays now,
   see [Play on](#play-on-from-the-handheld)), **Show in folder**, **Info** and **Stop** (the place is kept). See
   [Like and Add to playlist](#like-and-add-to-playlist).
-- **Settings:** see [Settings](#settings).
-- **About:** version, licence and the libraries it uses.
+- **Settings:** see [Settings](#settings). **About** is its last group, a tile.
 
 To quit, use **Quit Banana Player** in quick settings (**F**), or **F + START** from anywhere.
 
@@ -519,9 +521,11 @@ On a video, **SELECT** › **View** › **Picture**: **A** chooses, the one in u
 
 Songs show their title, artist and album on the top screen. While a song plays:
 
-- **SELECT: Display.** A popup on the bottom screen with two rows. **Show** is **Album art** (default),
-  **Art + visualizer** (the visualizer over the bottom of the art), **Visualizer**, or **None** (just the title: the
-  lightest on the battery). **Style** is the visualizer's look, twenty of them: **Peaks** (default: 64 yellow bars, bass on
+- **SELECT: View › Display.** Four rows, one always chosen: **Album art only** (default),
+  **Art + visualizer** (the visualizer over the bottom of the art), **Visualizer only**, or **None** (just the title:
+  the lightest on the battery). A fifth row, **Visualizer style**, names the style in use and opens View's
+  **Visualizer** tab; with Album art only or None it reads "<style> · not shown" and can still be changed. The
+  **Visualizer** tab is the style grid, twenty of them: **Peaks** (default: 64 yellow bars, bass on
   the left, each with a cream cap that stays at the bar's highest point and slowly falls back, over a faint grid),
   **Circle** (bars round a glowing ring, cyan to pink; with Art + visualizer, the album art sits inside the ring),
   **Pocket console** (Peaks on an old handheld's screen: 15 bars of chunky dots in four greens, with falling caps;
@@ -543,9 +547,10 @@ Songs show their title, artist and album on the top screen. While a song plays:
   laid over the bottom of the art, which shows through around it. Coral Peaks, Hi-fi LED, Synthwave, Banana stack,
   Heartbeat, Oscilloscope, Turntable and Disco ball (earlier styles), and Bars, Waves and Spectrum, are retired: a
   saved choice of one of them becomes Peaks. The top screen
-  changes as you choose. In the popup, the **D-pad** changes a setting, **SELECT** goes to the next Show mode, and
-  **B** closes it. The Style row is greyed out for Album art and None, which don't show a visualizer, but it can still
-  be changed. A song without art shows its title alone on Album art, and the visualizer on Art + visualizer. Album art
+  changes as you choose. On Display, **SELECT** steps the Show mode (Album art only → Art + visualizer → Visualizer
+  only → None), **A** sets the row, **B** closes. On Visualizer, the **D-pad** moves over the grid and the style under
+  it is on the top screen at once, **A** keeps it, **Y** shows it when the mode has no visualizer, **B** closes. A song
+  without art shows its title alone on Album art only, and the visualizer on Art + visualizer. Album art
   can be inside the song file or a `cover.jpg` in the same folder.
 - **Y: List**, as on a video: **Up next**, and **Chapters** when the song or audiobook has them (**L2** / **R2** jump
   from either tab); a tap on the chapter line above the progress bar opens its **Chapters** tab. **Shuffle**'s switch
@@ -560,7 +565,7 @@ Songs show their title, artist and album on the top screen. While a song plays:
   from the web, and after a restart. The web sets them separately. They apply to videos as to songs, from the same
   List sheet (a video's **Repeat** chip opens it; a song's **Shuffle** chip turns Shuffle on or off).
 
-Settings › Music has the same two choices as **Music display** and **Visualizer**, and **Song info on top** (off by
+Settings › Music has the same two choices as **Music display** and **Visualizer style**, and **Song info on top** (off by
 default): the song's title, artist and album over the top screen's picture, each line cut with "…" if it's too long.
 With it off the picture shows alone; **None** still shows the title, since that's all it shows. **Visualizer frame
 rate** (30, 45 or 60 fps; 45 by default) is how often the styles drawn at 60 (Pocket console and the pixel-art scenes)
@@ -626,8 +631,9 @@ All three are remembered.
 ## Settings
 
 Settings opens on ten tiles (Playback, Subtitles, Music & sound, Photos, Reading, Files & history, Power & screens, Web dashboard, Updates and About), two to a row: move with the D-pad (**UP/DOWN** a row, **LEFT/RIGHT** a tile),
-open one with **A** or a tap, and **B** goes back to them. In a group, **UP/DOWN** chooses a row, **LEFT/RIGHT** changes it in
-place, **L2** goes to the group before it and **R2** to the one after (or tap the names either side of its title), and the
+open one with **A** or a tap, and **B** goes back to them. A group has the kit's header: the back key, its title, a
+crumb (**Settings · 3 of 10**) and its neighbours named either side of **L2** / **R2** at the right (those keys step the
+groups). In a group, **UP/DOWN** chooses a row, **LEFT/RIGHT** changes it in place, and the
 line above the bottom says what the setting under the cursor does. **Subtitle style...** at the end of View's Subtitles tab
 opens the Subtitles group; **B** there goes back to that sheet, on Subtitles.
 
@@ -639,7 +645,7 @@ opens the Subtitles group; **B** there goes back to that sheet, on Subtitles.
 | | Max volume | 120% | How far the volume keys go on the handheld: 100%, 120% or 150%. Past 100% (the handheld's own top) the player turns the sound up itself, 5% a press, for films mixed quiet; the volume card marks 100% and shows the rest in yellow, red past 120%, and the first time past 120% a warning says it can damage your hearing and the speakers. Down takes that off first. It starts again at 100% each time the player opens. The web dashboard's handheld volume goes as far; a browser playing the sound itself keeps its own 0–100%. Two volumes, each its own: while a browser plays the sound, the handheld's volume keys turn that browser's volume (the card says **Browser volume**) and leave the handheld's as it was; the dashboard's volume shows both then (**Browser volume**, **Handheld volume**), and moving one never moves the other |
 | | Button hotkeys | On | Off: buttons can't pause, skip or close while something plays (touch still can) |
 | **Subtitles** | Font, size, colour, border, border colour, text encoding | Inter, Medium, White, Normal, Black, Auto | How plain subtitles (SRT, VTT…) look, with a live preview. Styled subtitles (ASS/SSA) keep their own look. **Text encoding** is how a subtitle file's letters are read, on the handheld and in the browser: Auto reads UTF-8, and guesses an older code page (a file named for its language, like `movie.sl.srt`, tries that language's first); if letters like š, č or ж still come out wrong, pick the file's: Central European (Windows-1250, ISO-8859-2, DOS 852), Cyrillic (Windows-1251, KOI8-R), Greek, Turkish, Baltic, Hebrew, Arabic or Western. A subtitle showing changes at once. |
-| **Music & sound** | Music display, Visualizer, Visualizer frame rate, Song info on top | Album art, Peaks Banana, 45 fps, On | What the top screen shows for music (also View › Display while a song plays). **Sound** opens the [Sound page](#sound-equalizer-and-effects): the equalizer and the effects |
+| **Music & sound** | Music display, Visualizer style, Visualizer frame rate, Song info on top | Album art only, Peaks, 45 fps, On | What the top screen shows for music (also View › Display while a song plays), and which visualizer (View › Visualizer). **Sound** opens the [Sound page](#sound-equalizer-and-effects): the equalizer and the effects |
 | **Photos** | Keep zoom between photos | On | The next photo opens at the same zoom and place. Off: each opens whole |
 | | Pan area | Left | Which side of the bottom screen the photo's pan area is on |
 | | Drag moves | The box | A drag in the pan area moves the box over the small photo, or the photo itself (like a phone) |
@@ -664,7 +670,7 @@ opens the Subtitles group; **B** there goes back to that sheet, on Subtitles.
 | | Check for updates | | Looks now, and shows what it found |
 | | Update to … | | Downloads the new version (shown when there's one), then **Restart now** |
 | **Web dashboard** | Turn on or off, New PIN | Off | Control the player and manage files and playlists from a phone or computer on your Wi-Fi. See [Web dashboard](#web-dashboard). While incognito is on the tile says **Off in incognito** and the page offers **Leave incognito** instead |
-| **About** | Version, licence, warranty, the manga-sources note, the libraries | | The same page START's About tab shows |
+| **About** | Version, licence, warranty, the manga-sources note, the libraries, and the support line | | The last group (a tile; there is no About tab): at its foot, under a rule, **Banana Player is free. If you’d like to support it:** with a static QR (nothing is fetched or opened by the handheld) and **ko-fi.com/tonysong** written out. Nothing there is a key |
 
 ## Web dashboard
 
@@ -712,7 +718,10 @@ that was playing stops, its place kept on the handheld. With a browser signed in
 
 ### In the browser
 
-Four sections: **Home**, **Playing**, **Files** and **Playlists**. The dashboard opens on **Home**. On a phone they're the tab bar at the bottom, with a small
+Four sections: **Home**, **Playing**, **Files** and **Playlists**. The dashboard opens on **Home**. At the foot of Home,
+one dim line says the version: **Banana Player 0.7.27 · Source · Support Banana Player**, the last two plain links
+opening in a new tab (the repository, and ko-fi.com/tonysong; nothing is loaded from there and there is no QR on the
+page). On a phone they're the tab bar at the bottom, with a small
 player floating over it; on a tablet an icon rail on the left and a player bar at the bottom; on a computer a sidebar
 (the sections, a shortcut list of playlists, and a card with the handheld's battery, free space and **Sign out**) and
 the player bar. On a phone, **Sign out** is behind the handheld button at the top right of Home, Files and Playlists.

@@ -114,3 +114,96 @@ Shots are under `redesign-shots/rest/` (not committed): `player-header-bottom.pn
   as designed).
 - Opening a **folder** directly (rather than a file) fell back to the browser in this build (`Failed to recognize
   file format`) during these runs; none of these commits touch file opening, and the shots use a file. Not chased.
+
+## 5. The four follow-ups (2026-11-17, later)
+
+The brief after the rest: the Settings header, Stop on the player's face, Display and Visualizer apart, and the
+support link.
+
+| Commit | What |
+|---|---|
+| `7b454df` | Settings/About: the kit's header on the group list and every group page; the old tabs (and About as a tab) gone |
+| `33f3bb7` | The player's row: Like · Playlist · List · Stop; SELECT keeps View; UP / DOWN do nothing |
+| `73fe8c6` | A song's View: Display and Visualizer are two tabs and two choices; the style grid; the Top screen chip names the mode only |
+| `2bf1926` | About's support line and static QR, shipped in the bundle; the dashboard's Home foot |
+
+### 1. Settings header
+
+`SettingsPage::draw` and `Ui::drawInfo` (About) fill a `Kit::Header` from `lay::playerLayout(0)`: the back key, the
+title, a crumb ("Banana Player 0.7.27" on the tiles; "Settings · 3 of 10" in a group) and, in a group, the neighbours'
+names either side of L2 / R2 in the right slot. `Kit::header` now takes the panel's right margin when there is no More
+(it used the More key's left edge, which would have left the status marks 50 units short). The old tab strip is not
+drawn on `Page::Settings` or `Page::About`, L / R do not switch menu tabs there, and `menuTabs` no longer offers About
+(About is the last group; `TAB_ABOUT` is gone). B on About goes to the tiles and L2 / R2 step the groups, always: the
+old `menuTab != TAB_ABOUT` cases are gone.
+
+The tiles start at 100 and a group's rows at 100 (`SET_TILE_TOP`, `SET_ROW_TOP`); About shows nine rows at a time
+(`ABOUT_Y`, `ABOUT_SHOWN`) and keeps its foot clear. The group pages' pressable neighbour boxes are gone (with
+`GROUP_PREV` / `GROUP_NEXT` and their ids). One bug fixed on the way: `SettingsPage::key` clamped the settings list's
+scroll after opening a group, so About opened scrolled to row 4; it now clamps only while a row group is on screen.
+
+### 2. The player's row
+
+The second row is Like · Playlist · List · Stop. Stop is the fourth key, at the right edge, in plain ink (Kit's normal
+key, not Danger), and a tap sets `ui.stopPressed`, the same flag More's red Stop tile sets (that tile stays). SELECT
+still opens View, and the hint bar says **SELECT View**. UP / DOWN return at once in `PlayerPage::key`; the Next line
+has no focus (a tap still opens its list). `lay::PlayerFocus`, `playerFocusMove` and the area's `focus` are removed,
+and `T_VIEW` became `T_STOP`.
+
+### 3. Display and the Visualizer style
+
+A song's `SongViewSheet` has five tabs: Display, Visualizer, Equalizer, Effects, Speed. Display is the four Show modes
+as radio rows, with the spec's names (Album art only, Art + visualizer, Visualizer only, None) and its notes, then a
+**Visualizer style** row (the style's glyph, its name, a chevron) that opens the Visualizer tab; while the mode shows no
+visualizer it reads "<style> · not shown". The Visualizer tab is a 5 × 4 grid of the twenty offered styles
+(`lay::gridCells`, a new pure function tested in `testKitLayout`); the style under the cursor is applied at once
+(`p.setSettings`, the 500 ms graph debounce keeps it bearable), A keeps it, and a notice over the grid says "Not on the
+top screen now · Top screen shows: Album art only. Your choice is kept." with **Show it** (Y) when the mode shows none.
+The chip indices moved (Sound → Equalizer 2, Speed 4). The Top screen chip's value is `musicShowLabel(show)` only.
+`SHOW_LABELS` is the spec's four; the offered Peaks Banana style is labelled "Peaks" and Popcorn machine "Popcorn"
+(`VIS_LABELS`), and Settings' row is **Visualizer style**.
+
+### 4. Support
+
+About's foot (`Ui::drawAboutSupport`) draws a rule, the static QR (`packaging/support/kofi-qr.png`, committed), the
+sentence "Banana Player is free. If you’d like to support it:" (U+2019) and `ko-fi.com/tonysong`. The image goes through
+`decodePageFile` into a cached texture, first from the fonts' folder one up (the bundle's
+`share/banana-player/kofi-qr.png`) and then from the source tree (`fontsDir/../../packaging/support/`); `build-bundle.sh`
+copies it beside `icon.png`. Nothing on About is a key.
+
+The dashboard's state JSON gains `version` (`BP_VERSION`, in `snapshotJson`), and `web/js/home.js` puts one dim
+`.hm-foot` line at the foot of Home: `Banana Player <version> · Source · Support Banana Player`; Source and Support are
+`<a target="_blank" rel="noopener">` to the repository and `https://ko-fi.com/tonysong`. `web/style.css` has the rule
+and the links' dim colour.
+
+### Checked
+
+Desktop build (macOS), `./build/core-test` ends `core: all passed` (the grid cells' test and the "Peaks" label are
+new), `cmake --build build --target manga-check` prints `manga: all passed`. Scripted runs with generated media only
+(testsrc video + quiet sine; a 75 s sine MP3 with a generated cover and tags):
+
+- Settings: the group list (kit header, no tabs), Playback, Music & sound ("Music display", "Visualizer style": Peaks);
+  About with the QR, the rule, the sentence and the address;
+- a video: the row Like · Playlist · List · Stop, the hint bar SELECT View; Down / Up change nothing; SELECT opens View;
+- a song: the row; the Top screen chip "Album art only"; View › Display (four radio rows, "Peaks · not shown", the
+  style row); **R** to Visualizer (the notice, Show it (Y), the 20-style grid, Peaks outlined); Y shows the visualizer
+  (the notice goes, the grid grows); L back to Display ("Peaks", no "not shown");
+- the dashboard's `/api/state` answered `version: 0.7.27` after a login; `node --check web/js/home.js` passes.
+
+Shots under `redesign-shots/q4/` (not committed): `settings-bottom.png`, `music-group-bottom.png`, `about-bottom.png`,
+`video-bottom.png`, `song-bottom.png`, `song-display-bottom.png`, `song-viz-bottom.png`, plus
+`song-display-shown-bottom.png` and `song-viz-shown-bottom.png` for the after-Y states.
+
+The arm64 bundle: `packaging/build-bundle.sh --quick` (Docker) was run once at the end; it compiles the arm64 build.
+
+### Not verified
+
+- **The dashboard's Home foot in a browser**: the API's version was read and the module is syntactically valid, but
+  headless Chrome against the running server (with `#pin=`) did not finish while the page's SSE stream was open, so no
+  screenshot of the line was taken. The CSS is two rules in `web/style.css`.
+- The handheld's panel at one pixel a unit: the 84-unit QR, the 12-unit support sentence, the 20 grid labels at 12.5
+  and the settings header's crumb are the first things to look at.
+- Scanning the QR with a phone (the image is the address; it was not regenerated here).
+- A real finger on the Visualizer grid (the taps and the keys were driven; the grid's cells are the layout's).
+
+
