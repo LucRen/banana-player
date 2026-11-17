@@ -253,9 +253,8 @@ namespace bp
 			break;
 		case MP_ABOUT:
 			// the last group of Settings: L2 / R2 step its neighbours and B goes back to the tiles
+			openAbout(p);	// (its lines, read now; page = About, scroll 0)
 			setGroup = GROUP_ABOUT;
-			page = Page::About;
-			cursor = scroll = 0;
 			break;
 		default: break;
 		}
@@ -1085,7 +1084,7 @@ namespace bp
 		if (page == Page::About)
 		{
 			drawAboutSupport();
-			drawHints({{"UP/DOWN", "Scroll"}, {"L2/R2", "Group"}, {"B", "Back"}});
+			kit->hints({{"UP/DOWN", "Scroll"}, {"L2/R2", "Group"}, {"B", "Back"}});
 			return;
 		}
 		if (inMenu) drawHints({{"UP/DOWN", "Scroll"}, {"B", "Close"}, {"L/R", "Tabs"}});
