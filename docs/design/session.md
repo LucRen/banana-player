@@ -205,7 +205,8 @@ New route: `POST /api/intent` (JSON `{origin, seq, basis, type, …}`) → `{ok,
   `PhotoPark`/`PhotoResume`; the reducer keeps them (tested, and harmless), and `parked` stays false in practice.
   docs/notes/2026-11-10-photos-over-media.md.
 - **End of list**: `Ended` on the last item, no loop → a **song** stays loaded, back at its start (0:00), paused, the
-  playing screen still showing it (A, the power key or a page's Play plays it again from there; §16). A **video** as
+  playing screen still showing it (A, the power key or a page's Play plays it again from there; §16); a song with one
+  after it goes on to it. A **video** as
   before: `index = -1`, `playing = false`, `Note "Finished"` / `PageToast "End of <source>"`, the last item and place
   to Recent (`saveResume`). Loop one: `seekN++`. Loop all: wrap. The list is kept as `ended` for the pages to offer
   again (§13) — videos, and a list the browser couldn't play.
@@ -241,7 +242,7 @@ New route: `POST /api/intent` (JSON `{origin, seq, basis, type, …}`) → `{ok,
 | I13 | `order` (Shuffle's hidden play order) non-empty `⇔ shuffle && index ≥ 0`, and then each place of `queue` once | made by `Open` / `SetShuffle` on, `Ended`/`Step` past a round with Loop all (a new one); cleared by Shuffle off and a stop; `FileGone` and `Requeue` renumber it (§14) |
 | I14 | `goneBye ⇒ goneAt ≠ 0 && goneTab` non-empty | set by `TabGone` with `on` (the closing page's goodbye: grace `TAB_BYE_GRACE_MS`, 3 s, not 10); cleared with `goneAt` (`TabBack`, the grace's end, a `SetOutput`) |
 | I15 | `picked ⇒ index ≥ 0` | `Open` sets it, `newItem` clears it |
-| I16 | `Ended` on the last song of a list with Loop off keeps that song: same `index`, same `load`, `pos == 0`, `!playing`, no `HhUnload` (§16) | the reducer's `Ended` branch; checked by `checkTransition` (the named case and the fuzz) |
+| I16 | `Ended` on the last song of a list with Loop off keeps that song: same `index`, same `load`, `pos == 0`, `!playing`, no `HhUnload`; a song with one after it goes on to it (`load` bumped, `pos == 0`, no `HhUnload`) (§16) | the reducer's `Ended` branch; checked by `checkTransition` (the named case and the fuzz) |
 
 ### Failure modes
 
@@ -600,11 +601,14 @@ Videos keep what they did.
   `ended` list). A video still takes `finishList()` (§13). The end state is idempotent: the file's end heard again
   before the seek lands (`!playing && pos <= 0`) changes nothing, so no repeated effects.
 - **I16** (`checkTransition`, so the fuzz checks it too): an applied `Ended` on the last song of a list with Loop off
-  leaves that item, `pos == 0`, paused, the same `load`, and no `HhUnload`.
+  leaves that item, `pos == 0`, paused, the same `load`, and no `HhUnload`; a song with one after it goes on to it
+  (`pos == 0`, a new `load`, no `HhUnload`).
 - **mpv** (`player.cpp`): `keep-open=always` for a song's load (a video's stays `no`). A song with the visualizer/art
-  graph never ends by itself (its picture does not), so `checkSongEnd` drives its end; a song with no graph (album art
-  with a cover) ends by mpv's own EOF and `keep-open` is what keeps it loaded for the seek. The pause and the seek are
-  async; nothing waits for mpv.
+  graph never ends by itself (its picture does not), so `checkSongEnd` drives its end; every other song's end comes as
+  mpv's **`eof-reached`** (observed; with `keep-open` mpv pauses at the end and sends no `END_FILE`), which sets the
+  same `finished` an ended file did: the next song loads, or the Session keeps the list's last at its start. Without
+  that observation a song mid-list stopped at its end (the bug of 8dfb2f3, docs/notes/2026-11-17-end-of-list.md). The
+  pause and the seek are async; nothing waits for mpv.
 - **The visualizer's start**: the graph's first frames make a seek to a song's start report `time-pos` about 0.6 s
   (measured here on 3 s and 10 s sine MP3s: the Session's seek and a manual scrub alike), so the clock shows **0:00**
   and the bar a slice of a very short file (a fifth of a 3 s one; a sliver of a song of minutes). The song plays from
