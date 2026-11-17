@@ -1632,7 +1632,9 @@ int main(int argc, char** argv)
 				{
 					lidTickAt = now;
 					keepOnLid = player.settings.lidKeepPlaying;
-					bool plays = player.playing() && !player.paused && !player.playingPhoto();
+					// loaded counts, paused too: with the lid shut a pause by the power key must not let it sleep,
+					// or Power could never play again; only nothing loaded (Stop) gives the lid back to BananaOS
+					bool plays = player.playing() && !player.playingPhoto();
 #ifdef BP_WEB
 					plays = plays || (webServer && webServer->running());
 #endif

@@ -1265,9 +1265,9 @@ combination instead.)
 - **Lid:** closing it pauses; opening it keeps it paused until you press play. Settings › Controls & screen › **When
   the lid closes: Pause / Keep playing** (Pause by default; the first start without the setting asks, Pause
   first, and says where to change it). With **Keep playing**, while the web dashboard is on (a browser may be playing from it), and while a song or a video plays on the
-  handheld (not paused, not stopped, not a dashboard page playing it), the player switches BananaOS's own *Closing the
+  handheld (playing or paused, not stopped, not a dashboard page playing it), the player switches BananaOS's own *Closing the
   lid* setting to stay awake (the `lid_sleep` line of `/data/banana/bananad.conf` set to `no`, nothing else in the file
-  touched) and puts it back a few seconds after playing pauses, stops or ends, or when the player quits. If the lid is
+  touched) and puts it back a few seconds after playing stops or ends (a pause keeps it, so the power key can play again), or when the player quits. If the lid is
   shut by then, the handheld goes to sleep as if the lid had just closed. If you changed *Closing the lid* in BananaOS's
   Settings meanwhile, your choice stays. After a crash the launcher puts it back; after a power loss, the next start
   does. `log.txt`: `lid: sleep off while playing…`, `lid: sleep restored`, `lid: restore skipped, changed in BananaOS
