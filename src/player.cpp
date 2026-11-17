@@ -2489,15 +2489,18 @@ namespace bp
 			// (in the log: how long a style takes to come up, the sound's restart and the picture's, on the handheld)
 			graphAskedAt = ticks();
 		}
-		if (graph.empty() && (show == SHOW_ART || show == SHOW_BOTH))
+		if (graph.empty())
 		{
-			// the song's sound and its art (the graph taken off, or Lite's Visualizer alone left the art unselected)
+			// the song's sound (the graph taken off leaves the track unselected; Lite's tap is in the af, not a graph)
 			prop("aid", songAid(seenAid));
-			// by its id: "auto" while playing doesn't pick the art again
-			int64_t art = 0;
-			for (auto& t : tracks)
-				if (t.type == TrackType::Video && !art) art = t.id;
-			prop("vid", art ? std::to_string(art) : "auto");
+			if (show == SHOW_ART || show == SHOW_BOTH)
+			{
+				// by its id: "auto" while playing doesn't pick the art again
+				int64_t art = 0;
+				for (auto& t : tracks)
+					if (t.type == TrackType::Video && !art) art = t.id;
+				prop("vid", art ? std::to_string(art) : "auto");
+			}
 		}
 		// Lite's Visualizer alone draws on black: the art stays off (also when a graph was just taken off above)
 		if (lite && show == SHOW_VIS) prop("vid", "no");

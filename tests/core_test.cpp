@@ -7086,8 +7086,9 @@ static void testEq()
 	// a song's af starts with its input brought to 44.1/48 kHz (the EQ, effect and speed work at that rate; the af's
 	// output rate then never changes with the EQ, which would reopen the sound output)
 	CHECK_EQ(afInputFilter(), std::string("@bpin:lavfi=[aformat=sample_rates=44100|48000]"));
-	// Lite's meter is one passthrough tap: 1024-sample frames, the bass beside the sound for astats, then dropped
-	CHECK_EQ(liteTapFilter(), std::string("@bplite:lavfi=[aformat=channel_layouts=stereo,asetnsamples=n=1024:p=0,asplit=2[lmain][llow];"
+	// Lite's meter is one passthrough tap: stereo from any channel count (aresample, a mono file's one channel
+	// included), 1024-sample frames, the bass beside the sound for astats, then dropped
+	CHECK_EQ(liteTapFilter(), std::string("@bplite:lavfi=[aresample=ochl=stereo,asetnsamples=n=1024:p=0,asplit=2[lmain][llow];"
 		"[llow]lowpass=f=150[lbase];[lmain][lbase]join=inputs=2:channel_layout=4.0:map=0.0-FL|0.1-FR|1.0-FC|1.1-BC,"
 		"astats=metadata=1:reset=1:measure_perchannel=RMS_level+Peak_level:measure_overall=RMS_level+Peak_level,"
 		"pan=stereo|c0=c0|c1=c1]"));
