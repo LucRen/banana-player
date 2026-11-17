@@ -31,4 +31,8 @@ namespace bp
 		bool held = false, tried = false;
 		unsigned offSince = 0;
 	};
+
+	// ask bananad for a sleep now, as closing the lid with lid sleep on does: /run/banana/sleep-now, then a SIGHUP
+	// (its reload unlinks the file and sleeps). False: no run folder (not BananaOS) or the file couldn't be made
+	bool askBananadSleep();
 }

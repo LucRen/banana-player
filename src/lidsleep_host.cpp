@@ -54,6 +54,16 @@ namespace bp
 #endif
 	}
 
+	bool askBananadSleep()
+	{
+		struct stat st;
+		if (stat(runDir().c_str(), &st) != 0) return false;	// not BananaOS
+		if (FILE* f = fopen((runDir() + "/sleep-now").c_str(), "w")) fclose(f);
+		else return false;
+		poke();
+		return true;
+	}
+
 	void LidGuard::hold()
 	{
 		struct stat st;
@@ -122,7 +132,7 @@ namespace bp
 			if (lidSleepEffective(etc, now))
 			{
 				fprintf(stderr, "lid: closed: asking bananad to sleep\n");
-				if (FILE* f = fopen((runDir() + "/sleep-now").c_str(), "w")) fclose(f);
+				if (!askBananadSleep()) fprintf(stderr, "lid: can't write %s/sleep-now\n", runDir().c_str());
 			}
 		}
 		poke();

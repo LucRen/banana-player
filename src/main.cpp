@@ -27,6 +27,7 @@
 #include "updater.h"
 #include "idlesleep_host.h"
 #include "lidsleep_host.h"
+#include "powerkey.h"
 #include "battery.h"
 #include "netstore.h"
 #include "networker.h"
@@ -70,7 +71,7 @@ namespace bp
 }
 #endif
 
-static Uint32 evMpv, evRender, evTouch, evLevel, evNet, evFound, evWeb, evDur, evCover, evAmp, evMangaLib, evUnplug;
+static Uint32 evMpv, evRender, evTouch, evLevel, evNet, evFound, evWeb, evDur, evCover, evAmp, evMangaLib, evUnplug, evPower;
 #ifdef BP_WEB
 // the dashboard's server for the sleep watch's thread (made on the main thread, never destroyed)
 static std::atomic<bp::WebServer*> webForWatch{nullptr};
@@ -295,7 +296,7 @@ int main(int argc, char** argv)
 		fprintf(stderr, "SDL: %s\n", SDL_GetError());
 		return 1;
 	}
-	evMpv = SDL_RegisterEvents(12);
+	evMpv = SDL_RegisterEvents(13);
 	evRender = evMpv + 1;
 	evTouch = evMpv + 2;
 	evLevel = evMpv + 3;
@@ -307,6 +308,7 @@ int main(int argc, char** argv)
 	evAmp = evMpv + 9;	// a speaker amplifier didn't start (AmpWatch): the sound output opened again
 	evMangaLib = evMpv + 10;	// the Manga app's card library: a listing or chapter files read (MangaLibWorker::take)
 	evUnplug = evMpv + 11;	// the headphones went (SleepWatch): a pause, if something plays here
+	evPower = evMpv + 12;	// a short press of the power key with the lid shut (PowerKey): play/pause
 
 	// On the handheld (SDL's KMSDRM) each panel is a display and each window fills one; elsewhere, two windows
 	if (windowed < 0) windowed = strcmp(SDL_GetCurrentVideoDriver(), "KMSDRM") != 0;
@@ -625,6 +627,10 @@ int main(int argc, char** argv)
 			ev.user.data1 = new std::string(what);
 			SDL_PushEvent(&ev);
 		});
+		// the power key with the lid shut (powerkey.h): its thread takes the key while main's tick says so, and a short
+		// press comes back as evPower; a 2 s hold is a sleep, asked for on that thread
+		PowerKey powerKey;
+		powerKey.start(evPower);
 
 		// the bottom touchscreen, read on its own thread; where there's none, SDL's mouse and touch stand in
 		BottomTouch bottomTouch;
@@ -851,6 +857,15 @@ int main(int argc, char** argv)
 				bp::crashlog::setContext(crashContext.c_str());
 			}
 			if (crashTest && SDL_GetTicks() >= crashAt) bp::crashlog::testCrash(crashTest);
+			// the power key with the lid shut: taken only while the setting is Keep playing, the lid is shut and
+			// something is loaded here (playing or paused, not stopped). The thread lets go the moment any of them
+			// ends; the beat says this loop still runs (3 s without one and it lets go by itself)
+			{
+				bool keep = player.settings.lidKeepPlaying;
+				bool shut = sleepWatch.lidClosed();
+				const char* why = !keep ? "Keep playing is off" : !shut ? "the lid opened" : "nothing is loaded";
+				powerKey.tick(keep && shut && player.playing(), why);
+			}
 			SDL_Event e;
 			bool got = SDL_WaitEventTimeout(&e, (reader.isOpen() && reader.busy()) || (textReader.isOpen() && textReader.busy()) ? 1 : reader.isOpen() && reader.seekPending() ? 16 : reader.spinning() ? MangaReader::SPIN_MS / 2 : ui.animating() ? 16 : ui.typing() ? 50 : held != Button::None || player.loading() ? 20 : SDL_GetTicks() < freshUntil || levelUntil ? 50 : ui.markMoving() ? 80 : 250);
 			while (got)
@@ -998,6 +1013,27 @@ int main(int argc, char** argv)
 					std::unique_ptr<std::string> chip((std::string*)e.user.data1);
 					fprintf(stderr, "audio: the speaker amplifier %s didn't start\n", chip ? chip->c_str() : "?");
 					if (!ampReloadAt) ampReloadAt = SDL_GetTicks() + 600;
+				}
+				else if (e.type == evPower)
+				{
+					// the power key with the lid shut, let go before 2 s: play/pause, the same Session path A takes (its
+					// Play/Pause, then mpv). A page that plays it is taken over here, as A does. The conditions are
+					// checked again: a press queued as they ended (the lid opening) does nothing
+					if (player.playing() && player.settings.lidKeepPlaying && sleepWatch.lidClosed())
+					{
+						if (SessionHost::get().pageIsOutput())
+						{
+							fprintf(stderr, "power: press: playing on the handheld\n");
+							SessionHost::get().takeOver();
+							player.osd("Playing on the handheld");
+						}
+						else
+						{
+							fprintf(stderr, "power: press: play/pause\n");
+							SessionHost::get().play(player.paused);
+							player.togglePause();
+						}
+					}
 				}
 				else if (e.type == evLevel)
 				{
@@ -1596,7 +1632,9 @@ int main(int argc, char** argv)
 				{
 					lidTickAt = now;
 					keepOnLid = player.settings.lidKeepPlaying;
-					bool plays = player.playing() && !player.paused && !player.playingPhoto();
+					// loaded counts, paused too: with the lid shut a pause by the power key must not let it sleep,
+					// or Power could never play again; only nothing loaded (Stop) gives the lid back to BananaOS
+					bool plays = player.playing() && !player.playingPhoto();
 #ifdef BP_WEB
 					plays = plays || (webServer && webServer->running());
 #endif
@@ -1741,6 +1779,7 @@ int main(int argc, char** argv)
 		mangaLibWorker->stop();
 		// (before the watch stops: it knows the lid)
 		lidGuard.release(sleepWatch.lidClosed());
+		powerKey.stop();
 		sleepWatch.stop();
 		levelWatch.stop();
 		bottomTouch.stop();

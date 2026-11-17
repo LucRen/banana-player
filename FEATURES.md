@@ -1281,13 +1281,20 @@ combination instead.)
 - **Lid:** closing it pauses; opening it keeps it paused until you press play. Settings › Controls & screen › **When
   the lid closes: Pause / Keep playing** (Pause by default; the first start without the setting asks, Pause
   first, and says where to change it). With **Keep playing**, while the web dashboard is on (a browser may be playing from it), and while a song or a video plays on the
-  handheld (not paused, not stopped, not a dashboard page playing it), the player switches BananaOS's own *Closing the
+  handheld (playing or paused, not stopped, not a dashboard page playing it), the player switches BananaOS's own *Closing the
   lid* setting to stay awake (the `lid_sleep` line of `/data/banana/bananad.conf` set to `no`, nothing else in the file
-  touched) and puts it back a few seconds after playing pauses, stops or ends, or when the player quits. If the lid is
+  touched) and puts it back a few seconds after playing stops or ends (a pause keeps it, so the power key can play again), or when the player quits. If the lid is
   shut by then, the handheld goes to sleep as if the lid had just closed. If you changed *Closing the lid* in BananaOS's
   Settings meanwhile, your choice stays. After a crash the launcher puts it back; after a power loss, the next start
   does. `log.txt`: `lid: sleep off while playing…`, `lid: sleep restored`, `lid: restore skipped, changed in BananaOS
   Settings`. With BananaOS's lid sleep already off, nothing is changed and closing the lid keeps playing.
+- **Power key with the lid shut:** while the lid is shut with **Keep playing** and something is loaded here (playing or
+  paused, not stopped), the power key is play/pause: a short press pauses or plays, as **A** does. Holding it 2 seconds
+  sleeps: the player lets the key go and asks BananaOS for the sleep closing the lid would bring. With the lid open,
+  nothing loaded, or **Pause** set, the power key is BananaOS's as before. After a hold's sleep it lets go until the
+  wake (and is play/pause again then), so the key that wakes the handheld reaches bananad; a key bananad holds
+  exclusively stays BananaOS's too. `log.txt`: `power: … taken: lid shut…`, `power:
+  press: play/pause`, `power: hold: asking bananad to sleep`, `power: released (…)`.
 - **Headphones out:** pulling the headphones out of the jack, Bluetooth headphones disconnecting, or a USB sound card
   unplugged while something plays pauses it, so the sound doesn't go on from the speakers. Plugging back in doesn't play
   (press play). `log.txt`: `audio: headphones out, paused` (or `Bluetooth headphones disconnected`, `USB sound card
