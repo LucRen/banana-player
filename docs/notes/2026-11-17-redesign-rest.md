@@ -206,4 +206,81 @@ The arm64 bundle: `packaging/build-bundle.sh --quick` (Docker) was run once at t
 - Scanning the QR with a phone (the image is the address; it was not regenerated here).
 - A real finger on the Visualizer grid (the taps and the keys were driven; the grid's cells are the layout's).
 
+## 6. The vizlite merge, START's places, the lid key rows, About's bar (2026-11-18)
+
+The brief after the four follow-ups. Four commits:
+
+| Commit | What |
+|---|---|
+| `9272273` | Merge `vizlite` into `redesign` |
+| `fc4b17f` | START: the Menu of places, with no tabs |
+| `7afd10b` | Settings: Power key, lid shut and Volume keys, lid shut |
+| `de6552b` | About: the kit hint bar; its menu tile reads its lines |
+
+### 1. Lite in the redesign
+
+The merge kept both sides: the redesign's display modes and settings groups, and Lite (the player-drawn visualizer,
+`src/vizlite.h`, `TopScreen::drawLiteFrame`, the `@bplite` af tap). Lite is the first style in `VIS_SHOWN` and in
+Settings' **Visualizer style** row, and the Visualizer tab's grid now has 21 cells (a fifth row of one, its cells still
+46 tall). It works with **Art + visualizer** (mpv's art behind it) and **Visualizer only** (`vid=no`, black). The
+conflicted files were `FEATURES.md`, `src/main.cpp`, `src/player.cpp`, `src/settings.*`, `src/ui.h`, `src/ui_internal.h`
+and `src/ui_sound.cpp`; the old display popup (`Ui::displaySet`, `drawDisplay`, `musicKey`) stays deleted, as the
+redesign already removed it.
+
+Checked: a song with generated art, Visualizer only, Lite chosen in the grid; the top panel draws the glow and the
+twelve bars (`redesign-shots/q5/lite-top.png`). Not fixed here: Lite's af tap ends a **mono** file's playback (an
+`af`/`join` failure); the checks used a stereo MP3. The vizlite branch's own note is `2026-11-17-viz-lite.md`.
+
+### 2. START, the Menu of places
+
+The tabs (Playing, Settings) are gone, and with them `Page::Playing`, `Page::Exit`, `drawTabs`, the Playing page's
+rows and the old Play on picker. START opens `Page::Menu`: the kit header (**Menu**, the Playing / Paused state, the
+battery and clock), a **Now playing** line when something plays and the menu was opened off the player, seven tiles
+(**Home, Files, Playlists, Manga, Network, Settings, About**; four a row, the kit's settings tiles with live lines),
+**Quick settings** (F) and **Quit Banana Player**, two note lines and the kit's hint bar. What plays keeps playing.
+
+Settings and About keep the menu under them: B in a group goes to the tiles, B at the tiles to the Menu, B on the Menu
+closes it (to the player if it was opened there). Manga opens the reader when it is on and the Extensions page when it
+is not; while a video plays its tile says "stops the video". The playing actions all live on the player's X · More
+(Like, Add to playlist…, Show in folder, Play on…, Info, Stop) and the mini bar.
+
+Checked (generated stereo MP3): the Menu over the player (no Now playing line), over the browser (the line, SELECT,
+the hint bar), Down/Right moving the tile focus, Settings then B back to the Menu then B to the browser, and the About
+tile. Shots: `redesign-shots/q5/menu-bottom.png`, `menu-now-bottom.png` (not committed).
+
+### 3. Power key, lid shut and Volume keys, lid shut
+
+Settings › Power & screens has two rows under **When the lid closes**, before the shoulder row and incognito:
+**Power key, lid shut** (Play / pause, default, or Sleep) and **Volume keys, lid shut** (Volume and skip, default, or
+Volume only). Both are `settingDefs()` rows (`lid-power`, `lid-volume`), saved and stepped as the others. With **When
+the lid closes: Pause** the three key rows are at 45% with **The lid pauses** and change nothing. main hands the power
+and volume devices to the player only for Play / pause and Volume and skip; Sleep and Volume only never take them, so
+BananaOS keeps the keys. The first-start lid question's second line is the spec's: "Keep playing: the sound goes on
+with the lid shut. Then the power key pauses and plays, and holding a volume key skips."
+
+Checked on a Mac (no lid or keys): the two rows' values in both lid states, the three dimmed rows with The lid pauses,
+and the settings table's test (the row order); the devices themselves are code paths only.
+
+### 4. About's hint bar
+
+`drawInfo`'s About page draws `kit->hints` (arrow caps, **L2/R2 Group**, **B Back**) like the other group pages. The
+START Menu's About tile now calls `openAbout` first: before, the tile set the page only and About was blank. Shot:
+`redesign-shots/q5/about-bottom.png`.
+
+### Checked
+
+Desktop build (macOS); `./build/core-test` ends `core: all passed`; `cmake --build build --target manga-check` prints
+`manga: all passed` before each commit. Shots under `redesign-shots/q5/` (not committed): `lite-top.png`,
+`menu-bottom.png`, `menu-now-bottom.png`, `power-pause-bottom.png`, `power-keep-bottom.png`, `about-bottom.png`.
+Generated media only: a stereo 220/330 Hz sine MP3 with a generated cover. The arm64 bundle:
+`packaging/build-bundle.sh --quick` was run once at the end.
+
+### Not verified
+
+- Lite with a mono file (it ends the file, above) and the handheld's panel at one pixel a unit for the fifth grid row.
+- The Menu's Manga tile stopping a playing video (the spec's guard sheet is not built).
+- The power and volume devices on the handheld: no lid switch, power key or `gpio-keys-volume` on a Mac.
+- A real finger on the Menu's tiles and keys (the D-pad and the touch rects were driven by `--press`, the taps not).
+
+
 
