@@ -206,8 +206,8 @@ namespace bp
 		if (b == Button::L2 || b == Button::R2)
 		{
 			if (page == Page::Settings || page == Page::Web) { area()->key(b, p); return false; }
-			// About is a settings group too (its page its own): back to its neighbours, unless it is the menu's own tab
-			if (page == Page::About && menuTab != TAB_ABOUT)
+			// About is a settings group too (its page its own): back to its neighbours
+			if (page == Page::About)
 			{
 				setGroup = GROUP_ABOUT;
 				settingsPage->stepGroup(b == Button::R2 ? 1 : -1, &p);
@@ -223,7 +223,9 @@ namespace bp
 		}
 		if (inMenu)
 		{
-			if (b == Button::L || b == Button::R)
+			// Settings and About draw the kit's header, not the menu's tabs: L / R do not page through them
+			bool ownHeader = page == Page::Settings || page == Page::About;
+			if (!ownHeader && (b == Button::L || b == Button::R))
 			{
 				// round, in the order shown
 				auto tabs = menuTabs(p);
@@ -235,9 +237,8 @@ namespace bp
 			}
 			// B in the subtitle style opened from the Subtitles list, or in a settings group: back (SettingsPage)
 			if (b == Button::B && page == Page::Settings && settingsPage->menuBack(p)) return false;
-			// B in About opened from Settings: back to the groups' tiles, not out of the menu (the menu's own About tab
-			// still closes it)
-			if (b == Button::B && page == Page::About && menuTab != TAB_ABOUT)
+			// B in About (a settings group, its own page): back to the groups' tiles, not out of the menu
+			if (b == Button::B && page == Page::About)
 			{
 				page = Page::Settings;
 				setGroup = -1;
@@ -260,16 +261,15 @@ namespace bp
 		if (page == Page::Playing) return playingKey(b, p);
 		if (page == Page::Info || page == Page::About)
 		{
-			int maxScroll = std::max(0, (int)infoLines.size() - INFO_SHOWN);
+			int maxScroll = std::max(0, (int)infoLines.size() - (page == Page::About ? ABOUT_SHOWN : INFO_SHOWN));
 			switch (b)
 			{
 			case Button::Up: scroll = std::max(0, scroll - 1); break;
 			case Button::Down: scroll = std::min(maxScroll, scroll + 1); break;
-			case Button::Left: scroll = std::max(0, scroll - INFO_SHOWN); break;
-			case Button::Right: scroll = std::min(maxScroll, scroll + INFO_SHOWN); break;
+			case Button::Left: scroll = std::max(0, scroll - (page == Page::About ? ABOUT_SHOWN : INFO_SHOWN)); break;
+			case Button::Right: scroll = std::min(maxScroll, scroll + (page == Page::About ? ABOUT_SHOWN : INFO_SHOWN)); break;
 			case Button::B: case Button::A:
-				// About as the menu's tab: nothing to go back to (B closes the menu)
-				if (page == Page::About && inMenu) break;
+				// About is a settings group: back to the groups' tiles
 				if (page == Page::About) { page = Page::Settings; setGroup = -1; cursor = GROUP_ABOUT; scroll = 0; }
 				else page = home(p);
 				break;
@@ -477,7 +477,6 @@ namespace bp
 		if (id == BUSY_CANCEL) { browse->playlists->cancelAdd(p); return false; }
 		if (id >= manga->EXT_TILE && id <= manga->EXT_DONE) return manga->extAct(id, p);
 		if (id >= PLAY_ROW && id < PLAY_ROW + 7) return playingChoose(id - PLAY_ROW, p);
-		if (id == GROUP_PREV || id == GROUP_NEXT) { settingsPage->stepGroup(id == GROUP_NEXT ? 1 : -1, &p); return false; }
 		if (id == EXIT_BTN) { quitRequested = true; return false; }
 		if (id >= PHOTO_BTN && id < PHOTO_BTN + PHOTO_BTNS)
 		{
@@ -712,7 +711,7 @@ namespace bp
 		// downs come late (Manga's pages but the reader) has them below, after "<"
 		if (Area* a = area(); a && !(pt.kind == Pointer::Down && a->pointerDownLate())) return a->pointer(pt, x, y, p);
 		if (pt.kind != Pointer::Down) return false;
-		if (inMenu && y < 60)
+		if (inMenu && y < 60 && page != Page::Settings && page != Page::About)
 		{
 			// the tab bar: a tab, or "<" (it closes the menu as the finger lifts)
 			if (buttonRect(BACK_ICON).hit(x, y)) { pressedBtn = BACK_ICON; return false; }
@@ -743,7 +742,7 @@ namespace bp
 		if (Area* a = area(); a && a->pointerDownLate()) return a->pointer(pt, x, y, p);
 		if (page == Page::Info || page == Page::About)
 		{
-			if (y < INFO_Y) return false;
+			if (y < (page == Page::About ? ABOUT_Y : INFO_Y)) return false;
 			listTouch = true;
 			listScrolled = false;
 			touchStartY = y;

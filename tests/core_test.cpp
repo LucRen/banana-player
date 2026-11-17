@@ -8845,7 +8845,7 @@ static void testKitLayout()
 		if (i >= 2) CHECK_EQ(t.y, settingsTile(tiles, 10, 2, i - 2).y + SET_TILE_H + SET_TILE_GAP);
 	}
 	CHECK_EQ(settingsTile(tiles, 10, 2, 9).x + settingsTile(tiles, 10, 2, 9).w, 624);
-	CHECK_EQ(settingsTile(tiles, 10, 2, 9).y + SET_TILE_H, 70 + 5 * SET_TILE_H + 4 * SET_TILE_GAP);
+	CHECK_EQ(settingsTile(tiles, 10, 2, 9).y + SET_TILE_H, SET_TILE_TOP + 5 * SET_TILE_H + 4 * SET_TILE_GAP);
 	SettingsRows sr = settingsRows();
 	CHECK_EQ(sr.row(0).y, SET_ROW_TOP);
 	CHECK_EQ(sr.row(0).h, SET_ROW_H - 2);

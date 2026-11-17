@@ -99,7 +99,8 @@ namespace bp
 		if (h.back) iconKey(l.back, G_BACK, h.backPressed, 3);
 		if (h.more) iconKey(l.more, G_MORE, h.morePressed);
 		const int cy = l.back.y + l.back.h / 2;
-		int right = l.more.x - 10;
+		// no More: the right slot reaches the panel's own right margin (the Settings pages, About)
+		int right = h.more ? l.more.x - 10 : l.title.x + l.title.w - 8;
 		if (h.right) right = h.right(right, cy);
 		int x = l.back.x + l.back.w + 10;
 		if (h.mark) { ui.drawGlyphMid(*h.mark, x + 10, cy, DIM); x += 26; }

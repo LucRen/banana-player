@@ -492,7 +492,7 @@ namespace bp
 		else drawTracks(p);	// (Page::Main is an area: PlayerPage::draw)
 		if (miniUp) drawMiniBar(p);
 		browse->drawClipBar();
-		if (inMenu) drawTabs(p);
+		if (inMenu && page != Page::Settings && page != Page::About) drawTabs(p);
 		if (ctxOpen) drawBrowseMenu(p);	// (the mini bar's hold menu opens on pages of its own too)
 		if (browse->playlists->pickerOpen) browse->playlists->drawPicker();
 		if (playOnOpen && inMenu && page == Page::Playing) drawPlayOn(p);
@@ -813,7 +813,7 @@ namespace bp
 
 	void Ui::drawTabs(const Player& p)
 	{
-		static const char* names[TABS] = {"Settings", "About", "Quit", "Playing"};
+		static const char* names[TABS] = {"Settings", "Quit", "Playing"};
 		fill({0, 0, W, 57}, BG);	// over whatever the page drew there (a settings group's neighbours start at 58)
 		webInd = {0, 0, 0, 0};	// (the battery and its marks gone under it: drawn again)
 		drawBackIcon();

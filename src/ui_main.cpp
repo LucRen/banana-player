@@ -236,10 +236,9 @@ namespace bp
 		if (id >= PHOTO_BTN) return {0, 0, 0, 0};	// photoBtn's: they move with the pan area
 		if (id == QUIT_BTN) return {468, miniUp ? 376 : 428, 148, 44};	// (a photo's Close: above the mini bar too)
 		if (id == EMPTY_BTN) return page == Page::Browse && browse->browseDir == NETROOT ? Rect{160, 300, 320, 52} : Rect{200, 300, 240, 52};	// (Find on the network: a longer label)
-		if (id == GROUP_PREV) return {16, 58, 172, 30};
-		if (id == GROUP_NEXT) return {452, 58, 172, 30};
 		if (id == EXIT_BTN) return {170, 200, 300, 80};
-		if (id == BACK_ICON) return {8, 8, 48, 48};
+		// the Settings pages' kit header: the key is a little wider than a tab bar's "<" (10,3,56,48)
+		if (id == BACK_ICON) return page == Page::Settings || page == Page::About ? Rect{10, 3, 56, 48} : Rect{8, 8, 48, 48};
 		return {0, 0, 0, 0};	// (the player screen's keys are its own: PlayerPage::rect)
 	}
 

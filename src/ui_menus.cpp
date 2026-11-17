@@ -180,7 +180,6 @@ namespace bp
 		switch (tab)
 		{
 		case TAB_SETTINGS: page = Page::Settings; setGroup = -1; break;
-		case TAB_ABOUT: openAbout(p); break;
 		case TAB_PLAYING: page = Page::Playing; break;
 		default: page = Page::Exit; break;
 		}
@@ -764,9 +763,10 @@ namespace bp
 
 	std::vector<int> Ui::menuTabs(const Player& p) const
 	{
-		// no Quit tab: quick settings (F) has Quit, and F + START quits from anywhere
-		if (playingTabShown(p)) return {TAB_PLAYING, TAB_SETTINGS, TAB_ABOUT};
-		return {TAB_SETTINGS, TAB_ABOUT};
+		// no Quit tab: quick settings (F) has Quit, and F + START quits from anywhere. No About tab: About is the
+		// Settings page's last group, a tile
+		if (playingTabShown(p)) return {TAB_PLAYING, TAB_SETTINGS};
+		return {TAB_SETTINGS};
 	}
 
 	bool Ui::playingTabShown(const Player& p) const { return p.playing() && !p.playingPhoto(); }
@@ -925,10 +925,27 @@ namespace bp
 
 	void Ui::drawInfo(const Player& p)
 	{
-		if (!inMenu) drawHeader("Info", p);
-		for (int i = scroll; i < (int)infoLines.size() && i < scroll + INFO_SHOWN; i++)
+		if (page == Page::About)
 		{
-			int y = INFO_Y + (i - scroll) * INFO_H, mid = y + INFO_H / 2;
+			// the About group's own header (the kit's, as every settings page): back, its title, where it is
+			lay::PlayerLayout pl = lay::playerLayout(0);
+			Kit::Header h;
+			h.title = "About";
+			h.crumb = "Settings \xC2\xB7 " + std::to_string((int)GROUP_ABOUT + 1) + " of " + std::to_string(GROUPS);
+			h.more = false;
+			h.backPressed = pressedBtn == BACK_ICON;
+			h.right = [&](int right, int cy) {
+				drawBattery(right, cy - 8, p, pl.back.x + pl.back.w + 130);
+				return right - (616 - statusLeft(p)) - 10;
+			};
+			kit->header(pl, h);
+		}
+		else if (!inMenu) drawHeader("Info", p);
+		int top = page == Page::About ? ABOUT_Y : INFO_Y;
+		int shown = page == Page::About ? ABOUT_SHOWN : INFO_SHOWN;
+		for (int i = scroll; i < (int)infoLines.size() && i < scroll + shown; i++)
+		{
+			int y = top + (i - scroll) * INFO_H, mid = y + INFO_H / 2;
 			const InfoLine& l = infoLines[i];
 			if (l.header) drawTextMid(l.label, 1, ACCENT, 24, mid);
 			else
@@ -937,11 +954,13 @@ namespace bp
 				drawTextMid(l.text, 0, TEXT, INFO_VALUE_X, mid);
 			}
 		}
-		drawScrollBar(INFO_Y, INFO_SHOWN * INFO_H, scroll, INFO_SHOWN, (int)infoLines.size());
-		// About opened as a settings group (not the menu's own tab): L2 / R2 go to its neighbours
-		bool aboutGroup = page == Page::About && menuTab != TAB_ABOUT;
-		if (inMenu && !aboutGroup) drawHints({{"UP/DOWN", "Scroll"}, {"B", "Close"}, {"L/R", "Tabs"}});
-		else if (aboutGroup) drawHints({{"UP/DOWN", "Scroll"}, {"L2/R2", "Group"}, {"B", "Back"}});
+		drawScrollBar(top, shown * INFO_H, scroll, shown, (int)infoLines.size());
+		if (page == Page::About)
+		{
+			drawHints({{"UP/DOWN", "Scroll"}, {"L2/R2", "Group"}, {"B", "Back"}});
+			return;
+		}
+		if (inMenu) drawHints({{"UP/DOWN", "Scroll"}, {"B", "Close"}, {"L/R", "Tabs"}});
 		else drawHints({{"UP/DOWN", "Scroll"}, {"A/B", "Back"}});
 	}
 

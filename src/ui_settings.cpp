@@ -389,6 +389,47 @@ namespace bp
 	void Ui::SettingsPage::draw(const Player& p)
 	{
 		Kit& k = *ui.kit;
+		// the kit's header (the player's): back, what this is, and the status marks; a group page names its neighbours
+		// in the right slot (the spec's "L2 Playback · Music R2"), the tiles say whose they are in the crumb
+		lay::PlayerLayout pl = lay::playerLayout(0);
+		Kit::Header head;
+		head.more = false;
+		head.backPressed = ui.pressedBtn == BACK_ICON;
+		bool groupPage = ui.setGroup >= 0;
+		int prevGroup = groupPage ? (ui.setGroup + GROUPS - 1) % GROUPS : -1;
+		int nextGroup = groupPage ? (ui.setGroup + 1) % GROUPS : -1;
+		if (groupPage)
+		{
+			head.title = GROUP_NAMES[ui.setGroup];
+			head.crumb = "Settings \xC2\xB7 " + std::to_string(ui.setGroup + 1) + " of " + std::to_string(GROUPS);
+		}
+		else
+		{
+			head.title = "Settings";
+			head.crumb = std::string("Banana Player ") + BP_VERSION;
+		}
+		head.right = [&, groupPage, prevGroup, nextGroup](int right, int cy) {
+			if (!groupPage)
+			{
+				// the tiles: the panel's status marks, right to left, the crumb ending before them
+				ui.drawBattery(right, cy - 8, p, pl.back.x + pl.back.w + 130);
+				return right - (616 - ui.statusLeft(p)) - 10;
+			}
+			// a group: right to left, R2, the group after, a gap, the group before, L2
+			int r = right, w = k.capsW("R2");
+			k.caps("R2", r - w, cy, ACCENT, BG);
+			r -= w + 6;
+			std::string nextName = shortGroupName(nextGroup);
+			ui.drawTextMid(nextName, F_I12, DIM, r, cy, 0, 1);
+			r -= k.textW(nextName, F_I12) + 14;
+			std::string prevName = shortGroupName(prevGroup);
+			ui.drawTextMid(prevName, F_I12, DIM, r, cy, 0, 1);
+			r -= k.textW(prevName, F_I12) + 6;
+			w = k.capsW("L2");
+			k.caps("L2", r - w, cy, ACCENT, BG);
+			return r - w;
+		};
+		k.header(pl, head);
 		if (ui.setGroup < 0)
 		{
 			// the groups as tiles, two to a row (the mock-up's Settings tile: a mark, a name, what it is set to now)
@@ -404,33 +445,10 @@ namespace bp
 				t.pressed = ui.pressedBtn == 400 + g;
 				k.settingTile(groupRect(g), t);
 			}
-			k.hints({{"D-PAD", "Move"}, {"A", "Open"}, {"B", "Back"}, {"L/R", "Tabs"}});
+			k.hints({{"D-PAD", "Move"}, {"A", "Open"}, {"B", "Back"}});
 			return;
 		}
-		// the group in the middle, the ones before and after it either side: a tap (or L2 / R2) away
-		int prev = (ui.setGroup + GROUPS - 1) % GROUPS, next = (ui.setGroup + 1) % GROUPS;
-		ui.drawTextMid(GROUP_NAMES[ui.setGroup], 1, ACCENT, W / 2, 73, 248, 2);
-		for (int side = 0; side < 2; side++)
-		{
-			Rect c = ui.buttonRect(side ? GROUP_NEXT : GROUP_PREV);
-			int g = side ? next : prev;
-			ui.drawBox(c, ui.pressedBtn == (side ? GROUP_NEXT : GROUP_PREV) ? PRESSED : SURFACE, R_BUTTON);
-			std::string key = side ? "R2" : "L2";
-			int kw = k.capsW(key);
-			if (side)
-			{
-				int x = c.x + c.w - 10 - kw;
-				k.caps(key, x, c.y + c.h / 2);
-				ui.drawGlyphMid(G_RIGHT, x - 10, c.y + c.h / 2, TEXT);
-				ui.drawTextMid(shortGroupName(g), 0, TEXT, c.x + 12, c.y + c.h / 2, c.w - 44 - kw);
-			}
-			else
-			{
-				k.caps(key, c.x + 10, c.y + c.h / 2);
-				ui.drawGlyphMid(G_LEFT, c.x + 20 + kw, c.y + c.h / 2, TEXT);
-				ui.drawTextMid(shortGroupName(g), 0, TEXT, c.x + c.w - 12, c.y + c.h / 2, c.w - 44 - kw, 1);
-			}
-		}
+		// the group's rows: the layout starts under the header's title
 		lay::SettingsRows l = lay::settingsRows();
 		auto rows = settingRows();
 		for (int i = ui.scroll; i < (int)rows.size() && i < ui.scroll + SET_SHOWN; i++)
@@ -644,19 +662,19 @@ namespace bp
 		case Button::Start: ui.page = ui.home(p); break;
 		default: break;
 		}
-		if (ui.cursor < ui.scroll) ui.scroll = ui.cursor;
-		if (ui.cursor >= ui.scroll + SET_SHOWN) ui.scroll = ui.cursor - SET_SHOWN + 1;
+		// (a group's rows scroll; the tiles and the pages of their own keep their own scroll)
+		if (ui.page == Page::Settings && ui.setGroup >= 0)
+		{
+			if (ui.cursor < ui.scroll) ui.scroll = ui.cursor;
+			if (ui.cursor >= ui.scroll + SET_SHOWN) ui.scroll = ui.cursor - SET_SHOWN + 1;
+		}
 		return false;
 	}
 
-	// only a finger's down is the page's own (the group's neighbours, a row or a tile); its moves and lifts are the
-	// list's, in Ui::pointer
+	// only a finger's down is the page's own (a row or a tile); its moves and lifts are the list's, in Ui::pointer
 	bool Ui::SettingsPage::pointer(const Pointer& pt, int x, int y, Player&)
 	{
 		if (pt.kind != Pointer::Down) return false;
-		if (ui.setGroup >= 0)
-			for (int id : {GROUP_PREV, GROUP_NEXT})
-				if (ui.buttonRect(id).hit(x, y)) { ui.pressedBtn = id; return false; }
 		return settingsDown(x, y);
 	}
 

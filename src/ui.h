@@ -583,7 +583,7 @@ namespace bp
 		// START's menu, over a video or the browser: tabs Settings, About, Exit (Recent is Home's); L/R or a tap
 		// change tab, B or START close it
 		// Playing (Like, Add to playlist..., Show in folder, Info) is first, while a song or video plays (menuTabs)
-		enum Tab { TAB_SETTINGS, TAB_ABOUT, TAB_EXIT, TAB_PLAYING, TABS };
+		enum Tab { TAB_SETTINGS, TAB_EXIT, TAB_PLAYING, TABS };
 		std::vector<int> menuTabs(const Player& p) const;	// the tabs shown, in their order
 		bool playingTabShown(const Player& p) const;
 		Rect menuTabRect(int i, int n) const;	// the i-th of n tabs
@@ -723,6 +723,8 @@ namespace bp
 		void setInfoLines(const std::vector<Player::InfoRow>& rows);	// wrapped to the page
 		void openAbout(const Player& p);
 		static constexpr int INFO_Y = 70, INFO_H = 26, INFO_SHOWN = 14, INFO_VALUE_X = 190;
+		// About is a settings group, under the kit's header: rows from 100, the foot kept clear
+		static constexpr int ABOUT_Y = 100, ABOUT_SHOWN = 9;
 
 		SDL_Texture* text(const std::string& s, int size, SDL_Color c);
 		void drawText(const std::string& s, int size, SDL_Color c, int x, int y, int maxW = 0, int align = 0);
@@ -897,8 +899,7 @@ namespace bp
 		static constexpr int64_t STYLE_ROW = -2;	// the subtitle menu's last row: the settings page
 		static constexpr int QUIT_BTN = 10, INFO_BTN = 13, EXIT_BTN = 15,	// (a photo's Close and Info; the Exit page's)
 			BACK_ICON = 16,	// "<" at the top left of every page: B
-			EMPTY_BTN = 17,	// an empty page's button (no connections: Find on the network)
-			GROUP_PREV = 18, GROUP_NEXT = 19;	// a settings group's neighbours, either side of its title (Y, X)
+			EMPTY_BTN = 17;	// an empty page's button (no connections: Find on the network)
 		// the web dashboard's page: New PIN and Turn off (its Turn on / Try again is EMPTY_BTN)
 		static constexpr int WEB_NEWPIN = 540, WEB_OFF = 541;
 		// the select mode's bar (and Move's), the busy dialog's Cancel, the Add to... picker's rows (PICK_ROW + i)
