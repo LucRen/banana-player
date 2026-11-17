@@ -240,7 +240,7 @@ namespace bp
 		static std::vector<std::string> paragraphs()
 		{
 			return {"Pause: playback pauses and the handheld sleeps, as usual.",
-				"Keep playing: music goes on with the screens off, and the handheld sleeps when it stops.",
+				"Keep playing: the sound goes on with the lid shut. Then the power key pauses and plays, and holding a volume key skips.",
 				"Change it any time in Settings \xE2\x80\xBA Power & screens."};
 		}
 		int textHeight() const

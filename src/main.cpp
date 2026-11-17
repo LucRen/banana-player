@@ -880,16 +880,19 @@ int main(int argc, char** argv)
 				bp::crashlog::setContext(crashContext.c_str());
 			}
 			if (crashTest && SDL_GetTicks() >= crashAt) bp::crashlog::testCrash(crashTest);
-			// the power key with the lid shut: taken only while the setting is Keep playing, the lid is shut and
-			// something is loaded here (playing or paused, not stopped). The thread lets go the moment any of them
-			// ends; the beat says this loop still runs (3 s without one and it lets go by itself)
+			// the power and volume keys with the lid shut: each taken only while its own setting says so (Play / pause;
+			// Volume and skip), Keep playing is on, the lid is shut and something is loaded here (playing or paused, not
+			// stopped). The threads let go the moment any of them ends; the beat says this loop still runs (3 s without
+			// one and it lets go by itself)
 			{
 				bool keep = player.settings.lidKeepPlaying;
 				bool shut = sleepWatch.lidClosed();
 				const char* why = !keep ? "Keep playing is off" : !shut ? "the lid opened" : "nothing is loaded";
-				powerKey.tick(keep && shut && player.playing(), why,
+				bool powerMine = player.settings.lidPower == LID_POWER_PLAY, volumeMine = player.settings.lidVolume == LID_VOLUME_SKIP;
+				bool loaded = keep && shut && player.playing();
+				powerKey.tick(loaded && powerMine, powerMine ? why : "the setting says Sleep",
 					ui.incognitoOn() ? player.settings.lidIncognito : LID_INCOGNITO_NOTHING);
-				volumeKey.tick(keep && shut && player.playing(), why);
+				volumeKey.tick(loaded && volumeMine, volumeMine ? why : "the setting says Volume only");
 				incognitoOn = ui.incognitoOn();
 				lidIncognitoMode = player.settings.lidIncognito;
 			}

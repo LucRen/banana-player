@@ -187,8 +187,10 @@ namespace bp
 	void Ui::SettingsPage::changeSetting(int row, int dir, Player& p)
 	{
 		if (row == CLEAR_ROW) { ui.clearHistory(p); return; }
-		// with the lid set to Pause, the shoulder rows say "The lid pauses" and change nothing
-		if (rowDef(row) && rowDef(row)->intField == &Settings::lidShoulder && !p.settings.lidKeepPlaying) return;
+		// with the lid set to Pause, the three key rows say "The lid pauses" and change nothing
+		const SettingDef* d = rowDef(row);
+		if (d && (d->intField == &Settings::lidPower || d->intField == &Settings::lidVolume ||
+			d->intField == &Settings::lidShoulder) && !p.settings.lidKeepPlaying) return;
 		// the cache's Clear asked twice, as the history's is
 		if (row == MANGA_CLEAR_ROW)
 		{
@@ -503,8 +505,9 @@ namespace bp
 			{
 				r.label = d->label;
 				value = settingValueText(*d, p.settings);
-				// the shoulder rows while the lid pauses: unavailable, with the reason in the value's place
-				if (d->intField == &Settings::lidShoulder && !p.settings.lidKeepPlaying)
+				// the three key rows while the lid pauses: unavailable, with the reason in the value's place
+				if ((d->intField == &Settings::lidPower || d->intField == &Settings::lidVolume ||
+					d->intField == &Settings::lidShoulder) && !p.settings.lidKeepPlaying)
 				{
 					r.off = true;
 					value = "The lid pauses";

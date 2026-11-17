@@ -43,6 +43,10 @@ namespace bp
 	static const char* SCREEN_OFF_LABELS[SCREEN_OFFS] = {"Never", "15 seconds", "30 seconds", "1 minute", "2 minutes", "5 minutes"};
 	static const char* LID_SHOULDER_IDS[LID_SHOULDERS] = {"ignored", "hold", "as-usual"};
 	static const char* LID_SHOULDER_LABELS[LID_SHOULDERS] = {"Ignored", "Hold", "As usual"};
+	static const char* LID_POWER_IDS[LID_POWERS] = {"play-pause", "sleep"};
+	static const char* LID_POWER_LABELS[LID_POWERS] = {"Play / pause", "Sleep"};
+	static const char* LID_VOLUME_IDS[LID_VOLUMES] = {"volume-and-skip", "volume-only"};
+	static const char* LID_VOLUME_LABELS[LID_VOLUMES] = {"Volume and skip", "Volume only"};
 	static const char* LID_INCOGNITO_IDS[LID_INCOGNITOS] = {"nothing", "close-all", "quit"};
 	static const char* LID_INCOGNITO_LABELS[LID_INCOGNITOS] = {"Nothing", "Close all", "Quit"};
 
@@ -675,6 +679,12 @@ namespace bp
 			D::flag("lid-close", &Settings::lidKeepPlaying, "pause", "keep-playing")
 				.page(SG_SCREEN, 70, "When the lid closes", "Pause: closing the lid pauses and the handheld sleeps. Keep playing: a song or a video goes on with both screens off, and the handheld does not sleep while the lid is shut and something is loaded. Volume and Power still work.")
 				.shownAs(SHOWN_LID),
+			D::choice("lid-power", &Settings::lidPower, LID_POWER_IDS, LID_POWERS)
+				.page(SG_SCREEN, 75, "Power key, lid shut", "With the lid shut. Play / pause: a press of the power key plays or pauses; hold it 2 s to sleep. Sleep: a press sleeps the handheld, as with the lid open.")
+				.shownAs(LID_POWER_LABELS).stepped(true),
+			D::choice("lid-volume", &Settings::lidVolume, LID_VOLUME_IDS, LID_VOLUMES)
+				.page(SG_SCREEN, 76, "Volume keys, lid shut", "With the lid shut, a press of a volume key is volume. Volume and skip: holding one for 0.6 s goes to the next (+) or the previous (-). Volume only: holding does what it does with the lid open.")
+				.shownAs(LID_VOLUME_LABELS).stepped(true),
 			D::choice("lid-shoulder", &Settings::lidShoulder, LID_SHOULDER_IDS, LID_SHOULDERS)
 				.page(SG_SCREEN, 80, "Shoulder keys, lid shut", "What L, R, L2 and R2 do while the lid is shut and something plays. Ignored: they do nothing. Hold: they act when held for 0.6 s. As usual: they act at once.")
 				.shownAs(LID_SHOULDER_LABELS).stepped(true),

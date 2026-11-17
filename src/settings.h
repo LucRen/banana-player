@@ -63,6 +63,12 @@ namespace bp
 	const char* screenOffLabel(int v);	// "Never", "15 seconds", "1 minute"...
 	// L, R, L2 and R2 with the lid shut (docs/redesign/lid-and-incognito.md, "Shoulder keys, lid shut")
 	enum LidShoulder { LID_SHOULDER_IGNORED, LID_SHOULDER_HOLD, LID_SHOULDER_AS_USUAL, LID_SHOULDERS };
+	// the power key with the lid shut: a press plays or pauses (a 2 s hold sleeps), or the key is BananaOS's (a press
+	// sleeps, as with the lid open: the player never takes it)
+	enum LidPower { LID_POWER_PLAY, LID_POWER_SLEEP, LID_POWERS };
+	// the volume keys with the lid shut: a press is a step and a 0.6 s hold skips (the player takes the device), or
+	// only the volume, as with the lid open (the player never takes them)
+	enum LidVolume { LID_VOLUME_SKIP, LID_VOLUME_ONLY, LID_VOLUMES };
 	// what incognito does when the lid closes or the handheld sleeps: nothing, close all, quit
 	enum LidIncognito { LID_INCOGNITO_NOTHING, LID_INCOGNITO_CLOSE_ALL, LID_INCOGNITO_QUIT, LID_INCOGNITOS };
 	const char* musicShowLabel(int v);
@@ -128,6 +134,10 @@ namespace bp
 		// closing the lid while something plays: pause (false), or keep playing (BananaOS's lid sleep switched off while
 		// it plays: lidsleep_host.h)
 		bool lidKeepPlaying = false;
+		// with the lid shut and Keep playing: the power key's play/pause or BananaOS's sleep
+		int lidPower = LID_POWER_PLAY;
+		// with the lid shut and Keep playing: the volume keys' press and hold, or only the volume
+		int lidVolume = LID_VOLUME_SKIP;
 		// with the lid shut and Keep playing: L / R / L2 / R2 ignored, held 0.6 s, or as with the lid open
 		int lidShoulder = LID_SHOULDER_IGNORED;
 		// incognito while the lid closes or the handheld sleeps: nothing, close everything, or quit

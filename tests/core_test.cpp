@@ -5859,11 +5859,13 @@ static void testSettingsTable()
 	CHECK_EQ(std::string(defs[screen.front()].key), "same-brightness");
 	CHECK_EQ(std::string(defs[screen[1]].key), "screen-off");
 	CHECK_EQ(std::string(defs[screen.back()].key), "clock");
-	// the lid's two rows, under When the lid closes
+	// the lid's key rows, under When the lid closes: power, volume, shoulders, then incognito
 	auto lid = std::find_if(screen.begin(), screen.end(), [&](int i) { return std::string(defs[i].key) == "lid-close"; });
 	CHECK_EQ(lid != screen.end(), true);
-	CHECK_EQ(std::string(defs[*(lid + 1)].key), "lid-shoulder");
-	CHECK_EQ(std::string(defs[*(lid + 2)].key), "lid-incognito");
+	CHECK_EQ(std::string(defs[*(lid + 1)].key), "lid-power");
+	CHECK_EQ(std::string(defs[*(lid + 2)].key), "lid-volume");
+	CHECK_EQ(std::string(defs[*(lid + 3)].key), "lid-shoulder");
+	CHECK_EQ(std::string(defs[*(lid + 4)].key), "lid-incognito");
 	// the readers' choices moved to Reading from no page at all
 	auto reading = settingsOfGroup(SG_READING);
 	CHECK_EQ(reading.size(), (size_t)7);

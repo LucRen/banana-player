@@ -664,6 +664,8 @@ opens the Subtitles group; **B** there goes back to that sheet, on Subtitles.
 | | Screen off (music) | 30 seconds | While a song plays, the bottom screen turns off by itself after that long without a touch or a button: Never, 15 or 30 seconds, 1, 2 or 5 minutes. Not while paused, and never while a photo or a comic is shown. A touch or any button brings it back |
 | | Screen off (video) | 30 s | The same while a video plays; Never keeps its seek bar, tracks and subtitles lit and ready to touch |
 | | When the lid closes | Pause | What closing the lid does, with something playing or stopped. See [Lid and sleep](#controls) |
+| | Power key, lid shut | Play / pause | With the lid shut and **Keep playing**: Play / pause (a press plays or pauses, a 2 s hold sleeps) or Sleep (the key stays BananaOS's: a press sleeps, as with the lid open). At 45% with its reason while the lid is set to Pause |
+| | Volume keys, lid shut | Volume and skip | With the lid shut and **Keep playing**: a press is one volume step; Volume and skip holds 0.6 s for next (+) / previous (-), Volume only holds as with the lid open (the player never takes the keys). At 45% with its reason while the lid is set to Pause |
 | | Shoulder keys, lid shut | Ignored | With the lid shut and **Keep playing**, what **L**, **R**, **L2** and **R2** do: Ignored (nothing), Hold (act when held 0.6 s), or As usual (act at once). At 45% with its reason while the lid is set to Pause |
 | | Lid or sleep in incognito | Close all | While incognito is on: what the lid closing or the handheld sleeping does. Nothing, Close all (stop, close books and photos, Home, leave incognito) or Quit. See [Incognito](#quick-settings) |
 | | Battery percentage | Off | Shows the battery's percent beside its icon (the icon, with a bolt while charging, is always there) |
@@ -1324,15 +1326,18 @@ combination instead.)
   incognito ends; no note on waking) or **Quit** (Banana Player quits). Close all and Quit win over Keep playing; a book's
   place and read marks are kept as Stop keeps them. With Keep playing and nothing loaded the handheld sleeps as BananaOS
   normally does.
-- **Power key with the lid shut:** while the lid is shut with **Keep playing** and something is loaded here (playing or
+- **Power key with the lid shut:** Settings › Power & screens › **Power key, lid shut**: **Play / pause** (default) or
+  **Sleep**. With Play / pause, while the lid is shut with **Keep playing** and something is loaded here (playing or
   paused, not stopped), the power key is play/pause: a short press pauses or plays, as **A** does. Holding it 2 seconds
   sleeps: the player lets the key go and asks BananaOS for the sleep closing the lid would bring. With the lid open,
   nothing loaded, or **Pause** set, the power key is BananaOS's as before. After a hold's sleep it lets go until the
   wake (and is play/pause again then), so the key that wakes the handheld reaches bananad; a key bananad holds
   exclusively stays BananaOS's too. With incognito on, the 2 s hold does **Lid or sleep in incognito** first (Close all
   or Quit), then sleeps. `log.txt`: `power: … taken: lid shut…`, `power:
-  press: play/pause`, `power: hold: asking bananad to sleep`, `power: released (…)`.
-- **Volume keys with the lid shut:** while the lid is shut with **Keep playing** and something is loaded (playing or
+  press: play/pause`, `power: hold: asking bananad to sleep`, `power: released (…)`. With **Sleep** the player never takes
+  the key: a press sleeps the handheld, as with the lid open.
+- **Volume keys with the lid shut:** Settings › Power & screens › **Volume keys, lid shut**: **Volume and skip** (default)
+  or **Volume only**. With Volume and skip, while the lid is shut with **Keep playing** and something is loaded (playing or
   paused), the player takes the volume keys' own input device (`gpio-keys-volume`, apart from the power key and the lid
   switch) so BananaOS never moves the volume by itself. **Volume +** / **Volume −** let go before 0.6 s: one volume step
   (5%, when you let go) through BananaOS's own `/usr/libexec/banana/volume`; it stops at 100% (a boost set before stays).
@@ -1341,6 +1346,7 @@ combination instead.)
   The grab ends the moment the lid opens, Keep playing goes off, nothing is loaded, the player quits, or the main loop
   stops answering (3 s). No sound effects. `log.txt`: `volume keys: … taken: lid shut…`, `volume keys: Volume + press:
   volume 45%`, `volume keys: Volume - held 601 ms: previous`, `volume keys: … stuck…`, `volume keys: released (…)`.
+  With **Volume only** the player never takes the keys: a held key runs the volume, as with the lid open.
 - **Shoulder keys with the lid shut:** Settings › Power & screens › **Shoulder keys, lid shut**: **Ignored** (default),
   **Hold** (L / R previous / next and L2 / R2 previous / next chapter when held 0.6 s; one hold, one step) or **As usual**
   (at once). With **Pause** the row is at 45% ("The lid pauses"). Nothing else under the lid does anything while the lid
