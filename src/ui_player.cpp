@@ -388,7 +388,7 @@ namespace bp
 		case Button::X: openMoreSheet(); break;
 		case Button::Y: return listAct(p);
 		// the menu opens on what plays (Like, Add to playlist...): Settings is a tab along
-		case Button::Start: ui.openMainMenu(p, ui.playingTabShown(p) ? TAB_PLAYING : TAB_SETTINGS); break;
+		case Button::Start: ui.openMainMenu(p); break;
 		// the stick pressed in (the RG DS Plus): Like, at once (over a photo it turns it, above)
 		case Button::L3: ui.likeNow(p); break;
 		// View: a video's tracks, size and speed, or a song's Display, equalizer and effects, as tabs of one sheet

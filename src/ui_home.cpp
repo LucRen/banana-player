@@ -317,7 +317,7 @@ namespace bp
 			quitCursor = 1;
 			return false;
 		}
-		if (b == Button::Start) { ui.openMainMenu(p, ui.playingTabShown(p) ? TAB_PLAYING : TAB_SETTINGS); return false; }
+		if (b == Button::Start) { ui.openMainMenu(p); return false; }
 		if (b == Button::X) { openHomeOptions(); return false; }
 		bool has = !recent.empty();
 		if (homeZone == HOME_STRIP && has)

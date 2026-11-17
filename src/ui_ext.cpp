@@ -101,7 +101,7 @@ namespace bp
 		switch (b)
 		{
 		case Button::A: extToggleManga(p); break;
-		case Button::Start: ui.openMainMenu(p, ui.playingTabShown(p) ? TAB_PLAYING : TAB_SETTINGS); break;
+		case Button::Start: ui.openMainMenu(p); break;
 		case Button::B: openExtensionsDrawer(p); break;
 		default: break;
 		}

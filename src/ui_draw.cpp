@@ -486,16 +486,13 @@ namespace bp
 		markAnim = false;
 		loaderShown = false;
 		if (page == Page::Info || page == Page::About) drawInfo(p);
-		else if (page == Page::Exit) drawExit(p);
-		else if (page == Page::Playing) drawPlaying(p);
+		else if (page == Page::Menu) drawMenu(p);
 		else if (Area* a = area()) a->draw(p);
 		else drawTracks(p);	// (Page::Main is an area: PlayerPage::draw)
 		if (miniUp) drawMiniBar(p);
 		browse->drawClipBar();
-		if (inMenu && page != Page::Settings && page != Page::About) drawTabs(p);
 		if (ctxOpen) drawBrowseMenu(p);	// (the mini bar's hold menu opens on pages of its own too)
 		if (browse->playlists->pickerOpen) browse->playlists->drawPicker();
-		if (playOnOpen && inMenu && page == Page::Playing) drawPlayOn(p);
 		if (browse->playlists->addPending.serial && page == Page::Browse) browse->playlists->drawBusy();
 		if (popupShown(p)) drawUpdatePopup();
 		manga->drawExtNotice();
@@ -809,19 +806,6 @@ namespace bp
 			noteW = (int)std::lround(textWidth(note, 0) / sx) + 20;
 		}
 		drawTextMid(label, 1, c, x, r.y + r.h / 2, r.x + r.w - x - 12 - noteW);
-	}
-
-	void Ui::drawTabs(const Player& p)
-	{
-		static const char* names[TABS] = {"Settings", "Quit", "Playing"};
-		fill({0, 0, W, 57}, BG);	// over whatever the page drew there (a settings group's neighbours start at 58)
-		webInd = {0, 0, 0, 0};	// (the battery and its marks gone under it: drawn again)
-		drawBackIcon();
-		auto tabs = menuTabs(p);
-		int n = (int)tabs.size();
-		for (int t = 0; t < n; t++) drawTab(menuTabRect(t, n), names[tabs[t]], tabs[t] == menuTab);
-		Rect last = menuTabRect(n - 1, n);
-		drawBattery(616, 24, p, last.x + last.w + 8);
 	}
 
 	int Ui::glyphW(const Glyph& g, int cell) const

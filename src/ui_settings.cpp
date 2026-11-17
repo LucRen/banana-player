@@ -657,9 +657,14 @@ namespace bp
 		case Button::Select: if (ui.nowPlayable(ui.barPlayer(p))) ui.goNowPlaying(p); break;
 		case Button::B:
 			if (ui.setGroup >= 0) { ui.cursor = ui.setGroup; ui.setGroup = -1; }
+			else if (ui.inMenu) ui.page = Page::Menu;
 			else ui.page = ui.home(p);
 			break;
-		case Button::Start: ui.page = ui.home(p); break;
+		case Button::Start:
+			// (from START's menu: back to the places; opened on its own: the menu over it)
+			if (ui.inMenu) ui.page = Page::Menu;
+			else ui.openMainMenu(p);
+			break;
 		default: break;
 		}
 		// (a group's rows scroll; the tiles and the pages of their own keep their own scroll)

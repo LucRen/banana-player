@@ -103,10 +103,9 @@ namespace bp
 		}
 		PlayerBack b = playerBack;
 		playerBack = PlayerBack();
-		bool menuGone = b.inMenu && b.menuTab == TAB_PLAYING && !(p.playing() && !p.playingPhoto());
 		bool toSource = showSourceAfterLeave;
 		showSourceAfterLeave = false;
-		if (!b.set || !showAfterLeave.empty() || b.page == Page::Main || menuGone || toSource)
+		if (!b.set || !showAfterLeave.empty() || b.page == Page::Main || toSource)
 		{
 			if (toSource) inMenu = false;
 			showBrowser(p, lastPlayed, from, index);
@@ -170,7 +169,6 @@ namespace bp
 		if (bgPlay) landFlashUntil = SDL_GetTicks() + 900;
 		playerPage->unlock();	// the lock is the player's
 		dropTouch();
-		if (inMenu && menuTab == TAB_PLAYING) inMenu = false;	// (its tab is what played: gone with it)
 		if (!showAfterLeave.empty())
 		{
 			// the Playing tab's Show in folder: that folder, wherever it played from
@@ -1485,7 +1483,7 @@ namespace bp
 			return false;
 		}
 		// (on what plays behind it, as over the player)
-		if (b == Button::Start) { ui.openMainMenu(p, ui.playingTabShown(p) ? TAB_PLAYING : TAB_SETTINGS); return false; }
+		if (b == Button::Start) { ui.openMainMenu(p); return false; }
 		// the list's own (UP/DOWN, a page with LEFT/RIGHT, A)
 		return ui.listKey(b, p);
 	}

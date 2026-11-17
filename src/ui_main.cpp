@@ -230,13 +230,11 @@ namespace bp
 		if (id == BUSY_CANCEL) return {152, 224, 336, 46};
 		if (id == WEB_NEWPIN) return {296, miniUp ? 368 : 384, 152, 52};
 		if (id == WEB_OFF) return {464, miniUp ? 368 : 384, 152, 52};
-		if (id >= PLAY_ROW && id < PLAY_ROW + 7) return playingRowRect(id - PLAY_ROW);
 		if (id == MINI_PP) return {MINI_BOX.x, MINI_BOX.y, 44, MINI_BOX.h};
 		if (id == MINI_BAR) return {MINI_BOX.x + 44, MINI_BOX.y, MINI_BOX.w - 44, MINI_BOX.h};
 		if (id >= PHOTO_BTN) return {0, 0, 0, 0};	// photoBtn's: they move with the pan area
 		if (id == QUIT_BTN) return {468, miniUp ? 376 : 428, 148, 44};	// (a photo's Close: above the mini bar too)
 		if (id == EMPTY_BTN) return page == Page::Browse && browse->browseDir == NETROOT ? Rect{160, 300, 320, 52} : Rect{200, 300, 240, 52};	// (Find on the network: a longer label)
-		if (id == EXIT_BTN) return {170, 200, 300, 80};
 		// the Settings pages' kit header: the key is a little wider than a tab bar's "<" (10,3,56,48)
 		if (id == BACK_ICON) return page == Page::Settings || page == Page::About ? Rect{10, 3, 56, 48} : Rect{8, 8, 48, 48};
 		return {0, 0, 0, 0};	// (the player screen's keys are its own: PlayerPage::rect)

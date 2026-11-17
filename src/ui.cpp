@@ -163,17 +163,10 @@ namespace bp
 			if (browse->fileNameSubmit) browse->fileRenameDone(p);
 			return false;
 		}
-		// Add to... over what plays (or the Playing tab); the browser's is taken below, in its turn
+		// Add to... over what plays; the browser's is taken below, in its turn
 		if (browse->playlists->pickerOpen && page != Page::Browse)
 		{
 			browse->playlists->pickerKey(b, p);
-			return false;
-		}
-		// Play on, over START › Playing
-		playOnOpen = playOnOpen && inMenu && page == Page::Playing && playingTabShown(p);
-		if (playOnOpen)
-		{
-			playOnKey(b, p);
 			return false;
 		}
 		// a menu (the Options one, a row's hold, the mini bar's) takes the buttons first, on whatever page it is over
@@ -224,20 +217,21 @@ namespace bp
 		}
 		if (inMenu)
 		{
-			// Settings and About draw the kit's header, not the menu's tabs: L / R do not page through them
-			bool ownHeader = page == Page::Settings || page == Page::About;
-			if (!ownHeader && (b == Button::L || b == Button::R))
+			// START is the Menu of places from any page of the menu too; on the Menu itself it closes, as B does
+			if (b == Button::Start && page != Page::Menu)
 			{
-				// round, in the order shown
-				auto tabs = menuTabs(p);
-				int n = (int)tabs.size(), at = 0;
-				for (int i = 0; i < n; i++)
-					if (tabs[i] == menuTab) at = i;
-				showTab(tabs[(at + (b == Button::R ? 1 : n - 1)) % n], p);
+				page = Page::Menu;
+				menuCursor = 0;
 				return false;
 			}
 			// B in the subtitle style opened from the Subtitles list, or in a settings group: back (SettingsPage)
-			if (b == Button::B && page == Page::Settings && settingsPage->menuBack(p)) return false;
+			if (b == Button::B && page == Page::Settings)
+			{
+				if (settingsPage->menuBack(p)) return false;
+				// the tiles: back to the Menu (SettingsPage::key)
+				area()->key(b, p);
+				return false;
+			}
 			// B in About (a settings group, its own page): back to the groups' tiles, not out of the menu
 			if (b == Button::B && page == Page::About)
 			{
@@ -248,18 +242,13 @@ namespace bp
 				return false;
 			}
 			if (b == Button::Start || b == Button::B) { closeMenu(p); return false; }
-			if (page == Page::Exit)
-			{
-				if (b == Button::A) quitRequested = true;
-				return false;
-			}
-			// the tab's page takes the rest (Recent's list, the settings' rows, About's scrolling)
+			// the page's own (the Menu's places, the settings' rows, About's scrolling)
 		}
+		if (page == Page::Menu) return menuKey(b, p);
 		// Files' Copy / Move held: SELECT pastes in this folder, X lets go
 		if (browse->clipKey(b, p)) return false;
 		// an area's page (Files' document viewers): its own keys
 		if (Area* a = area()) return a->key(b, p);
-		if (page == Page::Playing) return playingKey(b, p);
 		if (page == Page::Info || page == Page::About)
 		{
 			int maxScroll = std::max(0, (int)infoLines.size() - (page == Page::About ? ABOUT_SHOWN : INFO_SHOWN));
@@ -273,6 +262,9 @@ namespace bp
 				// About is a settings group: back to the groups' tiles
 				if (page == Page::About) { page = Page::Settings; setGroup = -1; cursor = GROUP_ABOUT; scroll = 0; }
 				else page = home(p);
+				break;
+			case Button::Start:
+				if (page == Page::About && inMenu) { page = Page::Menu; cursor = 0; scroll = 0; }
 				break;
 			default: break;
 			}
@@ -477,8 +469,6 @@ namespace bp
 		if (id == MOVE_CANCEL || id == MOVE_DONE) { browse->playlists->moveEnd(id == MOVE_DONE, p); return false; }
 		if (id == BUSY_CANCEL) { browse->playlists->cancelAdd(p); return false; }
 		if (id >= manga->EXT_TILE && id <= manga->EXT_DONE) return manga->extAct(id, p);
-		if (id >= PLAY_ROW && id < PLAY_ROW + 7) return playingChoose(id - PLAY_ROW, p);
-		if (id == EXIT_BTN) { quitRequested = true; return false; }
 		if (id >= PHOTO_BTN && id < PHOTO_BTN + PHOTO_BTNS)
 		{
 			static const Button PHOTO_KEYS[PHOTO_BTNS] = {Button::L, Button::R, Button::Down, Button::Up, Button::L3,
@@ -554,10 +544,8 @@ namespace bp
 			if (pt.kind == Pointer::Up) swallowTouch = false;
 			return false;
 		}
-		// Add to... over what plays (or the Playing tab) as over the browser
+		// Add to... over what plays as over the browser
 		if (browse->playlists->pickerOpen) return browse->playlists->pickerPointer(pt, x, y, p);
-		playOnOpen = playOnOpen && inMenu && page == Page::Playing && playingTabShown(p);
-		if (playOnOpen) return playOnPointer(pt, x, y, p);
 		// Home's quit dialog takes every finger: a row chooses as it lifts, outside it cancels
 		if (page == Page::Browse && !inMenu && browse->atHome() && browse->homeView->quitOpen && !popupShown(p)) return browse->homeView->homePointer(pt, x, y, p);
 		// the header's web dashboard mark: its page, as the finger lifts on it
@@ -709,31 +697,11 @@ namespace bp
 			return false;
 		}
 		// an area's page (the readers, the Manga pages): its own touches; the mini bar's taken above. An area whose
+		// the Menu's places, its Now playing line and its two keys (its downs as well as its ups)
+		if (page == Page::Menu) return menuPointer(pt, x, y, p);
 		// downs come late (Manga's pages but the reader) has them below, after "<"
 		if (Area* a = area(); a && !(pt.kind == Pointer::Down && a->pointerDownLate())) return a->pointer(pt, x, y, p);
 		if (pt.kind != Pointer::Down) return false;
-		if (inMenu && y < 60 && page != Page::Settings && page != Page::About)
-		{
-			// the tab bar: a tab, or "<" (it closes the menu as the finger lifts)
-			if (buttonRect(BACK_ICON).hit(x, y)) { pressedBtn = BACK_ICON; return false; }
-			auto tabs = menuTabs(p);
-			for (int t = 0; t < (int)tabs.size(); t++)
-				if (menuTabRect(t, (int)tabs.size()).hit(x, y)) showTab(tabs[t], p);
-			return false;
-		}
-		if (page == Page::Exit)
-		{
-			if (buttonRect(EXIT_BTN).hit(x, y)) pressedBtn = EXIT_BTN;
-			return false;
-		}
-		if (page == Page::Playing)
-		{
-			// a row acts as the finger lifts on it
-			auto rows = playingRows();
-			for (int i = 0; i < (int)rows.size(); i++)
-				if (buttonRect(PLAY_ROW + i).hit(x, y)) { cursor = i; pressedBtn = PLAY_ROW + i; }
-			return false;
-		}
 
 		// "<": B (up a folder; twice, out of what plays or, from the first page, out of the player)
 		if (backIconShown(p) && buttonRect(BACK_ICON).hit(x, y)) { pressedBtn = BACK_ICON; return false; }
@@ -819,14 +787,10 @@ namespace bp
 				(p.netWaiting() ? "w" : "") + src.title + "|" + src.id;
 		}
 		photo += webSig(p);
-		// where it plays (the Playing tab's Play on row, the picker, the status line), and the pages it could
+		// where it plays (the player's Play on sheet and the status line)
 		{
 			SessionHost& sh = SessionHost::get();
-			// (the play mode's Shuffle: the music key, the status line)
-			photo += "|out" + outputName() + (sh.pageWaits() ? "w" : "") + (sh.session().shuffle ? "S" : "") + " " + std::to_string(playOnOpen) + std::to_string(playOnCursor) +
-				" " + std::to_string(playOnScroll);
-			if (page == Page::Playing || playOnOpen)
-				for (auto& c : outChoices()) photo += "," + c.name;
+			photo += "|out" + outputName() + (sh.pageWaits() ? "w" : "") + (sh.session().shuffle ? "S" : "");
 		}
 		// Like: the heart's pop, the Add square's check, the picker's one file and its question
 		{
@@ -860,7 +824,7 @@ namespace bp
 		// Files' copy or move: how far, and the file on its way; what's held for Copy / Move
 		photo += fileJobSignature();
 		if (Area* a = area()) photo += a->signature(p);
-		return buf + photo + overlaySignature(p) + "|ld" + (loaderShown ? std::to_string(SDL_GetTicks() / 110) : std::string()) + "|xn" + manga->extNoticeText() + "|" + p.title + "|" + p.error + "|" + serializeSettings(p.settings) + "|bat" + std::to_string(battery.percent) + (battery.charging ? "c" : "") + (inMenu ? "|menu" + std::to_string(menuTab) : "") + (ctxOpen ? "|ctx" + std::to_string(ctxCursor) + std::to_string(pressedBtn) + ctxStatus + (ctxArmed ? "!" : "") : "") + upd
+		return buf + photo + overlaySignature(p) + "|ld" + (loaderShown ? std::to_string(SDL_GetTicks() / 110) : std::string()) + "|xn" + manga->extNoticeText() + "|" + p.title + "|" + p.error + "|" + serializeSettings(p.settings) + "|bat" + std::to_string(battery.percent) + (battery.charging ? "c" : "") + (inMenu ? "|menu" + std::to_string(menuTab) + "." + std::to_string(menuCursor) : "") + (ctxOpen ? "|ctx" + std::to_string(ctxCursor) + std::to_string(pressedBtn) + ctxStatus + (ctxArmed ? "!" : "") : "") + upd
 			+ (kbOpen ? "|kb" + sound->eqNameNote + std::to_string(kbCursor) + "," + std::to_string(kbPressed) + "," + std::to_string((int)kbShift) + (kbSymbols ? "s" : "") + std::to_string(kbEdit.caret) + kbEdit.text + (kbCaretShown() ? "|" : "") : "");
 	}
 }

@@ -97,23 +97,23 @@ video's list while the playing screen was up; a song's list ending keeps the son
 
 - **The mini bar**, along the bottom of every page but the player itself: Home, every list (Files, Playlists, Network,
   All recent), Settings and its groups, Sound, the web dashboard, Manage extensions, the manga reader's pages, the
-  photo viewer, and the player's START menu's Settings tab. The comic reader and the photo viewer are pages of their
+  photo viewer. The comic reader and the photo viewer are pages of their
   own, not the player: over a photo the bar shows and controls what plays underneath (a song or a video), not the
   photo. The bar: the play / pause mark, the title, `0:14 / 1:00` (· paused), and a line showing how far it has got.
   Tap the bar to go back to the playing screen; tap the mark on its left to play or pause and stay where you are; hold
   the bar for its menu: **Now playing**, **Play** / **Pause**, **Like**, **Add to playlist…**, **Show in folder**,
   **Stop**. It's hidden while you select files, type, fill in a connection, with a popup menu or a sheet over the
-  page, and on the player's own screens (the playing screen, Up next, Info) and START's Playing and Exit tabs (About is
-  the last Settings group now); Settings and its groups, Sound and the web dashboard have it.
+  page, and on the player's own screens (the playing screen, Up next, Info) and START's menu (its Now playing line is
+  there instead); Settings and its groups, Sound and the web dashboard have it.
 - **The header** shows three small yellow bars left of the clock while something plays behind the list (dim and still
   when it's paused).
 - **The playing file's row** carries a chip: **Playing**, **Paused** or **In browser** (the web dashboard plays it). Its card on Home says **Now** with its time and bar running. **A** on that row or card goes back to it,
   never from its start.
 - **Back to the playing screen:** **SELECT** on any page with the bar (or on Home), a tap on the mini bar, **START** ›
-  **Playing** › **Now playing**, **A** on its row or card, or **B** on Home. From a book or a comic, a video takes the top screen
+  **Now playing** on the menu's line, **A** on its row or card, or **B** on Home. From a book or a comic, a video takes the top screen
   back while its player shows; **B** returns to the page you were reading.
 - **L3** (press the stick) likes or unlikes what plays, from the lists too.
-- **Stop** ends it: **Stop** at the bottom right of the playing screen, **START** › **Playing** › **Stop**, or the mini
+- **Stop** ends it: **Stop** at the bottom right of the playing screen, **X · More** › **Stop**, or the mini
   bar's menu. The place is kept (its card on Home resumes it). A song that reaches the end of the folder or playlist
   doesn't close: it stays on the playing screen (or the bar keeps it) at **0:00**, paused, and **A** (or the power key
   with the lid shut, or **Play** in the browser) plays it again from its start. A video's end still stops: on the playing
@@ -201,11 +201,10 @@ Playlists.
 
 Like a song or a video to keep it in **Liked**, a playlist of its own. Photos and folders can't be liked.
 
-- **Like:** the **Like** key (the heart, under the transport row) while something plays, **X** → **Like**, **START** →
-  **Like** (the menu opens on it), or **L3** on the RG DS Plus. The heart turns yellow and the top screen says **Added to Liked** with the title
+- **Like:** the **Like** key (the heart, under the transport row) while something plays, **X** → **Like**, or
+  **L3** on the RG DS Plus. The heart turns yellow and the top screen says **Added to Liked** with the title
   (**Removed from Liked** when you press it again). A like is the file's, wherever it plays from.
-- **Add to playlist:** the **Playlist** key (beside Like), **X** → **Add to playlist…**, or **START** → **Add to
-  playlist…**. **New playlist…** comes
+- **Add to playlist:** the **Playlist** key (beside Like), or **X** → **Add to playlist…**. **New playlist…** comes
   first, then the playlists you changed last. A playlist that already has it says **✓ Added**: choosing it asks
   **Add again?**, and a second **A** adds another copy. **New playlist…** names one on the keyboard and adds to it. The
   button shows a check and the top screen says where it went.
@@ -231,7 +230,7 @@ Like a song or a video to keep it in **Liked**, a playlist of its own. Photos an
 | **X** | **More**: a sheet with **Lock touch**, **Screen off**, **Info** and **Stop** (in red) as its first four keys, then **Like**, **Add to playlist…**, **Show in folder** and, while a dashboard page that can play is open, **Play on…**. The D-pad moves, **A** chooses, **X** or **B** closes |
 | **Y** | **List** (the **List** key): one sheet with **Up next** (the folder or playlist that plays, in its own order, the one playing marked **Now**) and **Chapters** (every chapter with its start; a file without chapters has only Up next), with **Shuffle**'s switch and **Repeat** (Off / All / One) in its header. **L / R** step the tabs, **UP / DOWN** move, **LEFT / RIGHT** page, **A** plays from the row, **L2 / R2** jump a chapter with the sheet open, **Y** or **B** closes |
 | **SELECT** | **View**, a sheet over the controls. A video: **Subtitles** (Off, the file's tracks, and **Subtitle style…**), **Audio**, **Picture** (Fit, Fill, Stretch) and **Speed** (0.5x to 2.5x). A song: **Display** (the four Show modes and a **Visualizer style** row), **Visualizer** (the twenty styles as a grid), **Equalizer**, **Effects** and **Speed**. **L / R** switch tabs, **UP / DOWN** move, **LEFT / RIGHT** page a long list, **A** chooses, **SELECT** or **B** closes (on a song's Display, **SELECT** steps the Show mode); it opens on the tab you used last |
-| **START** | Menu, on its **Playing** tab: Like, Add to playlist…, Show in folder, Info, Stop |
+| **START** | **Menu**: the places (Home, Files, Playlists, Manga, Network, Settings, About), Quick settings and Quit |
 | **L3** (press the stick, RG DS Plus) | Like / Unlike what plays |
 | **B** (or **Back**) | Back to the list: it keeps playing (see [Playing while you browse](#playing-while-you-browse)) |
 | **F + L2** | Screenshot of both screens (saved in the card's `screenshots` folder) |
@@ -326,7 +325,7 @@ See [Photos](#photos) for the touch screen.
 | **Y** | On a file or folder of the cards: **Info** (its name, kind, size (a folder's with everything in it), length, where it is, when it was changed, its full path), **Copy…**, **Move…**, **Rename…**, **Delete** (press twice: it's gone for good) ([below](#copy-move-rename-delete)). On a folder: **Add to playlist…** (first). On a network connection: **Edit connection**, **Test connection**, **Delete connection** (press twice) (or hold it on the touch screen). On a playlist or its item: see [Playlists](#playlists) |
 | **SELECT** | Back to what plays (the playing screen); in select mode, Select all |
 | **L3** (press the stick) | Like / Unlike what plays |
-| **START** | Menu (on its **Playing** tab while something plays) |
+| **START** | **Menu**: the places, Quick settings and Quit |
 | **Mini bar** (touch screen) | On every page but the player: tap it for the playing screen · its play mark: play / pause · hold: its menu |
 
 ### Copy, move, rename, delete
@@ -342,18 +341,19 @@ What's playing can't be moved, renamed or deleted.
 
 ### The menu (START)
 
-Two tabs while a song or video plays, **Playing** (the tab it opens on) and **Settings**; with nothing playing, START
-opens Settings itself, under its own header. **L/R** or a tap switch the tabs on Playing; **B**, **START** or **<**
-closes the menu. (What you played last is on Home.)
+One page of places, from any screen: **Home**, **Files**, **Playlists**, **Manga**, **Network**, **Settings** and
+**About**, under the kit's header. **A** or a tap goes to one. The four lists open the browser on their section;
+**Settings** and **About** keep the menu under them (About is Settings' last group), so **B** there goes back to the
+places. While something plays and the menu was opened off the player, a **Now playing** line on top says what and where
+it plays; **SELECT** (or a tap on it) goes back to it. **Quick settings** (**F**) and **Quit Banana Player** are the two
+keys under the places. **B** or **START** closes the menu (on the player: back to it).
 
-- **Playing** (only while a song or video plays, and the tab it opens on, from the lists too): **Now playing** (from
-  the lists: back to the playing screen), **Like** / **Liked**, **Add to playlist…** (with the playlists it's already
-  in), **Play on** (while a [web dashboard](#web-dashboard) page that can play is open; it says where it plays now,
-  see [Play on](#play-on-from-the-handheld)), **Show in folder**, **Info** and **Stop** (the place is kept). See
-  [Like and Add to playlist](#like-and-add-to-playlist).
-- **Settings:** see [Settings](#settings). **About** is its last group, a tile.
+The **Playing** tab and its rows are gone; nothing is lost. Like, Add to playlist…, Show in folder, Play on, Info and
+Stop are on the player's **X · More** sheet (Stop is also a key on the player), and Now playing is the mini bar,
+**SELECT** from a list, or the menu's line. See [Like and Add to playlist](#like-and-add-to-playlist) and
+[Play on](#play-on-from-the-handheld).
 
-To quit, use **Quit Banana Player** in quick settings (**F**), or **F + START** from anywhere.
+To quit, use **Quit Banana Player** in the menu or in quick settings (**F**), or **F + START** from anywhere.
 
 ## Network folders
 
@@ -771,7 +771,7 @@ handheld, carries on at 1:27"):
   Leaving the handheld's player (**B**) changes nothing for the browser: its mini bar reads **Playing in Chrome on Mac**
   (tap its mark to play or pause the browser, hold the mark to take it over). **Stop** on the handheld stops the browser
   too (the browser stays chosen: the next pick plays there). **Stop** in the browser unloads the handheld's copy too.
-- <a id="play-on-from-the-handheld"></a>**Play on, from the handheld** (START › Playing › **Play on**, shown while at
+- <a id="play-on-from-the-handheld"></a>**Play on, from the handheld** (**X · More** › **Play on…**, shown while at
   least one signed-in dashboard page that can play is open, not over a photo): a list of where it can play, the
   **Handheld** first, then each open page by its browser and device (**Chrome on Mac**, **Safari on iPhone**,
   **Firefox on Windows**…; a second one of the same kind gets **2**; one that doesn't say reads **Browser**). The one

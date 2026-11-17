@@ -202,11 +202,11 @@ namespace bp
 		// the bottom panel's backlight: off from its button, on again at the next touch
 		bool screenOn() const { return panel.on(); }
 		bool touchIsLocked() const;	// (the player screen's lock: PlayerPage, ui_player.h)
-		// START's menu's open tab ("playing", "settings", "about", "exit"), "" while it's closed: for test runs
+		// START's menu's page ("menu", "settings"), "" while it's closed: for test runs
 		const char* menuTabName() const
 		{
-			static const char* names[] = {"settings", "about", "exit", "playing"};
-			return inMenu ? names[menuTab] : "";
+			static const char* names[] = {"menu", "settings"};
+			return inMenu ? names[std::clamp(menuTab, 0, 1)] : "";
 		}
 
 		// The web dashboard (BP_WEB builds): main's server, null till it's first turned on, and its switch (start or
@@ -290,7 +290,7 @@ namespace bp
 		friend struct WebPlayerGlue;
 		friend class SessionHost;
 		friend struct WebPlaylistGlue;
-		enum class Page { Main, Settings, Browse, Info, About, Exit, Sound, Web, Playing, Manga, Extensions, MangaSeries,
+		enum class Page { Main, Menu, Settings, Browse, Info, About, Sound, Web, Manga, Extensions, MangaSeries,
 			MangaRead, MangaSettings, MangaSources, DocText, DocPages };
 		using Rect = lay::Box;	// (kitlayout.h: the kit's layout maths give and take the same box)
 		// An overlay: a dialog or a sheet over the page (ui_overlay.cpp; docs/notes/overlay-stack.md). While it is on
@@ -346,7 +346,7 @@ namespace bp
 			virtual bool animating() const { return false; }	// something of its moves by itself (Ui::animating)
 			// its touches come before the updater's pop-up and the mini bar (a page that always had them so); the rest after
 			virtual bool pointerFirst() const { return false; }
-			// its downs come late: after the header's "<", the empty page's button and the menu's tabs (its moves and lifts
+			// its downs come late: after the header's "<" and the empty page's button (its moves and lifts
 			// still come where the others' do). Manga's pages took them so (asked per page: the reader's come early)
 			virtual bool pointerDownLate() const { return false; }
 		};
@@ -528,7 +528,7 @@ namespace bp
 		BatteryState battery;
 		Uint32 batteryAt = 0;
 		void readPower();
-		// minX: the clock only if it fits right of it (START's tabs)
+		// minX: the clock only if it fits right of it (a page's title or a settings crumb)
 		void drawBattery(int right, int y, const Player& p, int minX = 0);
 		// the clock, left of the battery and the web's globe ("14:32", "2:32 PM"; "" off, or over a photo); where the
 		// header's marks start (the battery's right edge at 616): a title or the section markers end before it
@@ -580,68 +580,50 @@ namespace bp
 		void kbKey(int i);
 		void kbClose(bool keep);
 		void drawKeyboard();
-		// START's menu, over a video or the browser: tabs Settings, About, Exit (Recent is Home's); L/R or a tap
-		// change tab, B or START close it
-		// Playing (Like, Add to playlist..., Show in folder, Info) is first, while a song or video plays (menuTabs)
-		enum Tab { TAB_SETTINGS, TAB_EXIT, TAB_PLAYING, TABS };
-		std::vector<int> menuTabs(const Player& p) const;	// the tabs shown, in their order
-		bool playingTabShown(const Player& p) const;
-		Rect menuTabRect(int i, int n) const;	// the i-th of n tabs
+		// START's menu (Page::Menu), the Menu of places: Home, Files, Playlists, Network, Extensions, Settings,
+		// About. It is not a tab strip: A goes to a place, B or START closes it. Settings opens as the page it is
+		// (its groups), with the menu under it; About is its last group.
+		enum Tab { TAB_MENU, TAB_SETTINGS, TABS };
+		enum MenuPlace { MP_HOME, MP_FILES, MP_PLAYLISTS, MP_MANGA, MP_NETWORK, MP_SETTINGS, MP_ABOUT, MP_PLACES };
 		bool inMenu = false;
-		int menuTab = TAB_SETTINGS;
+		int menuTab = TAB_MENU;	// (the page's report: the menu or Settings)
+		int menuCursor = 0;
 		// the browser's folder before the menu, and its cursor: back to them after
-		Page menuReturnPage = Page::Browse;	// the menu opened over Manage extensions: back to it
+		Page menuReturnPage = Page::Browse;	// where the menu was opened over (Main, Extensions, Browse)
 		std::string menuReturnDir;
 		int menuReturnCursor = 0, menuReturnScroll = 0;
-		void openMainMenu(Player& p, int tab = TAB_SETTINGS);
+		void openMainMenu(Player& p, int tab = TAB_MENU);
 		void showTab(int tab, Player& p);
 		void closeMenu(Player& p);
+		// the Menu's rows: a Now playing line while it plays and it was opened over another page; the places' tiles
+		// (four across); Quick settings and Quit. The tiles start under the header at 100, or under the line at 166
+		bool menuNowShown(const Player& p) const;
+		int menuTop(const Player& p) const { return menuNowShown(p) ? 166 : 100; }
+		Rect menuNowRect() const { return {16, 100, 608, 56}; }
+		Rect menuTileRect(int top, int i) const;
+		Rect menuKeyRect(int top, int i) const;	// 0 Quick settings, 1 Quit
+		int menuPlaceCount() const { return MP_PLACES; }
+		void menuGo(int place, Player& p);
+		void drawMenu(const Player& p);
+		bool menuKey(Button b, Player& p);
+		bool menuPointer(const Pointer& pt, int x, int y, Player& p);
 		Rect tabRect(int tab) const { return {72 + tab * 136, 10, 128, 44}; }
-		void drawTabs(const Player& p);
-		// the Playing tab: the file's card, then its rows (PLAY_ROW + i)
-		// Now playing (while it plays behind the browser) first, Stop last
-		enum PlayingRow { PR_LIKE, PR_ADD, PR_SHOW, PR_INFO, PR_NOW, PR_STOP, PR_PLAYON };
-		std::vector<int> playingRows() const;
-		void drawPlaying(const Player& p);
-		bool playingKey(Button b, Player& p);
-		bool playingChoose(int row, Player& p);	// true: leave (Show in folder closes what plays)
-		Rect playingRowRect(int i) const
-		{
-			int n = (int)playingRows().size(), step = n > 6 ? 42 : n > 5 ? 46 : 54;	// (six or seven: closer, above the footer)
-			return {16, 142 + i * step, 608, step - 4};
-		}
-		// Play on (the Playing tab's row, while a dashboard page that can play is open): where it plays, the handheld or
-		// one of those pages, as a dialog over the tab. Picking one is the Session's SetOutput (SessionHost::sendTo)
+		// Play on, where it plays: the handheld or one of the dashboard pages (PlayerPage's PlayOnSheet, ui_player.cpp).
+		// Picking one is the Session's SetOutput (SessionHost::sendTo)
 		struct OutChoice { std::string tab, name; };	// tab "": the handheld
 		std::vector<OutChoice> outChoices() const;	// the handheld first, then each page that can play (WebServer::playTabs)
 		bool playOnShown() const;	// the row: a page that can play is open, or one is the output
-		bool playOnOpen = false;
-		int playOnCursor = 0;
-		void openPlayOn();
-		bool playOnKey(Button b, Player& p);
-		bool playOnPointer(const Pointer& pt, int x, int y, Player& p);
-		void playOnChoose(int i, Player& p);
-		// the output moved to that choice (the Session's SetOutput), unless it plays there already: the dialog's pick
-		// and the player's Play on sheet (PlayOnSheet, ui_player.cpp)
+		// the output moved to that choice (the Session's SetOutput), unless it plays there already: the Play on sheet's
 		void playOnSend(const OutChoice& c, Player& p);
-		void drawPlayOn(const Player& p);
-		Rect playOnBox() const { int n = (int)outChoices().size(); int h = 122 + std::min(n, PLAYON_SHOWN) * 60; return {70, std::max(16, (436 - h) / 2), 500, h}; }
-		Rect playOnRow(int i) const { Rect b = playOnBox(); return {b.x + 20, b.y + 106 + (i - playOnScroll) * 60, b.w - 40, 54}; }
-		static constexpr int PLAYON_SHOWN = 4, PLAYON_ROW = 2000;	// (above the picker's PICK_ROW + its rows)
-		int playOnScroll = 0;
-		// Show in folder from the Playing tab: what plays closed, then its folder shown (showBrowser)
+		// Show in folder from More: what plays closed, then its folder shown (showBrowser)
 		std::string showAfterLeave;
 		bool showSourceAfterLeave = false;	// List (Y) on a playlist's song: the player left for that playlist's page
-		// Like: toggled (the heart, START's Playing tab, L3), the heart's pop and the top panel's card
+		// Like: toggled (the heart, L3), the heart's pop and the top panel's card
 		void likeNow(Player& p);
 		void likeCard(Player& p, bool liked, const std::string& title);
 		Uint32 likePopAt = 0, addFlashUntil = 0;
-		// the Playing tab's "In Road trip": the playlists the file is in, read again when they or the file change
-		mutable std::string playingIn, playingInPath;
-		mutable int playingInSerial = -1;
 		// what plays can be liked and added to a playlist (a song or a video, a state folder to keep them in)
 		bool headerActions(const Player& p) const;
-		void drawExit(const Player& p);
 		bool clearHistory(Player& p);	// true when it cleared (the second time)
 		bool act(int id, Player& p);	// a touch button let go of on it
 		bool pressAnyway(Button b, Player& p);
@@ -900,7 +882,7 @@ namespace bp
 		// (6 rows end at 368: the help's two lines at 400 stay clear of them; a longer group scrolls)
 		static constexpr int SET_Y = 92, SET_H = 46, SET_SHOWN = 6, HELP_Y = 400;
 		static constexpr int64_t STYLE_ROW = -2;	// the subtitle menu's last row: the settings page
-		static constexpr int QUIT_BTN = 10, INFO_BTN = 13, EXIT_BTN = 15,	// (a photo's Close and Info; the Exit page's)
+		static constexpr int QUIT_BTN = 10, INFO_BTN = 13,	// (a photo's Close and Info)
 			BACK_ICON = 16,	// "<" at the top left of every page: B
 			EMPTY_BTN = 17;	// an empty page's button (no connections: Find on the network)
 		// the web dashboard's page: New PIN and Turn off (its Turn on / Try again is EMPTY_BTN)
@@ -908,8 +890,8 @@ namespace bp
 		// the select mode's bar (and Move's), the busy dialog's Cancel, the Add to... picker's rows (PICK_ROW + i)
 		static constexpr int SEL_ALL = 530, SEL_MOVE = 531, SEL_ACT = 532, SEL_CANCEL = 533, MOVE_CANCEL = 534, MOVE_DONE = 535,
 			BUSY_CANCEL = 536, PICK_ROW = 900;
-		// the Playing tab's rows (PLAY_ROW + i)
-		static constexpr int PLAY_ROW = 550;
+		// START's menu: the Now playing line, the places' tiles (MENU_TILE + i), Quick settings and Quit
+		static constexpr int MENU_NOW = 560, MENU_TILE = 561, MENU_QUICK = 570, MENU_QUIT = 571;
 		// Sound's touch buttons, apart from the grid's and the photo's; its dialogs' rows from DLG_ROW
 		static constexpr int SOUND_TAB0 = 510, SOUND_TAB1 = 511, EQ_SWITCH = 520, EQ_PREV = 521, EQ_NEXT = 522, EQ_NAME_ZONE = 523,
 			EQ_RESET = 524, EQ_SAVE = 525, EQ_OPTIONS = 526, DLG_ROW = 700, FX_ROW = 800;
