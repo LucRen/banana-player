@@ -1272,6 +1272,13 @@ combination instead.)
   Settings meanwhile, your choice stays. After a crash the launcher puts it back; after a power loss, the next start
   does. `log.txt`: `lid: sleep off while playing…`, `lid: sleep restored`, `lid: restore skipped, changed in BananaOS
   Settings`. With BananaOS's lid sleep already off, nothing is changed and closing the lid keeps playing.
+- **Power key with the lid shut:** while the lid is shut with **Keep playing** and something is loaded here (playing or
+  paused, not stopped), the power key is play/pause: a short press pauses or plays, as **A** does. Holding it 2 seconds
+  sleeps: the player lets the key go and asks BananaOS for the sleep closing the lid would bring. With the lid open,
+  nothing loaded, or **Pause** set, the power key is BananaOS's as before. After a hold's sleep it lets go until the
+  wake (and is play/pause again then), so the key that wakes the handheld reaches bananad; a key bananad holds
+  exclusively stays BananaOS's too. `log.txt`: `power: … taken: lid shut…`, `power:
+  press: play/pause`, `power: hold: asking bananad to sleep`, `power: released (…)`.
 - **Headphones out:** pulling the headphones out of the jack, Bluetooth headphones disconnecting, or a USB sound card
   unplugged while something plays pauses it, so the sound doesn't go on from the speakers. Plugging back in doesn't play
   (press play). `log.txt`: `audio: headphones out, paused` (or `Bluetooth headphones disconnected`, `USB sound card

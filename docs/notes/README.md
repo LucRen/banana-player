@@ -7,6 +7,7 @@ Write the way the rest of the repo does: plain and precise, with the why. Say wh
 
 ## Index
 
+- [2026-11-17 power key](2026-11-17-power-key.md): with the lid shut and Keep playing, the power key is play/pause and a 2 s hold sleeps (an `EVIOCGRAB` on `rk805 pwrkey`, released the moment the conditions end, a 3 s main-loop safety).
 - [2026-11-16 manga library scan](2026-11-16-manga-library-scan.md): the Manga app froze for minutes on a big card (every chapter file opened on the main thread at each open); now listed in the background, files opened lazily, what each held kept in `<state>/manga/library-index.txt`.
 - [2026-11-15 Ui areas](ui-areas.md): a part of the app in its own struct and header (`Ui::Area`); the document viewers moved out of `ui.h` first, the plan for the rest.
 - [2026-11-15 sliders](sliders.md): one slider for every bar a finger moves (`Ui::slideGrab`, `slider.h`): grabbed anywhere in its row, absolute, kept until the lift, paced for costly targets; how a held one looks; how to add one.
