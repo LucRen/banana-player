@@ -44,13 +44,18 @@ namespace bp
 			if (to < 0) return out;
 			out.any = true;
 			out.path = s.queue[to];
-			out.note = std::to_string(to + 1) + " of " + std::to_string(s.queue.size()) + (s.shuffle ? " \xC2\xB7 shuffled" : "");
+			// the mock-up shows what comes next's length when the lists have probed it; else its place in the list
+			double d = -1;
+			if (!isNetPath(out.path)) cachedDuration(out.path, d);
+			out.note = d > 0 ? formatTime(d) : std::to_string(to + 1) + " of " + std::to_string(s.queue.size()) + (s.shuffle ? " \xC2\xB7 shuffled" : "");
 			return out;
 		}
 		if (p.index() + 1 >= p.count()) return out;
 		out.any = true;
 		out.path = p.paths()[p.index() + 1];
-		out.note = std::to_string(p.index() + 2) + " of " + std::to_string(p.count());
+		double d = -1;
+		if (!isNetPath(out.path)) cachedDuration(out.path, d);
+		out.note = d > 0 ? formatTime(d) : std::to_string(p.index() + 2) + " of " + std::to_string(p.count());
 		return out;
 	}
 
@@ -137,12 +142,23 @@ namespace bp
 		// Repeat is its own state now (Off / All / One), set in the List sheet; a song's fourth chip is Shuffle
 		if (p.playingAudio()) add(C_SHUFFLE, &G_SHUFFLE, "Shuffle", st.shuffle ? "On" : "Off", st.shuffle);
 		else add(C_MODE, &G_LOOP, "Repeat", LOOP_SHORT[std::clamp(st.loop, 0, LOOPS - 1)], st.loop != LOOP_OFF);
+		// a browser page plays it: these are the handheld's (their graphs, its screen), so they say so and are dim;
+		// the buttons still answer (chipAct says why nothing changed)
+		if (ui.predicting(p))
+			for (auto& d : out)
+				if (d.kind == C_SOUND || d.kind == C_TOP || d.kind == C_PICTURE) { d.look.value = "Handheld only"; d.look.off = true; }
 		return out;
 	}
 
 	void Ui::PlayerPage::chipAct(ChipKind kind, Player& p)
 	{
 		if (!p.error.empty()) return;
+		// a page plays it: the sound, the top screen and the picture are the handheld's alone
+		if (ui.predicting(p) && (kind == C_SOUND || kind == C_TOP || kind == C_PICTURE))
+		{
+			p.osd("Plays on the handheld only");
+			return;
+		}
 		switch (kind)
 		{
 		// a video's: View's tabs (its tracks, its size, its speed), the sheet over the controls
@@ -511,6 +527,9 @@ namespace bp
 	{
 		enum Press { P_NONE, P_ROW, P_TAB, P_SHUFFLE, P_REPEAT };
 		int tab = 0, cursor = 0, scroll = 0, press = P_NONE, pressAt = -1;
+		// a finger dragging the rows scrolls them; a tap (no drag) still chooses
+		bool drag = false;
+		int dragY = 0, dragScroll = 0;
 
 		ListSheet(Ui& u, int at, const Player& p) : Overlay(u)
 		{
@@ -550,6 +569,7 @@ namespace bp
 		}
 		void settle(const Player& p)
 		{
+			if (drag) return;	// (the finger's own scroll, until it lifts)
 			int n = count(p);
 			if (n <= 0) { cursor = scroll = 0; return; }
 			cursor = std::clamp(cursor, 0, n - 1);
@@ -677,6 +697,7 @@ namespace bp
 			{
 				press = P_NONE;
 				pressAt = -1;
+				drag = false;
 				// the veil: closed (the lift that follows presses nothing)
 				if (!s.box.hit(x, y)) { close(); ui.swallowTouch = true; return false; }
 				auto tabs = tabRects(p, h);
@@ -687,13 +708,41 @@ namespace bp
 				for (int i = 0; i < 3; i++)
 					if (rep[i].hit(x, y)) { press = P_REPEAT; pressAt = i; return false; }
 				for (int i = scroll; i < n && i < scroll + shown(p); i++)
-					if (s.row(i - scroll).hit(x, y)) { press = P_ROW; pressAt = i; cursor = i; return false; }
+					if (s.row(i - scroll).hit(x, y))
+					{
+						press = P_ROW;
+						pressAt = i;
+						cursor = i;
+						dragY = y;
+						dragScroll = scroll;
+						return false;
+					}
+				return false;
+			}
+			if (pt.kind == Pointer::Move)
+			{
+				// a finger dragging the rows scrolls them (a tap still chooses); undone by settle when it lifts
+				if (press == P_ROW && !drag && std::abs(y - dragY) > 12) drag = true;
+				if (drag)
+				{
+					int maxScroll = std::max(0, n - shown(p));
+					scroll = std::clamp(dragScroll + (int)std::lround((dragY - y) / (double)lay::LIST_ROW), 0, maxScroll);
+				}
 				return false;
 			}
 			if (pt.kind != Pointer::Up) return false;
 			int kind = press, at = pressAt;
 			press = P_NONE;
 			pressAt = -1;
+			bool dragged = drag;
+			drag = false;
+			if (dragged)
+			{
+				// the finger scrolled: nothing chosen; the cursor goes to the row under it where there is one
+				cursor = std::clamp(scroll + (at >= dragScroll ? at - dragScroll : 0), 0, std::max(0, n - 1));
+				settle(p);
+				return false;
+			}
 			// let go off it: nothing (a finger that slid away changed its mind)
 			if (kind == P_ROW && at >= scroll && at < n && s.row(at - scroll).hit(x, y)) choose(at, p);
 			else if (kind == P_TAB)
@@ -814,6 +863,9 @@ namespace bp
 		enum Tab { TAB_SUBS, TAB_AUDIO, TAB_PICTURE, TAB_SPEED, TABS };
 		enum Press { P_NONE, P_ROW, P_TAB };
 		int tab = 0, cursor = 0, scroll = 0, press = P_NONE, pressAt = -1;
+		// a finger dragging the rows scrolls them; a tap (no drag) still chooses
+		bool drag = false;
+		int dragY = 0, dragScroll = 0;
 
 		ViewSheet(Ui& u, int at, const Player& p) : Overlay(u)
 		{
@@ -857,6 +909,7 @@ namespace bp
 		lay::ListSheet layout(const Player& p) const { return lay::listSheet(shown(p)); }
 		void settle(const Player& p)
 		{
+			if (drag) return;	// (the finger's own scroll, until it lifts)
 			int n = count(p);
 			if (n <= 0) { cursor = scroll = 0; return; }
 			cursor = std::clamp(cursor, 0, n - 1);
@@ -953,19 +1006,48 @@ namespace bp
 			{
 				press = P_NONE;
 				pressAt = -1;
+				drag = false;
 				// the veil: closed (the lift that follows presses nothing)
 				if (!s.box.hit(x, y)) { close(); ui.swallowTouch = true; return false; }
 				auto tabs = ui.kit->tabRects(h.tabs, labels(), true);
 				for (int i = 0; i < (int)tabs.size(); i++)
 					if (tabs[i].hit(x, y)) { press = P_TAB; pressAt = i; return false; }
 				for (int i = scroll; i < n && i < scroll + shown(p); i++)
-					if (s.row(i - scroll).hit(x, y)) { press = P_ROW; pressAt = i; cursor = i; return false; }
+					if (s.row(i - scroll).hit(x, y))
+					{
+						press = P_ROW;
+						pressAt = i;
+						cursor = i;
+						dragY = y;
+						dragScroll = scroll;
+						return false;
+					}
+				return false;
+			}
+			if (pt.kind == Pointer::Move)
+			{
+				// a finger dragging the rows scrolls them (a tap still chooses)
+				if (press == P_ROW && !drag && std::abs(y - dragY) > 12) drag = true;
+				if (drag)
+				{
+					int maxScroll = std::max(0, n - shown(p));
+					scroll = std::clamp(dragScroll + (int)std::lround((dragY - y) / (double)lay::LIST_ROW), 0, maxScroll);
+				}
 				return false;
 			}
 			if (pt.kind != Pointer::Up) return false;
 			int kind = press, at = pressAt;
 			press = P_NONE;
 			pressAt = -1;
+			bool dragged = drag;
+			drag = false;
+			if (dragged)
+			{
+				// the finger scrolled: nothing chosen; the cursor goes to the row under it where there is one
+				cursor = std::clamp(scroll + (at >= dragScroll ? at - dragScroll : 0), 0, std::max(0, n - 1));
+				settle(p);
+				return false;
+			}
 			// let go off it: nothing (a finger that slid away changed its mind)
 			if (kind == P_ROW && at >= scroll && at < n && s.row(at - scroll).hit(x, y)) choose(at, p);
 			else if (kind == P_TAB)
@@ -1813,30 +1895,8 @@ namespace bp
 		auto capOf = [&](const char* key) { return std::string(hotkeys ? key : ""); };
 		if (ui.roots.empty()) ui.roots = browseRoots();	// (started with a file: the browser never read them)
 
-		// ---- the header: back, what it plays from, its place in the list, the status marks, More ----
-		k.iconKey(l.back, G_BACK, pressed == T_BACK, 3);
-		k.iconKey(l.more, G_MORE, pressed == T_MORE);
-		const int headY = l.back.y + l.back.h / 2;
-		int statusRight = l.more.x - 10, x = l.back.x + l.back.w + 10;
-		ui.drawBattery(statusRight, headY - 8, p, x + 120);
-		int right = statusRight - (616 - ui.statusLeft(p)) - 10;	// (statusLeft: the marks' left edge when they end at 616)
-		if (p.count() > 1)
-		{
-			std::string count = std::to_string(p.index() + 1) + " / " + std::to_string(p.count());
-			ui.drawTextMid(count, F_I12, DIM, right, headY, 0, 1);
-			right -= k.textW(count, F_I12) + 12;
-		}
-		const Glyph* mark = nullptr;
-		std::string from = crumb(p, mark);
-		if (mark)
-		{
-			ui.drawGlyphMid(*mark, x + 10, headY, DIM);
-			x += 20 + 6;
-		}
-		// (a folder's path keeps its end, a playlist's name its start)
-		if (right > x) ui.drawTextMid(p.source().kind == SourceKind::Playlist ? from : ui.elideLeft(from, F_I12, right - x), F_I12, DIM, x, headY, right - x);
-
-		// ---- the title, and how it plays on its right ----
+		// ---- the header (Kit::header): back, what it plays from, its place in the list, the status marks, More ----
+		// ---- and the title, with how it plays on its right ----
 		std::string name = p.currentPath().substr(p.currentPath().rfind('/') + 1);
 		const Glyph* stMark = nullptr;
 		std::string state;
@@ -1870,15 +1930,28 @@ namespace bp
 			state = "Playing";
 		}
 		if (!hotkeys) state += " \xC2\xB7 buttons off";
-		int titleY = l.title.y + l.title.h / 2, stW = std::min(300, k.textW(state, F_P16)), titleRight = l.title.x + l.title.w;
-		ui.drawTextMid(state, F_P16, stInk, titleRight, titleY, 300, 1);
-		if (stMark)
-		{
-			int gw = ui.glyphW(*stMark);
-			ui.drawGlyphMid(*stMark, titleRight - stW - 7 - gw / 2, titleY, stInk);
-			stW += 7 + gw;
-		}
-		ui.drawTextMid(!p.title.empty() ? p.title : err ? name : "Opening...", F_P28, TEXT, l.title.x, titleY, l.title.w - stW - 14);
+		Kit::Header head;
+		head.crumb = crumb(p, head.mark);
+		head.crumbEnd = p.source().kind != SourceKind::Playlist;
+		head.title = !p.title.empty() ? p.title : err ? name : "Opening...";
+		head.state = state;
+		head.stateMark = stMark;
+		head.stateInk = stInk;
+		head.backPressed = pressed == T_BACK;
+		head.morePressed = pressed == T_MORE;
+		head.right = [&](int right, int cy) {
+			// its place in the list, then the status marks, right to left; the crumb ends at what they leave
+			ui.drawBattery(right, cy - 8, p, l.back.x + l.back.w + 130);
+			int left = right - (616 - ui.statusLeft(p)) - 10;
+			if (p.count() > 1)
+			{
+				std::string count = std::to_string(p.index() + 1) + " / " + std::to_string(p.count());
+				ui.drawTextMid(count, F_I12, DIM, left, cy, 0, 1);
+				left -= k.textW(count, F_I12) + 12;
+			}
+			return left;
+		};
+		k.header(l, head);
 
 		// ---- the line under it, then the bar (a file that didn't open: what went wrong, in their place) ----
 		bool chapterLine = chapterLineShown(p);

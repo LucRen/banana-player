@@ -92,6 +92,33 @@ namespace bp
 		}
 	}
 
+	// ---- the header ----
+
+	void Ui::Kit::header(const lay::PlayerLayout& l, const Header& h)
+	{
+		if (h.back) iconKey(l.back, G_BACK, h.backPressed, 3);
+		if (h.more) iconKey(l.more, G_MORE, h.morePressed);
+		const int cy = l.back.y + l.back.h / 2;
+		int right = l.more.x - 10;
+		if (h.right) right = h.right(right, cy);
+		int x = l.back.x + l.back.w + 10;
+		if (h.mark) { ui.drawGlyphMid(*h.mark, x + 10, cy, DIM); x += 26; }
+		// (a folder's path keeps its end, a playlist's name its start)
+		if (right > x && !h.crumb.empty())
+			ui.drawTextMid(h.crumbEnd ? h.crumb : ui.elideLeft(h.crumb, F_I12, right - x), F_I12, DIM, x, cy, right - x);
+		// the title, and how it plays on its right
+		int titleY = l.title.y + l.title.h / 2, titleRight = l.title.x + l.title.w;
+		int stW = h.state.empty() ? 0 : std::min(300, textW(h.state, F_P16));
+		if (!h.state.empty()) ui.drawTextMid(h.state, F_P16, h.stateInk, titleRight, titleY, 300, 1);
+		if (h.stateMark)
+		{
+			int gw = ui.glyphW(*h.stateMark);
+			ui.drawGlyphMid(*h.stateMark, titleRight - stW - 7 - gw / 2, titleY, h.stateInk);
+			stW += 7 + gw;
+		}
+		if (!h.title.empty()) ui.drawTextMid(h.title, F_P28, TEXT, l.title.x, titleY, l.title.w - stW - 14);
+	}
+
 	// ---- keys ----
 
 	void Ui::Kit::key(Rect r, const Key& k)

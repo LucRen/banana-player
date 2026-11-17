@@ -259,9 +259,9 @@ Like a song or a video to keep it in **Liked**, a playlist of its own. Photos an
   or Stretch, an equalizer or effect left on), so it can't go unnoticed. **Speed** opens View's Speed tab on both; the
   speed is set there.
   **Repeat** (a video) opens the List sheet, where Off / All / One is chosen; on a song **Shuffle** turns on or off.
-- **The Next line** along the bottom names what plays after this (its place in the list; "shuffled" with Shuffle
-  on, **A new shuffled round** at a round's end, **Nothing after this** at the end of a list played in order); a tap
-  opens the List sheet on Up next, as **Y** does.
+- **The Next line** along the bottom names what plays after this: its length once the lists have probed it, else its
+  place in the list ("2 of 7"; "shuffled" with Shuffle on), **A new shuffled round** at a round's end, **Nothing after
+  this** at the end of a list played in order. A tap opens the List sheet on Up next, as **Y** does.
 - **Chapters:** tap the chapter line above the progress bar (`2 / 8 · its name`) for the List sheet on Chapters.
 - **Lists:** tap to choose, drag to scroll.
 - **Back to the list:** tap **<** (top left): it keeps playing. **Stop** is in **More** (**⋯**, top right, or **X**),
