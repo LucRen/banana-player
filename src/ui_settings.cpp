@@ -398,7 +398,7 @@ namespace bp
 			{
 				Kit::SettingTile t;
 				t.glyph = MARKS[g];
-				t.name = GROUP_NAMES[g].name;
+				t.name = GROUP_NAMES[g];
 				t.summary = groupSummary(g, p);
 				t.focused = g == ui.cursor;
 				t.pressed = ui.pressedBtn == 400 + g;
@@ -409,7 +409,7 @@ namespace bp
 		}
 		// the group in the middle, the ones before and after it either side: a tap (or L2 / R2) away
 		int prev = (ui.setGroup + GROUPS - 1) % GROUPS, next = (ui.setGroup + 1) % GROUPS;
-		ui.drawTextMid(GROUP_NAMES[ui.setGroup].name, 1, ACCENT, W / 2, 73, 248, 2);
+		ui.drawTextMid(GROUP_NAMES[ui.setGroup], 1, ACCENT, W / 2, 73, 248, 2);
 		for (int side = 0; side < 2; side++)
 		{
 			Rect c = ui.buttonRect(side ? GROUP_NEXT : GROUP_PREV);

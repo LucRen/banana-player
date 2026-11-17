@@ -374,6 +374,8 @@ namespace bp
 		// Open: Shuffle and Loop stay as set)
 		std::vector<std::string> upNextList(const Player& p, int& current) const;
 		void playUpNext(int i, Player& p);
+		// the same chapter step, for main's lid-shut keys: they act on what plays, never on the page left open
+		// (public: main calls it; see the public block by places())
 		void choose(int i, Player& p);
 		// Settings opens on its groups (setGroup -1); A or a tap opens one, B goes back to them. The order is the spec's
 		// (docs/redesign/src/screens.js, "settings"): Playback, Subtitles, Music & sound, Photos, Reading, Files &
@@ -843,6 +845,8 @@ namespace bp
 	public:
 		int rootsSerial() const { return rootsChanged; }
 		const std::vector<BrowseRoot>& places() const { return roots; }
+		// main's lid-shut keys (docs/redesign/lid-and-incognito.md): the chapter before / after, on what plays
+		void chapterStepForLid(int dir, Player& p) { chapterStep(dir, p); }
 	private:
 
 		static constexpr int ROW_Y = 84, ROW_H = 48, ROWS_SHOWN = 7;	// 7 rows end at 420, above the hints (and the mini bar)

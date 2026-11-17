@@ -28,6 +28,7 @@
 #include "idlesleep_host.h"
 #include "lidsleep_host.h"
 #include "powerkey.h"
+#include "volumekey.h"
 #include "battery.h"
 #include "netstore.h"
 #include "networker.h"
@@ -71,7 +72,7 @@ namespace bp
 }
 #endif
 
-static Uint32 evMpv, evRender, evTouch, evLevel, evNet, evFound, evWeb, evDur, evCover, evAmp, evMangaLib, evUnplug, evPower;
+static Uint32 evMpv, evRender, evTouch, evLevel, evNet, evFound, evWeb, evDur, evCover, evAmp, evMangaLib, evUnplug, evPower, evVolKey;
 #ifdef BP_WEB
 // the dashboard's server for the sleep watch's thread (made on the main thread, never destroyed)
 static std::atomic<bp::WebServer*> webForWatch{nullptr};
@@ -309,6 +310,7 @@ int main(int argc, char** argv)
 	evMangaLib = evMpv + 10;	// the Manga app's card library: a listing or chapter files read (MangaLibWorker::take)
 	evUnplug = evMpv + 11;	// the headphones went (SleepWatch): a pause, if something plays here
 	evPower = evMpv + 12;	// a short press of the power key with the lid shut (PowerKey): play/pause
+	evVolKey = evMpv + 13;	// a volume key with the lid shut (VolumeKey): one step, or next / previous on a hold
 
 	// On the handheld (SDL's KMSDRM) each panel is a display and each window fills one; elsewhere, two windows
 	if (windowed < 0) windowed = strcmp(SDL_GetCurrentVideoDriver(), "KMSDRM") != 0;
@@ -631,6 +633,10 @@ int main(int argc, char** argv)
 		// press comes back as evPower; a 2 s hold is a sleep, asked for on that thread
 		PowerKey powerKey;
 		powerKey.start(evPower);
+		// the volume keys with the lid shut (volumekey.h): taken by the same three conditions; a press is one volume
+		// step on the main thread through Volume, a 0.6 s hold is next / previous, and BananaOS never moves the volume
+		VolumeKey volumeKey;
+		volumeKey.start(evVolKey);
 
 		// the bottom touchscreen, read on its own thread; where there's none, SDL's mouse and touch stand in
 		BottomTouch bottomTouch;
@@ -865,8 +871,48 @@ int main(int argc, char** argv)
 				bool shut = sleepWatch.lidClosed();
 				const char* why = !keep ? "Keep playing is off" : !shut ? "the lid opened" : "nothing is loaded";
 				powerKey.tick(keep && shut && player.playing(), why);
+				volumeKey.tick(keep && shut && player.playing(), why);
 			}
-			SDL_Event e;
+			// Under the lid nothing but the volume keys, Power and the shoulder keys (by their setting) does anything:
+			// the face keys, the D-pad, START, SELECT, F, the stick and the touch screen are ignored while the lid is
+			// shut, Keep playing is on and something is loaded. A shoulder held 0.6 s (Hold) acts once; As usual acts
+			// as it goes down; Ignored does nothing. They act on what plays, never on the page left open.
+			// (asked per event: a lid that opened while the loop waited for it must let that press act, as the first
+			// press after opening does)
+			auto lidKeysNow = [&] {
+				return player.settings.lidKeepPlaying && sleepWatch.lidClosed() && player.playing() && !player.playingPhoto();
+			};
+			Uint32 lidShoulderAt[4] = {0, 0, 0, 0};
+			bool lidShoulderDone[4] = {false, false, false, false}, lidShoulderStuck[4] = {false, false, false, false};
+			auto lidStep = [&](int dir) {
+				// the same intents L / R send (the Session's Step, so a browser that has the sound follows)
+				const char* name = dir < 0 ? "L" : "R";
+				if (!player.settings.buttonHotkeys) { fprintf(stderr, "lid keys: %s ignored (Button hotkeys off)\n", name); return; }
+				if (SessionHost::get().stepsHere(player)) SessionHost::get().step(dir);
+				else
+				{
+					bool ok = dir < 0 ? player.back() : player.next();
+					if (!ok) fprintf(stderr, "lid keys: %s: nothing to %s to\n", name, dir < 0 ? "go back" : "go");
+				}
+				fprintf(stderr, "lid keys: %s: %s\n", name, dir < 0 ? "previous" : "next");
+			};
+			auto lidShoulderAct = [&](int i) {
+				if (i < 2) { lidStep(i == 0 ? -1 : 1); return; }
+				const char* name = i == 2 ? "L2" : "R2";
+				if (!player.settings.buttonHotkeys) { fprintf(stderr, "lid keys: %s ignored (Button hotkeys off)\n", name); return; }
+				ui.chapterStepForLid(i == 2 ? -1 : 1, player);
+				fprintf(stderr, "lid keys: %s: %s chapter\n", name, i == 2 ? "previous" : "next");
+			};
+			auto lidShoulderDown = [&](int i) {
+				if (!lidKeysNow()) return;
+				lidShoulderAt[i] = SDL_GetTicks() ? SDL_GetTicks() : 1;
+				lidShoulderDone[i] = lidShoulderStuck[i] = false;
+				const char* name = i == 0 ? "L" : i == 1 ? "R" : i == 2 ? "L2" : "R2";
+				fprintf(stderr, "lid keys: shoulder %s down (setting %d)\n", name, player.settings.lidShoulder);
+				if (player.settings.lidShoulder == LID_SHOULDER_AS_USUAL) { lidShoulderAct(i); lidShoulderDone[i] = true; }
+			};
+			auto lidShoulderUp = [&](int i) { lidShoulderAt[i] = 0; lidShoulderDone[i] = lidShoulderStuck[i] = false; };
+		SDL_Event e;
 			bool got = SDL_WaitEventTimeout(&e, (reader.isOpen() && reader.busy()) || (textReader.isOpen() && textReader.busy()) ? 1 : reader.isOpen() && reader.seekPending() ? 16 : reader.spinning() ? MangaReader::SPIN_MS / 2 : ui.animating() ? 16 : ui.typing() ? 50 : held != Button::None || player.loading() ? 20 : SDL_GetTicks() < freshUntil || levelUntil ? 50 : ui.markMoving() ? 80 : 250);
 			while (got)
 			{
@@ -886,6 +932,35 @@ int main(int argc, char** argv)
 				else if (e.type == SDL_JOYHATMOTION && e.jhat.value) fprintf(stderr, "input: joystick %d hat %d value %d\n", e.jhat.which, e.jhat.hat, e.jhat.value);
 				else if (e.type == SDL_KEYDOWN && !e.key.repeat)
 					fprintf(stderr, "input: key %s (scancode %d)\n", SDL_GetKeyName(e.key.keysym.sym), e.key.keysym.scancode);
+				// the lid shut: only the shoulders (by the setting) and the volume keys' and Power's own devices answer.
+				// Everything else is under the lid: the face keys, the D-pad, START, SELECT, F, the stick and the touch
+				bool lidInput = e.type == SDL_CONTROLLERBUTTONDOWN || e.type == SDL_CONTROLLERBUTTONUP || e.type == SDL_CONTROLLERAXISMOTION ||
+					e.type == SDL_KEYDOWN || e.type == SDL_KEYUP || e.type == evTouch ||
+					(e.type >= SDL_JOYAXISMOTION && e.type <= SDL_JOYHATMOTION) || (e.type >= SDL_MOUSEMOTION && e.type <= SDL_MOUSEWHEEL) ||
+					e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP || e.type == SDL_FINGERMOTION;
+				if (lidKeysNow() && lidInput)
+				{
+					Button b = e.type == SDL_CONTROLLERBUTTONDOWN || e.type == SDL_KEYDOWN ? buttonFromEvent(e)
+						: e.type == SDL_CONTROLLERBUTTONUP || e.type == SDL_KEYUP ? buttonReleased(e) : Button::None;
+					int si = b == Button::L ? 0 : b == Button::R ? 1 : b == Button::L2 ? 2 : b == Button::R2 ? 3 : -1;
+					if (si >= 0) { if (e.type == SDL_CONTROLLERBUTTONDOWN || e.type == SDL_KEYDOWN) lidShoulderDown(si); else lidShoulderUp(si); }
+					else if (e.type == SDL_CONTROLLERAXISMOTION && (e.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT || e.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERRIGHT))
+					{
+						// the triggers are axes: the same half-way/quarter-way line as with the lid open
+						bool left = e.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT;
+						bool& was = left ? l2Down : r2Down;
+						bool down = was ? e.caxis.value > 8000 : e.caxis.value > 16000;
+						if (down != was)
+						{
+							was = down;
+							if (down) lidShoulderDown(left ? 2 : 3);
+							else lidShoulderUp(left ? 2 : 3);
+						}
+					}
+					// (the face keys, D-pad, START, SELECT, F, the stick and the touch: swallowed)
+					got = SDL_PollEvent(&e);
+					continue;
+				}
 				// the volume keys past 100% (Max volume 120 or 150): bananad sets the handheld's level and stops at 100; the
 				// player's own gain goes on from there, 5 at a press. Down takes the gain off first (and puts back the 100
 				// bananad's press just took away). F + volume is bananad's brightness: left alone
@@ -1035,6 +1110,46 @@ int main(int argc, char** argv)
 						}
 					}
 				}
+				else if (e.type == evVolKey)
+				{
+					// a volume key with the lid shut: a press (under 0.6 s, on letting go) is one volume step through
+					// BananaOS's own command; a 0.6 s hold is next / previous. Nothing else, and no sound effects
+					bool ok = player.settings.lidKeepPlaying && sleepWatch.lidClosed() && player.playing() && !player.playingPhoto();
+					if (ok && (e.user.code == VolumeKey::Next || e.user.code == VolumeKey::Previous))
+						lidStep(e.user.code == VolumeKey::Next ? 1 : -1);
+					else if (ok)
+					{
+						bool up = e.user.code == VolumeKey::VolumeUp;
+						bool browserOut = false;
+#ifdef BP_WEB
+						const Session& ss = SessionHost::get().session();
+						if (ss.out.kind == OutKind::Browser && ss.index >= 0 && !ss.out.tab.empty() && webServer)
+						{
+							// the same keys step that browser's volume, as with the lid open
+							browserOut = true;
+							int bv = std::clamp((ui.browserVol >= 0 ? ui.browserVol : 100) + (up ? 5 : -5), 0, 100);
+							ui.browserVol = bv;
+							webServer->notify("volume", "{\"tab\":\"" + ss.out.tab + "\",\"v\":" + std::to_string(bv) + "}");
+							if (!(SDL_GetTicks() < browserVolUntil)) handheldVolKept = ui.volumeLevel();
+							browserVolUntil = SDL_GetTicks() + 1500;
+							fprintf(stderr, "volume keys: %s press: the browser's volume %d (the handheld's kept)\n", up ? "Volume +" : "Volume -", bv);
+							showLevelCard("Browser volume", bv, 1500);
+						}
+#endif
+						if (!browserOut)
+						{
+							int v = haveUi ? ui.volumeLevel() : -1;
+							if (v < 0) fprintf(stderr, "volume keys: %s press: no level to step\n", up ? "Volume +" : "Volume -");
+							else
+							{
+								// stops at 100% with the lid shut: a boost set before stays, the keys do not add to it
+								int to = std::clamp(v + (up ? 5 : -5), 0, 100);
+								if (haveUi) ui.setVolumeTotal(player, to, true);
+								fprintf(stderr, "volume keys: %s press: volume %d%%\n", up ? "Volume +" : "Volume -", to);
+							}
+						}
+					}
+				}
 				else if (e.type == evLevel)
 				{
 					std::string* what = (std::string*)e.user.data1;
@@ -1150,6 +1265,32 @@ int main(int argc, char** argv)
 					}
 				}
 				got = SDL_PollEvent(&e);
+			}
+			// the shoulder keys' hold: one step at 0.6 s; a key down 5 s is stuck and ignored until let go; not lit
+			// anymore (the lid opened, Stop) releases them all
+			if (!lidKeysNow())
+			{
+				for (int i = 0; i < 4; i++) lidShoulderUp(i);
+			}
+			else if (player.settings.lidShoulder == LID_SHOULDER_HOLD)
+			{
+				Uint32 at = SDL_GetTicks();
+				for (int i = 0; i < 4; i++)
+				{
+					if (!lidShoulderAt[i] || lidShoulderDone[i]) continue;
+					Uint32 held = at - lidShoulderAt[i];
+					if (held >= 5000)
+					{
+						lidShoulderDone[i] = lidShoulderStuck[i] = true;
+						fprintf(stderr, "lid keys: shoulder %s down %u ms: stuck, ignored until let go\n",
+							i == 0 ? "L" : i == 1 ? "R" : i == 2 ? "L2" : "R2", held);
+					}
+					else if (held >= 600)
+					{
+						lidShoulderDone[i] = true;
+						lidShoulderAct(i);
+					}
+				}
 			}
 			if (held != Button::None && SDL_GetTicks() >= heldNext)
 			{
@@ -1780,6 +1921,7 @@ int main(int argc, char** argv)
 		// (before the watch stops: it knows the lid)
 		lidGuard.release(sleepWatch.lidClosed());
 		powerKey.stop();
+		volumeKey.stop();
 		sleepWatch.stop();
 		levelWatch.stop();
 		bottomTouch.stop();

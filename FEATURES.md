@@ -1302,6 +1302,20 @@ combination instead.)
   wake (and is play/pause again then), so the key that wakes the handheld reaches bananad; a key bananad holds
   exclusively stays BananaOS's too. `log.txt`: `power: … taken: lid shut…`, `power:
   press: play/pause`, `power: hold: asking bananad to sleep`, `power: released (…)`.
+- **Volume keys with the lid shut:** while the lid is shut with **Keep playing** and something is loaded (playing or
+  paused), the player takes the volume keys' own input device (`gpio-keys-volume`, apart from the power key and the lid
+  switch) so BananaOS never moves the volume by itself. **Volume +** / **Volume −** let go before 0.6 s: one volume step
+  (5%, when you let go) through BananaOS's own `/usr/libexec/banana/volume`; it stops at 100% (a boost set before stays).
+  Held 0.6 s: **next** / **previous** and the volume does not move; one hold, one step. A key down 5 s is taken as stuck
+  and ignored until let go. A song and a video get the same keys, and they act on what plays, never on the page left open.
+  The grab ends the moment the lid opens, Keep playing goes off, nothing is loaded, the player quits, or the main loop
+  stops answering (3 s). No sound effects. `log.txt`: `volume keys: … taken: lid shut…`, `volume keys: Volume + press:
+  volume 45%`, `volume keys: Volume - held 601 ms: previous`, `volume keys: … stuck…`, `volume keys: released (…)`.
+- **Shoulder keys with the lid shut:** Settings › Power & screens › **Shoulder keys, lid shut**: **Ignored** (default),
+  **Hold** (L / R previous / next and L2 / R2 previous / next chapter when held 0.6 s; one hold, one step) or **As usual**
+  (at once). With **Pause** the row is at 45% ("The lid pauses"). Nothing else under the lid does anything while the lid
+  is shut and something is loaded: the face keys, the D-pad, START, SELECT, F, the stick and the touch screen are ignored.
+  With nothing loaded, closing it sleeps the handheld as BananaOS says.
 - **Headphones out:** pulling the headphones out of the jack, Bluetooth headphones disconnecting, or a USB sound card
   unplugged while something plays pauses it, so the sound doesn't go on from the speakers. Plugging back in doesn't play
   (press play). `log.txt`: `audio: headphones out, paused` (or `Bluetooth headphones disconnected`, `USB sound card
