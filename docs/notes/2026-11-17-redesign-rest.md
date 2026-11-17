@@ -245,8 +245,8 @@ is not; while a video plays its tile says "stops the video". The playing actions
 (Like, Add to playlist…, Show in folder, Play on…, Info, Stop) and the mini bar.
 
 Checked (generated stereo MP3): the Menu over the player (no Now playing line), over the browser (the line, SELECT,
-the hint bar), Down/Right moving the tile focus, Settings then B back to the Menu then B to the browser, and the About
-tile. Shots: `redesign-shots/q5/menu-bottom.png`, `menu-now-bottom.png` (not committed).
+the hint bar), Down/Right moving the tile focus, a tap on the Settings tile, Settings then B back to the Menu then B to
+the browser, and the About tile. Shots: `redesign-shots/q5/menu-bottom.png`, `menu-now-bottom.png` (not committed).
 
 ### 3. Power key, lid shut and Volume keys, lid shut
 
@@ -280,7 +280,6 @@ Generated media only: a stereo 220/330 Hz sine MP3 with a generated cover. The a
 - Lite with a mono file (it ends the file, above) and the handheld's panel at one pixel a unit for the fifth grid row.
 - The Menu's Manga tile stopping a playing video (the spec's guard sheet is not built).
 - The power and volume devices on the handheld: no lid switch, power key or `gpio-keys-volume` on a Mac.
-- A real finger on the Menu's tiles and keys (the D-pad and the touch rects were driven by `--press`, the taps not).
 
 
 

@@ -655,6 +655,9 @@ namespace bp
 			}
 			return false;
 		}
+		// the Menu's places, its Now playing line and its two keys (its downs as well as its ups; before pressedBtn's
+		// own act, which is every other page's)
+		if (page == Page::Menu) return menuPointer(pt, x, y, p);
 		// a finger that went down on one of the manga app's lists: its moves scroll the list and its lift is the tap
 		// (the down came through mangaPointer, after the sheets, the header and the mini bar had their turn)
 		if (pageReader->mlist.on && pt.kind != Pointer::Down) return pageReader->mangaListPointer(pt, x, y);
@@ -697,8 +700,6 @@ namespace bp
 			return false;
 		}
 		// an area's page (the readers, the Manga pages): its own touches; the mini bar's taken above. An area whose
-		// the Menu's places, its Now playing line and its two keys (its downs as well as its ups)
-		if (page == Page::Menu) return menuPointer(pt, x, y, p);
 		// downs come late (Manga's pages but the reader) has them below, after "<"
 		if (Area* a = area(); a && !(pt.kind == Pointer::Down && a->pointerDownLate())) return a->pointer(pt, x, y, p);
 		if (pt.kind != Pointer::Down) return false;
