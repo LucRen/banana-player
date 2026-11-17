@@ -375,10 +375,12 @@ namespace bp
 		std::vector<std::string> upNextList(const Player& p, int& current) const;
 		void playUpNext(int i, Player& p);
 		void choose(int i, Player& p);
-		// Settings opens on its groups (setGroup -1); A or a tap opens one, B goes back to them
-		// (Web dashboard is a tile like the groups, but its own page: openGroup and stepGroup open Page::Web)
-		enum SetGroup { GROUP_SUBS, GROUP_MUSIC, GROUP_PHOTOS, GROUP_REMEMBER, GROUP_FILES, GROUP_CONTROLS, GROUP_UPDATES, GROUP_WEB,
-			GROUPS };
+		// Settings opens on its groups (setGroup -1); A or a tap opens one, B goes back to them. The order is the spec's
+		// (docs/redesign/src/screens.js, "settings"): Playback, Subtitles, Music & sound, Photos, Reading, Files &
+		// history, Power & screens, Web dashboard, Updates, About (Web dashboard is a tile like the groups, but its own
+		// page: openGroup and stepGroup open Page::Web)
+		enum SetGroup { GROUP_PLAYBACK, GROUP_SUBS, GROUP_MUSIC, GROUP_PHOTOS, GROUP_READING, GROUP_FILES, GROUP_SCREEN,
+			GROUP_WEB, GROUP_UPDATES, GROUP_ABOUT, GROUPS };
 		// the page is an area (SettingsPage, ui_settings.h): the rows, changeSetting, openGroup, its drawing and keys.
 		// Here stay: the groups' ids, the rows' ids and the list's measures (Manga's settings page and the tables use
 		// them) and setGroup, the open group, which showPlayer's, the dashboard's and Browse's way-back records keep
@@ -916,8 +918,9 @@ namespace bp
 		struct Web;
 		std::unique_ptr<Web> webPage;
 		void openWeb();	// the page, from Home's menu, a settings group, the globe, the quick settings
-		// its states as the page shows them
-		enum WebView { WEB_OFF_VIEW, WEB_ON_VIEW, WEB_NOWIFI_VIEW, WEB_FAILED_VIEW };
+		// its states as the page shows them (WEB_INCOGNITO_VIEW: the dashboard held off by incognito: the switch at 45%
+		// with its reason, one sentence, Leave incognito; no QR, address or PIN)
+		enum WebView { WEB_OFF_VIEW, WEB_ON_VIEW, WEB_NOWIFI_VIEW, WEB_FAILED_VIEW, WEB_INCOGNITO_VIEW };
 		int webView(const Player& p) const;
 		void webTurn(bool on, Player& p);	// the switch: kept in the settings, the server started or stopped
 		int webClients() const;
@@ -1008,9 +1011,20 @@ namespace bp
 		int markW(const Player& p) const;	// its room in the header (0 none)
 		// Incognito mode (Quick settings' Incognito mode): nothing played goes in Recent (Player::incognito) and
 		// reading adds nothing to the manga History (places, read marks, resume points, the library and downloads go
-		// on as ever). Never saved: off at every start. Its mark sits left of the clock while it's on
+		// on as ever). Never saved: off at every start. Its mark sits left of the clock while it's on.
+		// While it's on the web dashboard's server does not listen (the switch keeps its saved value, the server comes
+		// back with the same PIN and sign-ins when incognito ends); the lid or a sleep can close everything (the
+		// Lid or sleep in incognito setting): docs/redesign/lid-and-incognito.md
 		bool incognito = false;
 		int incognitoW() const { return incognito ? 18 + 10 : 0; }
+		// Quick settings' tile, and a browser's confirm sheet: turning it on stops the dashboard (after asking when a
+		// browser is signed in), turning it off starts it again when its switch says on. note: the "Incognito on/off"
+		// note (false: none, as closing everything and a sleep say nothing)
+		void setIncognito(bool on, Player& p, bool note = true);
+		// Close all, at the lid or a sleep: Stop, a book/photo/comic/the Manga reader and sheets close, Home shows,
+		// incognito ends. main closes its photo viewer before calling this (the photo is another player)
+		void incognitoCloseAll(Player& p);
+		struct IncognitoAsk;
 		bool markLive(const Player& p) const;	// it moves: what plays plays (a page's: as the page does)
 		void drawMark(int right, int cy, const Player& p);
 		// the equalizer changed from the web (a slider's run): written (commitEq) a second after the last change

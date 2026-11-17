@@ -41,6 +41,10 @@ namespace bp
 	static const char* CLOCK_IDS[CLOCKS] = {"24h", "12h", "off"};
 	static const char* SCREEN_OFF_IDS[SCREEN_OFFS] = {"never", "15s", "30s", "1m", "2m", "5m"};
 	static const char* SCREEN_OFF_LABELS[SCREEN_OFFS] = {"Never", "15 seconds", "30 seconds", "1 minute", "2 minutes", "5 minutes"};
+	static const char* LID_SHOULDER_IDS[LID_SHOULDERS] = {"ignored", "hold", "as-usual"};
+	static const char* LID_SHOULDER_LABELS[LID_SHOULDERS] = {"Ignored", "Hold", "As usual"};
+	static const char* LID_INCOGNITO_IDS[LID_INCOGNITOS] = {"nothing", "close-all", "quit"};
+	static const char* LID_INCOGNITO_LABELS[LID_INCOGNITOS] = {"Nothing", "Close all", "Quit"};
 
 	int stepMangaPreload(int v, int dir)
 	{
@@ -564,6 +568,13 @@ namespace bp
 		static const char* SHOWN_PAN[2] = {"Left", "Right"};
 		static const char* SHOWN_DRAG[2] = {"The photo", "The box"};
 		static const char* SHOWN_LID[2] = {"Pause", "Keep playing"};
+		static const char* TXT_FONT_LABELS[5] = {"Serif", "Sans", "Mono", "Pixel", "CJK pixel"};
+		static const char* TXT_SIZE_LABELS[5] = {"Small", "Medium", "Large", "Larger", "Largest"};
+		static const char* TXT_SPACING_LABELS[3] = {"Tight", "Normal", "Loose"};
+		static const char* TXT_MARGIN_LABELS[3] = {"Narrow", "Normal", "Wide"};
+		static const char* TXT_THEME_LABELS[4] = {"Dark", "Light", "Sepia", "Black"};
+		static const char* TXT_VIEW_LABELS[3] = {"Scroll", "Book, left", "Book, right"};
+		static const char* PDF_VIEW_LABELS[2] = {"Single page", "Strip"};
 		static const int VIZ_FPS[] = {30, 45, 60};
 		static const int VOLUME_TOPS[] = {100, 120, 150};
 		static const std::vector<SettingDef> table = {
@@ -578,24 +589,31 @@ namespace bp
 			D::range("manga-filter", &Settings::mangaFilter, 0, 3),
 			D::range("read-dim", &Settings::readDim, 0, 80, 10).stepped(false, nullptr, 10),
 			D::ints("volume-max", &Settings::volumeMax, VOLUME_TOPS, 3)
-				.page(SG_CONTROLS, 40, "Max volume", "How far the volume keys go: past 100% the player turns the sound up itself (louder than the handheld's own top, a little rougher on loud parts). Over 120% can damage your hearing and the speakers.")
+				.page(SG_PLAYBACK, 40, "Max volume", "How far the volume keys go: past 100% the player turns the sound up itself (louder than the handheld's own top, a little rougher on loud parts). Over 120% can damage your hearing and the speakers.")
 				.shownAs(nullptr, "%"),
 			D::choice("loop", &Settings::loop, LOOP_IDS, LOOPS),
 			D::choice("manga-mode", &Settings::mangaMode, MANGA_MODE_IDS, MANGA_MODES)
 				.page(SG_MANGA, 10, "Reading mode", "How a series opens until you pick one for it (X while reading).").shownAs(MODE_NAMES).stepped(true),
 			D::choice("manga-fit", &Settings::mangaFit, MANGA_FIT_IDS, MANGA_FITS)
 				.page(SG_MANGA, 20, "Page fit", "Width: a page as wide as the screen, read down with RIGHT a screenful at a time.").shownAs(FIT_NAMES).stepped(true),
-			// the document viewers' choices, by name (textreader.h's order); their rows are Files' viewers', not this page's
-			D::choice("text-font", &Settings::txtFont, TXT_FONT_IDS, 5),
-			D::choice("text-size", &Settings::txtSize, TXT_SIZE_IDS, 5),
-			D::choice("text-spacing", &Settings::txtSpacing, TXT_SPACING_IDS, 3),
-			D::choice("text-margins", &Settings::txtMargins, TXT_MARGIN_IDS, 3),
-			D::choice("text-theme", &Settings::txtTheme, TXT_THEME_IDS, 4),
+			// the document viewers' choices, also listed in Settings › Reading (a book's own Text sheet keeps them too)
+			D::choice("text-font", &Settings::txtFont, TXT_FONT_IDS, 5)
+				.page(SG_READING, 10, "Font", "The font a TXT or EPUB is read in.").shownAs(TXT_FONT_LABELS).stepped(true),
+			D::choice("text-size", &Settings::txtSize, TXT_SIZE_IDS, 5)
+				.page(SG_READING, 20, "Text size", "Five sizes. Medium is the smallest that reads comfortably on the handheld.").shownAs(TXT_SIZE_LABELS).stepped(true),
+			D::choice("text-spacing", &Settings::txtSpacing, TXT_SPACING_IDS, 3)
+				.page(SG_READING, 30, "Line spacing", "How far apart the lines are.").shownAs(TXT_SPACING_LABELS).stepped(true),
+			D::choice("text-margins", &Settings::txtMargins, TXT_MARGIN_IDS, 3)
+				.page(SG_READING, 40, "Margins", "The room either side of the text.").shownAs(TXT_MARGIN_LABELS).stepped(true),
+			D::choice("text-theme", &Settings::txtTheme, TXT_THEME_IDS, 4)
+				.page(SG_READING, 50, "Colours", "The page's colours: dark, light, sepia or black.").shownAs(TXT_THEME_LABELS).stepped(true),
 			D::choice("text-filter", &Settings::txtFilter, DOC_FILTER_IDS, 4),
 			D::choice("pdf-filter", &Settings::pdfFilter, DOC_FILTER_IDS, 4),
-			D::choice("text-view", &Settings::txtBook, TXT_VIEW_IDS, 3),
+			D::choice("text-view", &Settings::txtBook, TXT_VIEW_IDS, 3)
+				.page(SG_READING, 70, "Text opens as", "Scroll: down the page. Book: held sideways, a page on each screen.").shownAs(TXT_VIEW_LABELS).stepped(true),
 			D::choice("text-turn", &Settings::txtTurn, TXT_TURN_IDS, 2),
-			D::flag("pdf-view", &Settings::pdfStrip, "page", "strip"),
+			D::flag("pdf-view", &Settings::pdfStrip, "page", "strip")
+				.page(SG_READING, 80, "PDF opens as", "Single page, or Strip: the pages one after another.").shownAs(PDF_VIEW_LABELS),
 			D::ints("manga-preload", &Settings::mangaPreload, MANGA_PRELOADS, MANGA_PRELOAD_COUNT)
 				.page(SG_MANGA, 60, "Preload", "More: smoother on a slow server, more data.").shownAs(nullptr, " pages").stepped(true).digitsOnly(),
 			// 0 to 200 in steps of 4 (a value a file kept from before may sit off the step: it snaps onto one on the page)
@@ -605,11 +623,11 @@ namespace bp
 			D::choice("manga-cache", &Settings::mangaCacheSize, MANGA_CACHE_IDS, MANGA_CACHES)
 				.page(SG_MANGA, 70, "Page cache", "Pages kept on the card to read again without downloading. Covers: 50 MB more.").shownAs(CACHE_NAMES).stepped(true),
 			D::flag("remember-position", &Settings::rememberPosition)
-				.page(SG_REMEMBER, 10, "Remember position", "A video opens where you stopped. Songs always start at the beginning."),
+				.page(SG_PLAYBACK, 10, "Remember position", "A video opens where you stopped. Songs always start at the beginning."),
 			D::flag("remember-audio", &Settings::rememberAudio)
-				.page(SG_REMEMBER, 20, "Remember audio track", "Keeps each file's audio track. A new file starts in the language you chose last."),
+				.page(SG_PLAYBACK, 20, "Remember audio track", "Keeps each file's audio track. A new file starts in the language you chose last."),
 			D::flag("remember-subtitles", &Settings::rememberSubs)
-				.page(SG_REMEMBER, 30, "Remember subtitles", "Keeps each file's subtitles. A new file starts in the language you chose last."),
+				.page(SG_PLAYBACK, 30, "Remember subtitles", "Keeps each file's subtitles. A new file starts in the language you chose last."),
 			D::flag("remember-folder", &Settings::rememberFolder)
 				.page(SG_FILES, 10, "Remember last folder", "The file list opens where you last were."),
 			D::flag("keep-history", &Settings::keepHistory)
@@ -617,17 +635,17 @@ namespace bp
 			D::flag("keep-network-history", &Settings::keepNetHistory)
 				.page(SG_FILES, 40, "Network files in Recent", "Files played from a network folder go in Recent too. Off: they're left out, and the ones there now go."),
 			D::flag("button-hotkeys", &Settings::buttonHotkeys)
-				.page(SG_CONTROLS, 50, "Button hotkeys", "Off: the buttons can't pause, skip or close while something plays (touch still can)."),
+				.page(SG_PLAYBACK, 50, "Button hotkeys", "Off: the buttons can't pause, skip or close while something plays (touch still can)."),
 			D::flag("show-hidden-folders", &Settings::showHiddenFolders)
 				.page(SG_FILES, 20, "Show hidden folders", "Shows the folders you've hidden (X on a folder), so you can unhide them."),
 			D::flag("battery-percent", &Settings::batteryPercent)
-				.page(SG_CONTROLS, 60, "Battery percentage", "Shows the battery's percent beside its icon."),
+				.page(SG_SCREEN, 120, "Battery percentage", "Shows the battery's percent beside its icon."),
 			D::flag("keep-photo-zoom", &Settings::keepPhotoZoom)
 				.page(SG_PHOTOS, 10, "Keep zoom between photos", "The next photo opens at the same zoom and place. Off: each opens whole."),
 			D::flag("check-updates", &Settings::checkUpdates)
 				.page(SG_UPDATES, 10, "Check automatically", "Looks for a new version a few seconds after the start (Wi-Fi needed)."),
 			D::flag("same-brightness", &Settings::sameBrightness)
-				.page(SG_CONTROLS, 30, "Same for both screens", "One brightness for both screens. Off: each its own."),
+				.page(SG_SCREEN, 30, "Same for both screens", "One brightness for both screens. Off: each its own."),
 			D::flag("shuffle", &Settings::shuffle),	// (no row: the play mode, as loop)
 			D::flag("manga-reader", &Settings::mangaOn),
 			D::flag("manga-intro-shown", &Settings::mangaIntroShown),
@@ -646,15 +664,21 @@ namespace bp
 			D::flag("song-info", &Settings::songInfo)
 				.page(SG_MUSIC, 40, "Song info on top", "The song's title, artist and album over the top screen's picture (None shows the title anyway)."),
 			D::choice("clock", &Settings::clock, CLOCK_IDS, CLOCKS)
-				.page(SG_CONTROLS, 70, "Clock", "The time in the top corner of this screen").shownAs(CLOCK_NAMES).stepped(true),
+				.page(SG_SCREEN, 130, "Clock", "The time in the top corner of this screen").shownAs(CLOCK_NAMES).stepped(true),
 			// (not round: Never at one end, 5 minutes at the other)
 			D::choice("screen-off", &Settings::screenOffAfter, SCREEN_OFF_IDS, SCREEN_OFFS)
-				.page(SG_CONTROLS, 80, "Screen off (music)", "While a song plays, this screen goes dark after that long untouched. A touch brings it back.").shownAs(SCREEN_OFF_LABELS),
+				.page(SG_SCREEN, 40, "Screen off (music)", "While a song plays, this screen goes dark after that long untouched. A touch brings it back.").shownAs(SCREEN_OFF_LABELS),
 			D::choice("screen-off-video", &Settings::screenOffVideo, SCREEN_OFF_IDS, SCREEN_OFFS)
-				.page(SG_CONTROLS, 90, "Screen off (video)", "While a video plays, this screen goes dark after that long untouched. A touch brings it back.").shownAs(SCREEN_OFF_LABELS),
+				.page(SG_SCREEN, 50, "Screen off (video)", "While a video plays, this screen goes dark after that long untouched. A touch brings it back.").shownAs(SCREEN_OFF_LABELS),
 			D::flag("lid-close", &Settings::lidKeepPlaying, "pause", "keep-playing")
-				.page(SG_CONTROLS, 10, "When the lid closes", "Keep playing: while something plays (or the web dashboard is on), BananaOS's \"Closing the lid\" is switched to stay awake, and back after (then the handheld sleeps if the lid is shut).")
+				.page(SG_SCREEN, 70, "When the lid closes", "Pause: closing the lid pauses and the handheld sleeps. Keep playing: a song or a video goes on with both screens off, and the handheld does not sleep while the lid is shut and something is loaded. Volume and Power still work.")
 				.shownAs(SHOWN_LID),
+			D::choice("lid-shoulder", &Settings::lidShoulder, LID_SHOULDER_IDS, LID_SHOULDERS)
+				.page(SG_SCREEN, 80, "Shoulder keys, lid shut", "What L, R, L2 and R2 do while the lid is shut and something plays. Ignored: they do nothing. Hold: they act when held for 0.6 s. As usual: they act at once.")
+				.shownAs(LID_SHOULDER_LABELS).stepped(true),
+			D::choice("lid-incognito", &Settings::lidIncognito, LID_INCOGNITO_IDS, LID_INCOGNITOS)
+				.page(SG_SCREEN, 90, "Lid or sleep in incognito", "What happens while incognito is on when the lid closes or the handheld goes to sleep. Close all: what plays stops, books and photos close, Home shows, and incognito is off.")
+				.shownAs(LID_INCOGNITO_LABELS).stepped(true),
 			D::flag("pan-area", &Settings::panRight, "left", "right")
 				.page(SG_PHOTOS, 20, "Pan area", "Which side the pan area (the small photo) is on.").shownAs(SHOWN_PAN),
 			D::flag("pan-drag", &Settings::dragBox, "photo", "box")

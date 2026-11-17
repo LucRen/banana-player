@@ -26,7 +26,7 @@ should have in the file (the order of `settings.conf` is the table's order):
 
 ```cpp
 D::ints("volume-max", &Settings::volumeMax, VOLUME_TOPS, 3)        // key, member, the values the file may name
-	.page(SG_CONTROLS, 40, "Max volume", "How far the volume keys go...")   // group, place in the group, label, help
+	.page(SG_PLAYBACK, 40, "Max volume", "How far the volume keys go...")   // group, place in the group, label, help
 	.shownAs(nullptr, "%"),                                        // value text: the number, then "%"
 ```
 
@@ -38,10 +38,10 @@ names; a flag's two words, off then on, default Off/On), `.stepped(wrap, fn, by)
 rule, or by `by`; the default stops at the ends), `.afterRead(fn)`. A row's id on the page is `SET_ROW0 + its index`;
 `pageRows(group, own)` (`ui_internal.h`) lists a group's rows by place, with the page's own rows among them.
 
-Adding a switch "Foo" to Controls: a `bool foo = false;` in `Settings`, and
+Adding a switch "Foo" to Playback: a `bool foo = false;` in `Settings`, and
 
 ```cpp
-D::flag("foo", &Settings::foo).page(SG_CONTROLS, 65, "Foo", "What Foo does."),
+D::flag("foo", &Settings::foo).page(SG_PLAYBACK, 65, "Foo", "What Foo does."),
 ```
 
 That is the whole change; the group's list, the help line, Left/Right and the saved file follow. If the new setting does

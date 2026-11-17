@@ -123,7 +123,7 @@ namespace bp
 
 	// The first start (no lid-close in settings.conf): what closing the lid does, asked once. Pause is first and is
 	// what B or a tap outside choose, as the setting's default; either answer is saved, so it's never asked again.
-	// The words say where it changes later (Settings, Controls & screen: its first row)
+	// The words say where it changes later (Settings, Power & screens: its seventh row)
 	struct Ui::LidAskBox : Ui::Overlay
 	{
 		int cursor = 0;	// 0 Pause, 1 Keep playing
@@ -136,7 +136,7 @@ namespace bp
 		{
 			return {"Pause: playback pauses and the handheld sleeps, as usual.",
 				"Keep playing: music goes on with the screens off, and the handheld sleeps when it stops.",
-				"Change it any time in Settings \xE2\x80\xBA Controls & screen."};
+				"Change it any time in Settings \xE2\x80\xBA Power & screens."};
 		}
 		int textHeight() const
 		{

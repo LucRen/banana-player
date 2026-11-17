@@ -74,15 +74,19 @@ namespace bp
 		return out;
 	}
 	struct GroupName { const char* name; const char* about; };
+	// the Settings page's groups in the spec's order (Ui::SetGroup; the summaries here are the fallback, the page
+	// draws each group's live one)
 	inline const GroupName GROUP_NAMES[] = {
+		{"Playback", "Resume, tracks, volume"},
 		{"Subtitles", "Font, size, text encoding"},
-		{"Music", "Display, visualizer, sound"},
+		{"Music & sound", "Display, visualizer, sound"},
 		{"Photos", "Zoom, pan area, drag"},
-		{"Remember", "Position, tracks"},
-		{"Files", "Folders, play history"},
-		{"Controls & screen", "Brightness, buttons"},
+		{"Reading", "Font, size, colours, view"},
+		{"Files & history", "Folders, play history"},
+		{"Power & screens", "Brightness, the lid, sleep"},
+		{"Web dashboard", ""},	// (its line is its state: the page draws it)
 		{"Updates", "New versions"},
-		{"Web dashboard", ""},	// (its line is its state: drawSettings)
+		{"About", "Version, licence, libraries"},
 	};
 	inline const char* RECENT = "\x01recent";
 	inline const char* HOMEDIR = "\x01home";	// Home: the Recent strip and the sections' tiles

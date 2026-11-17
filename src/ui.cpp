@@ -201,14 +201,25 @@ namespace bp
 		if (page == Page::Main && !p.settings.buttonHotkeys) return false;
 		// L2/R2: the chapter before or after, over what plays and its two pages (the Chapters page's mark follows).
 		// Not in START's menu, not over a photo (its keys are its own), and nothing with Button hotkeys off: they
-		// have no touch button to stand for
+		// have no touch button to stand for. On Settings a group page takes them: the group before or after
 		// (the manga pages have their own: the reader's chapter before or after, the series page's Download)
-		if ((b == Button::L2 || b == Button::R2) && page != Page::Manga && page != Page::MangaSeries && page != Page::MangaRead &&
-			page != Page::DocText && page != Page::DocPages)
+		if (b == Button::L2 || b == Button::R2)
 		{
-			if (p.settings.buttonHotkeys && !inMenu && p.playing() && !p.playingPhoto() && p.error.empty() && page == Page::Main)
-				chapterStep(b == Button::L2 ? -1 : 1, p);
-			return false;
+			if (page == Page::Settings || page == Page::Web) { area()->key(b, p); return false; }
+			// About is a settings group too (its page its own): back to its neighbours (not as the menu's tab)
+			if (page == Page::About && !inMenu)
+			{
+				setGroup = GROUP_ABOUT;
+				settingsPage->stepGroup(b == Button::R2 ? 1 : -1, &p);
+				return false;
+			}
+			if (page != Page::Manga && page != Page::MangaSeries && page != Page::MangaRead &&
+				page != Page::DocText && page != Page::DocPages)
+			{
+				if (p.settings.buttonHotkeys && !inMenu && p.playing() && !p.playingPhoto() && p.error.empty() && page == Page::Main)
+					chapterStep(b == Button::L2 ? -1 : 1, p);
+				return false;
+			}
 		}
 		if (inMenu)
 		{
@@ -249,7 +260,7 @@ namespace bp
 			case Button::B: case Button::A:
 				// About as the menu's tab: nothing to go back to (B closes the menu)
 				if (page == Page::About && inMenu) break;
-				if (page == Page::About) { page = Page::Settings; setGroup = -1; cursor = scroll = 0; }
+				if (page == Page::About) { page = Page::Settings; setGroup = -1; cursor = GROUP_ABOUT; scroll = 0; }
 				else page = home(p);
 				break;
 			default: break;
@@ -456,7 +467,7 @@ namespace bp
 		if (id == BUSY_CANCEL) { browse->playlists->cancelAdd(p); return false; }
 		if (id >= manga->EXT_TILE && id <= manga->EXT_DONE) return manga->extAct(id, p);
 		if (id >= PLAY_ROW && id < PLAY_ROW + 7) return playingChoose(id - PLAY_ROW, p);
-		if (id == GROUP_PREV || id == GROUP_NEXT) { settingsPage->stepGroup(id == GROUP_NEXT ? 1 : -1); return false; }
+		if (id == GROUP_PREV || id == GROUP_NEXT) { settingsPage->stepGroup(id == GROUP_NEXT ? 1 : -1, &p); return false; }
 		if (id == EXIT_BTN) { quitRequested = true; return false; }
 		if (id >= PHOTO_BTN && id < PHOTO_BTN + PHOTO_BTNS)
 		{
@@ -621,7 +632,8 @@ namespace bp
 			bool info = page == Page::Info || page == Page::About;
 			auto srows = set && !groups ? (page == Page::MangaSettings ? manga->mangaSettingRows() : settingsPage->settingRows()) : std::vector<int>();
 			int n = groups ? GROUPS : set ? (int)srows.size() : info ? (int)infoLines.size() : (int)rows(p).size();
-			int rowH = groups ? 84 : set ? SET_H : info ? INFO_H : ROW_H, shown = set ? SET_SHOWN : info ? INFO_SHOWN : ROWS_SHOWN;
+			int rowH = groups ? lay::SET_TILE_H + lay::SET_TILE_GAP : set ? SET_H : info ? INFO_H : ROW_H,
+				shown = groups ? GROUPS : set ? SET_SHOWN : info ? INFO_SHOWN : ROWS_SHOWN;
 			if (pt.kind == Pointer::Move && (listScrolled || std::abs(y - touchStartY) > 12))
 			{
 				listScrolled = true;
@@ -638,7 +650,7 @@ namespace bp
 				if (listScrolled || info) return false;	// the info page only scrolls
 				// a setting: the left of its value (its arrow) steps back, the rest of the row on
 				int dir = touchX >= SET_ARROW_X - 12 && touchX < 490 ? -1 : 1;
-				if (groups) settingsPage->openGroup(cursor);
+				if (groups) settingsPage->openGroup(cursor, &p);
 				else if (set && page == Page::Settings && srows[cursor] == SOUND_ROW) sound->open(p, true);	// a page, not a value
 				else if (set) settingsPage->changeSetting(srows[cursor], dir, p);
 				else choose(cursor, p);

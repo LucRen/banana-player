@@ -624,39 +624,46 @@ All three are remembered.
 
 ## Settings
 
-Settings opens on eight tiles (seven groups, and the [Web dashboard](#web-dashboard)), two to a row: move with the D-pad (**UP/DOWN** a row, **LEFT/RIGHT** a tile),
-open one with **A** or a tap, and **B** goes back to them. In a group, **Y** goes to the group before it and **X** to
-the one after (or tap the names either side of its title), and the line above the bottom says what the setting under the
-cursor does. **Subtitle style...** at the end of View's Subtitles tab opens the Subtitles group; **B** there
-goes back to that sheet, on Subtitles.
+Settings opens on ten tiles (Playback, Subtitles, Music & sound, Photos, Reading, Files & history, Power & screens, Web dashboard, Updates and About), two to a row: move with the D-pad (**UP/DOWN** a row, **LEFT/RIGHT** a tile),
+open one with **A** or a tap, and **B** goes back to them. In a group, **UP/DOWN** chooses a row, **LEFT/RIGHT** changes it in
+place, **L2** goes to the group before it and **R2** to the one after (or tap the names either side of its title), and the
+line above the bottom says what the setting under the cursor does. **Subtitle style...** at the end of View's Subtitles tab
+opens the Subtitles group; **B** there goes back to that sheet, on Subtitles.
 
 | Group | Setting | Default | |
 |---|---|---|---|
+| **Playback** | Remember position | On | Reopening a video continues where you stopped (songs always start from the beginning) |
+| | Remember audio track | On | Keeps each file's audio track; a new file starts in the language you chose last |
+| | Remember subtitles | On | The same, for subtitles |
+| | Max volume | 120% | How far the volume keys go on the handheld: 100%, 120% or 150%. Past 100% (the handheld's own top) the player turns the sound up itself, 5% a press, for films mixed quiet; the volume card marks 100% and shows the rest in yellow, red past 120%, and the first time past 120% a warning says it can damage your hearing and the speakers. Down takes that off first. It starts again at 100% each time the player opens. The web dashboard's handheld volume goes as far; a browser playing the sound itself keeps its own 0–100%. Two volumes, each its own: while a browser plays the sound, the handheld's volume keys turn that browser's volume (the card says **Browser volume**) and leave the handheld's as it was; the dashboard's volume shows both then (**Browser volume**, **Handheld volume**), and moving one never moves the other |
+| | Button hotkeys | On | Off: buttons can't pause, skip or close while something plays (touch still can) |
 | **Subtitles** | Font, size, colour, border, border colour, text encoding | Inter, Medium, White, Normal, Black, Auto | How plain subtitles (SRT, VTT…) look, with a live preview. Styled subtitles (ASS/SSA) keep their own look. **Text encoding** is how a subtitle file's letters are read, on the handheld and in the browser: Auto reads UTF-8, and guesses an older code page (a file named for its language, like `movie.sl.srt`, tries that language's first); if letters like š, č or ж still come out wrong, pick the file's: Central European (Windows-1250, ISO-8859-2, DOS 852), Cyrillic (Windows-1251, KOI8-R), Greek, Turkish, Baltic, Hebrew, Arabic or Western. A subtitle showing changes at once. |
-| **Music** | Music display, Visualizer, Sound | Album art, Bars, Off | What the top screen shows for music (also View › Display while a song plays). **Sound** opens the [Sound page](#sound-equalizer-and-effects): the equalizer and the effects |
+| **Music & sound** | Music display, Visualizer, Visualizer frame rate, Song info on top | Album art, Peaks Banana, 45 fps, On | What the top screen shows for music (also View › Display while a song plays). **Sound** opens the [Sound page](#sound-equalizer-and-effects): the equalizer and the effects |
 | **Photos** | Keep zoom between photos | On | The next photo opens at the same zoom and place. Off: each opens whole |
 | | Pan area | Left | Which side of the bottom screen the photo's pan area is on |
 | | Drag moves | The box | A drag in the pan area moves the box over the small photo, or the photo itself (like a phone) |
-| **Remember** | Remember position | On | Reopening a video continues where you stopped (songs always start from the beginning) |
-| | Remember audio track | On | Keeps each file's audio track; a new file starts in the language you chose last |
-| | Remember subtitles | On | The same, for subtitles |
-| **Files** | Remember last folder | Off | The file list opens where you last were |
+| **Reading** | Font, Text size, Line spacing, Margins, Colours | Serif, Large, Normal, Normal, Dark | The defaults for every TXT and EPUB; each book's own SELECT › Text sheet still overrides them for that book. Five text sizes; Medium is the smallest that reads comfortably on the handheld |
+| | Text opens as | Scroll | Scroll down the page, or Book: held sideways with a page on each screen |
+| | PDF opens as | Single page | Single page, or Strip: a PDF's pages one after another |
+| **Files & history** | Remember last folder | Off | The file list opens where you last were |
 | | Show hidden folders | Off | Shows folders you've hidden (they contain a `.hidden` file), so you can unhide them |
 | | Keep play history | On | Keeps Recent. Turning it off also deletes the history |
 | | Network files in Recent | On | Files played from a network folder go in Recent too. Off: they're left out, and the ones already there are removed |
 | | Clear play history | | Press **A** (or tap) twice. Positions you stopped at are kept |
-| **Controls & screen** | Brightness (or Top and Bottom brightness) | as BananaOS has them | The screens' backlight, 10% to 100%: the same levels as BananaOS's own Settings and the brightness keys, kept after a restart |
+| **Power & screens** | Brightness (or Top and Bottom brightness) | as BananaOS has them | The screens' backlight, 10% to 100%: the same levels as BananaOS's own Settings and the brightness keys, kept after a restart |
 | | Same for both screens | On | One brightness for both screens; off, each its own |
-| | Max volume | 120% | How far the volume keys go on the handheld: 100%, 120% or 150%. Past 100% (the handheld's own top) the player turns the sound up itself, 5% a press, for films mixed quiet; the volume card marks 100% and shows the rest in yellow, red past 120%, and the first time past 120% a warning says it can damage your hearing and the speakers. Down takes that off first. It starts again at 100% each time the player opens. The web dashboard's handheld volume goes as far; a browser playing the sound itself keeps its own 0–100%. Two volumes, each its own: while a browser plays the sound, the handheld's volume keys turn that browser's volume (the card says **Browser volume**) and leave the handheld's as it was; the dashboard's volume shows both then (**Browser volume**, **Handheld volume**), and moving one never moves the other |
-| | Button hotkeys | On | Off: buttons can't pause, skip or close while something plays (touch still can) |
-| | Battery percentage | Off | Shows the battery's percent beside its icon (the icon, with a bolt while charging, is always there) |
-| | Clock | 24-hour | The time in the top corner of the bottom screen, left of the battery: 24-hour (`14:32`), 12-hour (`2:32 PM`) or Off. Not over a photo |
 | | Screen off (music) | 30 seconds | While a song plays, the bottom screen turns off by itself after that long without a touch or a button: Never, 15 or 30 seconds, 1, 2 or 5 minutes. Not while paused, and never while a photo or a comic is shown. A touch or any button brings it back |
 | | Screen off (video) | 30 s | The same while a video plays; Never keeps its seek bar, tracks and subtitles lit and ready to touch |
+| | When the lid closes | Pause | What closing the lid does, with something playing or stopped. See [Lid and sleep](#lid-and-sleep) |
+| | Shoulder keys, lid shut | Ignored | With the lid shut and **Keep playing**, what **L**, **R**, **L2** and **R2** do: Ignored (nothing), Hold (act when held 0.6 s), or As usual (act at once). At 45% with its reason while the lid is set to Pause |
+| | Lid or sleep in incognito | Close all | While incognito is on: what the lid closing or the handheld sleeping does. Nothing, Close all (stop, close books and photos, Home, leave incognito) or Quit. See [Incognito](#incognito) |
+| | Battery percentage | Off | Shows the battery's percent beside its icon (the icon, with a bolt while charging, is always there) |
+| | Clock | 24-hour | The time in the top corner of the bottom screen, left of the battery: 24-hour (`14:32`), 12-hour (`2:32 PM`) or Off. Not over a photo |
 | **Updates** | Check automatically | On | Looks for a new version a few seconds after the start, in the background (Wi-Fi needed) |
 | | Check for updates | | Looks now, and shows what it found |
 | | Update to … | | Downloads the new version (shown when there's one), then **Restart now** |
-| **Web dashboard** | Turn on or off, New PIN | Off | Control the player and manage files and playlists from a phone or computer on your Wi-Fi. See [Web dashboard](#web-dashboard) |
+| **Web dashboard** | Turn on or off, New PIN | Off | Control the player and manage files and playlists from a phone or computer on your Wi-Fi. See [Web dashboard](#web-dashboard). While incognito is on the tile says **Off in incognito** and the page offers **Leave incognito** instead |
+| **About** | Version, licence, warranty, the manga-sources note, the libraries | | The same page START's About tab shows |
 
 ## Web dashboard
 
@@ -1276,9 +1283,9 @@ combination instead.)
 - **Screen off** (**X** → **Screen off**): turns the bottom screen off to save battery. While the player is showing,
   the playback buttons keep working with it off (**A**, **LEFT/RIGHT**, **L/R**, **L2/R2**, **L3**); a touch or any
   other button turns it back on (that press does nothing else). Elsewhere (a list), any button turns it back on. It also turns off by itself
-  while a song or video plays and nothing is touched (Settings › Controls & screen › **Screen off (music)** and
+  while a song or video plays and nothing is touched (Settings › Power & screens › **Screen off (music)** and
   **Screen off (video)**).
-- **Lid:** closing it pauses; opening it keeps it paused until you press play. Settings › Controls & screen › **When
+- **Lid:** closing it pauses; opening it keeps it paused until you press play. Settings › Power & screens › **When
   the lid closes: Pause / Keep playing** (Pause by default; the first start without the setting asks, Pause
   first, and says where to change it). With **Keep playing**, while the web dashboard is on (a browser may be playing from it), and while a song or a video plays on the
   handheld (playing or paused, not stopped, not a dashboard page playing it), the player switches BananaOS's own *Closing the

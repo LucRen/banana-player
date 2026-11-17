@@ -427,6 +427,44 @@ namespace bp
 		ui.drawTextMid(row.name, row.font, ink, x, cy, std::max(1, right - x));
 	}
 
+	// ---- the Settings page's pieces ----
+
+	void Ui::Kit::settingRow(Rect r, const SettingRow& s)
+	{
+		// focused: a surface with a yellow edge and the label and value yellow; held: the pressed fill
+		if (s.pressed) ui.fillRound(r, PRESSED, R_BUTTON);
+		else if (s.focused) flat(r, BUTTON, R_BUTTON, ACCENT);
+		SDL_Color ink = off(s.focused ? ACCENT : TEXT, s.off);
+		int cy = r.y + r.h / 2;
+		// the stepper's own places, as the page's tap uses them (SET_ARROW_X: left of it steps back)
+		int arrowX = SET_ARROW_X + r.x - lay::MARGIN;
+		ui.drawTextMid(s.label, F_P16, ink, r.x + 16, cy, arrowX - r.x - 24);
+		if (s.action)
+		{
+			// a note and a chevron: nothing to step
+			int right = r.x + r.w - 16;
+			ui.drawGlyphMid(G_RIGHT, right - 5, cy, off(s.focused ? ACCENT : DIM, s.off));
+			ui.drawTextMid(s.value, F_I12, off(s.focused ? DIM_ON : DIM, s.off), right - 18, cy, r.w / 2, 1);
+			return;
+		}
+		SDL_Color arrow = off(s.focused ? ACCENT : DIM, s.off);
+		ui.drawGlyphMid(G_LEFT, arrowX, cy, arrow);
+		ui.drawTextMid(s.value, F_P16, ink, arrowX + 118, cy, 196, 2);
+		ui.drawGlyphMid(G_RIGHT, r.x + r.w - 14, cy, arrow);
+	}
+
+	void Ui::Kit::settingTile(Rect r, const SettingTile& t)
+	{
+		// the mock-up's Settings tile: icon, name, and what it is set to now (a dim line under the name)
+		SDL_Color fill = t.pressed ? PRESSED : t.focused ? BUTTON : SURFACE;
+		if (t.focused) flat(r, fill, R_TILE, ACCENT);
+		else flat(r, fill, R_TILE, edgeOf(SURFACE));
+		SDL_Color ink = t.focused ? ACCENT : TEXT;
+		if (t.glyph) ui.drawGlyphMid(*t.glyph, r.x + 28, r.y + r.h / 2, ink);
+		ui.drawTextMid(t.name, F_P16, ink, r.x + 52, r.y + 22, r.w - 64);
+		if (!t.summary.empty()) ui.drawTextMid(t.summary, F_I12, t.focused ? DIM_ON : DIM, r.x + 52, r.y + 42, r.w - 64);
+	}
+
 	// ---- the lock over a screen ----
 
 	void Ui::Kit::lock(Rect key, double held)
