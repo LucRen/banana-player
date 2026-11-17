@@ -79,6 +79,15 @@ namespace bp
 
 	namespace
 	{
+		// the last item of its list in the order it plays (Shuffle's hidden one when there is one): Ended on it has
+		// nowhere to go (nextItem's rule, read from the old session)
+		bool atListEnd(const Session& s)
+		{
+			if (s.index < 0) return false;
+			if (s.shuffle && (int)s.order.size() == (int)s.queue.size())
+				return shufflePlace(s) + 1 >= (int)s.queue.size();
+			return s.index + 1 >= (int)s.queue.size();
+		}
 		// what a client sees change: everything but the clock (pos, posAt), the host's timers, the seen store and v
 		bool samePublished(const Session& a, const Session& b)
 		{
@@ -651,6 +660,29 @@ namespace bp
 					}
 					// (Shuffle: the next of the hidden order; its last played, a new round with Loop all, else the end)
 					if (nextItem()) return "";
+					// the end of a list, a song: it stays loaded, back at its start, paused (A, the power key or a
+					// page's Play plays it again from there). A video's list ends as before: nothing loaded, the list
+					// kept for the pages. Nothing reloads and the place is its start, never its end
+					if (s.audioOnly)
+					{
+						// (its file's end heard again before the seek lands: already there, nothing to do)
+						if (!s.playing && s.pos <= 0) return "";
+						n.pos = 0;
+						n.posAt = now;
+						n.seekN++;
+						if (n.playing)
+						{
+							n.playing = false;
+							n.playV = nv;
+						}
+						if (s.out.kind == OutKind::Handheld)
+						{
+							// (paused first: a seek while paused lands where asked, nothing decodes on into a start)
+							effect(Effect::HhPause);
+							effect(Effect::HhSeek, 0);
+						}
+						return "";
+					}
 					finishList();
 					return "";
 				}
@@ -917,6 +949,15 @@ namespace bp
 		if (old.ended.index < 0 && r.s.ended.index >= 0 && i.type != IntentType::Ended && i.type != IntentType::CantPlay && i.type != IntentType::Tick)
 			return std::string("I12: a finished list made by ") + intentName(i.type);
 		if (i.type == IntentType::Stop && r.reject.empty() && !r.dup && r.s.ended.index >= 0) return "I12: a Stop kept the finished list";
+		// I16: the end of a song list keeps the song, back at its start, paused (a video's list ends as before)
+		if (i.type == IntentType::Ended && r.reject.empty() && !r.dup && old.audioOnly && old.loop == SESSION_LOOP_OFF && atListEnd(old))
+		{
+			if (r.s.index != old.index) return "I16: the end of a song list moved off its last song";
+			if (r.s.playing || r.s.pos != 0) return "I16: the end of a song list left it playing or off its start";
+			if (r.s.load != old.load) return "I16: the end of a song list reloaded it";
+			for (auto& e : r.fx)
+				if (e.kind == Effect::HhUnload) return "I16: the end of a song list unloaded it";
+		}
 		bool report = i.type == IntentType::Loaded || i.type == IntentType::Pos || i.type == IntentType::Ended ||
 			i.type == IntentType::CantPlay || i.type == IntentType::Blocked;
 		if (report && r.reject.empty() && (i.origin != outOrigin(old) || i.load != old.load)) return "I8: a report from elsewhere taken";

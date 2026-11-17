@@ -590,6 +590,9 @@ namespace bp
 		prop("slang", slang);
 
 		if (!graph.empty() && !keepGraph) prop("lavfi-complex", graph);
+		// a song that plays to its end stays loaded there: the Session takes it back to its start, paused (the end of a
+		// list; a video's file ends as before, keep-open no). (always: an audio-only file too)
+		prop("keep-open", isAudio ? "always" : "no");
 		// Loop one: the song again and again (mpv's own); a video never loops; a photo stays (an animated one goes round)
 		prop("loop-file", isPhoto || (isAudio && settings.loop == LOOP_ONE) ? "inf" : "no");
 
