@@ -9406,7 +9406,8 @@ static void testSessionNamed()
 		CHECK_EQ(p.s.playing, false);
 		CHECK_EQ(p.s.pos, 0.0);
 		CHECK_EQ(p.count(Effect::HhSeek, p.fx) + p.count(Effect::HhPause, p.fx) + p.count(Effect::HhUnload, p.fx), 0);
-		// Loop one and Loop all keep their own ways (the case above); a song mid-list ends as any item
+		// Loop one and Loop all keep their own ways (the case above); a song mid-list ends as any item: the next one
+		// plays, from its start, in a new load (nothing of the song that ended is paused or sought)
 		Sim mid;
 		mid.open(3, 0);
 		l = mid.mk(IntentType::Loaded);
@@ -9414,9 +9415,15 @@ static void testSessionNamed()
 		l.dur = 100;
 		l.audioOnly = true;
 		mid.go(l);
+		uint64_t midLoad = mid.s.load;
+		mid.fx.clear();
 		mid.report(IntentType::Ended, "hh", mid.s.load);
 		CHECK_EQ(mid.s.index, 1);
 		CHECK_EQ(mid.s.playing, true);
+		CHECK_EQ(mid.s.pos, 0.0);
+		CHECK_EQ(mid.s.load > midLoad, true);
+		CHECK_EQ(mid.count(Effect::HhLoad, mid.fx), 1);
+		CHECK_EQ(mid.count(Effect::HhPause, mid.fx) + mid.count(Effect::HhSeek, mid.fx) + mid.count(Effect::HhUnload, mid.fx), 0);
 	}
 	{
 		// the end of a list keeps it (the pages offer it again); Stop puts it away; a pick, a Step-free Open, clears it

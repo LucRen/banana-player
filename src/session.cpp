@@ -972,6 +972,16 @@ namespace bp
 			for (auto& e : r.fx)
 				if (e.kind == Effect::HhUnload) return "I16: the end of a song list unloaded it";
 		}
+		// (a song with one after it ends as any item: the next one, from its start, in a new load; a paused session
+		// stays paused, as any item's end would)
+		else if (i.type == IntentType::Ended && r.reject.empty() && !r.dup && old.audioOnly && old.loop == SESSION_LOOP_OFF && old.index >= 0)
+		{
+			if (r.s.index == old.index) return "I16: a song mid-list did not go on to the next";
+			if (r.s.pos != 0) return "I16: a song mid-list left the next one off its start";
+			if (r.s.load == old.load) return "I16: a song mid-list did not load the next";
+			for (auto& e : r.fx)
+				if (e.kind == Effect::HhUnload) return "I16: a song mid-list unloaded the one that ended";
+		}
 		bool report = i.type == IntentType::Loaded || i.type == IntentType::Pos || i.type == IntentType::Ended ||
 			i.type == IntentType::CantPlay || i.type == IntentType::Blocked;
 		if (report && r.reject.empty() && (i.origin != outOrigin(old) || i.load != old.load)) return "I8: a report from elsewhere taken";

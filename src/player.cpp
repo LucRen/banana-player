@@ -32,7 +32,7 @@
 namespace bp
 {
 	enum Observed : uint64_t { TIME_POS = 1, DURATION, PAUSE, TRACK_LIST, MEDIA_TITLE, AID, SID, SPEED, METADATA, PAUSED_FOR_CACHE, SEEKING, CHAPTER_LIST, CHAPTER,
-		AUDIO_IN, AUDIO_OUT, CURRENT_AO, AF_CHAIN, LAVFI_GRAPH };
+		AUDIO_IN, AUDIO_OUT, CURRENT_AO, AF_CHAIN, LAVFI_GRAPH, EOF_REACHED };
 
 	// the audio diagnostics (log.txt, "audio:" lines): an mpv node as "key=value key=value" (a map) or its value
 	static std::string nodeText(const mpv_node* n)
@@ -197,6 +197,8 @@ namespace bp
 		mpv_observe_property(mpv, TIME_POS, "time-pos", MPV_FORMAT_DOUBLE);
 		mpv_observe_property(mpv, DURATION, "duration", MPV_FORMAT_DOUBLE);
 		mpv_observe_property(mpv, PAUSE, "pause", MPV_FORMAT_FLAG);
+		// a song kept open at its end (keep-open below) sends no END_FILE: this is where its end is heard
+		mpv_observe_property(mpv, EOF_REACHED, "eof-reached", MPV_FORMAT_FLAG);
 		// the track list and the tags come with their change (a read of them, as a file opens, waits for mpv while
 		// mpv waits for this thread to draw); a track chosen changes the list too
 		mpv_observe_property(mpv, TRACK_LIST, "track-list", MPV_FORMAT_NODE);
@@ -590,8 +592,9 @@ namespace bp
 		prop("slang", slang);
 
 		if (!graph.empty() && !keepGraph) prop("lavfi-complex", graph);
-		// a song that plays to its end stays loaded there: the Session takes it back to its start, paused (the end of a
-		// list; a video's file ends as before, keep-open no). (always: an audio-only file too)
+		// a song that plays to its end stays loaded there (keep-open; its end is heard as eof-reached, above): the
+		// Session moves on to the next, or takes the list's last song back to its start, paused. A video's file ends
+		// as before (keep-open no)
 		prop("keep-open", isAudio ? "always" : "no");
 		// Loop one: the song again and again (mpv's own); a video never loops; a photo stays (an animated one goes round)
 		prop("loop-file", isPhoto || (isAudio && settings.loop == LOOP_ONE) ? "inf" : "no");
@@ -889,6 +892,12 @@ namespace bp
 					break;
 				}
 				case PAUSE: paused = p->format == MPV_FORMAT_FLAG && *(int*)p->data; break;
+				case EOF_REACHED:
+					// keep-open leaves a song at its end (mpv pauses there and says nothing else), so its end comes
+					// here into the same path as a file mpv closed: the caller moves on to the next, or the Session
+					// keeps the list's last song at its start. (A video's file still ends by itself: keep-open no)
+					if (isAudio && loaded && p->format == MPV_FORMAT_FLAG && *(int*)p->data) finished = true;
+					break;
 				case SPEED: if (p->format == MPV_FORMAT_DOUBLE) speed = *(double*)p->data; break;
 				case PAUSED_FOR_CACHE: pausedForCache = p->format == MPV_FORMAT_FLAG && *(int*)p->data; break;
 				case SEEKING:
@@ -1232,7 +1241,7 @@ namespace bp
 	void Player::checkSongEnd()
 	{
 		if (!isAudio || !loaded || finished || !(duration > 0) || position < duration + 0.25) return;
-		if (graphSet.empty()) return;	// no graph: mpv ends the file itself
+		if (graphSet.empty()) return;	// no graph: mpv's own end (eof-reached) takes it
 		if (settings.loop == LOOP_ONE) seekFraction(0);
 		else finished = true;
 	}

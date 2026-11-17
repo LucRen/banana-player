@@ -8,9 +8,9 @@ Write the way the rest of the repo does: plain and precise, with the why. Say wh
 ## Index
 
 - [2026-11-17 a song's View: the equalizer's bands](2026-11-17-song-view-eq-drag.md): the sheet's ten bands did not move under a finger (the slider was grabbed with no overlay owner, so it was dropped as stale); `this` makes them the Sound page's slider, through `eqSetBand` / `syncEq`.
-- [2026-11-17 end of a song list](2026-11-17-end-of-list.md): the last song of a list stays loaded, back at 0:00, paused (A or the power key plays it again); videos end as before; `keep-open=always` for songs, I16.
 - [2026-11-17 settings groups](2026-11-17-settings-groups.md): the Settings page as the spec's ten groups, drawn with the kit (tiles with a live summary, rows with the stepper), L2 / R2 between groups; the readers' defaults get their own rows.
 - [2026-11-17 lid keys and incognito](2026-11-17-lid-keys-incognito.md): the keys with the lid shut (the player takes `gpio-keys-volume`: a press one volume step, a 0.6 s hold next / previous) and incognito's lid or sleep choice (Close all / Quit) with the Web dashboard held off.
+- [2026-11-17 end of a song list](2026-11-17-end-of-list.md): the last song of a list stays loaded, back at 0:00, paused (A or the power key plays it again); a song with one after it goes on to it; videos end as before; `keep-open=always` for songs with `eof-reached` as their end, I16.
 - [2026-11-17 power key](2026-11-17-power-key.md): with the lid shut and Keep playing, the power key is play/pause and a 2 s hold sleeps (an `EVIOCGRAB` on `rk805 pwrkey`, released the moment the conditions end, a 3 s main-loop safety).
 - [2026-11-16 manga library scan](2026-11-16-manga-library-scan.md): the Manga app froze for minutes on a big card (every chapter file opened on the main thread at each open); now listed in the background, files opened lazily, what each held kept in `<state>/manga/library-index.txt`.
 - [2026-11-15 Ui areas](ui-areas.md): a part of the app in its own struct and header (`Ui::Area`); the document viewers moved out of `ui.h` first, the plan for the rest.
