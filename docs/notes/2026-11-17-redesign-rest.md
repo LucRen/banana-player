@@ -106,7 +106,9 @@ Shots are under `redesign-shots/rest/` (not committed): `player-header-bottom.pn
   shell can run the player but not the dashboard's client or `tools/web-smoke.sh`, so `ui.predicting(p)` was not
   driven. The code path is one `if` in `chips()` and one in `chipAct`.
 - **The handheld's panel** at one pixel a unit: the equalizer's 12-unit values and frequency labels and the 9 bands
-  beside them are the first thing to look at; a finger on a band and the sheet's drag need a real touch screen.
+  beside them are the first thing to look at. (A finger on a band did not move it: the slider was grabbed with no
+  overlay owner; fixed in `2026-11-17-song-view-eq-drag.md`, and a band was then dragged and tapped on the desktop
+  panel. The sheet's own drag needs a real touch screen.)
 - `SettingsPage::menuBack`'s return to View is checked with a video that has no subtitle tracks (the style row is the
   second row there); with several tracks the cursor is not put back on the style row (the sheet opens on Subtitles,
   as designed).

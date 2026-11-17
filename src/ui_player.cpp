@@ -1392,7 +1392,7 @@ namespace bp
 					ui.sound->eqSetBand(i, g, p);
 					ui.sound->eqTapAt = ui.slide.moved ? 0 : now;
 					ui.sound->eqTapBand = i;
-				});
+				}, this);	// (the sheet is the overlay: once it isn't on top, the finger lets go)
 		}
 
 		// ---- keys ----
