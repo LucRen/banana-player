@@ -133,6 +133,9 @@ namespace bp
 	{
 		return show == SHOW_ART ? &G_PICTURE : show == SHOW_NONE ? &G_TITLE_ONLY : VIS_GLYPHS[vis >= 0 && vis < VISUALIZERS ? vis : 0];
 	}
+	// the player's Display chip: a show mode's short form, on the chip only (the full names are musicShowLabel's; the
+	// chip is 115 wide and "Album art only" does not fit one line)
+	inline const char* SHOW_SHORT[] = {"Art", "Art + viz", "Visualizer", "None"};
 	// the effects' short names (the song's line, Settings' value), and what each is (the Effects tab)
 	inline const char* FX_SHORT[SOUNDFX_COUNT] = {"None", "Room", "Hall", "Church", "Cave", "Wide", "Phones"};
 	inline const char* FX_ABOUT[SOUNDFX_COUNT] = {"Just the music", "A small, lively room", "A big hall, a long warm tail",

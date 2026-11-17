@@ -128,13 +128,16 @@ namespace bp
 		}
 		else
 		{
-			// what changes the sound is yellow, so an EQ or effect left on can't go unnoticed
-			bool fx = st.soundFx != SoundFx::None;
-			add(C_SOUND, &G_EQ, "Sound", soundSummary(st), st.eqOn || fx);
-			// the Show mode in words only (the style is named on View › Display and in Settings); a choice, not a
-			// state away from normal: never yellow
+			// two chips, one per choice (the preset and the effect were one value before): what changes the sound is
+			// yellow, so an EQ or effect left on can't go unnoticed
+			std::string preset = st.eqPreset.empty() ? CUSTOM_NAME : st.eqPreset;
+			add(C_SOUND, &G_EQ, "Sound", st.eqOn ? preset : "Off", st.eqOn);
+			add(C_FX, &G_SPEAKER, "Sound FX", FX_SHORT[std::clamp((int)st.soundFx, 0, SOUNDFX_COUNT - 1)],
+				st.soundFx != SoundFx::None);
+			// the Show mode in its short forms on the chip only (the style is named on View › Display and in
+			// Settings); a choice, not a state away from normal: never yellow
 			int show = std::clamp(st.musicShow, 0, SHOWS - 1);
-			add(C_TOP, showGlyph(show, st.visualizer), "Top screen", musicShowLabel(show), false);
+			add(C_TOP, showGlyph(show, st.visualizer), "Display", SHOW_SHORT[show], false);
 		}
 		add(C_SPEED, &G_SPEED, "Speed", speedLabel(p.speed), std::fabs(p.speed - 1) > 1e-6);
 		// Repeat is its own state now (Off / All / One), set in the List sheet; a song's fourth chip is Shuffle
@@ -144,7 +147,7 @@ namespace bp
 		// the buttons still answer (chipAct says why nothing changed)
 		if (ui.predicting(p))
 			for (auto& d : out)
-				if (d.kind == C_SOUND || d.kind == C_TOP || d.kind == C_PICTURE) { d.look.value = "Handheld only"; d.look.off = true; }
+				if (d.kind == C_SOUND || d.kind == C_FX || d.kind == C_TOP || d.kind == C_PICTURE) { d.look.value = "Handheld"; d.look.off = true; }
 		return out;
 	}
 
@@ -152,7 +155,7 @@ namespace bp
 	{
 		if (!p.error.empty()) return;
 		// a page plays it: the sound, the top screen and the picture are the handheld's alone
-		if (ui.predicting(p) && (kind == C_SOUND || kind == C_TOP || kind == C_PICTURE))
+		if (ui.predicting(p) && (kind == C_SOUND || kind == C_FX || kind == C_TOP || kind == C_PICTURE))
 		{
 			p.osd("Plays on the handheld only");
 			return;
@@ -163,8 +166,9 @@ namespace bp
 		case C_SUBS: openView(0, p); break;
 		case C_AUDIO: openView(1, p); break;
 		case C_PICTURE: openView(2, p); break;
-		// a song's: View's Equalizer and Display tabs (Display is the chip's, Equalizer the Sound chip's)
+		// a song's: View's Equalizer, Effects and Display tabs (the preset, the effect, the Show mode)
 		case C_SOUND: openView(2, p); break;
+		case C_FX: openView(3, p); break;
 		case C_TOP: openView(0, p); break;
 		// Speed is View's fifth tab for both (the one place it is set now)
 		case C_SPEED: openView(4, p); break;

@@ -35,9 +35,9 @@ namespace bp
 		void dropTouch() { pressed = T_NONE; }
 
 		// ---- the chips ----
-		enum ChipKind { C_SUBS, C_AUDIO, C_PICTURE, C_SPEED, C_MODE, C_SHUFFLE, C_SOUND, C_TOP };
+		enum ChipKind { C_SUBS, C_AUDIO, C_PICTURE, C_SPEED, C_MODE, C_SHUFFLE, C_SOUND, C_FX, C_TOP };
 		struct ChipDef { ChipKind kind; Kit::Chip look; };
-		// a video: Subtitles, Audio, Picture, Speed, Repeat; a song: Sound, Top screen, Speed, Shuffle
+		// a video: Subtitles, Audio, Picture, Speed, Repeat; a song: Sound, Sound FX, Display, Speed, Shuffle
 		std::vector<ChipDef> chips(const Player& p) const;
 		void chipAct(ChipKind kind, Player& p);	// A on it, or a tap: what sets it
 
@@ -56,7 +56,7 @@ namespace bp
 		void openList(int tab, Player& p);
 		// View (SELECT): the View sheet (ui_player.cpp), opened on the tab last used. A video: Subtitles / Audio /
 		// Picture / Speed; the track chips open it on theirs, the Speed chip on Speed. A song: Display / Visualizer /
-		// Equalizer / Effects / Speed; Sound opens Equalizer, Top screen Display, Speed Speed.
+		// Equalizer / Effects / Speed; Sound opens Equalizer, Sound FX Effects, Display Display, Speed Speed.
 		int viewTab = 0, songViewTab = 0;
 		void openView(int tab, Player& p);
 
