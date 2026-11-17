@@ -49,7 +49,7 @@ Method: Page enum, Overlay structs, Ui::draw* and drawDialog titles, alert() str
 - Home (Continue, Recent, filters), All recent, START Menu, Files list, More (X) on a file, rail, mini bar and Playing/Paused chips.
 - Books section, empty state, text reader, Text view sheet, Contents/Bookmarks, PDF, Extra dim / Light sheet.
 - Video player, View, Picture looks, Adjust, List (Y), More while playing, Away-from-normal marks (and the same while browsing).
-- Song player, View/Display, Equalizer tab, visualizer alone, style picker.
+- Song player, View › Display (Show), View › Visualizer (the style, its own tab), Equalizer tab, visualizer alone.
 - Photo viewer; Manga section, reader, Manga-while-video guard, engine loading, "Stopped for Manga" on Home.
 - Settings, a settings group, Quick settings (F), volume past 100% and the 120% warning, Incognito badge.
 - Playing in a browser, Hold A, browser went away, mini bar while a browser plays, Play on picker.
@@ -61,3 +61,5 @@ Method: Page enum, Overlay structs, Ui::draw* and drawDialog titles, alert() str
 - Incognito and the Web dashboard: the server is off while incognito is on; the dimmed switch, the page, the question when a browser is signed in, what the browser sees. Drawn: `incog-web`, `incog-web-ask`. Section 2.
 - The keys with the lid shut: volume hold = next / previous, Shoulder keys, lid shut (Ignored / Hold / As usual), keys under the lid ignored, the player owning the volume keys while shut, no sleep with the lid shut; options A and B. Drawn: `lid-keys`; the rows in `set-screen`. Section 3.
 - The Power & screens group and its table now use today's wording, When the lid closes: Pause / Keep playing (0.7.27), in place of the earlier "Keep music playing" proposal.
+- The player's third row: View removed (the chips open it; SELECT by the keys, in the hint bar), Stop in its place; the chips touch only, UP / DOWN nothing. Drawn: `video`, `music`, `video-chips`.
+- Support link: Settings › About's last block (a line, a QR code of https://ko-fi.com/tonysong, the address written out), and one link at the foot of the Web dashboard's Home, which has no About today. Only there; nothing fetched. Drawn: `set-about`.

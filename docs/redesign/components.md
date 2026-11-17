@@ -2,7 +2,7 @@
 
 Every piece that appears on more than one screen of the redesign preview (redesign/preview.html, 113 screens), so each is coded once. Sizes are in the bottom panel's 640 x 480 units (top-panel components: the same units on the top panel). "Code" names the existing building block it maps to; status is one of: exists, reuse / exists, needs a variant / new.
 
-Counts: 45 components: 9 reuse, 28 variant, 8 new. (Lid-shut keys is a rule with nothing to draw: it has no example in the preview’s Components section.)
+Counts: 46 components: 10 reuse, 28 variant, 8 new. (Lid-shut keys is a rule with nothing to draw, and QR code is a picture of an address: neither has an example in the preview’s Components section.)
 
 In the preview every screen draws these through shared functions and style rules (src/kit.js, src/screens.js, src/style.css beside preview.html), the same ones the Components section renders its examples from.
 
@@ -63,7 +63,7 @@ Existing blocks referred to: `Ui::Overlay` (src/ui_overlay.cpp, docs/notes/overl
 ### Button row and grid (exists, reuse)
 
 - **Used:** reader, PDF, comic, photo, player rows, sheets’ key pairs, select bar
-- **Anatomy and states:** Rows: 16 from the sides, 8 between keys; widths divide exactly (four of 146, five of 115 + 116, three of 197). Grids beside a pan area: two columns, 8 apart.
+- **Anatomy and states:** Rows: 16 from the sides, 8 between keys; widths divide exactly (four of 146, five of 115 + 116, three of 197). The player’s row is Like · Playlist · List · Stop: no View key, since the chips under it open View on each tab and SELECT opens it by the keys. Grids beside a pan area: two columns, 8 apart.
 - **Inputs:** area, count, gap
 - **Keys and touch:** D-pad moves along it where the page gives the keys focus; each key also has its own button.
 - **Code:** rowCell, gridCell (docs/notes/button-rows.md). One function returns each cell’s rect; drawing and touch both ask it.
@@ -80,8 +80,8 @@ Existing blocks referred to: `Ui::Overlay` (src/ui_overlay.cpp, docs/notes/overl
 
 - **Used:** player screens (14), four or five in a row
 - **Anatomy and states:** 52 tall, SURFACE, radius 10. Icon 16–18; a label in capitals Inter 600 11; the value Pixelify 13 under it. Normal: cream value, no mark. Away from normal: the value yellow and a 6-unit dot top right. Unavailable: 45% (one rule), the reason as its value, nothing else changes. Width from the row (146 with four, 115 with five). The value is one line: the shortest form of the state (a language without its region), cut with “…” at its end; never text under 16 units in a non-Latin script (the interface’s name for the language is used).
-- **Inputs:** icon, label, value, away-from-normal, enabled, focused, target sheet tab
-- **Keys and touch:** Tap: opens the sheet tab that sets it. By buttons: DOWN on the player focuses the row, LEFT / RIGHT choose, A opens, UP or B leaves.
+- **Inputs:** icon, label, value, away-from-normal, enabled, target sheet tab
+- **Keys and touch:** Tap: opens the sheet tab that sets it. Touch only: no D-pad focus. By buttons the same tabs are reached with SELECT (View), then L / R.
 - **Code:** New (today: two text lines under the keys, drawn in drawMain). Lay out with rowCell.
 
 ### Line key (exists, needs a variant)
@@ -260,6 +260,14 @@ Existing blocks referred to: `Ui::Overlay` (src/ui_overlay.cpp, docs/notes/overl
 - **Keys and touch:** D-pad moves, A opens, drag scrolls.
 - **Code:** drawMangaCover (real cover decoded in the background, a drawn one standing in). Books uses the same.
 
+### QR code (exists, reuse)
+
+- **Used:** the Web dashboard page (196 square), Settings › About’s support line (84 square)
+- **Anatomy and states:** Black on a white square with a quiet edge of white, radius 6 to 10, whole modules only. It holds one address and nothing else. The address is always written out beside it, for typing. On About it is the last block of the page, under a rule: “Banana Player is free. If you’d like to support it:” Inter 12.5 dim, then ko-fi.com/tonysong Inter 15. Only there: no pop-up, reminder, badge or note elsewhere.
+- **Inputs:** the address, the size
+- **Keys and touch:** None. The handheld opens nothing; the phone that scans it does. Nothing is fetched.
+- **Code:** The dashboard page’s QR drawing (ui_web.cpp), given the support address, a constant. On the Web dashboard the same address is a plain link at the foot of Home (web/js/home.js), opened in a new tab with no referrer; no QR there.
+
 ### Recent card and Continue card (exists, needs a variant)
 
 - **Used:** Home and its states
@@ -338,8 +346,8 @@ Existing blocks referred to: `Ui::Overlay` (src/ui_overlay.cpp, docs/notes/overl
 
 - **Used:** every song screen
 - **Anatomy and states:** Album art alone: 260 square, centred. With Song info: art 240 left, three lines right (28 / 17 / 14), the group centred on its real width with 40 margins, the text centred on the art. Art + visualizer: the same in the space above a band of bars 148 tall along the foot. No art: a placeholder in the art’s place.
-- **Inputs:** mode, song info, art or none, title, artist, album, style
-- **Keys and touch:** SELECT steps the mode.
+- **Inputs:** Show (Album art only / Art + visualizer / Visualizer only / None: four radio rows on View › Display), the visualizer’s style, song info, art or none, title, artist, album. Show and the style are two inputs, set in two places (View › Display, View › Visualizer; Settings › Music & sound › Music display, Visualizer) and never written as one value. With Album art only or None the style is kept, can be changed, and is marked “not shown”, not dimmed.
+- **Keys and touch:** SELECT steps Show (on View › Display).
 - **Code:** The music graph and the title lines in player.cpp (Player::shownMusic). A change to today’s layout.
 
 ## Rules
