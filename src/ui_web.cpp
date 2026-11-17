@@ -198,6 +198,18 @@ namespace bp
 		int v = ui.webView(p);
 		// the mini bar's right end says SELECT: back to what plays (the page has no SELECT of its own)
 		if (b == Button::Select && ui.nowPlayable(ui.barPlayer(p))) { ui.goNowPlaying(p); return false; }
+		// it is a settings group: L2 / R2 step to the one before / after, back on the Settings page's frame (the
+		// dashboard page was opened from a group or from elsewhere; this is the group navigation either way)
+		if (b == Button::L2 || b == Button::R2)
+		{
+			ui.page = Page::Settings;
+			ui.inMenu = true;
+			ui.menuTab = TAB_SETTINGS;
+			ui.setGroup = GROUP_WEB;
+			ui.settingsPage->stepGroup(b == Button::R2 ? 1 : -1, &p);
+			ui.cursor = ui.scroll = 0;
+			return false;
+		}
 		if (v == WEB_INCOGNITO_VIEW)
 		{
 			// the one key the page has in incognito: leave it (the dashboard comes back by itself)
@@ -272,7 +284,7 @@ namespace bp
 			int x = b.x + b.w / 2 - (gw + 10 + tw) / 2;
 			ui.drawGlyphMid(G_INCOGNITO, x + gw / 2, b.y + b.h / 2, ON_ACCENT);
 			ui.drawTextMid("Leave incognito", 0, ON_ACCENT, x + gw + 10, b.y + b.h / 2, 300);
-			ui.drawHints({{"Y", "Leave incognito"}, {"B", "Back"}});
+			ui.drawHints({{"Y", "Leave incognito"}, {"L2/R2", "Group"}, {"B", "Back"}});
 			return;
 		}
 		if (v != WEB_ON_VIEW)
@@ -286,8 +298,8 @@ namespace bp
 			ui.drawEmpty(g, title, "", v == WEB_OFF_VIEW ? "Turn on" : "Try again", v == WEB_OFF_VIEW ? &G_POWER : &G_REFRESH);
 			auto lines = ui.wrapText(sub, 0, 520, 2);
 			for (size_t i = 0; i < lines.size(); i++) ui.drawTextMid(lines[i], 0, DIM, W / 2, 242 + (int)i * 24, 560, 2);
-			if (v == WEB_OFF_VIEW) ui.drawHints({{"A", "Turn on"}, {"B", "Back"}});
-			else ui.drawHints({{"A", "Try again"}, {"X", "Turn off"}, {"B", "Back"}});
+			if (v == WEB_OFF_VIEW) ui.drawHints({{"A", "Turn on"}, {"L2/R2", "Group"}, {"B", "Back"}});
+			else ui.drawHints({{"A", "Try again"}, {"X", "Turn off"}, {"L2/R2", "Group"}, {"B", "Back"}});
 			return;
 		}
 		std::string addr = ui.webAddress(), pin = ui.webPin();
@@ -390,6 +402,6 @@ namespace bp
 		else ui.drawButton(np, ui.pinArmed ? nullptr : &G_REFRESH, ui.pinArmed ? "Press again" : "New PIN", "Y", false, 1);
 		ui.drawBox(off, ui.pressedBtn == WEB_OFF ? PRESSED : BUTTON, R_BUTTON);
 		ui.drawButton(off, &G_POWER, "Turn off", "X", false, 1);
-		ui.drawHints({{"Y", "New PIN"}, {"X", "Turn off"}, {"B", "Back"}});
+		ui.drawHints({{"Y", "New PIN"}, {"X", "Turn off"}, {"L2/R2", "Group"}, {"B", "Back"}});
 	}
 }
