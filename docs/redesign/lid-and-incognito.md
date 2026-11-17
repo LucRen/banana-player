@@ -153,12 +153,43 @@ Option A’s volume keys and setting, with the open points settled and one more 
 |---|---|---|
 | Volume + | Volume up one step, when let go. Stops at 100%. | Next. The volume does not move. |
 | Volume − | Volume down one step, when let go. | Previous (5 s or more in: back to the start). The volume does not move. |
-| Power | Play / pause. It stays awake after a pause. | 2 s: sleep. |
+| Power (set to Play / pause) | Play / pause. It stays awake after a pause. | 2 s: sleep. |
 | L / R | By the setting | By the setting |
 | L2 / R2 | By the setting | By the setting |
 | A, B, X, Y, D-pad, START, SELECT, F, the stick, touch | Ignored | Ignored |
 
-**Shoulder keys, lid shut** (Settings › Power & screens, under When the lid closes):
+The three rows sit under When the lid closes in this order: Power key, lid shut; Volume keys, lid shut; Shoulder
+keys, lid shut. The key used most comes first. With When the lid closes: Pause all three are at 45%, their note “The
+lid pauses”.
+
+**Power key, lid shut:**
+
+| Value | A press | A hold of 2 s |
+|---|---|---|
+| Play / pause (default) | Plays or pauses what is loaded | Sleep |
+| Sleep | BananaOS’s power key, as with the lid open: the handheld sleeps | The same |
+
+Help: “With the lid shut. Play / pause: a press of the power key plays or pauses; hold it 2 s to sleep. Sleep: a
+press sleeps the handheld, as with the lid open.” With Sleep the player does not take the key. It is a row so that
+the key is found and learned, and can be given back.
+
+**Volume keys, lid shut** (the row under it):
+
+| Value | A press | A hold of 0.6 s |
+|---|---|---|
+| Volume and skip (default) | Volume, one step | Next (+) / previous (−) |
+| Volume only | Volume, one step | As with the lid open: BananaOS runs the volume while the key is held |
+
+Help: “With the lid shut, a press of a volume key is volume. Volume and skip: holding one for 0.6 s goes to the next
+(+) or the previous (−). Volume only: holding does what it does with the lid open.” With Volume only the player does
+not take the keys from BananaOS; they still stop at 100%. It is the way to turn the hold off: then nothing skips with
+the lid shut unless the shoulder keys are set to Hold or As usual. With When the lid closes: Pause the row is at 45%,
+its note “The lid pauses”.
+
+Why a row: the hold changes what a familiar key does, and someone who holds a volume key to turn the sound down
+fast must be able to get that back. The default is Volume and skip, since skipping is what the lid-shut keys are for.
+
+**Shoulder keys, lid shut** (the row under it):
 
 | Value | L / R | L2 / R2 |
 |---|---|---|
@@ -195,8 +226,9 @@ The rules:
    battery at 5%, as the power table says).
 10. **Opening the lid:** the screens come back on the page left open; the first press acts. No summary of what was
     pressed.
-11. **Taught at the choice.** The first-start lid question says it: "Keep playing: the sound goes on with the lid
-    shut. Then Power pauses, and holding a volume key skips." The setting's help lists the keys on the top screen.
+11. **Taught at the choice.** Three places, no others: the first-start lid question, the help of the three rows on
+    the top screen, and FEATURES.md. The first-start lid question says it: "Keep playing: the sound goes on with the lid
+    shut. Then the power key pauses and plays, and holding a volume key skips." The setting's help lists the keys on the top screen.
 
 ### The volume keys: no jump and back
 
@@ -211,7 +243,7 @@ be heard as the volume climbing and then, if the player put it back, dropping ag
 
 How it works:
 
-- When the lid shuts (Keep playing), the player takes the volume keys' input device for itself; when the lid opens, or
+- When the lid shuts (Keep playing, and Volume keys, lid shut: Volume and skip), the player takes the volume keys' input device for itself; when the lid opens, or
   the player quits or crashes, it lets go and the keys are BananaOS's again. With the lid open nothing changes.
 - Key down: nothing yet. Let go before 0.6 s: one volume step, set by the player through BananaOS's own volume
   command (`/usr/libexec/banana/volume`), so the level BananaOS knows stays true. Still down at 0.6 s: the track
@@ -235,7 +267,7 @@ Power and the lid.
 | Shoulder keys for those who want them | On or off. | Off, safe (hold), or as usual. |
 | Volume when a hold is meant | Open: BananaOS repeats, so it climbs while held. | Never moves: the player owns the keys. |
 | Loudness in a pocket | A held Volume + climbs to the top. | One step a press; never past 100%. |
-| Cost | One setting, two values. | One setting, three values; the stuck-key rule; taking the keys from BananaOS while shut. |
+| Cost | One setting, two values. | Three settings (power key and volume keys: two values each; shoulder keys: three); the stuck-key rule; taking the keys from BananaOS while shut. |
 
 **Recommendation: B.** It is A with its gaps closed, and its default is safe: only the volume keys and Power do
 anything. The extra value (Hold) is for audiobooks, where chapters matter and a graze should not lose the place.
@@ -252,5 +284,7 @@ anything. The extra value (Hold) is for audiobooks, where chapters matter and a 
 - Keep playing, lid shut, nothing loaded (after Stop, or after Close all in incognito): the handheld sleeps as
   BananaOS normally would.
 - The volume keys are their own input device, so the player takes them alone.
+- The volume hold has its own row, Volume keys, lid shut: Volume and skip (default) / Volume only.
+- The power key has its own row, Power key, lid shut: Play / pause (default) / Sleep.
 
 No open questions.
