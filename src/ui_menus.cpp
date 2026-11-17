@@ -325,6 +325,7 @@ namespace bp
 		// its photo viewer (another player) before this.
 		fprintf(stderr, "incognito: close all: stop, close, Home, incognito off\n");
 		stopPressed = true;
+		homeAfterCloseAll = true;	// Stop's back-to-where-it-came-from must not undo Home
 		if (page == Page::DocText || page == Page::DocPages) docs->docClose(p);
 		if (page == Page::MangaRead) manga->mangaCloseReader();
 		for (auto& o : overlays) o->done = true;

@@ -1025,6 +1025,8 @@ namespace bp
 		// Lid or sleep in incognito setting): docs/redesign/lid-and-incognito.md
 		bool incognito = false;
 		int incognitoW() const { return incognito ? 18 + 10 : 0; }
+		// Close all asked for Home: Stop's own way back (where the file came from) must not undo it
+		bool homeAfterCloseAll = false;
 		// Quick settings' tile, and a browser's confirm sheet: turning it on stops the dashboard (after asking when a
 		// browser is signed in), turning it off starts it again when its switch says on. note: the "Incognito on/off"
 		// note (false: none, as closing everything and a sleep say nothing)

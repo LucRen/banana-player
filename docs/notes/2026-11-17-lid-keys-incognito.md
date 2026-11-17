@@ -95,8 +95,9 @@ address. Shots: `redesign-shots/settings/settings-groups-*`,
 
 The idle-sleep hook was driven on a Mac with `BP_IDLE_SLEEP_S=2` and a run folder: incognito on over a paused
 song then no input for 2 s — Close all stopped it, Home showed, the incognito mark went and no note appeared
-(`redesign-shots/settings/close-all-*`); with Quit the app exited after the same idle ('incognito: idle sleep:
-quitting').
+(`redesign-shots/settings/close-all-fixed-*`); with Quit the app exited after the same idle ('incognito: idle sleep:
+quitting'). Stop's own way back (the file's folder) ran after Home at first: `backFromPlayer` now checks Close
+all's flag and stays on Home.
 
 ## Not verified
 

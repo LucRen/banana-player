@@ -86,6 +86,21 @@ namespace bp
 
 	void Ui::backFromPlayer(Player& p, const std::string& lastPlayed, const PlaySource& from, int index)
 	{
+		// Close all in incognito asked for Home: Stop's own way back (the file's folder, the playlist) must not undo
+		// it, wherever this runs after the stop
+		if (homeAfterCloseAll)
+		{
+			homeAfterCloseAll = false;
+			inMenu = false;
+			showSourceAfterLeave = false;
+			browse->homeView->goHome(Home::HOME_GRID, 0, p);
+			page = Page::Browse;
+			cursor = scroll = 0;
+			ctxOpen = false;
+			playerBack = PlayerBack();
+			dropTouch();
+			return;
+		}
 		PlayerBack b = playerBack;
 		playerBack = PlayerBack();
 		bool menuGone = b.inMenu && b.menuTab == TAB_PLAYING && !(p.playing() && !p.playingPhoto());
