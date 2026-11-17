@@ -149,19 +149,11 @@ namespace bp
 		case C_SUBS: openView(0, p); break;
 		case C_AUDIO: openView(1, p); break;
 		case C_PICTURE: openView(2, p); break;
-		// a song's: the Sound page, the Display popup
-		case C_SOUND: ui.sound->open(p, false); break;
-		case C_TOP: ui.musicKey(Button::Select, p); break;
-		case C_SPEED:
-			// a video: View's Speed tab, the one place speed is set now; a song's View is still today's popup, so its
-			// chip keeps stepping round the choices
-			if (!p.playingAudio()) { openView(3, p); break; }
-			{
-				double s = stepSpeed(p.speed, 1, true);
-				p.setSpeed(s);
-				p.osd("Speed " + speedLabel(s));
-			}
-			break;
+		// a song's: View's Equalizer and Display tabs, the Sound page and Display popup moved there
+		case C_SOUND: openView(1, p); break;
+		case C_TOP: openView(0, p); break;
+		// Speed is View's fourth tab for both (the one place it is set now)
+		case C_SPEED: openView(3, p); break;
 		// the List sheet: Repeat and Shuffle are set there; a song's Shuffle chip turns it on or off
 		case C_MODE: openList(listTab, p); break;
 		case C_SHUFFLE:
@@ -406,8 +398,8 @@ namespace bp
 		case Button::Start: ui.openMainMenu(p, ui.playingTabShown(p) ? TAB_PLAYING : TAB_SETTINGS); break;
 		// the stick pressed in (the RG DS Plus): Like, at once (over a photo it turns it, above)
 		case Button::L3: ui.likeNow(p); break;
-		// a song: the Display popup; a video: View (its tracks, size and speed as tabs of one sheet)
-		case Button::Select: if (!ui.musicKey(b, p)) openView(viewTab, p); break;
+		// View: a video's tracks, size and speed, or a song's Display, equalizer and effects, as tabs of one sheet
+		case Button::Select: openView(p.playingAudio() ? songViewTab : viewTab, p); break;
 		// (a page playing it: from where it should be by now; the jump is passed on to the page)
 		case Button::Left:
 		case Button::Right:
@@ -629,7 +621,7 @@ namespace bp
 				return;
 			}
 			if (i < 0 || i >= (int)p.chapters.size()) return;
-			// as Page::Chapters chooses: playing, the card says where, back to the player (this sheet closes)
+			// as the Chapters page chose: playing, the card says where, back to the player (this sheet closes)
 			close();
 			p.seekChapter(i);
 			if (!ui.pageIsOut()) p.unpause();
@@ -1041,11 +1033,603 @@ namespace bp
 		}
 	};
 
+	// View (SELECT) on a song: Display, Equalizer, Effects and Speed in one sheet, where the Display popup and the
+	// Sound page used to be three places (docs/redesign, "music-view", "music-eq"). The actions are the old ones:
+	// the Show modes and the visualizer styles of the popup, Ui::Sound's equalizer and effects, and View's five speeds.
+	// Display and the two lists stay as they were (A chooses, and the sheet stays); the equalizer is the Sound page's
+	// bands in the sheet's body, its preset options as rows. L / R step the tabs, B closes (SELECT closes too, but on
+	// Display it steps the Show mode as the popup did).
+	struct Ui::SongViewSheet : Ui::Overlay
+	{
+		enum Tab { TAB_SHOW, TAB_EQ, TAB_FX, TAB_SPEED, TABS };
+		enum Press { P_NONE, P_ROW, P_TAB, P_PREV, P_NEXT, P_NAME, P_ON, P_SAVE };
+		enum EqMode { EQ_MAIN, EQ_OPTIONS, EQ_LIST, EQ_DELETE };
+		int tab = 0, cursor = 0, scroll = 0, press = P_NONE, pressAt = -1;
+		int eqMode = EQ_MAIN;	// (its lists are the sheet's rows: cursor and scroll)
+		bool drag = false;
+		int dragY = 0, dragScroll = 0;
+
+		SongViewSheet(Ui& u, int at, const Player& p) : Overlay(u)
+		{
+			tab = std::clamp(at, 0, TABS - 1);
+			ui.playerPage->songViewTab = tab;
+			cursor = currentRow(p);
+			scroll = lay::listScroll(cursor, 0, shown(p), count(p));
+		}
+		const char* name() const override { return "songview"; }
+
+		static std::vector<std::string> labels() { return {"Display", "Equalizer", "Effects", "Speed"}; }
+		// the Display popup's names (its "None" is Settings' Title only, said as the popup said it)
+		static const char* showName(int i)
+		{
+			static const char* N[SHOWS] = {"Album art", "Art + viz", "Visualizer", "None"};
+			return N[std::clamp(i, 0, SHOWS - 1)];
+		}
+		static const char* styleName(int v)
+		{
+			// the popup's short names (Settings has the long ones)
+			static const char* N[VISUALIZERS] = {"Bars", "Waves", "Spectrum", "Circle", "Peaks", "Peaks", "Pocket",
+				"Hi-fi LED", "Synth", "Bananas", "Night city", "Scope", "Pulse", "Campfire", "Aurora", "Garden", "Turntable",
+				"Sea", "Bunnies", "Boba", "Jellyfish", "Music box", "Fishbowl", "Disco", "Dancer", "Cat",
+				"Popcorn", "Jelly", "Tube man", "Long cat", "Washer"};
+			return N[v >= 0 && v < VISUALIZERS ? v : 0];
+		}
+		// the list of a tab: Display's Show modes and styles, Effects' choices, Speed's five
+		int count(const Player& p) const
+		{
+			if (tab == TAB_SHOW) return SHOWS + VIS_SHOWN_COUNT;
+			if (tab == TAB_FX) return SOUNDFX_COUNT;
+			return (int)speedChoices().size();
+		}
+		int shown(const Player& p) const { return std::min(std::max(1, count(p)), lay::LIST_ROWS); }
+		lay::ListSheet layout(const Player& p) const { return lay::listSheet(shown(p)); }
+		bool isList() const { return tab != TAB_EQ || eqMode == EQ_OPTIONS || eqMode == EQ_LIST || eqMode == EQ_DELETE; }
+		void settle(const Player& p)
+		{
+			if (drag) return;	// (a finger's own scroll, while it drags)
+			int n = isList() ? listCount(p) : count(p);
+			if (n <= 0) { cursor = scroll = 0; return; }
+			cursor = std::clamp(cursor, 0, n - 1);
+			scroll = lay::listScroll(cursor, scroll, shown(p), n);
+		}
+		void openTab(int t, const Player& p)
+		{
+			tab = std::clamp(t, 0, TABS - 1);
+			eqMode = EQ_MAIN;
+			int n = count(p), cur = currentRow(p);
+			cursor = std::clamp(cur, 0, std::max(0, n - 1));
+			scroll = lay::listScroll(cursor, std::max(0, cursor - 3), shown(p), n);
+			ui.playerPage->songViewTab = tab;
+		}
+
+		// ---- Display and the two lists into rows ----
+		struct Line { std::string name, note; bool on = false, off = false; };
+		int listCount(const Player& p) const
+		{
+			if (tab == TAB_EQ)
+			{
+				if (eqMode == EQ_OPTIONS) return (int)ui.sound->eqOptions(p).size();
+				if (eqMode == EQ_LIST) return (int)ui.sound->eqEntries(p).size();
+				if (eqMode == EQ_DELETE) return 2;
+			}
+			return count(p);
+		}
+		Line lineAt(int i, const Player& p) const
+		{
+			Line l;
+			if (tab == TAB_SHOW)
+			{
+				if (i < SHOWS) { l.name = showName(i); l.on = p.settings.musicShow == i; l.note = "Top screen"; }
+				else
+				{
+					int v = VIS_SHOWN[std::clamp(i - SHOWS, 0, VIS_SHOWN_COUNT - 1)];
+					l.name = styleName(v);
+					l.on = p.settings.visualizer == v;
+					l.note = "Style";
+				}
+			}
+			else if (tab == TAB_FX)
+			{
+				l.name = soundFxName((SoundFx)i);
+				l.note = FX_ABOUT[std::clamp(i, 0, SOUNDFX_COUNT - 1)];
+				l.on = (int)p.settings.soundFx == i;
+			}
+			else if (tab == TAB_SPEED)
+			{
+				double s = speedChoices()[i];
+				l.name = speedLabel(s);
+				l.note = std::fabs(s - 1) < 1e-6 ? "Normal" : "";
+				l.on = std::fabs(p.speed - s) < 1e-6;
+			}
+			else if (eqMode == EQ_OPTIONS)
+			{
+				auto o = ui.sound->eqOptions(p);
+				int what = i >= 0 && i < (int)o.size() ? o[i] : Sound::EQO_CANCEL;
+				l.name = what == Sound::EQO_LIST ? "All presets..." : what == Sound::EQO_SAVE_TO ? "Save to " + quoted(p.settings.eqOrigin)
+					: what == Sound::EQO_SAVE_AS ? "Save as new preset..." : what == Sound::EQO_RENAME ? "Rename..." : what == Sound::EQO_DELETE ? "Delete..."
+					: what == Sound::EQO_RESET ? "Reset to " + quoted(p.settings.eqOrigin) : "Cancel";
+				l.off = what == Sound::EQO_CANCEL;
+			}
+			else if (eqMode == EQ_LIST)
+			{
+				auto e = ui.sound->eqEntries(p);
+				if (i >= 0 && i < (int)e.size())
+				{
+					l.name = e[i].name;
+					// a section's name is no choice (dim, no radio), as the Sound page's list had it
+					l.off = e[i].kind == 0;
+					l.on = e[i].kind == 2 ? ui.sound->eqCustom(p) : e[i].kind == 1 && !ui.sound->eqCustom(p) && e[i].name == p.settings.eqPreset;
+				}
+			}
+			else if (eqMode == EQ_DELETE)
+			{
+				l.name = i == 0 ? "Delete" : "Cancel";
+				l.off = i != 0;
+			}
+			return l;
+		}
+		int currentRow(const Player& p) const
+		{
+			if (tab == TAB_SHOW) return std::clamp((int)p.settings.musicShow, 0, SHOWS - 1);
+			if (tab == TAB_FX) return (int)p.settings.soundFx;
+			if (tab == TAB_SPEED)
+				for (size_t i = 0; i < speedChoices().size(); i++)
+					if (std::fabs(p.speed - speedChoices()[i]) < 1e-6) return (int)i;
+			if (eqMode == EQ_OPTIONS) return 0;
+			if (eqMode == EQ_LIST)
+			{
+				auto e = ui.sound->eqEntries(p);
+				for (int i = 0; i < (int)e.size(); i++)
+					if ((e[i].kind == 2 && ui.sound->eqCustom(p)) || (e[i].kind == 1 && !ui.sound->eqCustom(p) && e[i].name == p.settings.eqPreset)) return i;
+			}
+			return 0;
+		}
+
+		// ---- what choosing one does (the popup's, the Sound page's and the Speed tab's own actions) ----
+		void choose(int i, Player& p)
+		{
+			cursor = i;
+			if (tab == TAB_SHOW)
+			{
+				Settings s = p.settings;
+				if (i < SHOWS) s.musicShow = std::clamp(i, 0, SHOWS - 1);
+				else s.visualizer = VIS_SHOWN[std::clamp(i - SHOWS, 0, VIS_SHOWN_COUNT - 1)];
+				if (s.musicShow != p.settings.musicShow || s.visualizer != p.settings.visualizer) p.setSettings(s);
+				return;
+			}
+			if (tab == TAB_FX) { ui.sound->fxChoose(i, p); return; }
+			if (tab == TAB_SPEED)
+			{
+				double s = speedChoices()[std::clamp(i, 0, (int)speedChoices().size() - 1)];
+				p.setSpeed(s);
+				p.osd("Speed " + speedLabel(s));
+				return;
+			}
+			// the equalizer's rows: its options, its presets, Delete's question
+			if (eqMode == EQ_OPTIONS)
+			{
+				auto o = ui.sound->eqOptions(p);
+				int what = i >= 0 && i < (int)o.size() ? o[i] : Sound::EQO_CANCEL;
+				eqMode = EQ_MAIN;
+				switch (what)
+				{
+				case Sound::EQO_LIST:
+					eqMode = EQ_LIST;
+					{
+						auto e = ui.sound->eqEntries(p);
+						cursor = std::max(0, currentRow(p));
+						if (cursor < (int)e.size() && e[cursor].kind == 0) cursor++;	// (never on a section's name)
+						scroll = lay::listScroll(cursor, 0, shown(p), (int)e.size());
+					}
+					break;
+				case Sound::EQO_SAVE_TO: ui.sound->eqSave(p); break;
+				case Sound::EQO_SAVE_AS: ui.sound->eqNameOpen(false, p); break;
+				case Sound::EQO_RENAME: ui.sound->eqNameOpen(true, p); break;
+				case Sound::EQO_DELETE: eqMode = EQ_DELETE; cursor = scroll = 0; break;
+				case Sound::EQO_RESET: ui.sound->eqReset(p); break;
+				default: break;
+				}
+				return;
+			}
+			if (eqMode == EQ_LIST)
+			{
+				auto e = ui.sound->eqEntries(p);
+				if (i >= 0 && i < (int)e.size() && e[i].kind)
+				{
+					eqMode = EQ_MAIN;
+					ui.sound->eqPick(e[i].name, p);
+				}
+				return;
+			}
+			if (eqMode == EQ_DELETE)
+			{
+				eqMode = EQ_MAIN;
+				if (i == 0)
+				{
+					// as the Sound page deletes: the one playing, Custom now (nothing heard changes)
+					std::string n = p.settings.eqPreset;
+					if (p.deleteEqPreset(n))
+					{
+						if (ui.sound->stashOrigin == n) ui.sound->stashOrigin.clear();
+						p.showEqCard();
+						p.osd("Deleted " + quoted(n));
+					}
+				}
+			}
+		}
+
+		// ---- the equalizer's body: the preset row and the ten bands ----
+		struct EqLayout
+		{
+			Rect body, save, toggle, prevCap, nextCap, name;
+			int cy = 0, toggleX = 0, onCapX = 0, onLabelX = 0;
+			Rect band[EQ_BANDS], track[EQ_BANDS];
+			int gainY = 0, freqY = 0, trackY = 0, trackH = 0;
+		};
+		EqLayout eqLayout(const lay::ListSheet& s) const
+		{
+			EqLayout e;
+			e.body = {16, s.head.y + s.head.h + 4, 608, s.hints.y - 8 - (s.head.y + s.head.h + 4)};
+			e.cy = e.body.y + 22;
+			e.save = {e.body.x + e.body.w - 140, e.body.y, 140, 44};
+			e.toggleX = e.save.x - 16 - 40;
+			e.onCapX = e.toggleX - 8 - ui.kit->capsW("Y");
+			e.onLabelX = e.onCapX - 8 - 24;
+			e.prevCap = {e.body.x + 52, e.cy - 10, 19, 19};
+			e.name = {e.prevCap.x + 19 + 8, e.cy - 14, 160, 28};
+			e.nextCap = {e.name.x + e.name.w + 6, e.cy - 10, 19, 19};
+			int top = e.body.y + 52;
+			e.gainY = top + 8;
+			e.freqY = e.body.y + e.body.h - 8;
+			e.trackY = top + 18;
+			e.trackH = std::max(20, e.freqY - 14 - e.trackY);
+			Rect area{e.body.x, top, e.body.w, e.body.h - 52};
+			for (int i = 0; i < EQ_BANDS; i++)
+			{
+				Rect c = lay::cell(area, EQ_BANDS, 0, i);
+				int cx = c.x + c.w / 2;
+				e.band[i] = {cx - 20, top, 40, e.body.h - 52};
+				e.track[i] = {cx - 2, e.trackY, 4, e.trackH};
+			}
+			return e;
+		}
+		int bandGainY(const EqLayout& e, double g) const
+		{
+			return e.trackY + (int)std::lround((12 - std::clamp(g, -12.0, 12.0)) / 24.0 * e.trackH);
+		}
+		void bandGrab(int i, int x, int y, Player& p)
+		{
+			auto l = eqLayout(layout(p));
+			ui.sound->eqBand = i;
+			ui.slideGrab(SL_EQ, i, {l.track[i], {-12, 12, 1}, true, 0, p.settings.eqGains[i]}, x, y, p,
+				[this, i](double g, bool last, Player& p) {
+					Uint32 now = SDL_GetTicks();
+					if (!last) { ui.sound->eqSetBand(i, g, p); return; }
+					// two taps on a band, no drag: back to 0 dB (the Sound page's)
+					if (!ui.slide.moved && ui.sound->eqTapAt && now - ui.sound->eqTapAt < 350 && ui.sound->eqTapBand == i)
+					{
+						ui.sound->eqSetBand(i, 0, p);
+						ui.sound->eqTapAt = 0;
+						return;
+					}
+					ui.sound->eqSetBand(i, g, p);
+					ui.sound->eqTapAt = ui.slide.moved ? 0 : now;
+					ui.sound->eqTapBand = i;
+				});
+		}
+
+		// ---- keys ----
+		bool eqMainKey(Button b, Player& p)
+		{
+			switch (b)
+			{
+			case Button::Left: ui.sound->eqBand = std::max(0, ui.sound->eqBand - 1); break;
+			case Button::Right: ui.sound->eqBand = std::min(EQ_BANDS - 1, ui.sound->eqBand + 1); break;
+			case Button::Up: case Button::Down:
+				ui.sound->eqSetBand(ui.sound->eqBand, p.settings.eqGains[ui.sound->eqBand] + (b == Button::Up ? 1 : -1), p);
+				break;
+			// presets on the shoulders, as the design has it (they were Y / X on the old page)
+			case Button::L2: ui.sound->eqStep(-1, p); break;
+			case Button::R2: ui.sound->eqStep(1, p); break;
+			case Button::Y: ui.sound->eqToggle(p); break;
+			case Button::A: ui.sound->eqSave(p); break;
+			// the preset options (they were START on the old page)
+			case Button::X: eqMode = EQ_OPTIONS; cursor = scroll = 0; break;
+			default: return false;
+			}
+			return true;
+		}
+		bool listKey(Button b, Player& p)
+		{
+			int n = listCount(p);
+			if (n <= 0) return false;
+			auto move = [&](int dir) {
+				int c = cursor;
+				for (int k = 0; k < n; k++)
+				{
+					c = (c + dir + n) % n;
+					// a section's name is stepped over (Display has none)
+					if (eqMode != EQ_LIST || lineAt(c, p).off == false) { cursor = c; break; }
+				}
+			};
+			switch (b)
+			{
+			case Button::Up: move(-1); break;
+			case Button::Down: move(1); break;
+			case Button::Left: cursor = std::max(0, cursor - shown(p)); break;
+			case Button::Right: cursor = std::min(n - 1, cursor + shown(p)); break;
+			case Button::A: choose(cursor, p); break;
+			default: return false;
+			}
+			return true;
+		}
+		bool key(Button b, Player& p) override
+		{
+			// (the song has gone, it became a video, or the player was left under the sheet: closed)
+			if (!p.playing() || p.playingPhoto() || !p.playingAudio() || ui.page != Page::Main) { close(); return false; }
+			settle(p);
+			// its own dialogs: B goes back a step, not out of the sheet
+			if (tab == TAB_EQ && eqMode != EQ_MAIN)
+			{
+				if (b == Button::B || b == Button::Start) { eqMode = EQ_MAIN; return false; }
+				if (listKey(b, p)) return false;
+				settle(p);
+				return false;
+			}
+			switch (b)
+			{
+			case Button::L: if (tab > 0) openTab(tab - 1, p); break;
+			case Button::R: if (tab + 1 < TABS) openTab(tab + 1, p); break;
+			case Button::B: close(); break;
+			// (Display: SELECT steps the Show mode, as the popup did; the other tabs close, as View does)
+			case Button::Select:
+				if (tab != TAB_SHOW) { close(); break; }
+				{
+					Settings s = p.settings;
+					s.musicShow = (s.musicShow + 1) % SHOWS;
+					p.setSettings(s);
+					cursor = s.musicShow;
+					settle(p);
+				}
+				break;
+			// (the equalizer turns on and off with Y, as the Sound page had SELECT; elsewhere Y closes: List opens there)
+			case Button::Y:
+				if (!(tab == TAB_EQ && eqMode == EQ_MAIN && eqMainKey(b, p))) close();
+				break;
+			default:
+				if (tab == TAB_EQ && eqMainKey(b, p)) break;
+				if (!listKey(b, p)) break;
+				break;
+			}
+			settle(p);
+			return false;
+		}
+
+		// ---- touch ----
+		bool pointer(const Pointer& pt, int x, int y, Player& p) override
+		{
+			if (ui.touchIsLocked()) return false;
+			if (!p.playing() || p.playingPhoto() || !p.playingAudio() || ui.page != Page::Main) { close(); return false; }
+			lay::ListSheet s = layout(p);
+			if (pt.kind == Pointer::Down)
+			{
+				press = P_NONE;
+				pressAt = -1;
+				drag = false;
+				// the veil: closed (the lift that follows presses nothing)
+				if (!s.box.hit(x, y)) { close(); ui.swallowTouch = true; return false; }
+				auto tabs = ui.kit->tabRects(s.head, labels(), true);
+				for (int i = 0; i < (int)tabs.size(); i++)
+					if (tabs[i].hit(x, y)) { press = P_TAB; pressAt = i; return false; }
+				if (tab == TAB_EQ && eqMode == EQ_MAIN)
+				{
+					EqLayout e = eqLayout(s);
+					if (e.save.hit(x, y)) press = P_SAVE;
+					else if (Rect{e.toggleX, e.cy - 11, 40, 22}.hit(x, y)) press = P_ON;
+					else if (e.prevCap.hit(x, y) || Rect{e.body.x, e.cy - 20, 48, 40}.hit(x, y)) press = P_PREV;
+					else if (e.nextCap.hit(x, y)) press = P_NEXT;
+					else if (e.name.hit(x, y)) press = P_NAME;
+					if (press != P_NONE) return false;
+					for (int i = 0; i < EQ_BANDS; i++)
+						if (e.band[i].hit(x, y)) { bandGrab(i, x, y, p); return false; }
+					return false;
+				}
+				int n = isList() ? listCount(p) : count(p);
+				int shownN = shown(p);
+				for (int i = scroll; i < n && i < scroll + shownN; i++)
+				{
+					// (the section names of the preset list are no choice)
+					if (eqMode == EQ_LIST && lineAt(i, p).off) continue;
+					if (s.row(i - scroll).hit(x, y))
+					{
+						press = P_ROW;
+						pressAt = i;
+						cursor = i;
+						dragY = y;
+						dragScroll = scroll;
+						return false;
+					}
+				}
+				return false;
+			}
+			if (pt.kind == Pointer::Move)
+			{
+				// a finger dragging the rows scrolls them (a tap still chooses)
+				if (press == P_ROW && !drag && std::abs(y - dragY) > 12)
+				{
+					drag = true;
+					ui.swallowTouch = false;
+				}
+				if (!drag) return false;
+				int n = listCount(p);
+				int maxScroll = std::max(0, n - shown(p));
+				scroll = std::clamp(dragScroll + (int)std::lround((dragY - y) / (double)lay::LIST_ROW), 0, maxScroll);
+				return false;
+			}
+			if (pt.kind != Pointer::Up) return false;
+			int kind = press, at = pressAt;
+			press = P_NONE;
+			pressAt = -1;
+			bool dragged = drag;
+			drag = false;
+			if (dragged)
+			{
+				// the finger scrolled: nothing chosen; the cursor goes to the row under it if one is
+				int n = listCount(p), shownN = shown(p);
+				cursor = std::clamp(scroll + (at >= dragScroll ? at - dragScroll : 0), 0, std::max(0, n - 1));
+				settle(p);
+				return false;
+			}
+			if (kind == P_ROW && at >= scroll && at < listCount(p) && s.row(at - scroll).hit(x, y)) choose(at, p);
+			else if (kind == P_TAB)
+			{
+				auto tabs = ui.kit->tabRects(s.head, labels(), true);
+				if (at >= 0 && at < (int)tabs.size() && tabs[at].hit(x, y)) openTab(at, p);
+			}
+			else if (kind == P_SAVE && eqLayout(s).save.hit(x, y)) ui.sound->eqSave(p);
+			else if (kind == P_ON && Rect{eqLayout(s).toggleX, eqLayout(s).cy - 11, 40, 22}.hit(x, y)) ui.sound->eqToggle(p);
+			else if (kind == P_PREV && eqLayout(s).prevCap.hit(x, y)) ui.sound->eqStep(-1, p);
+			else if (kind == P_NEXT && eqLayout(s).nextCap.hit(x, y)) ui.sound->eqStep(1, p);
+			else if (kind == P_NAME && eqLayout(s).name.hit(x, y))
+			{
+				eqMode = EQ_LIST;
+				auto e = ui.sound->eqEntries(p);
+				cursor = std::max(0, currentRow(p));
+				if (cursor < (int)e.size() && e[cursor].kind == 0) cursor++;
+				scroll = lay::listScroll(cursor, 0, shown(p), (int)e.size());
+			}
+			settle(p);
+			return false;
+		}
+
+		// ---- drawing ----
+		void drawEq(const Player& p, const lay::ListSheet& s)
+		{
+			Kit& k = *ui.kit;
+			EqLayout e = eqLayout(s);
+			const Settings& st = p.settings;
+			bool on = st.eqOn, custom = ui.sound->eqCustom(p);
+			std::string preset = custom ? CUSTOM_NAME : st.eqPreset;
+			int cy = e.cy;
+			ui.drawTextMid("Preset", F_I12, DIM, e.body.x, cy, 46);
+			k.caps("L2", e.prevCap.x, cy, ACCENT, SURFACE);
+			ui.drawTextMid(preset, F_P16, on ? TEXT : DIM, e.name.x, cy, e.name.w);
+			k.caps("R2", e.nextCap.x, cy, ACCENT, SURFACE);
+			// On / Off on Y, then Save on A
+			ui.drawTextMid(on ? "On" : "Off", F_I12, on ? TEXT : DIM, e.onLabelX, cy, 24, 1);
+			k.caps("Y", e.onCapX, cy, ACCENT, SURFACE);
+			k.toggle(e.toggleX, cy, on);
+			Kit::Key save;
+			save.glyph = &G_CHECK;
+			save.label = !custom ? "Saved" : ui.sound->eqOriginIsUser(p) ? "Save" : "Save as";
+			save.key = "A";
+			save.off = !custom;
+			k.key(e.save, save);
+
+			// the scale, and the ten bands: a gain each, its value over it and its frequency under
+			ui.fill({e.body.x, e.trackY + e.trackH / 2, e.body.w, 1}, RULE);
+			for (double g : {6.0, -6.0}) ui.fill({e.body.x, bandGainY(e, g), e.body.w, 1}, RULE);
+			ui.fill({e.body.x, bandGainY(e, 0), e.body.w, 2}, SCREEN);
+			static const char* FREQS[EQ_BANDS] = {"31", "62", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"};
+			for (int i = 0; i < EQ_BANDS; i++)
+			{
+				int cx = e.track[i].x + e.track[i].w / 2;
+				double g = st.eqGains[i];
+				int ky = bandGainY(e, g);
+				bool focus = i == ui.sound->eqBand;
+				// (the column the cursor is on, a lighter ground then its bar yellow)
+				ui.fillRound({e.band[i].x, e.band[i].y, e.band[i].w, e.band[i].h}, focus ? BUTTON : SURFACE, R_BUTTON);
+				ui.fillRound({cx - 1, e.trackY, 2, e.trackH}, SCREEN, 1);
+				SDL_Color bar = !on ? DIM : focus ? ACCENT : PRESSED;
+				if (ky < e.trackY + e.trackH / 2) ui.fill({cx - 3, ky, 6, e.trackY + e.trackH / 2 - ky}, bar);
+				else if (ky > e.trackY + e.trackH / 2) ui.fill({cx - 3, e.trackY + e.trackH / 2, 6, ky - (e.trackY + e.trackH / 2)}, bar);
+				if (ui.slideHeld(SL_EQ, i))
+				{
+					ui.fillRound({cx - 16, ky - 9, 32, 18}, BG, R_KNOB + 2);
+					ui.fillRound({cx - 14, ky - 7, 28, 14}, ACCENT, R_KNOB + 1);
+				}
+				else ui.fillRound({cx - 11, ky - 5, 22, 10}, !on ? DIM : focus ? ACCENT : KNOB, R_KNOB);
+				ui.drawTextMid(gainTextOf(g), F_P12, focus ? ACCENT : std::fabs(g) >= 0.05 ? TEXT : DIM, cx, e.gainY, 0, 2);
+				ui.drawTextMid(FREQS[i], F_P12, focus ? ACCENT : DIM, cx, e.freqY, 0, 2);
+			}
+		}
+		// a gain as the Sound page writes it: "+3", "0", "-4", "+2.5"
+		static std::string gainTextOf(double g)
+		{
+			char b[16];
+			int whole = (int)std::lround(g);
+			if (std::fabs(g - whole) >= 0.05) snprintf(b, sizeof b, "%+.1f", g);
+			else if (whole) snprintf(b, sizeof b, "%+d", whole);
+			else return "0";
+			return b;
+		}
+
+		void draw(const Player& p) override
+		{
+			if (!p.playing() || p.playingPhoto() || !p.playingAudio() || ui.page != Page::Main) { close(); return; }
+			lay::ListSheet s = layout(p);
+			Kit& k = *ui.kit;
+			k.sheetBack(s.box, s.grab);
+			k.tabs(s.head, labels(), tab, "L/R");
+			if (tab == TAB_EQ && eqMode == EQ_MAIN)
+			{
+				drawEq(p, s);
+				k.hints({{"LEFT/RIGHT", "Band"}, {"UP/DOWN", "Level"}, {"L2/R2", "Preset"}, {"X", "Options"}, {"B", "Close"}});
+				return;
+			}
+			// the rows: Show and Style, the effects, the speeds; the equalizer's dialogs as rows too
+			int n = listCount(p);
+			if (n <= 0) { close(); return; }
+			settle(p);
+			int shownN = shown(p), first = scroll, last = std::min(n, scroll + shownN);
+			for (int i = first; i < last; i++)
+			{
+				Line l = lineAt(i, p);
+				Kit::Row row;
+				row.font = F_P16;
+				row.name = l.name;
+				row.note = l.note;
+				row.focused = i == cursor;
+				row.pressed = press == P_ROW && pressAt == i;
+				row.radio = !l.off;
+				row.radioOn = !l.off && l.on;
+				row.off = l.off;
+				k.row(s.row(i - first), row);
+			}
+			ui.drawScrollBar(s.rowsY, shownN * lay::LIST_ROW, scroll, shownN, n);
+			if (eqMode == EQ_LIST) k.hints({{"UP/DOWN", "Move"}, {"A", "Choose"}, {"B", "Back"}});
+			else if (eqMode == EQ_DELETE) k.hints({{"UP/DOWN", "Move"}, {"A", "Choose"}, {"B", "Cancel"}});
+			else if (eqMode == EQ_OPTIONS) k.hints({{"UP/DOWN", "Move"}, {"A", "Choose"}, {"B", "Back"}});
+			else
+			{
+				std::vector<Hint> hints{{"UP/DOWN", "Move"}};
+				if (n > shownN) hints.push_back({"LEFT/RIGHT", "Page"});
+				hints.push_back({"A", "Choose"});
+				if (tab == TAB_SHOW) hints.push_back({"SELECT", "Show mode"});
+				hints.push_back({"L/R", "Tab"});
+				hints.push_back({"B", "Close"});
+				k.hints(hints);
+			}
+		}
+
+		std::string signature(const Player& p) const override
+		{
+			// the tab, the rows and the finger; the equalizer's mode and preset; the settings' own are Ui's
+			std::string sig = std::to_string(tab) + "," + std::to_string(cursor) + "," + std::to_string(scroll) + "," +
+				std::to_string(press) + "," + std::to_string(pressAt) + "," + std::to_string(eqMode) + "," +
+				std::to_string(ui.sound->eqBand) + "," +
+				std::to_string(ui.sound->soundTab) + "," + std::to_string(p.eqPresetSerial()) + "," + std::to_string(p.playingAudio());
+			for (int i = 0; i < 2; i++) sig += "|" + ui.sound->eqCycle(p)[std::min(i, (int)ui.sound->eqCycle(p).size() - 1)];
+			return sig;
+		}
+	};
+
 	void Ui::PlayerPage::openView(int tab, Player& p)
 	{
 		pressed = T_NONE;
 		focus = {};
-		ui.pushOverlay(std::make_unique<ViewSheet>(ui, tab, p));
+		if (p.playingAudio()) ui.pushOverlay(std::make_unique<SongViewSheet>(ui, tab, p));
+		else ui.pushOverlay(std::make_unique<ViewSheet>(ui, tab, p));
 	}
 
 	// Play on: where it plays (the Session's output), the handheld or a dashboard page that can play. A sheet of rows;

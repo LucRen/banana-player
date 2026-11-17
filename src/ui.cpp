@@ -175,9 +175,6 @@ namespace bp
 			playOnKey(b, p);
 			return false;
 		}
-		displayOpen = displayOpen && displayShown(p);	// (the song gone under it: closed)
-		if (!displayOpen) displayPending = -1;
-		if (displayOpen) return displayKey(b, p);
 		// a menu (the Options one, a row's hold, the mini bar's) takes the buttons first, on whatever page it is over
 		// (the mini bar's opens on pages whose own keys would otherwise eat them)
 		if (ctxOpen)
@@ -209,8 +206,7 @@ namespace bp
 		if ((b == Button::L2 || b == Button::R2) && page != Page::Manga && page != Page::MangaSeries && page != Page::MangaRead &&
 			page != Page::DocText && page != Page::DocPages)
 		{
-			if (p.settings.buttonHotkeys && !inMenu && p.playing() && !p.playingPhoto() && p.error.empty() &&
-				(page == Page::Main || page == Page::Tracks || page == Page::Chapters))
+			if (p.settings.buttonHotkeys && !inMenu && p.playing() && !p.playingPhoto() && p.error.empty() && page == Page::Main)
 				chapterStep(b == Button::L2 ? -1 : 1, p);
 			return false;
 		}
@@ -260,19 +256,6 @@ namespace bp
 			}
 			return false;
 		}
-		if (page == Page::Tracks || (page == Page::Chapters && !p.chapters.empty()))
-		{
-			// the tabs: L the one before, R the one after, as the browser's sections go; Y and X as well (the west and
-			// east buttons), X having opened the page
-			if (b == Button::Y || b == Button::L) { stepTracksTab(-1, p); return false; }
-			if (b == Button::X || b == Button::R) { stepTracksTab(1, p); return false; }
-		}
-		if (page == Page::Chapters && p.chapters.empty())
-		{
-			// (the list can also empty under it: the next file has none)
-			if (b == Button::B) page = home(p);
-			return false;
-		}
 		// (Page::Main, the player and a photo's viewer, is an area: PlayerPage::key, above)
 		return listKey(b, p);
 	}
@@ -315,8 +298,6 @@ namespace bp
 
 	void Ui::tick(Player& p)
 	{
-		// the Display popup's arrows have rested on a style: it's applied now (displayKey)
-		if (displayPending >= 0 && SDL_GetTicks() - displayPendingAt >= DISPLAY_SETTLE_MS) displayApplyPending(p);
 		// a held slider whose target is told at a pace: a finger resting on a new value, sent when it's due
 		slideLive(p);
 		manga->mangaVideoGuard(p);
@@ -556,8 +537,6 @@ namespace bp
 		if (browse->playlists->pickerOpen) return browse->playlists->pickerPointer(pt, x, y, p);
 		playOnOpen = playOnOpen && inMenu && page == Page::Playing && playingTabShown(p);
 		if (playOnOpen) return playOnPointer(pt, x, y, p);
-		displayOpen = displayOpen && displayShown(p);
-		if (displayOpen) return displayPointer(pt, x, y, p);
 		// Home's quit dialog takes every finger: a row chooses as it lifts, outside it cancels
 		if (page == Page::Browse && !inMenu && browse->atHome() && browse->homeView->quitOpen && !popupShown(p)) return browse->homeView->homePointer(pt, x, y, p);
 		// the header's web dashboard mark: its page, as the finger lifts on it
@@ -749,15 +728,6 @@ namespace bp
 			scrollStart = scroll;
 			return false;
 		}
-		if ((page == Page::Tracks || page == Page::Chapters) && y < 60)
-		{
-			// a tab switches as the finger lands (as the browser's do)
-			auto tabs = tracksTabs(p);
-			int cur = page == Page::Chapters ? TRACKS_CHAPTERS : tracksTab;
-			for (int i = 0; i < (int)tabs.size(); i++)
-				if (tracksTabRect(i, (int)tabs.size()).hit(x, y) && tabs[i] != cur) openTracks(tabs[i], p);
-			return false;
-		}
 		// (Page::Main's touches are its area's: PlayerPage::pointer, above)
 		return listDown(x, y, p);
 	}
@@ -802,14 +772,9 @@ namespace bp
 		if (updater)
 			upd += "|upd" + std::to_string((int)updater->state()) + " " + std::to_string(updater->progress()) + " " + updater->available() +
 				" " + std::to_string(popupShown(p)) + std::to_string(popupCursor) + std::to_string(pressedBtn);
-		// the chapters: the list, the one playing (the Chapters page's progress goes by the position, above), the tab
+		// the chapters: the list, the one playing, the tab View asks rows() for (the chapter card follows the position)
 		photo += "|ch" + std::to_string(p.chapterSerial) + " " + std::to_string(p.chapters.size()) + " " +
 			std::to_string(shownChapter(p)) + " t" + std::to_string(tracksTab);
-		// Up next: the list and the one playing (the Session's version moves with both)
-		if (page == Page::UpNext) photo += "|un" + std::to_string(SessionHost::get().version()) + " " + std::to_string((int)p.paths().size());
-		// the Display popup over a song's page (the Sound page's own terms are its area's signature)
-		if (displayOpen)
-			photo += "|dsp" + std::to_string(displayShown(p) ? displayRow * 100 + displayPending + 1 : -1) + " " + std::to_string(p.playingAudio());
 		// the dots of "Loading..." go round
 		if (p.loading() || p.thumbPending()) photo += "|loading" + std::to_string(SDL_GetTicks() / 400 % 4);
 		// Playlists: the store, items found missing, a menu's title and line, a name refused

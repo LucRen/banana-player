@@ -3,8 +3,9 @@
 // touches, the list's state (the folder, its rows and paths, the section, the network listing), Files' own operations
 // (the clip, Rename, the network folders' actions) and the Network tab's form are here and in ui_browse.cpp,
 // ui_fileops.cpp and ui_forms.cpp.
-// Stayed Ui's: the shared list's drawing and keys (drawTracks, rows, choose, listKey, listDown: the track lists use
-// them too), the cursor and the scroll (every list page's), the Options menu (ctx*: the mini bar's hold opens it on any
+// Stayed Ui's: the shared list's drawing and keys (drawTracks, rows, choose, listKey, listDown), the cursor and the
+// scroll (every list page's; View's sheet asks rows and choose for a file's tracks), the Options menu (ctx*: the mini
+// bar's hold opens it on any
 // page), the updater's pop-up, the file job's card and Info's sheet (over any page), the places (roots, rootsCheck:
 // the dashboard's and the manga reader's too), and the Browse touches that come before the area's point in
 // Ui::pointer (All recent's tabs, Home's quit dialog, the busy card, the picker, a grip's drag, a finger on Home): they

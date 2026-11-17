@@ -93,7 +93,7 @@ namespace bp
 	GLYPH(G_BACK, "....##", "...##.", "..##..", ".##...", "##....", ".##...", "..##..", "...##.", "....##")
 GLYPH(G_CHAPTERS, "###.#######", "###.#######", "...........", "###.#####..", "###.#####..", "...........",
 		"###.######.", "###.######.")
-	// music: the equalizer (Sound), Loop, and the Display popup's (title only, art + visualizer, the styles)
+	// music: the equalizer (Sound), Loop, and View's Display tab (title only, art + visualizer, the styles)
 	GLYPH(G_EQ, ".#...#...#.", ".#..###..#.", ".#..###..#.", "###..#...#.", "###..#...#.", ".#...#..###", ".#...#..###",
 		".#...#...#.", ".#...#...#.")
 	GLYPH(G_LOOP, ".......#...", ".########..", "#......#...", "#.........#", "#.........#", "...#......#", "..########.",

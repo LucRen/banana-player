@@ -31,21 +31,6 @@ namespace bp
 	{
 		if (page == Page::Browse) return browse->browseRows;
 		std::vector<Row> out;
-		if (page == Page::UpNext)
-		{
-			// a file a row (its place the id), the one playing as selected
-			int cur = -1;
-			auto list = upNextList(p, cur);
-			for (size_t i = 0; i < list.size(); i++) out.push_back({(int64_t)i, entryTitle(list[i]), (int)i == cur});
-			return out;
-		}
-		if (page == Page::Chapters)
-		{
-			// a chapter a row (its index the id), the one playing as selected
-			int cur = shownChapter(p);
-			for (size_t i = 0; i < p.chapters.size(); i++) out.push_back({(int64_t)i, chapterLabel(p.chapters[i], (int)i + 1), (int)i == cur});
-			return out;
-		}
 		if (tracksTab == TRACKS_PICTURE)
 		{
 			// the picture's size, as the old SELECT went round them (the mode the id)
@@ -62,53 +47,6 @@ namespace bp
 		if (type == TrackType::Sub) out.push_back({STYLE_ROW, "Subtitle style...", false});
 		if (out.empty()) out.push_back({-1, "No audio in this file", false});
 		return out;
-	}
-
-	void Ui::openMenu(Page pg, const Player& p)
-	{
-		page = pg;
-		cursor = scroll = 0;
-		if (pg == Page::Settings) { setGroup = -1; return; }
-		auto r = rows(p);
-		for (size_t i = 0; i < r.size(); i++)
-			if (r[i].selected) cursor = (int)i;
-		scroll = std::max(0, cursor - ROWS_SHOWN + 1);
-	}
-
-	std::vector<int> Ui::tracksTabs(const Player& p) const
-	{
-		// (a song's sound is its graph's: no track to choose; its chapters only)
-		std::vector<int> t;
-		if (!p.chapters.empty()) t.push_back(TRACKS_CHAPTERS);
-		if (!p.playingAudio()) t.insert(t.end(), {TRACKS_SUBS, TRACKS_AUDIO, TRACKS_PICTURE});
-		return t;
-	}
-
-	void Ui::openTracks(int tab, const Player& p)
-	{
-		tracksTab = tab;
-		if (tab == TRACKS_CHAPTERS) { openChapters(p); return; }
-		openMenu(Page::Tracks, p);
-	}
-
-	void Ui::stepTracksTab(int dir, const Player& p)
-	{
-		auto tabs = tracksTabs(p);
-		int cur = page == Page::Chapters ? TRACKS_CHAPTERS : tracksTab;
-		auto it = std::find(tabs.begin(), tabs.end(), cur);
-		if (it == tabs.end()) return;
-		int i = (int)(it - tabs.begin()) + dir;
-		if (i >= 0 && i < (int)tabs.size()) openTracks(tabs[i], p);
-	}
-
-	void Ui::openChapters(const Player& p)
-	{
-		page = Page::Chapters;
-		tracksTab = TRACKS_CHAPTERS;
-		// on the one playing, three rows above it showing where the list allows (what came before it, a little)
-		int n = (int)p.chapters.size();
-		cursor = std::clamp(shownChapter(p), 0, std::max(0, n - 1));
-		scroll = std::clamp(cursor - 3, 0, std::max(0, n - ROWS_SHOWN));
 	}
 
 	void Ui::chapterStep(int dir, Player& p)
@@ -189,22 +127,6 @@ namespace bp
 			openMainMenu(p, TAB_SETTINGS);
 			settingsPage->openGroup(GROUP_SUBS);
 			settingsPage->styleFromSubs = true;
-			return;
-		}
-		if (page == Page::UpNext)
-		{
-			playUpNext(i, p);
-			return;
-		}
-		if (page == Page::Chapters)
-		{
-			// from there: playing (a paused one too), the card says where, back to the player
-			int c = (int)r[i].id;
-			p.seekChapter(c);
-			if (!pageIsOut()) p.unpause();
-			else if (c >= 0 && c < (int)p.chapters.size()) noteSeek(p, p.chapters[c].time);	// (a page playing it: the session's Seek, which the page follows)
-			p.showChapterCard(c);
-			page = Page::Main;
 			return;
 		}
 		if (r[i].id < 0) return;
@@ -814,50 +736,7 @@ namespace bp
 		}
 	}
 
-	void Ui::drawChapters(const Player& p)
-	{
-		int n = (int)p.chapters.size();
-		if (n == 0)
-		{
-			// (the list emptied under it: the next file has none)
-			drawHeader("Chapters", p);
-			drawEmpty(G_CHAPTERS, "No chapters in this file", "When a file has chapters, L2 and R2 jump between them", nullptr);
-			drawHints({{"B", "Back"}});
-			return;
-		}
-		drawTracksHeader(p);
-		int cur = shownChapter(p), at = std::min(cursor, n - 1);
-		for (int i = scroll; i < n && i < scroll + ROWS_SHOWN; i++)
-		{
-			int y = ROW_Y + (i - scroll) * ROW_H, mid = y + 22;
-			bool focus = i == at, now = i == cur;
-			if (focus) drawFocus({16, y, 608, ROW_H - 4});
-			SDL_Color soft = focus ? DIM_ON : DIM;
-			// the one playing: its mark, as the status line has it
-			if (now) drawGlyphMid(p.paused ? G_PAUSE : G_PLAY, 40, mid, ACCENT);
-			drawTextMid(std::to_string(i + 1), 0, now ? ACCENT : soft, 90, mid, 0, 1);
-			const Chapter& c = p.chapters[i];
-			std::string start = formatTime(c.time);
-			drawTextMid(start, 0, soft, 608, mid, 0, 1);
-			int timeW = (int)std::lround(textWidth(start, 0) / sx);
-			int maxW = 608 - 16 - timeW - 104;
-			if (chapterUntitled(c.title)) drawTextMid(chapterLabel(c, i + 1), 1, soft, 104, mid, maxW);
-			else drawTextMid(c.title, 1, focus ? ACCENT : TEXT, 104, mid, maxW);
-			if (now)
-			{
-				// how far into it: up to the next one's start, or the file's end
-				double end = i + 1 < n ? p.chapters[i + 1].time : p.duration;
-				double at = shownPosition(p);
-				double f = end > c.time && at >= 0 ? std::clamp((at - c.time) / (end - c.time), 0.0, 1.0) : 0;
-				drawLevel({104, y + 37, 504, 3}, (int)(504 * f), focus ? BG : TRACK);
-			}
-		}
-		drawScrollBar(ROW_Y, ROWS_SHOWN * ROW_H - 4, scroll, ROWS_SHOWN, n);
-		if (tracksTabs(p).size() > 1) drawHints({{"A", "Play from here"}, {"L2/R2", "Prev/Next"}, {"R", "Subtitles"}, {"B", "Back"}});
-		else drawHints({{"A", "Play from here"}, {"L2/R2", "Prev/Next"}, {"B", "Back"}});
-	}
-
-	// ---- Up next: the list that plays ----
+	// ---- Up next and the chapters: the List sheet's lists (ListSheet, ui_player.cpp) ----
 
 	std::vector<std::string> Ui::upNextList(const Player& p, int& current) const
 	{
@@ -872,16 +751,6 @@ namespace bp
 		}
 		current = p.index();
 		return p.paths();
-	}
-
-	void Ui::openUpNext(const Player& p)
-	{
-		page = Page::UpNext;
-		// on the one playing, three rows above it showing where the list allows (what came before it, a little)
-		int cur = -1;
-		int n = (int)upNextList(p, cur).size();
-		cursor = std::clamp(cur, 0, std::max(0, n - 1));
-		scroll = std::clamp(cursor - 3, 0, std::max(0, n - ROWS_SHOWN));
 	}
 
 	void Ui::playUpNext(int i, Player& p)
@@ -905,52 +774,6 @@ namespace bp
 		}
 		if (isNetPath(list[i])) playRequest.names = netFolderNames(netParent(list[i]));
 		fprintf(stderr, "ui: up next, row %d of %d (%s)\n", i + 1, (int)list.size(), entryTitle(list[i]).c_str());
-	}
-
-	void Ui::drawUpNext(const Player& p)
-	{
-		drawHeader("Up next", p);
-		int cur = -1;
-		auto list = upNextList(p, cur);
-		int n = (int)list.size();
-		if (n == 0)
-		{
-			drawEmpty(G_PLAYLIST, "Nothing is playing", "Play a folder or a playlist to fill it", nullptr);
-			drawHints({{"B", "Back"}});
-			return;
-		}
-		// where it comes from, and which of how many
-		std::string from = p.source().title;
-		int count = n;
-		std::string place = std::to_string(cur + 1) + " / " + std::to_string(count);
-		drawTextMid(place, 0, DIM, 616, SUB_Y, 0, 1);
-		if (!from.empty()) drawTextMid("From " + from, 0, DIM, 16, SUB_Y, 600 - 24 - (int)std::lround(textWidth(place, 0) / sx));
-		int at = std::min(cursor, n - 1);
-		// the one playing: the chip the browser's row has (Now, Paused, Browser: a page plays it)
-		int chip = pageDrives(p) ? 3 : p.paused ? 2 : 1;
-		for (int i = scroll; i < n && i < scroll + ROWS_SHOWN; i++)
-		{
-			int y = ROW_Y + (i - scroll) * ROW_H, mid = y + 22;
-			bool focus = i == at, now = i == cur, past = cur >= 0 && i < cur;
-			if (focus) drawFocus({16, y, 608, ROW_H - 4});
-			SDL_Color soft = focus ? DIM_ON : DIM;
-			drawTextMid(std::to_string(i + 1), 0, now ? ACCENT : soft, 58, mid, 0, 1);
-			drawGlyphMid(isAudioFile(list[i]) ? G_NOTE : G_FILM, 82, mid, now ? ACCENT : soft);
-			// its length, where known (the one playing: mpv's; the others: the durations the lists probed)
-			int right = 608;
-			double d = now && p.duration > 0 ? p.duration : -1;
-			if (d <= 0 && !isNetPath(list[i])) cachedDuration(list[i], d);
-			if (d > 0)
-			{
-				std::string t = formatTime(d);
-				drawTextMid(t, 0, soft, right, mid, 0, 1);
-				right -= (int)std::lround(textWidth(t, 0) / sx) + 14;
-			}
-			if (now) right -= drawChip(right, mid, chip, true) + 10;
-			drawTextMid(entryTitle(list[i]), 1, focus ? ACCENT : past ? soft : TEXT, 104, mid, std::max(40, right - 8 - 104));
-		}
-		drawScrollBar(ROW_Y, ROWS_SHOWN * ROW_H - 4, scroll, ROWS_SHOWN, n);
-		drawHints({{"A", at == cur ? "Back to it" : "Play"}, {"B", "Back"}});
 	}
 
 	void Ui::readInfo(const Player& p)

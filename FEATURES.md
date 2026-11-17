@@ -229,7 +229,7 @@ Like a song or a video to keep it in **Liked**, a playlist of its own. Photos an
 | **DOWN / UP** | **DOWN** steps onto the chips (then **LEFT / RIGHT** choose one and **A** changes or opens it), **DOWN** again onto the **Next** line (**A** opens the list); **UP** or **B** goes back to the playing keys. They no longer change the speed: that is the **Speed** chip |
 | **X** | **More**: a sheet with **Lock touch**, **Screen off**, **Info** and **Stop** (in red) as its first four keys, then **Like**, **Add to playlist…**, **Show in folder** and, while a dashboard page that can play is open, **Play on…**. The D-pad moves, **A** chooses, **X** or **B** closes |
 | **Y** | **List** (the **List** key): one sheet with **Up next** (the folder or playlist that plays, in its own order, the one playing marked **Now**) and **Chapters** (every chapter with its start; a file without chapters has only Up next), with **Shuffle**'s switch and **Repeat** (Off / All / One) in its header. **L / R** step the tabs, **UP / DOWN** move, **LEFT / RIGHT** page, **A** plays from the row, **L2 / R2** jump a chapter with the sheet open, **Y** or **B** closes |
-| **SELECT** | Video: **View**, a sheet over the controls with four tabs: **Subtitles** (Off, the file's tracks, and **Subtitle style…**), **Audio**, **Picture** (Fit, Fill, Stretch) and **Speed** (0.5x to 2.5x). **L / R** switch tabs, **UP / DOWN** move, **LEFT / RIGHT** page a long list, **A** chooses, **SELECT** or **B** closes; it opens on the tab you used last · Music: the Display popup (what's shown, and the visualizer's style) |
+| **SELECT** | **View**, a sheet over the controls. A video: **Subtitles** (Off, the file's tracks, and **Subtitle style…**), **Audio**, **Picture** (Fit, Fill, Stretch) and **Speed** (0.5x to 2.5x). A song: **Display** (what the top screen shows, and the visualizer's style), **Equalizer**, **Effects** and **Speed**. **L / R** switch tabs, **UP / DOWN** move, **LEFT / RIGHT** page a long list, **A** chooses, **SELECT** or **B** closes (on a song's Display, **SELECT** steps the Show mode); it opens on the tab you used last |
 | **START** | Menu, on its **Playing** tab: Like, Add to playlist…, Show in folder, Info, Stop |
 | **L3** (press the stick, RG DS Plus) | Like / Unlike what plays |
 | **B** (or **Back**) | Back to the list: it keeps playing (see [Playing while you browse](#playing-while-you-browse)) |
@@ -250,13 +250,14 @@ Like a song or a video to keep it in **Liked**, a playlist of its own. Photos an
 - **Buttons:** they act when you lift your finger, so slide off one to cancel.
 - **The transport row:** **Prev**, **5 s** back, **Play / Pause** (the wide yellow key), **10 s** forward, **Next**.
 - **The second row**, the same on a video and a song: **Like**, **Playlist** (Add to playlist…), **List** (Up next,
-  **Y**) and **View** (**SELECT**: View's sheet on a video, the Display popup on a song).
+  **Y**) and **View** (**SELECT**: a video's tracks and speed, or a song's display, equalizer and effects).
 - **The chips** under them say how it is set, and a tap changes or opens each: on a video **Subtitles**, **Audio** and
-  **Picture** (each opens its tab of View), **Speed** (View's Speed tab) and **Repeat**; on a song **Sound** (the preset
-  and effect: the Sound page), **Top screen** (what the top screen shows: the Display popup), **Speed** and **Shuffle**.
+  **Picture** (each opens its tab of View), **Speed** (View's Speed tab) and **Repeat**; on a song **Sound** (View's
+  Equalizer tab: the preset and effect), **Top screen** (View's Display tab), **Speed** (View's Speed tab) and
+  **Shuffle**.
   A chip whose value isn't the normal one is yellow with a dot (a speed that isn't 1x, Repeat all or one, Shuffle, Fill
-  or Stretch, an equalizer or effect left on), so it can't go unnoticed. A song's **Speed** steps round 0.5x, 1x, 1.5x,
-  2x, 2.5x; a video's opens View's Speed tab.
+  or Stretch, an equalizer or effect left on), so it can't go unnoticed. **Speed** opens View's Speed tab on both; the
+  speed is set there.
   **Repeat** (a video) opens the List sheet, where Off / All / One is chosen; on a song **Shuffle** turns on or off.
 - **The Next line** along the bottom names what plays after this (its place in the list; "shuffled" with Shuffle
   on, **A new shuffled round** at a round's end, **Nothing after this** at the end of a list played in order); a tap
@@ -568,9 +569,12 @@ used: its lookup tables are worked out once in the background and kept beside th
 
 ## Sound: equalizer and effects
 
-The equalizer and the sound effects change the sound of music: songs and audiobooks. Videos are never changed. Open the
-**Sound** page from the **Sound** button, the line under the buttons (see **By touch** under [Controls](#controls)), or
-Settings › Music › **Sound FX**. It has two tabs: switch them with **L / R**, or tap a tab.
+The equalizer and the sound effects change the sound of music: songs and audiobooks. Videos are never changed. Open
+them from **View**: **SELECT** then the **Equalizer** or **Effects** tab (the **Sound** button opens View on Equalizer).
+Settings › Music › **Sound FX** still opens the Sound page, whose two tabs are the same. In View's Equalizer and Effects
+tabs, **L / R** switch tabs, **LEFT / RIGHT** pick a band and **UP / DOWN** changes it, **L2 / R2** step the presets,
+**Y** turns the equalizer on or off, **A** saves, and **X** opens Options. On the Sound page itself the keys are the
+ones below.
 
 **Equalizer** shapes the sound with ten bands, from 31 Hz to 16 kHz, each boosted or cut by up to 12 dB.
 
@@ -629,7 +633,7 @@ goes back to that sheet, on Subtitles.
 | Group | Setting | Default | |
 |---|---|---|---|
 | **Subtitles** | Font, size, colour, border, border colour, text encoding | Inter, Medium, White, Normal, Black, Auto | How plain subtitles (SRT, VTT…) look, with a live preview. Styled subtitles (ASS/SSA) keep their own look. **Text encoding** is how a subtitle file's letters are read, on the handheld and in the browser: Auto reads UTF-8, and guesses an older code page (a file named for its language, like `movie.sl.srt`, tries that language's first); if letters like š, č or ж still come out wrong, pick the file's: Central European (Windows-1250, ISO-8859-2, DOS 852), Cyrillic (Windows-1251, KOI8-R), Greek, Turkish, Baltic, Hebrew, Arabic or Western. A subtitle showing changes at once. |
-| **Music** | Music display, Visualizer, Sound | Album art, Bars, Off | What the top screen shows for music (also on SELECT while a song plays). **Sound** opens the [Sound page](#sound-equalizer-and-effects): the equalizer and the effects |
+| **Music** | Music display, Visualizer, Sound | Album art, Bars, Off | What the top screen shows for music (also View › Display while a song plays). **Sound** opens the [Sound page](#sound-equalizer-and-effects): the equalizer and the effects |
 | **Photos** | Keep zoom between photos | On | The next photo opens at the same zoom and place. Off: each opens whole |
 | | Pan area | Left | Which side of the bottom screen the photo's pan area is on |
 | | Drag moves | The box | A drag in the pan area moves the box over the small photo, or the photo itself (like a phone) |

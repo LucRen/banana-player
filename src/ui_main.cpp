@@ -95,8 +95,7 @@ namespace bp
 		if (page == Page::Main && !inMenu && p.playingPhoto())
 			return b == Button::Left || b == Button::Right || b == Button::L || b == Button::R || b == Button::Up || b == Button::Down;
 		if (b == Button::L2 || b == Button::R2) return false;
-		if (displayShown(p)) return false;	// a held key would spin the chips round
-		if (b == Button::Left || b == Button::Right) return page != Page::Tracks && page != Page::Chapters;
+		if (b == Button::Left || b == Button::Right) return true;
 		if (b == Button::L || b == Button::R) return false;	// (the browser's tabs)
 		// (the player: UP / DOWN move the focus a step a press, onto the chips and back)
 		return page != Page::Main && (b == Button::Up || b == Button::Down);
@@ -110,29 +109,6 @@ namespace bp
 		bool r = press(b, p);
 		p.settings.buttonHotkeys = keep;
 		return r;
-	}
-
-	bool Ui::musicKey(Button b, Player& p)
-	{
-		// X, a song or a video: the play mode; SELECT, a song: the Display popup (a video's is Tracks)
-		if (b == Button::Select && p.playingAudio())
-		{
-			displayOpen = true;
-			displayRow = 0;
-			return true;
-		}
-		if (b != Button::X) return false;
-		// X: round In order → Loop all → Loop one → Shuffle (Shuffle with Loop all: it never stops) → In order. Shuffle
-		// and Loop are two settings (the web sets each on its own): any Shuffle goes to In order next
-		// (docs/design/session.md §14). The song playing plays on; Next follows the hidden order
-		SessionHost& sh = SessionHost::get();
-		Settings s = p.settings;
-		bool shuffle = !s.shuffle && s.loop == LOOP_ONE;
-		s.loop = s.shuffle ? LOOP_OFF : shuffle ? LOOP_ALL : s.loop + 1;
-		p.setSettings(s);
-		sh.setShuffle(shuffle);
-		p.osd(modeLabel(p));
-		return true;
 	}
 
 	std::string Ui::modeLabel(const Player& p) const

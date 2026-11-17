@@ -487,14 +487,11 @@ namespace bp
 		loaderShown = false;
 		if (page == Page::Info || page == Page::About) drawInfo(p);
 		else if (page == Page::Exit) drawExit(p);
-		else if (page == Page::Chapters) drawChapters(p);
 		else if (page == Page::Playing) drawPlaying(p);
-		else if (page == Page::UpNext) drawUpNext(p);
 		else if (Area* a = area()) a->draw(p);
 		else drawTracks(p);	// (Page::Main is an area: PlayerPage::draw)
 		if (miniUp) drawMiniBar(p);
 		browse->drawClipBar();
-		if (displayShown(p)) drawDisplay(p);
 		if (inMenu) drawTabs(p);
 		if (ctxOpen) drawBrowseMenu(p);	// (the mini bar's hold menu opens on pages of its own too)
 		if (browse->playlists->pickerOpen) browse->playlists->drawPicker();

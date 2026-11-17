@@ -727,7 +727,7 @@ namespace bp
 		if (!bp.playing() || bp.playingPhoto()) return false;
 		if (kbOpen || browse->playlists->selMode != SEL_NONE) return false;
 		if (inMenu && page != Page::Settings) return false;
-		if (page == Page::Tracks || page == Page::Chapters || page == Page::Info || page == Page::UpNext) return false;
+		if (page == Page::Info) return false;
 		// over a photo this is the photo viewer's page (drawPhoto), not the player's
 		if (page == Page::Main) return p.playingPhoto();
 		if (page == Page::Browse)

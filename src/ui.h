@@ -99,7 +99,7 @@ namespace bp
 		// plays, not the pages; B comes back to the reader, and its pages to the top panel
 		bool topShowsPlayer() const
 		{
-			return page == Page::Main || page == Page::Tracks || page == Page::Chapters || page == Page::Info || page == Page::UpNext;
+			return page == Page::Main || page == Page::Info;
 		}
 		// the player's own Stop (X's More sheet, START › Playing › Stop, the mini bar's menu), once: main stops what plays
 		bool takeStopPressed() { bool r = stopPressed; stopPressed = false; return r; }
@@ -290,8 +290,8 @@ namespace bp
 		friend struct WebPlayerGlue;
 		friend class SessionHost;
 		friend struct WebPlaylistGlue;
-		enum class Page { Main, Tracks, Chapters, Settings, Browse, Info, About, Exit, Sound, Web, Playing, UpNext, Manga,
-			Extensions, MangaSeries, MangaRead, MangaSettings, MangaSources, DocText, DocPages };
+		enum class Page { Main, Settings, Browse, Info, About, Exit, Sound, Web, Playing, Manga, Extensions, MangaSeries,
+			MangaRead, MangaSettings, MangaSources, DocText, DocPages };
 		using Rect = lay::Box;	// (kitlayout.h: the kit's layout maths give and take the same box)
 		// An overlay: a dialog or a sheet over the page (ui_overlay.cpp; docs/notes/overlay-stack.md). While it is on
 		// the stack it gets the keys and the touches (the topmost one only: it is modal), is drawn over the page (all
@@ -360,40 +360,20 @@ namespace bp
 		// a finger down on a list page's rows: the row under it the cursor, the touch begun (the drag or the tap is
 		// Ui::pointer's)
 		bool listDown(int x, int y, Player& p);
-		void openMenu(Page pg, const Player& p);
-		// Tracks: the old page, still Settings' way back to the Subtitles list (its style row: openTracks(TRACKS_SUBS)).
-		// Four tabs in this order, those that apply (tracksTabs): Chapters (a file with chapters, the Chapters page),
-		// Subtitles, Audio and Picture (Fit, Fill, Stretch) (a video; Page::Tracks). L/R (and Y/X) step between them.
-		// The player's SELECT is View's sheet now (Ui::ViewSheet); a file's tracks, size and speed are set there
-		enum TracksTab { TRACKS_CHAPTERS, TRACKS_SUBS, TRACKS_AUDIO, TRACKS_PICTURE };
+		// The file's tracks and picture size, as the old Tracks page listed them: View's tabs choose them (Ui::ViewSheet
+		// and SongViewSheet ask rows() with tracksTab pointed at what they show). That page is gone: these are the
+		// lists' terms, not a page's.
+		enum TracksTab { TRACKS_SUBS, TRACKS_AUDIO, TRACKS_PICTURE };
 		int tracksTab = TRACKS_SUBS;
 		TrackType trackType() const { return tracksTab == TRACKS_AUDIO ? TrackType::Audio : TrackType::Sub; }
-		std::vector<int> tracksTabs(const Player& p) const;
-		void openTracks(int tab, const Player& p);
-		void stepTracksTab(int dir, const Player& p);	// the tab before (-1) or after (+1), no wrap
-		// the i-th of n tabs shown: three or fewer 152 wide, four share the room before the clock
-		// the tabs share the room between the back key and the header's status (clock, Wi-Fi, battery): tabsRight, set
-		// as the header is drawn (statusLeft), so a tap hits what was drawn
-		int tabsRight = 630;
-		Rect tracksTabRect(int i, int n) const
-		{
-			int room = tabsRight - 70, step = std::min(n > 3 ? 122 : 156, n > 0 ? room / n : room);
-			return {70 + i * step, 10, step - 4, 44};
-		}
-		void drawTracksHeader(const Player& p);
-		// the file's chapters (the Tracks page's Chapters tab): the cursor on the one playing
-		void openChapters(const Player& p);
-		void drawChapters(const Player& p);
-		// L2/R2: the chapter before or after, over what plays (the Chapters page's mark follows; a page playing it
-		// takes the Session's Seek). Ui::press and the List sheet's open state both call it
+		// L2/R2: the chapter before or after, over what plays (a page playing it takes the Session's Seek; the List
+		// sheet's Chapters tab follows). Ui::press and the List sheet's open state both call it
 		void chapterStep(int dir, Player& p);
-		// Up next (Y on the player): the list that plays, in its own order (the Session's queue: Shuffle reorders
-		// nothing shown), the one playing marked, scrolled to it; A plays a row as a pick from that list does (the
-		// Session's Open: Shuffle and Loop stay as set)
+		// Up next (the List sheet's first tab): the list that plays, in its own order (the Session's queue: Shuffle
+		// reorders nothing shown), the one playing marked; A plays a row as a pick from that list does (the Session's
+		// Open: Shuffle and Loop stay as set)
 		std::vector<std::string> upNextList(const Player& p, int& current) const;
-		void openUpNext(const Player& p);
 		void playUpNext(int i, Player& p);
-		void drawUpNext(const Player& p);
 		void choose(int i, Player& p);
 		// Settings opens on its groups (setGroup -1); A or a tap opens one, B goes back to them
 		// (Web dashboard is a tile like the groups, but its own page: openGroup and stepGroup open Page::Web)
@@ -426,6 +406,7 @@ namespace bp
 		// ---- the player screen (Page::Main: a video, a song; a photo's viewer is still here in Ui): an area,
 		// ui_player.h / ui_player.cpp ----
 		struct PlayerPage;
+		struct SongViewSheet;	// (ui_player.cpp: a song's View sheet, a table of it too)
 		std::unique_ptr<PlayerPage> playerPage;
 		struct PlayOnSheet;
 		struct ListSheet;
@@ -660,37 +641,10 @@ namespace bp
 		bool clearHistory(Player& p);	// true when it cleared (the second time)
 		bool act(int id, Player& p);	// a touch button let go of on it
 		bool pressAnyway(Button b, Player& p);
-		// SELECT on a song: the Display popup (true; a video's is Tracks: false). X: the play mode's round (In order,
-		// Loop all, Loop one, Shuffle): the player's Repeat chip steps it (X itself is More now)
-		bool musicKey(Button b, Player& p);
-		std::string modeLabel(const Player& p) const;	// what the top screen says as the play mode changes
-		// Display, over a song's page (SELECT): what the top panel shows, and the visualizer's style; each change
-		// applied at once (the player rebuilds the graph once the changes stop)
-		bool displayOpen = false;
-		int displayRow = 0;	// 0 Show, 1 Style
-		// the style the arrows have moved to, applied once they rest (-1 none): see displayKey
-		int displayPending = -1;
-		Uint32 displayPendingAt = 0;
-		static constexpr Uint32 DISPLAY_SETTLE_MS = 450;
-		static constexpr int CHIP_STRIDE = 32;	// a chip's touch id: CHIP_BTN + row * CHIP_STRIDE + chip
-		void displayApplyPending(Player& p);
-		bool displayShown(const Player& p) const { return displayOpen && page == Page::Main && !inMenu && p.playingAudio(); }
-		bool displayKey(Button b, Player& p);
-		bool displayPointer(const Pointer& pt, int x, int y, Player& p);
-		void drawDisplay(const Player& p);
-		// Show's 4 chips share a row; Style's (one an offered visualizer, VIS_SHOWN) go 5 to a row, as many rows as
-		// it takes (three for fifteen), the chips a little lower than Show's
-		static int displayChips(int row) { return row ? VIS_SHOWN_COUNT : SHOWS; }
-		static constexpr int DISPLAY_BOX_Y = 24, DISPLAY_BOX_H = 412, STYLE_COLS = 5, STYLE_ROWS = (VIS_SHOWN_COUNT + 4) / 5,
-			STYLE_Y = 166, STYLE_STEP = 56, CHIP_H = 50;
-		Rect displayChip(int row, int i) const
-		{
-			if (!row) return {48 + i * (130 + 8), 84, 130, CHIP_H};
-			int w = (544 - (STYLE_COLS - 1) * 8) / STYLE_COLS;
-			return {48 + (i % STYLE_COLS) * (w + 8), STYLE_Y + (i / STYLE_COLS) * STYLE_STEP, w, CHIP_H};
-		}
-		void displaySet(int row, int value, Player& p);
-		// Sound (music's): two tabs, Equalizer and Effects: an area (Area), ui_sound.h / ui_sound.cpp
+		// what the top screen says as the play mode changes (the dashboard's labels too)
+		std::string modeLabel(const Player& p) const;
+		// Sound (music's): two tabs, Equalizer and Effects: an area (Area), ui_sound.h / ui_sound.cpp. The song's
+		// View sheet opens these same actions in its Equalizer and Effects tabs (PlayerPage's SongViewSheet)
 		struct Sound;
 		std::unique_ptr<Sound> sound;
 		// a photo: the pan area (its thumbnail, the part on the top panel boxed: a finger drags the photo as on a
@@ -942,10 +896,9 @@ namespace bp
 			BUSY_CANCEL = 536, PICK_ROW = 900;
 		// the Playing tab's rows (PLAY_ROW + i)
 		static constexpr int PLAY_ROW = 550;
-		// Sound's touch buttons, apart from the grid's and the photo's; its dialogs' rows from DLG_ROW, the Display
-		// popup's chips from CHIP_BTN (row * CHIP_STRIDE + chip, up to 664)
+		// Sound's touch buttons, apart from the grid's and the photo's; its dialogs' rows from DLG_ROW
 		static constexpr int SOUND_TAB0 = 510, SOUND_TAB1 = 511, EQ_SWITCH = 520, EQ_PREV = 521, EQ_NEXT = 522, EQ_NAME_ZONE = 523,
-			EQ_RESET = 524, EQ_SAVE = 525, EQ_OPTIONS = 526, DLG_ROW = 700, CHIP_BTN = 600, FX_ROW = 800;
+			EQ_RESET = 524, EQ_SAVE = 525, EQ_OPTIONS = 526, DLG_ROW = 700, FX_ROW = 800;
 		void drawBackIcon();
 		// the browser's rows' marks: what each row is
 		enum RowIcon { ICON_NONE, ICON_RECENT, ICON_PLACE, ICON_FOLDER, ICON_VIDEO, ICON_SONG, ICON_PHOTO, ICON_DOC, ICON_BOOK, ICON_FILE, ICON_PDF, ICON_EPUB, ICON_COMIC, ICON_NETWORK, ICON_REFRESH,

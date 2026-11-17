@@ -1196,10 +1196,8 @@ namespace bp
 				if (whereW) browse->drawWhere(16, whereW);
 			}
 		}
-		else if (!inBrowse) drawTracksHeader(p);
 		auto r = rows(p);
 		bool form = inBrowse && browse->browseDir == FORMDIR;
-		bool noAudio = !inBrowse && trackType() == TrackType::Audio && r.size() == 1 && r[0].id < 0;
 		// ".." (up to the folder above): row -1, over the list (and over a message alone)
 		bool up = inBrowse && browse->upRow();
 		if (up && scroll < 0) browse->drawUpRow(ROW_Y, cursor < 0);
@@ -1228,15 +1226,12 @@ namespace bp
 				drawEmpty(g, title, "Find the computers sharing files on your Wi-Fi.\nOr Y: add one by its address", "Find on the network", &G_SEARCH);
 			else drawEmpty(g, title, sub, browse->emptyAction() ? "Add connection" : nullptr);
 		}
-		else if (noAudio) drawEmpty(G_SPEAKER, "No audio in this file", "This video has no sound track", nullptr);
 		else
 			for (int i = std::max(0, scroll); i < (int)r.size() && i < scroll + ROWS_SHOWN; i++)
 			{
 				int y = ROW_Y + (i - scroll) * ROW_H, mid = y + (ROW_H - 4) / 2;
 				bool at = i == cursor;
-				bool style = r[i].id == STYLE_ROW;
-				// the subtitle style: apart from the tracks, a line above it
-				if (style || (form && r[i].id == FORM_TEST)) fill({32, y - 3, 576, 1}, RULE);
+				if (form && r[i].id == FORM_TEST) fill({32, y - 3, 576, 1}, RULE);
 				// selecting: a ticked row on a lighter ground; Move's block lit as the cursor is
 				bool block = sel && ((browse->playlists->moving && browse->playlists->plSel.count(i)) || (browse->playlists->plDrag.on && browse->playlists->dragSel.count(i)));
 				if (block) drawFocus({16, y, 608, ROW_H - 4});
@@ -1290,19 +1285,7 @@ namespace bp
 					if (!sel)
 						if (int k = rowChip(i)) noteW += drawChip(608 - noteW, mid, k) + 10;
 				}
-				else if (style)
-				{
-					drawGlyphMid(G_GEAR, 43, mid, at ? ACCENT : TEXT);
-					drawGlyphMid(G_RIGHT, 604, mid, at ? ACCENT : DIM);
-					textX = 66;
-				}
-				else if (r[i].id >= 0)
-				{
-					// the track in use: a filled ring (the cursor is only where it is)
-					drawGlyphMid(r[i].selected ? G_RADIO_ON : G_RADIO, 41, mid, r[i].selected ? ACCENT : at ? TEXT : DIM);
-					textX = 66;
-				}
-				SDL_Color ink = (r[i].id < 0 && !style) || inert ? soft : at ? ACCENT : r[i].id == PL_NEW ? DIM_ON : TEXT;
+				SDL_Color ink = r[i].id < 0 || inert ? soft : at ? ACCENT : r[i].id == PL_NEW ? DIM_ON : TEXT;
 				drawTextMid(r[i].label, 1, ink, textX, mid, 600 - textX - noteW);
 			}
 		// a dragged row: where it lands, a line in the gap (none while it would stay where it is)
@@ -1311,23 +1294,8 @@ namespace bp
 			int slot = browse->playlists->dragSlot();
 			if (slot >= scroll && slot <= scroll + ROWS_SHOWN) fillRound({16, ROW_Y + (slot - scroll) * ROW_H - 3, 608, 2}, ACCENT, 1);
 		}
-		int n = (int)r.size(), first = inBrowse ? browse->listFirst() : 0;
+		int n = (int)r.size(), first = browse->listFirst();
 		drawScrollBar(ROW_Y, ROWS_SHOWN * ROW_H - 4, scroll - first, ROWS_SHOWN, n - first);
-		if (!inBrowse)
-		{
-			// the neighbours' keys, as on their tabs; on Subtitle style A opens it
-			static const char* TAB_NAMES[4] = {"Chapters", "Subtitles", "Audio", "Picture"};
-			const char* verb = cursor >= 0 && cursor < n && r[cursor].id == STYLE_ROW ? "Style" : "Choose";
-			std::vector<Hint> h;
-			if (!noAudio) h.push_back({"A", verb});
-			auto tabs = tracksTabs(p);
-			auto it = std::find(tabs.begin(), tabs.end(), tracksTab);
-			if (it != tabs.end() && it != tabs.begin()) h.push_back({"L", TAB_NAMES[*(it - 1)]});
-			if (it != tabs.end() && it + 1 != tabs.end()) h.push_back({"R", TAB_NAMES[*(it + 1)]});
-			h.push_back({"B", "Back"});
-			drawHints(h);
-			return;
-		}
 		if (sel) { browse->playlists->drawSelBar(); return; }
 		// B at a section's top goes Home; L/R to the sections either side
 		const char* back = browse->atFirstPage() ? "Home" : "Back";
@@ -1408,57 +1376,6 @@ namespace bp
 			x += (int)std::lround(ui.textWidth(GONE, 1) / sx);
 		}
 		ui.drawTextMid(ui.browse->browseRows[i].label, 1, miss ? soft : at ? ACCENT : TEXT, x, mid, std::max(0, right - 8 - x - noteW));
-	}
-
-	void Ui::drawTracksHeader(const Player& p)
-	{
-		tabsRight = std::min(630, statusLeft(p) - 10);
-		drawBackIcon();
-		// the tabs, in their order: the open one as START's menu draws its tab; its neighbours with their key on their
-		// outer side (L the one before, R the one after: Y and X do the same), the name centred in the rest
-		static const char* FULL[4] = {"Chapters", "Subtitles", "Audio", "Picture"};
-		static const char* SHORT[4] = {"Chap.", "Subs", "Audio", "Picture"};
-		auto tabs = tracksTabs(p);
-		int cur = page == Page::Chapters ? TRACKS_CHAPTERS : tracksTab, at = 0;
-		for (int i = 0; i < (int)tabs.size(); i++)
-			if (tabs[i] == cur) at = i;
-		// (four tabs beside the header's status: their names a size smaller where one wouldn't fit, then short ones,
-		// all alike)
-		int size = 1;
-		const char* const* NAMES = FULL;
-		auto fits = [&](const char* const* names, int sz) {
-			for (int i = 0; i < (int)tabs.size(); i++)
-				if (textWidth(names[std::clamp(tabs[i], 0, 3)], sz) / sx > tracksTabRect(i, (int)tabs.size()).w - 12) return false;
-			return true;
-		};
-		if (!fits(FULL, 1)) size = 0;
-		if (!fits(FULL, size)) NAMES = SHORT;
-		for (int i = 0; i < (int)tabs.size(); i++)
-		{
-			Rect r = tracksTabRect(i, (int)tabs.size());
-			const char* name = NAMES[std::clamp(tabs[i], 0, 3)];
-			if (i == at) { drawTab(r, name, true, size); continue; }
-			drawBox(r, BUTTON, R_BUTTON);
-			const char* key = i == at - 1 ? "L" : i == at + 1 ? "R" : nullptr;
-			int mid = r.y + r.h / 2, left = r.x, right = r.x + r.w;
-			// (the key where the name leaves room for it: the footer's hints name it too)
-			int kw = key ? (int)std::lround(textWidth(key, 0) / sx) : 0, nw = (int)std::lround(textWidth(name, size) / sx);
-			if (key && p.settings.buttonHotkeys && 14 + kw + 8 + nw + 8 <= r.w)
-			{
-				if (i < at)
-				{
-					drawTextMid(key, 0, ACCENT, r.x + 14, mid);
-					left = r.x + 14 + kw;
-				}
-				else
-				{
-					drawTextMid(key, 0, ACCENT, r.x + r.w - 14, mid, 0, 1);
-					right = r.x + r.w - 14 - kw;
-				}
-			}
-			drawTextMid(name, size, TEXT, (left + right) / 2, mid, right - left - 8, 2);
-		}
-		drawBattery(616, 24, p);
 	}
 
 	void Ui::folderChanged(const std::string& dir, Player& p)

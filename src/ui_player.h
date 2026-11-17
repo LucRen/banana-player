@@ -5,7 +5,7 @@
 // sheet for the rest (Lock, Screen off, Info, Stop, Like, Add to playlist, Show in folder, Play on).
 // A photo is this page too (Player::playingPhoto): its viewer is unchanged and still Ui's (drawPhoto, photoKey,
 // photoPointer in ui_main.cpp); the area hands it the keys, the touches and the drawing.
-// Still Ui's, because other pages use them: Like (likeNow), the play mode (musicKey, modeLabel), the hold that
+// Still Ui's, because other pages use them: Like (likeNow), the play mode's label (modeLabel), the hold that
 // takes playback over from a browser (playHoldAt: the mini bar holds the same way), Stop's flag (stopPressed).
 #pragma once
 #include "ui_kit.h"
@@ -55,9 +55,10 @@ namespace bp
 		// the chapter line and the Next line open it on theirs
 		int listTab = 0;
 		void openList(int tab, Player& p);
-		// View (SELECT, a video): the View sheet (ui_player.cpp), tabs Subtitles / Audio / Picture / Speed, opened on
-		// the one last used; the track chips open it on theirs and the Speed chip on Speed
-		int viewTab = 0;
+		// View (SELECT): the View sheet (ui_player.cpp), opened on the tab last used. A video: Subtitles / Audio /
+		// Picture / Speed; the track chips open it on theirs, the Speed chip on Speed. A song: Display / Equalizer /
+		// Effects / Speed; Sound opens Equalizer, Top screen Display, Speed Speed.
+		int viewTab = 0, songViewTab = 0;
 		void openView(int tab, Player& p);
 
 		// ---- X: the More sheet's list, and Play on's sheet ----
