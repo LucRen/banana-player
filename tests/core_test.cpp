@@ -9272,6 +9272,88 @@ static void testSessionNamed()
 		CHECK_EQ(all.s.index, 0);
 	}
 	{
+		// the end of a song list: the song stays loaded, back at its start, paused (A, the power key or a page's Play
+		// plays it again from the start). Nothing reloads, nothing unloads, the place is its start, and no list is
+		// left for the pages' finished view. A video's list still stops (the case above)
+		Sim m;
+		m.open(3, 2);
+		Intent l = m.mk(IntentType::Loaded);
+		l.load = m.s.load;
+		l.dur = 100;
+		l.audioOnly = true;
+		m.go(l);
+		m.report(IntentType::Pos, "hh", m.s.load, 97.5);
+		uint64_t load = m.s.load, v = m.s.v, seekN = m.s.seekN;
+		m.fx.clear();
+		m.report(IntentType::Ended, "hh", m.s.load);
+		CHECK_EQ(m.s.index, 2);
+		CHECK_EQ(m.s.playing, false);
+		CHECK_EQ(m.s.pos, 0.0);
+		CHECK_EQ(m.s.load, load);
+		CHECK_EQ(m.s.seekN, seekN + 1);
+		CHECK_EQ(m.s.ended.index, -1);
+		CHECK_EQ(m.s.v, v + 1);
+		CHECK_EQ(m.count(Effect::HhSeek, m.fx), 1);
+		CHECK_EQ(m.count(Effect::HhPause, m.fx), 1);
+		CHECK_EQ(m.count(Effect::HhUnload, m.fx), 0);
+		CHECK_EQ(m.said("Finished"), false);
+		CHECK_EQ(sessionJson(m.s, m.now, [](const std::string& p) { return p; }).find("\"ended\":null") != std::string::npos, true);
+		// (its file's end heard again before the seek lands: nothing more)
+		m.fx.clear();
+		v = m.s.v;
+		m.report(IntentType::Ended, "hh", m.s.load);
+		CHECK_EQ(m.s.v, v);
+		CHECK_EQ(m.fx.size(), 0);
+		// A: from the start, the same load (no reload), playing
+		m.fx.clear();
+		m.go(m.mk(IntentType::Play));
+		CHECK_EQ(m.s.playing, true);
+		CHECK_EQ(m.s.pos, 0.0);
+		CHECK_EQ(m.s.load, load);
+		CHECK_EQ(m.count(Effect::HhLoad, m.fx), 0);
+		CHECK_EQ(m.count(Effect::HhPlay, m.fx), 1);
+		// a single song (no list after it) the same
+		Sim one;
+		one.open(1, 0);
+		l = one.mk(IntentType::Loaded);
+		l.load = one.s.load;
+		l.dur = 30;
+		l.audioOnly = true;
+		one.go(l);
+		one.report(IntentType::Ended, "hh", one.s.load);
+		CHECK_EQ(one.s.index, 0);
+		CHECK_EQ(one.s.playing, false);
+		CHECK_EQ(one.s.pos, 0.0);
+		// a page as the output: the same end state in the session, and the page's element follows it (seek 0, paused);
+		// nothing of the handheld's
+		Sim p;
+		p.open(2, 1, "tabA");
+		l = p.mk(IntentType::Loaded, "tabA");
+		l.load = p.s.load;
+		l.dur = 100;
+		l.audioOnly = true;
+		p.go(l);
+		p.fx.clear();
+		l = p.mk(IntentType::Ended, "tabA");
+		l.load = p.s.load;
+		p.go(l);
+		CHECK_EQ(p.s.index, 1);
+		CHECK_EQ(p.s.playing, false);
+		CHECK_EQ(p.s.pos, 0.0);
+		CHECK_EQ(p.count(Effect::HhSeek, p.fx) + p.count(Effect::HhPause, p.fx) + p.count(Effect::HhUnload, p.fx), 0);
+		// Loop one and Loop all keep their own ways (the case above); a song mid-list ends as any item
+		Sim mid;
+		mid.open(3, 0);
+		l = mid.mk(IntentType::Loaded);
+		l.load = mid.s.load;
+		l.dur = 100;
+		l.audioOnly = true;
+		mid.go(l);
+		mid.report(IntentType::Ended, "hh", mid.s.load);
+		CHECK_EQ(mid.s.index, 1);
+		CHECK_EQ(mid.s.playing, true);
+	}
+	{
 		// the end of a list keeps it (the pages offer it again); Stop puts it away; a pick, a Step-free Open, clears it
 		Sim m;
 		m.open(3, 2, "tabA");

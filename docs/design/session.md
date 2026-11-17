@@ -204,9 +204,11 @@ New route: `POST /api/intent` (JSON `{origin, seq, basis, type, …}`) → `{ok,
   only hidden, `Player::hideVideo`), and over a page's item the held copy stays held. The host no longer sends
   `PhotoPark`/`PhotoResume`; the reducer keeps them (tested, and harmless), and `parked` stays false in practice.
   docs/notes/2026-11-10-photos-over-media.md.
-- **End of list**: `Ended` on the last item, no loop → `index = -1`, `playing = false`, `Note "Finished"` / `PageToast
-  "End of <source>"`; the last item and place go to Recent as today (`saveResume`). Loop one: `seekN++`. Loop all: wrap.
-  The list is kept as `ended` for the pages to offer again (§13).
+- **End of list**: `Ended` on the last item, no loop → a **song** stays loaded, back at its start (0:00), paused, the
+  playing screen still showing it (A, the power key or a page's Play plays it again from there; §16). A **video** as
+  before: `index = -1`, `playing = false`, `Note "Finished"` / `PageToast "End of <source>"`, the last item and place
+  to Recent (`saveResume`). Loop one: `seekN++`. Loop all: wrap. The list is kept as `ended` for the pages to offer
+  again (§13) — videos, and a list the browser couldn't play.
 - **Stop** (any origin, guarded): clears the item everywhere (`index = -1`), the page unloads too; `pref` survives,
   so the next pick still goes to the browser. (Today the handheld's Stop leaves the page playing; see §8 Q1.)
 - **Output tab gone** (`TabGone` while it's the output): grace 10 s (an SSE reconnect, a reload with the same
@@ -238,6 +240,8 @@ New route: `POST /api/intent` (JSON `{origin, seq, basis, type, …}`) → `{ok,
 | I12 | `ended` (a finished list) `⇒ index < 0`, its index within its queue | set only by `Ended` at the end; cleared after any apply that leaves an item, and by `Stop` (§13) |
 | I13 | `order` (Shuffle's hidden play order) non-empty `⇔ shuffle && index ≥ 0`, and then each place of `queue` once | made by `Open` / `SetShuffle` on, `Ended`/`Step` past a round with Loop all (a new one); cleared by Shuffle off and a stop; `FileGone` and `Requeue` renumber it (§14) |
 | I14 | `goneBye ⇒ goneAt ≠ 0 && goneTab` non-empty | set by `TabGone` with `on` (the closing page's goodbye: grace `TAB_BYE_GRACE_MS`, 3 s, not 10); cleared with `goneAt` (`TabBack`, the grace's end, a `SetOutput`) |
+| I15 | `picked ⇒ index ≥ 0` | `Open` sets it, `newItem` clears it |
+| I16 | `Ended` on the last song of a list with Loop off keeps that song: same `index`, same `load`, `pos == 0`, `!playing`, no `HhUnload` (§16) | the reducer's `Ended` branch; checked by `checkTransition` (the named case and the fuzz) |
 
 ### Failure modes
 
@@ -272,7 +276,8 @@ Named reducer cases (each a sequence of intents with times, then `CHECK_EQ`s on 
 - `photo over music keeps the browser's song` / `photo over music on the handheld parks and resumes at its place`.
 - `Prev ≥5 s restarts`, `Prev <5 s goes back`, `Prev burst from 7 s restarts then n-1`, `Prev on the first <5 s rejects
   with "This is the first one"`.
-- `end of list stops, says Finished`; `loop one restarts`; `loop all wraps both ways`.
+- `end of list stops, says Finished` (a video); `the end of a song list keeps it, paused at its start` (§16); `loop one
+  restarts`; `loop all wraps both ways`.
 - `handheld Stop with the browser as output stops the page; next pick goes to the browser` (`pref`).
 - `browser can't play → skipped there, the next one plays in the browser (backwards after Previous; a list none of which plays there stops)`; `unanswered load for 8 s → skipped too`.
 - `output tab gone 10 s → handheld paused`; `tab back within 9 s keeps it`.
@@ -512,8 +517,9 @@ What moved, what went, and the choices made (the code and tests follow these):
 - **`ended`** (`Session::ended`, a `Finished`: `queue` (real paths), `index` (its last item), `source`, `dur`,
   `audioOnly`; `index -1` none). The dashboard keeps showing a list that played to its end by itself instead of
   "Nothing playing", so its rows can be played again.
-- **Set only** by `Ended` on the last item with loop off (the path that `stopItem()`s and notes "Finished"; everything
-  else about that path is unchanged: `index = -1`, `HhUnload`, the handheld's screens go back as before).
+- **Set only** by `Ended` on the last item with loop off (the path that `stopItem()`s and notes "Finished"; a **song's**
+  list no longer comes here: §16), and by the two ways the output skips the rest of a list it can't play. Everything
+  else about that path is unchanged: `index = -1`, `HhUnload`, the handheld's screens go back as before.
 - **Cleared** by any apply that leaves an item (`index >= 0`: Open, Play over a photo, …; one rule after the reducer,
   next to `blocked`'s), and by **`Stop`**: with nothing playing and a finished list, `Stop` is accepted and only clears
   it (else still `nothing`). A Stop of a list still playing leaves no finished list: Stop means stop. `FileGone` drops
@@ -580,3 +586,37 @@ an `Open` of that queue from that index, as a pick from the list: Shuffle makes 
   leaves it.
 - Tests: a named case (Next reaches a song added after the last, another list's edit and a bad remap refused, Shuffle's
   order kept with the added one last) and `Requeue` in the fuzz (`fuzzRequeued` must be reached).
+
+## 16. The end of a song list (2026-11-17)
+
+**Asked:** when the last song of a list ends (Loop off: nothing next, or the only song), the media should not close. The
+last song stays loaded, back at its beginning (0:00), paused, with the playing screen still showing it, so **A**, the
+power key (with the lid shut, Keep playing) or a page's Play plays it again from the start. Repeat all/one unchanged.
+Videos keep what they did.
+
+- **The reducer** (`Ended`, after `nextItem()` says there is nowhere to go) branches on the item, not the list:
+  `s.audioOnly` (the output's `Loaded`) → keep `index`, set `pos = 0`, `playing = false` (`playV`), bump `seekN`; for
+  the handheld `HhPause` then `HhSeek(0)`. `load` and `loaded` stay (no reload, no `HhUnload`, no "Finished", no
+  `ended` list). A video still takes `finishList()` (§13). The end state is idempotent: the file's end heard again
+  before the seek lands (`!playing && pos <= 0`) changes nothing, so no repeated effects.
+- **I16** (`checkTransition`, so the fuzz checks it too): an applied `Ended` on the last song of a list with Loop off
+  leaves that item, `pos == 0`, paused, the same `load`, and no `HhUnload`.
+- **mpv** (`player.cpp`): `keep-open=always` for a song's load (a video's stays `no`). A song with the visualizer/art
+  graph never ends by itself (its picture does not), so `checkSongEnd` drives its end; a song with no graph (album art
+  with a cover) ends by mpv's own EOF and `keep-open` is what keeps it loaded for the seek. The pause and the seek are
+  async; nothing waits for mpv.
+- **The visualizer's start**: the graph's first frames make a seek to a song's start report `time-pos` about 0.6 s
+  (measured here on 3 s and 10 s sine MP3s: the Session's seek and a manual scrub alike), so the clock shows **0:00**
+  and the bar a slice of a very short file (a fifth of a 3 s one; a sliver of a song of minutes). The song plays from
+  its start. The session's `pos` is 0 and a later `Pos` may say ~0.6 s.
+- **The place**: songs were never saved with a position (`Player::saveResume` remembers videos only), so nothing saves
+  the end; the session's place is its start.
+- **A browser output**: the same state in the session and no handheld effect. The page's renderer follows `playV`
+  (pause) then `seekN` (`seekTo(0)`), so the player shows the last song paused at **0:00** and its Play (or A on the
+  handheld) plays it again. `index >= 0` keeps the finished view (`ended`) away: for songs that view no longer appears;
+  it stays for videos and for a list the browser couldn't play.
+- **Loaded for the lid guard and the power key**: both read `player.playing()` (a non-empty playlist), and a song paused
+  at its start after the end counts as loaded, which is intended. A video's end still leaves nothing loaded.
+- **Tests**: the named case "the end of a song list keeps it, paused at its start" in core-test (handheld and browser
+  outputs, one song, the repeated end is a no-op, Play reuses the load, Loop one/all, a mid-list end), I16 in the fuzz,
+  and one scripted run on the Mac (3 s sine MP3, `--press ... prop:time-pos prop:pause shot:end`).

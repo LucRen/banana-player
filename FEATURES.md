@@ -92,8 +92,8 @@ and the song or video goes on: a video keeps playing full size on the top screen
 Paused stays paused. You land back **where you were before you opened the player**: the same page, folder, cursor
 and scroll (Home, a folder, All recent, START's menu…); from a playlist's page, the list of playlists, the cursor on
 that playlist. Started with a file, or after **Show in folder**,
-you land in the folder (or playlist) it plays from, the cursor on it. The same goes for **Stop** and for the end of
-the list while the playing screen was up.
+you land in the folder (or playlist) it plays from, the cursor on it. The same goes for **Stop**, and for the end of a
+video's list while the playing screen was up; a song's list ending keeps the song up instead.
 
 - **The mini bar**, along the bottom of every page but the player itself: Home, every list (Files, Playlists, Network,
   All recent), Settings and its groups, Sound, the web dashboard, Manage extensions, the manga reader's pages, the
@@ -114,9 +114,10 @@ the list while the playing screen was up.
   back while its player shows; **B** returns to the page you were reading.
 - **L3** (press the stick) likes or unlikes what plays, from the lists too.
 - **Stop** ends it: **Stop** at the bottom right of the playing screen, **START** › **Playing** › **Stop**, or the mini
-  bar's menu. The place is kept (its card on Home resumes it). Reaching the end of the folder or playlist stops too:
-  on the playing screen you're back in the list on it; while browsing the bar folds away and the top screen says
-  **Finished**.
+  bar's menu. The place is kept (its card on Home resumes it). A song that reaches the end of the folder or playlist
+  doesn't close: it stays on the playing screen (or the bar keeps it) at **0:00**, paused, and **A** (or the power key
+  with the lid shut, or **Play** in the browser) plays it again from its start. A video's end still stops: on the playing
+  screen you're back in the list on it; while browsing the bar folds away and the top screen says **Finished**.
 - **Opening a photo** while a song or video plays doesn't stop it: the photo takes the top screen and what plays goes
   on behind it, sound and all (a song's next song follows as usual; a video's picture just isn't shown, or decoded,
   meanwhile). Close the photo (**B**, **Close**) and you're back where you opened it, the video showing again where it
@@ -803,13 +804,15 @@ handheld, carries on at 1:27"):
   **Up next** shows each item's length: a playlist's own, else (a folder, this browser's queue) asked of the handheld
   for the rows as they scroll into view.
 - **When a list ends** (a folder, a playlist, Recent with its folder, a selection; played to its last item with Loop
-  off, in this browser or on the handheld), the player doesn't go blank: it keeps the last item, at its end, with **The
-  end of <list>** and **Clear** above it. **Play** plays the list again from its first item, **Previous** the last one
-  again (**Next** has nothing to go to), and **Up next** keeps the whole list, the last one marked **Finished**: a tap
-  on any row plays the list from there. It plays where you play (this browser, or the handheld). The player bar and the
-  phone's small player show it too (**Finished · <list>**; a tap opens the player). Nothing starts by itself; **Clear**,
-  or **Stop** on the handheld, leaves **Nothing playing**. The handheld's own screens go back to the list as before.
-  **Shuffle** and **Loop** still work there; with Shuffle on, **Play** starts the list again at a random song.
+  off, in this browser or on the handheld): a song doesn't close. It stays, back at **0:00**, paused, and **Play** (or
+  **A** on the handheld, or the power key with the lid shut) plays it again from its start. A video's end keeps the
+  player on it at its end, with **The end of <list>** and **Clear** above it. **Play** plays the list again from its
+  first item, **Previous** the last one again (**Next** has nothing to go to), and **Up next** keeps the whole list, the
+  last one marked **Finished**: a tap on any row plays the list from there. It plays where you play (this browser, or
+  the handheld). The player bar and the phone's small player show it too (**Finished · <list>**; a tap opens the
+  player). Nothing starts by itself; **Clear**, or **Stop** on the handheld, leaves **Nothing playing**. The handheld's
+  own screens go back to the list for a video. **Shuffle** and **Loop** still work there; with Shuffle on, **Play**
+  starts the list again at a random song.
 - **Shuffle and Loop** are the handheld's two settings, whichever side plays, and every page and the handheld show the
   same (even with nothing playing: the buttons stay in the player bar or the phone's empty player). **Shuffle** turns
   it on or off without a break in what plays; **Loop** goes off → all → one. They combine freely: Shuffle with Loop
