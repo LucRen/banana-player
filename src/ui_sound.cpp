@@ -21,6 +21,7 @@
 
 namespace bp
 {
+
 	// ---- music: the Sound page (Equalizer, Effects) ----
 
 	void Ui::Sound::open(Player& p, bool fromSettings)

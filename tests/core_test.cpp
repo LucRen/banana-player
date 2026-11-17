@@ -26,6 +26,7 @@ extern "C"
 #include <libavutil/log.h>
 }
 #include "eq.h"
+#include "vizlite.h"
 #include "format.h"
 #include "ftplist.h"
 #include "history.h"
@@ -6093,7 +6094,8 @@ static void testSettings()
 	CHECK_EQ(visualizerGraph(VIS_PEAKS_BANANA, false) != visualizerGraph(VIS_PEAKS, false), true);
 	CHECK_EQ(visualizerGraph(VIS_PEAKS_BANANA, true) != visualizerGraph(VIS_PEAKS, true), true);
 	CHECK_EQ(visualizerGraph(VIS_PEAKS_BANANA, false).find("lagfun=decay=") != std::string::npos, true);
-	// the cycle: the offered ones (VIS_SHOWN); from one not offered as from Peaks Banana
+	// the cycle: the offered ones (VIS_SHOWN), Lite first; from one not offered as from Lite
+	CHECK_EQ(stepVisualizer(VIS_LITE, 1), (int)VIS_PEAKS_BANANA);
 	CHECK_EQ(stepVisualizer(VIS_PEAKS_BANANA, 1), (int)VIS_CIRCLE);
 	CHECK_EQ(stepVisualizer(VIS_CIRCLE, 1), (int)VIS_POCKET);
 	CHECK_EQ(stepVisualizer(VIS_POCKET, 1), (int)VIS_CITY);
@@ -6101,16 +6103,22 @@ static void testSettings()
 	CHECK_EQ(stepVisualizer(VIS_DANCER, 1), (int)VIS_FIRE);
 	CHECK_EQ(stepVisualizer(VIS_SEA, 1), (int)VIS_BUNNY);
 	CHECK_EQ(stepVisualizer(VIS_CAT, 1), (int)VIS_POPCORN);
-	CHECK_EQ(stepVisualizer(VIS_WASHER, 1), (int)VIS_PEAKS_BANANA);
-	CHECK_EQ(stepVisualizer(VIS_PEAKS_BANANA, -1), (int)VIS_WASHER);
-	CHECK_EQ(stepVisualizer(VIS_SPECTRUM, 1), (int)VIS_CIRCLE);
-	CHECK_EQ(stepVisualizer(VIS_PEAKS, 1), (int)VIS_CIRCLE);
+	CHECK_EQ(stepVisualizer(VIS_WASHER, 1), (int)VIS_LITE);
+	CHECK_EQ(stepVisualizer(VIS_PEAKS_BANANA, -1), (int)VIS_LITE);
+	CHECK_EQ(stepVisualizer(VIS_LITE, -1), (int)VIS_WASHER);
+	CHECK_EQ(stepVisualizer(VIS_SPECTRUM, 1), (int)VIS_PEAKS_BANANA);
+	CHECK_EQ(stepVisualizer(VIS_PEAKS, 1), (int)VIS_PEAKS_BANANA);
+	// Lite draws no graph at all (the player measures the sound and draws it); it needs no stills
+	CHECK_EQ(visualizerGraph(VIS_LITE, false), std::string(""));
+	CHECK_EQ(visualizerGraph(VIS_LITE, true), std::string(""));
+	CHECK_EQ(visualizerNeedsMaps(VIS_LITE), false);
+	CHECK_EQ(parseSettings("visualizer = lite\n").visualizer, (int)VIS_LITE);
 	{
 		int seen = 0;
 		for (int i = 0, v = VIS_PEAKS_BANANA; i < VIS_SHOWN_COUNT; i++, v = stepVisualizer(v, 1)) seen |= 1 << v;
 		int want = 0;
 		for (int v : VIS_SHOWN) want |= 1 << v;
-		CHECK_EQ(VIS_SHOWN_COUNT, 20);
+		CHECK_EQ(VIS_SHOWN_COUNT, 21);
 		CHECK_EQ(seen, want);
 	}
 	// Pocket console: kept by its id, named, its own graph (Peaks' caps, YUV only), alone and over the art
@@ -7076,6 +7084,38 @@ static void testEq()
 	// a song's af starts with its input brought to 44.1/48 kHz (the EQ, effect and speed work at that rate; the af's
 	// output rate then never changes with the EQ, which would reopen the sound output)
 	CHECK_EQ(afInputFilter(), std::string("@bpin:lavfi=[aformat=sample_rates=44100|48000]"));
+	// Lite's meter is one passthrough tap: 1024-sample frames, the bass beside the sound for astats, then dropped
+	CHECK_EQ(liteTapFilter(), std::string("@bplite:lavfi=[aformat=channel_layouts=stereo,asetnsamples=n=1024:p=0,asplit=2[lmain][llow];"
+		"[llow]lowpass=f=150[lbase];[lmain][lbase]join=inputs=2:channel_layout=4.0:map=0.0-FL|0.1-FR|1.0-FC|1.1-BC,"
+		"astats=metadata=1:reset=1:measure_perchannel=RMS_level+Peak_level:measure_overall=RMS_level+Peak_level,"
+		"pan=stereo|c0=c0|c1=c1]"));
+	// Lite: dB to 0..1, and a beat is the level above 1.4x the last second's average
+	CHECK_EQ(LiteMeter::normalizeDb(-1000), 0.0);
+	CHECK_EQ(LiteMeter::normalizeDb(-60), 0.0);
+	CHECK_EQ(LiteMeter::normalizeDb(-30), 0.5);
+	CHECK_EQ(LiteMeter::normalizeDb(0), 1.0);
+	{
+		LiteMeter m;
+		m.reset();
+		for (int i = 0; i < 40; i++) m.sample(-40, (uint64_t)i * 20);	// 0.33 for 800 ms
+		CHECK_EQ(m.beats, 0u);
+		CHECK_EQ(std::fabs(m.level - 1.0 / 3) < 1e-9, true);
+		CHECK_EQ(std::fabs(m.average - 0.01) < 1e-9, true);	// amplitudes, so 1.4 times is 1.4 times the energy
+		CHECK_EQ(m.silent, false);
+		m.sample(-5, 820);	// 0.92: a kick over the average
+		CHECK_EQ(m.beats, 1u);
+		CHECK_EQ(m.beatNow, true);
+		m.sample(-5, 900);	// too soon for another
+		CHECK_EQ(m.beats, 1u);
+		// the newest reading first, then the ones before it
+		CHECK_EQ(std::fabs(m.recent(0) - 55.0 / 60) < 1e-9, true);
+		CHECK_EQ(std::fabs(m.recent(1) - 55.0 / 60) < 1e-9, true);
+		CHECK_EQ(std::fabs(m.recent(2) - 1.0 / 3) < 1e-9, true);
+		// quiet for over SILENT_MS: Lite stops redrawing
+		m.sample(-1000, 2000);
+		CHECK_EQ(m.level, 0.0);
+		CHECK_EQ(m.silent, true);
+	}
 	CHECK_EQ(eqFlat(bass), false);
 	CHECK_EQ(eqBandTarget(3), std::string("equalizer@b3"));
 	std::string pre = eqPreGainArg(bass);
@@ -8856,8 +8896,8 @@ static void testKitLayout()
 	CHECK_EQ(sr.row(0).x, MARGIN);
 	CHECK_EQ(sr.row(0).w, PANEL_W - 2 * MARGIN);
 
-	// the Visualizer tab's style grid: 20 styles, five a row, inside its area, in rows that meet its edges
-	Box grid{16, 300, 608, 202};
+	// the Visualizer tab's style grid: 21 styles, five a row, inside its area, in rows that meet its edges
+	Box grid{16, 300, 608, 5 * 46 + 4 * 6};
 	auto cells = gridCells(grid, VIS_SHOWN_COUNT, 5, 6);
 	CHECK_EQ((int)cells.size(), VIS_SHOWN_COUNT);
 	CHECK_EQ(cells[0].x, 16);

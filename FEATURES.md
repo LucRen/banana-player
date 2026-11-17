@@ -525,7 +525,9 @@ Songs show their title, artist and album on the top screen. While a song plays:
   **Art + visualizer** (the visualizer over the bottom of the art), **Visualizer only**, or **None** (just the title:
   the lightest on the battery). A fifth row, **Visualizer style**, names the style in use and opens View's
   **Visualizer** tab; with Album art only or None it reads "<style> · not shown" and can still be changed. The
-  **Visualizer** tab is the style grid, twenty of them: **Peaks** (default: 64 yellow bars, bass on
+  **Visualizer** tab is the style grid, twenty-one of them: **Lite** (the cheapest: one glowing
+  pulse on the beat and twelve bars, drawn by the player itself, with no video frames from mpv at all; it is meant for
+  long listening on the battery, not accuracy), **Peaks** (default: 64 yellow bars, bass on
   the left, each with a cream cap that stays at the bar's highest point and slowly falls back, over a faint grid),
   **Circle** (bars round a glowing ring, cyan to pink; with Art + visualizer, the album art sits inside the ring),
   **Pocket console** (Peaks on an old handheld's screen: 15 bars of chunky dots in four greens, with falling caps;
