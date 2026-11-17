@@ -216,6 +216,8 @@ rm -rf "$OUT" && mkdir -p "$B/bin" "$B/lib" "$B/share/banana-player"
 cp $BPB/banana-player "$B/bin/"
 cp -r /src/assets/fonts "$B/share/banana-player/"
 cp -r /src/assets/icons "$B/share/banana-player/"	# (the player's own pictures: the app's on the top screen, the manga reader's)
+# About's support block: the static ko-fi QR, beside icon.png (Ui::drawAboutSupport reads it from the fonts' folder up)
+cp /src/packaging/support/kofi-qr.png "$B/share/banana-player/"
 # fontconfig's view of the fonts: the player's folder only (the launcher sets FONTCONFIG_FILE), its cache in
 # $XDG_CACHE_HOME (run-port: /data/home/.cache)
 cat > "$B/share/banana-player/fonts.conf" <<'CONF'

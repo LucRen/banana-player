@@ -25,6 +25,7 @@
 #include "ui_docs.h"
 #include "ui_manga.h"
 #include "pagebook.h"
+#include "pagedecode.h"
 #include <strings.h>
 #include "durations.h"
 
@@ -957,11 +958,50 @@ namespace bp
 		drawScrollBar(top, shown * INFO_H, scroll, shown, (int)infoLines.size());
 		if (page == Page::About)
 		{
+			drawAboutSupport();
 			drawHints({{"UP/DOWN", "Scroll"}, {"L2/R2", "Group"}, {"B", "Back"}});
 			return;
 		}
 		if (inMenu) drawHints({{"UP/DOWN", "Scroll"}, {"B", "Close"}, {"L/R", "Tabs"}});
 		else drawHints({{"UP/DOWN", "Scroll"}, {"A/B", "Back"}});
+	}
+
+	// About's foot: one dim line, the static QR image of the same address (packaging/support/kofi-qr.png, shipped beside
+	// icon.png in the bundle) and the address written out. Nothing here is a key or takes a touch.
+	void Ui::drawAboutSupport()
+	{
+		int y = 340;
+		fill({24, y, 592, 1}, RULE);
+		Rect qr{24, y + 12, 84, 84};
+		SDL_Rect d = devRect(qr);
+		int s = std::min(d.w, d.h);
+		if (s != supportPx)
+		{
+			if (supportTex) SDL_DestroyTexture(supportTex);
+			supportTex = nullptr;
+			supportPx = s;
+			// the bundle's share/banana-player/kofi-qr.png (the fonts' folder one up); a desktop build's source tree
+			PageImage img = decodePageFile(fontsDir + "/../kofi-qr.png", s);
+			if (!img.ok()) img = decodePageFile(fontsDir + "/../../packaging/support/kofi-qr.png", s);
+			if (img.ok())
+			{
+				supportTex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, img.w, img.h);
+				if (supportTex)
+				{
+					SDL_UpdateTexture(supportTex, nullptr, img.rgba.data(), img.w * 4);
+					SDL_SetTextureBlendMode(supportTex, SDL_BLENDMODE_BLEND);
+				}
+			}
+			else fprintf(stderr, "ui: About's QR image not read: %s\n", img.error.c_str());
+		}
+		if (supportTex)
+		{
+			SDL_Rect c{d.x + (d.w - s) / 2, d.y + (d.h - s) / 2, s, s};
+			SDL_RenderCopy(ren, supportTex, nullptr, &c);
+		}
+		int x = qr.x + qr.w + 16;
+		drawTextMid("Banana Player is free. If you\xE2\x80\x99" "d like to support it:", F_I12, DIM, x, y + 34, 592 - (x - 24));
+		drawTextMid("ko-fi.com/tonysong", F_I14, DIM_ON, x, y + 64);
 	}
 
 	int Ui::volumeLevel()

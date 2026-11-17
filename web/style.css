@@ -982,6 +982,10 @@ input[type=range] { touch-action: pan-y; }
 /* ================= Home: Continue (the newest thing played or read), Recent, quick actions; the welcome when there is none ================= */
 .hm-head .row { flex-wrap: wrap; }
 .hm-playon { display: flex; align-items: center; gap: var(--s2); }
+/* the smallest About: one dim line at the foot (the version, Source, Support) */
+.hm-foot { margin-top: var(--s7); padding-top: var(--s3); border-top: 1px solid var(--rule); text-align: center; font-size: 13px; color: var(--dim); }
+.hm-foot a { color: var(--dim-btn); text-decoration: underline; }
+.hm-foot a:hover { color: var(--cream); }
 .hm-sec { margin-top: var(--s7); }
 .hm-sec > .band { margin-bottom: var(--s3); min-height: 40px; flex-wrap: wrap; row-gap: var(--s2); }
 .hm-sec > .band .cnt { font-size: 13px; }

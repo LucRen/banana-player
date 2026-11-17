@@ -113,6 +113,7 @@ namespace bp
 	Ui::~Ui()
 	{
 		if (photoTex) SDL_DestroyTexture(photoTex);
+		if (supportTex) SDL_DestroyTexture(supportTex);
 		for (auto& c : cache) SDL_DestroyTexture(c.second);
 		for (auto& c : manga->coverTex)
 			if (c.second.tex) SDL_DestroyTexture(c.second.tex);

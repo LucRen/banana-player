@@ -262,7 +262,9 @@ namespace bp
 		static std::string snapshotJson(const WebSnapshot& s, const Ui& u)
 		{
 			std::string j = toJson(s);
-			if (!j.empty() && j.back() == '}') j.insert(j.size() - 1, ",\"battery\":" + std::to_string(u.battery.percent));
+			// (the dashboard's Home foot says the version this run serves)
+			if (!j.empty() && j.back() == '}')
+				j.insert(j.size() - 1, ",\"battery\":" + std::to_string(u.battery.percent) + ",\"version\":\"" BP_VERSION "\"");
 			return j;
 		}
 

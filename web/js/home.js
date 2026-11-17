@@ -187,13 +187,17 @@ export function Home() {
 	}
 	const has = items.length > 0;
 	const playOn = html`<div class="hm-playon"><span class="kicker">Play on</span><${DevSwitch} /></div>`;
+	// the smallest About: one dim line at the foot, the version, Source, Support (a plain link, a new tab; nothing
+	// loaded from it)
+	const ver = s.snap && s.snap.version;
+	const foot = html`<footer class="hm-foot">Banana Player${ver ? ' ' + ver : ''} · <a href="https://github.com/tonywei92/banana-player" target="_blank" rel="noopener">Source</a> · <a href="https://ko-fi.com/tonysong" target="_blank" rel="noopener">Support Banana Player</a></footer>`;
 	const head = html`<div class="phead hm-head"><div class="row"><h1>Home</h1>${has && wide && playOn}
 		${has && html`<button class="btn icon" aria-label="More about Recent" aria-haspopup="dialog" onClick=${e => openSheet('Recent', 'clock', [{ label: 'Clear Recent…', icon: 'trash', danger: true, sub: 'On the handheld too', fn: clearRecent }], { anchor: e.currentTarget, sub: plural(items.length, 'item', 'items') + ' · kept on the handheld' })}><${MoreDots} /></button>`}<${AppMenu} /></div>
 		${has && !wide && playOn}</div>`;
-	if (r && r.error) return html`<div class="page hm">${head}<${Empty} icon="alert" title="Couldn't load Home" sub=${r.error} button="Try again" onClick=${loadRecent} /></div>`;
-	if (!r) return html`<div class="page hm">${head}${slow ? html`<${Skeleton} />` : null}</div>`;
-	if (r.on === false) return html`<div class="page hm">${head}<${HistoryOff} /></div>`;
-	if (!has) return html`<div class="page hm">${head}<${Welcome} /></div>`;
+	if (r && r.error) return html`<div class="page hm">${head}<${Empty} icon="alert" title="Couldn't load Home" sub=${r.error} button="Try again" onClick=${loadRecent} />${foot}</div>`;
+	if (!r) return html`<div class="page hm">${head}${slow ? html`<${Skeleton} />` : null}${foot}</div>`;
+	if (r.on === false) return html`<div class="page hm">${head}<${HistoryOff} />${foot}</div>`;
+	if (!has) return html`<div class="page hm">${head}<${Welcome} />${foot}</div>`;
 	// the top card: what plays now (from wherever it was started, in Recent or not), and Recent below it whole; with
 	// nothing playing, the newest still there to continue, and Recent the rest
 	const nowIt = nowPath ? items.find(it => it.p === nowPath) || { p: nowPath, title: v.title, kind: v.kind === 'audio' ? 'audio' : 'video',
@@ -212,5 +216,5 @@ export function Home() {
 				: mode === 'grid' ? html`<div class="hm-grid" role="list">${shown.map(it => html`<${Card} key=${it.p} it=${it} cur=${it.p === nowPath} />`)}</div>`
 				: html`<div class="box surface listbox"><div class="flist" role="list">${shown.map(it => html`<${Row} key=${it.p} it=${it} cur=${it.p === nowPath} />`)}</div></div>`}
 			${list.length > cap && html`<div class="hm-more"><button class="btn" onClick=${() => setAll(!all)}>${all ? 'Show fewer' : 'Show all ' + list.length}</button></div>`}</section>`}
-		<${Quick} /></div>`;
+		<${Quick} />${foot}</div>`;
 }

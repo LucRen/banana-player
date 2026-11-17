@@ -723,8 +723,11 @@ namespace bp
 		void setInfoLines(const std::vector<Player::InfoRow>& rows);	// wrapped to the page
 		void openAbout(const Player& p);
 		static constexpr int INFO_Y = 70, INFO_H = 26, INFO_SHOWN = 14, INFO_VALUE_X = 190;
-		// About is a settings group, under the kit's header: rows from 100, the foot kept clear
+		// About is a settings group, under the kit's header: rows from 100, the foot kept clear for the support block
 		static constexpr int ABOUT_Y = 100, ABOUT_SHOWN = 9;
+		void drawAboutSupport();	// the line, the QR (packaging/support/kofi-qr.png) and the address: nothing pressable
+		SDL_Texture* supportTex = nullptr;	// (decoded once at the size drawn)
+		int supportPx = 0;
 
 		SDL_Texture* text(const std::string& s, int size, SDL_Color c);
 		void drawText(const std::string& s, int size, SDL_Color c, int x, int y, int maxW = 0, int align = 0);
