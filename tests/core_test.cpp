@@ -8815,6 +8815,15 @@ static void testKitLayout()
 	CHECK_EQ(ls.row(0).w, 612);
 	CHECK_EQ(listSheet(0).box.h, 11 + 54 + 8 + 30);
 	CHECK_EQ(listSheet(3, 40).rowsY, listSheet(3, 40).head.y + 40);
+	// a body's own height (the Equalizer tab): the most a sheet may be, the rows left unused
+	ListSheet eq = listSheetBody(470 - 11 - 54 - 8 - 30);
+	CHECK_EQ(eq.box.h, 470);
+	CHECK_EQ(eq.rows, 0);
+	CHECK_EQ(eq.box.y, 10);
+	CHECK_EQ(eq.head.y, 21);
+	CHECK_EQ(eq.hints.y - 8 - (eq.head.y + eq.head.h + 4), 363);	// the EQ's body, the bands 311 tall
+	CHECK_EQ(listSheetBody(0).box.h, 226);	// never shorter than a sheet may be
+	CHECK_EQ(listSheetBody(9999).box.h, 470);
 	// the scroll that keeps the cursor shown, kept inside the list
 	CHECK_EQ(listScroll(0, 0, 7, 42), 0);
 	CHECK_EQ(listScroll(6, 0, 7, 42), 0);

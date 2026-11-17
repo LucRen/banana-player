@@ -63,6 +63,9 @@ namespace bp
 			Box row(int i) const;
 		};
 		ListSheet listSheet(int rows, int header = LIST_HEAD);
+		// a sheet whose content is not rows, but a body of its own height: the song's Equalizer tab, whose bands take
+		// the full height a sheet may have (docs/redesign "music-eq"). Clamped to the sheet's 226..470.
+		ListSheet listSheetBody(int body, int header = LIST_HEAD);
 		// the first row shown so that `cursor` is one of them, the scroll kept inside the list: what LEFT / RIGHT
 		// paging and a tap leave behind
 		int listScroll(int cursor, int scroll, int shown, int n);

@@ -1153,8 +1153,15 @@ namespace bp
 			if (tab == TAB_SPEED) return (int)speedChoices().size();
 			return tab == TAB_VIZ ? VIS_SHOWN_COUNT : 0;
 		}
-		int shown(const Player& p) const { return std::min(std::max(1, count(p)), lay::LIST_ROWS); }
-		lay::ListSheet layout(const Player& p) const { return lay::listSheet(shown(p)); }
+		int shown(const Player& p) const { return std::min(std::max(1, isList() ? listCount(p) : count(p)), lay::LIST_ROWS); }
+		lay::ListSheet layout(const Player& p) const
+		{
+			// the Equalizer's main tab has no rows: its bands take the full height a sheet may have (about 470, the
+			// bands about 300 tall), not the one-row box an empty list would leave (docs/redesign "music-eq")
+			if (tab == TAB_EQ && eqMode == EQ_MAIN)
+				return lay::listSheetBody(lay::SHEET_MAX - 11 - lay::LIST_HEAD - 8 - lay::HINTS_H);
+			return lay::listSheet(shown(p));
+		}
 		// the Visualizer tab: the style grid alone, and the notice over it while the mode shows no visualizer
 		int vizBodyH(const Player& p) const { return (showHidesVisualizer(p) ? 56 + 8 : 0) + 5 * 46 + 4 * 6; }
 		lay::Sheet vizLayout(const Player& p) const { return lay::sheet({0, 0, 0, vizBodyH(p)}); }

@@ -98,19 +98,35 @@ namespace bp
 			return out;
 		}
 
+		// the boxes every list sheet shares: the grab mark, the header, the rows (or a body) and the hint bar
+		namespace
+		{
+			ListSheet listSheetOf(int rows, int header, int h)
+			{
+				ListSheet out;
+				out.rows = rows;
+				out.header = header;
+				out.box = {0, PANEL_H - h, PANEL_W, h};
+				out.grab = {PANEL_W / 2 - 22, out.box.y + 7, 44, 4};
+				out.head = {SHEET_PAD, out.box.y + 11, PANEL_W - 2 * SHEET_PAD, header};
+				out.rowsY = out.head.y + header;
+				out.hints = {0, PANEL_H - HINTS_H, PANEL_W, HINTS_H};
+				return out;
+			}
+		}
+
 		ListSheet listSheet(int rows, int header)
 		{
-			ListSheet out;
-			out.rows = std::max(0, rows);
-			out.header = std::max(0, header);
 			// the grab mark's 11, the header, the rows, 8 clear of the hint bar
-			int h = 11 + out.header + out.rows * LIST_ROW + 8 + HINTS_H;
-			out.box = {0, PANEL_H - h, PANEL_W, h};
-			out.grab = {PANEL_W / 2 - 22, out.box.y + 7, 44, 4};
-			out.head = {SHEET_PAD, out.box.y + 11, PANEL_W - 2 * SHEET_PAD, out.header};
-			out.rowsY = out.head.y + out.header;
-			out.hints = {0, PANEL_H - HINTS_H, PANEL_W, HINTS_H};
-			return out;
+			int h = 11 + std::max(0, header) + std::max(0, rows) * LIST_ROW + 8 + HINTS_H;
+			return listSheetOf(std::max(0, rows), std::max(0, header), h);
+		}
+
+		ListSheet listSheetBody(int body, int header)
+		{
+			int headerH = std::max(0, header);
+			int h = 11 + headerH + std::max(0, body) + 8 + HINTS_H;
+			return listSheetOf(0, headerH, std::clamp(h, SHEET_MIN, SHEET_MAX));
 		}
 
 		Box ListSheet::row(int i) const { return {SHEET_PAD, rowsY + i * LIST_ROW, PANEL_W - 2 * SHEET_PAD, LIST_ROW}; }
