@@ -4,6 +4,7 @@
 #include <cstring>
 #include <ctime>
 #include <fcntl.h>
+#include <initializer_list>
 #include <poll.h>
 #include <string>
 #include <unistd.h>
