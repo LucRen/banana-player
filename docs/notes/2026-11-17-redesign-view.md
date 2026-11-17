@@ -52,6 +52,6 @@ Desktop build (macOS): `cmake --build build -j` clean, `./build/core-test` ends 
 - The handheld's panel at one pixel a unit: the 12-unit header note and the 14-pixel radios are the things to look
   at first.
 - A file with many tracks (the sheet's paging and scroll mark) and a file that can't play with the sheet open.
-- **Subtitle style…** goes to Settings as `Ui::choose` did, but B there still returns to the old Tracks page
-  (`SettingsPage::styleFromSubs`), not to this sheet. Wiring that back to View is a small follow-up once the old
-  Tracks page is removed.
+- ~~**Subtitle style…** goes to Settings as `Ui::choose` did, but B there still returns to the old Tracks page
+  (`SettingsPage::styleFromSubs`), not to this sheet.~~ Fixed: `SettingsPage::menuBack` now returns to this sheet
+  on **Subtitles** (`PlayerPage::openView(0, p)`), unless the file ended while the style was open.

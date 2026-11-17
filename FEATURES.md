@@ -623,8 +623,8 @@ All three are remembered.
 Settings opens on eight tiles (seven groups, and the [Web dashboard](#web-dashboard)), two to a row: move with the D-pad (**UP/DOWN** a row, **LEFT/RIGHT** a tile),
 open one with **A** or a tap, and **B** goes back to them. In a group, **Y** goes to the group before it and **X** to
 the one after (or tap the names either side of its title), and the line above the bottom says what the setting under the
-cursor does. **Subtitle style...** at the end of the Subtitles list opens the Subtitles group; **B** there
-goes back to the list.
+cursor does. **Subtitle style...** at the end of View's Subtitles tab opens the Subtitles group; **B** there
+goes back to that sheet, on Subtitles.
 
 | Group | Setting | Default | |
 |---|---|---|---|

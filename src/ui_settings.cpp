@@ -21,6 +21,7 @@
 #include "ui_manga.h"
 #include "ui_settings.h"
 #include "ui_sound.h"
+#include "ui_player.h"
 
 namespace bp
 {
@@ -421,14 +422,16 @@ namespace bp
 	// B in START's menu on this page, taken before the menu's own B (which closes it)
 	bool Ui::SettingsPage::menuBack(Player& p)
 	{
-		// B in the subtitle style opened from the Subtitles list: back to that list
+		// B in the subtitle style opened from View › Subtitles: back to that sheet, on Subtitles (the old Tracks page
+		// is gone). The file may have ended while the style was open: then there is no sheet to go back to and the
+		// menu closes as it would from any settings row
 		if (ui.setGroup == GROUP_SUBS && styleFromSubs)
 		{
 			styleFromSubs = false;
+			if (!ui.playerShown(p) || p.playingAudio() || p.playingPhoto()) return false;
 			ui.inMenu = false;
-			ui.openTracks(TRACKS_SUBS, p);
-			ui.cursor = (int)ui.rows(p).size() - 1;	// on Subtitle style, where it was
-			ui.scroll = std::max(0, ui.cursor - ROWS_SHOWN + 1);
+			ui.page = Page::Main;
+			ui.playerPage->openView(0, p);
 			return true;
 		}
 		// B in a settings group: back to the groups
