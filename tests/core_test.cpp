@@ -8888,16 +8888,7 @@ static void testKitLayout()
 	}
 	CHECK_EQ(playerLayout(9).chips, PLAYER_CHIPS_MAX);
 
-	// the D-pad's focus: DOWN onto the Next line, UP back; the chips are touch only, so LEFT / RIGHT never move it
-	PlayerFocus f;
-	CHECK_EQ(playerFocusMove(f, Dir::Left) == f, true);	// nothing lit: LEFT is the seek's, not the focus's
-	CHECK_EQ(playerFocusMove(f, Dir::Right) == f, true);
-	CHECK_EQ(playerFocusMove(f, Dir::Up) == f, true);
-	f = playerFocusMove(f, Dir::Down);
-	CHECK_EQ(f.zone, 2);
-	CHECK_EQ(playerFocusMove(f, Dir::Right) == f, true);
-	CHECK_EQ(playerFocusMove(f, Dir::Down) == f, true);
-	CHECK_EQ(playerFocusMove(f, Dir::Up).zone, 0);
+	// the D-pad's UP / DOWN do nothing on the player (the Next line is a tap): LEFT / RIGHT are the seek's
 
 	// a chip's value for a track: the language; two in one language: what tells them apart; none: its number
 	Track en;

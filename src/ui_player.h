@@ -2,7 +2,9 @@
 // (docs/notes/ui-areas.md): its state and its handlers, drawn with the component kit (ui_kit.h) on the Rects of
 // lay::playerLayout (kitlayout.h), which its touches test too. Three tiers: the transport row (what is pressed all the
 // time), the state chips (what is set sometimes: each says its state, yellow when away from normal), and X's More
-// sheet for the rest (Lock, Screen off, Info, Stop, Like, Add to playlist, Show in folder, Play on).
+// sheet for the rest (Lock, Screen off, Info, Stop, Like, Add to playlist, Show in folder, Play on). The row under the
+// transport is Like · Playlist · List · Stop; SELECT still opens View, and UP / DOWN do nothing here (the Next line is
+// a tap).
 // A photo is this page too (Player::playingPhoto): its viewer is unchanged and still Ui's (drawPhoto, photoKey,
 // photoPointer in ui_main.cpp); the area hands it the keys, the touches and the drawing.
 // Still Ui's, because other pages use them: Like (likeNow), the play mode's label (modeLabel), the hold that
@@ -24,16 +26,13 @@ namespace bp
 		bool animating() const override { return lockHoldAt != 0 || listPulseAt != 0; }
 
 		// ---- what a finger can press: each id's Rect is rect(), which draw() and pointer() both ask ----
-		enum Touch { T_NONE = -1, T_BACK, T_MORE, T_LINE, T_PREV, T_REW, T_PLAY, T_FF, T_NEXT, T_LIKE, T_ADD, T_LIST, T_VIEW,
+		enum Touch { T_NONE = -1, T_BACK, T_MORE, T_LINE, T_PREV, T_REW, T_PLAY, T_FF, T_NEXT, T_LIKE, T_ADD, T_LIST, T_STOP,
 			T_CHIP0, T_CHIP_END = T_CHIP0 + lay::PLAYER_CHIPS_MAX, T_NEXTLINE = T_CHIP_END, T_COUNT };
 		int pressed = T_NONE;	// under the finger: it acts when the finger lifts on it
 		Rect rect(int id, const lay::PlayerLayout& l) const;	// (the touch area: wider than the key for the header's two)
 		bool usable(int id, const Player& p) const;	// not dimmed
 		bool act(int id, Player& p);	// true: leave the player
 		void dropTouch() { pressed = T_NONE; }
-
-		// ---- the D-pad's focus: DOWN onto the Next line; UP or B back to the playing keys (the chips are touch only) ----
-		lay::PlayerFocus focus;
 
 		// ---- the chips ----
 		enum ChipKind { C_SUBS, C_AUDIO, C_PICTURE, C_SPEED, C_MODE, C_SHUFFLE, C_SOUND, C_TOP };

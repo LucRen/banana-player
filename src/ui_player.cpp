@@ -66,7 +66,6 @@ namespace bp
 		if (p.source().kind == SourceKind::Playlist && !p.source().id.empty() && !p.playingPhoto())
 		{
 			ui.showSourceAfterLeave = true;
-			focus = {};
 			return true;
 		}
 		openList(listTab, p);
@@ -187,7 +186,7 @@ namespace bp
 		if (id == T_MORE) return l.moreHit;
 		if (id == T_LINE) return l.lineHit;
 		if (id >= T_PREV && id <= T_NEXT) return l.transport[id - T_PREV];
-		if (id >= T_LIKE && id <= T_VIEW) return l.keys[id - T_LIKE];
+		if (id >= T_LIKE && id <= T_STOP) return l.keys[id - T_LIKE];
 		if (id >= T_CHIP0 && id < T_CHIP0 + l.chips) return l.chip[id - T_CHIP0];
 		if (id == T_NEXTLINE) return l.next;
 		return {0, 0, 0, 0};
@@ -202,7 +201,6 @@ namespace bp
 		// a file that didn't open: only what leads elsewhere (the next file, the list, More), and Like / Add
 		case T_REW: case T_FF: return !err && p.duration > 0;
 		case T_PLAY: return !err || p.errorNet;	// (the network dropped it: Retry)
-		case T_VIEW: return !err;
 		// Like and Add work on a file that didn't open too (it's still a file)
 		case T_LIKE: case T_ADD: return ui.headerActions(p);
 		case T_NEXT:
@@ -221,7 +219,7 @@ namespace bp
 		switch (id)
 		{
 		// "<" over what plays leaves at once (it plays on behind the browser)
-		case T_BACK: focus = {}; return true;
+		case T_BACK: return true;
 		case T_MORE: openMoreSheet(); return false;
 		case T_LINE: openList(1, p); return false;
 		// a key on the screen: what its button does, whether the buttons themselves are on or not
@@ -236,7 +234,8 @@ namespace bp
 			return false;
 		case T_LIST: return listAct(p);
 		case T_NEXTLINE: openList(0, p); return false;
-		case T_VIEW: return ui.pressAnyway(Button::Select, p);
+		// Stop, the same flag the More sheet's Stop tile sets: the Session stops it everywhere, the place kept
+		case T_STOP: ui.stopPressed = true; return false;
 		default: break;
 		}
 		if (id >= T_CHIP0 && id < T_CHIP_END)
@@ -259,7 +258,6 @@ namespace bp
 		lay::PlayerLayout l = lay::playerLayout((int)chips(p).size());
 		if (pt.kind == Pointer::Down)
 		{
-			focus = {};	// (the D-pad's: a touch does not show it)
 			pressed = T_NONE;
 			// the header's keys, then the chapter line (its touch area reaches up over the title), then the bar
 			for (int id : {T_BACK, T_MORE, T_LINE})
@@ -359,11 +357,8 @@ namespace bp
 	{
 		if (p.playingPhoto())
 		{
-			focus = {};
 			if (ui.photoKey(b, p)) return false;
 		}
-		// dark: the playback keys work blind, so LEFT / RIGHT seek whatever was lit when it went dark
-		if (!ui.panel.on()) focus = {};
 		bool err = !p.error.empty();
 		// the network dropped it: A tries again, from where it stopped (the session reloads it there)
 		if (err && p.errorNet && b == Button::A)
@@ -374,21 +369,9 @@ namespace bp
 		}
 		// a file that didn't open: nothing to pause or choose (Prev, Next, the list, More, the menu and leaving still go)
 		if (err && (b == Button::A || b == Button::Select)) return false;
-		if (!p.playingPhoto())
-		{
-			// the D-pad's focus: DOWN onto the Next line, UP or B back to the playing keys; the chips are touch only,
-			// so the D-pad never lands on them. With nothing lit LEFT / RIGHT seek, as ever (UP / DOWN used to change
-			// the speed: the easiest keys to hit by mistake in a film)
-			lay::Dir dir = b == Button::Up ? lay::Dir::Up : b == Button::Down ? lay::Dir::Down : b == Button::Left ? lay::Dir::Left : lay::Dir::Right;
-			bool arrow = b == Button::Up || b == Button::Down || b == Button::Left || b == Button::Right;
-			if (b == Button::Up || b == Button::Down || (arrow && focus.zone))
-			{
-				focus = lay::playerFocusMove(focus, dir);
-				return false;
-			}
-			if (focus.zone && b == Button::B) { focus = {}; return false; }
-			if (focus.zone && b == Button::A) return listAct(p);
-		}
+		// UP / DOWN do nothing on the player: the Next line is a tap (they used to change the speed: the easiest keys
+		// to hit by mistake in a film). LEFT / RIGHT seek.
+		if (b == Button::Up || b == Button::Down) return false;
 		switch (b)
 		{
 		case Button::A:
@@ -843,7 +826,6 @@ namespace bp
 	void Ui::PlayerPage::openList(int tab, Player& p)
 	{
 		pressed = T_NONE;
-		focus = {};
 		ui.pushOverlay(std::make_unique<ListSheet>(ui, tab, p));
 	}
 
@@ -1701,7 +1683,6 @@ namespace bp
 	void Ui::PlayerPage::openView(int tab, Player& p)
 	{
 		pressed = T_NONE;
-		focus = {};
 		if (p.playingAudio()) ui.pushOverlay(std::make_unique<SongViewSheet>(ui, tab, p));
 		else ui.pushOverlay(std::make_unique<ViewSheet>(ui, tab, p));
 	}
@@ -1825,10 +1806,9 @@ namespace bp
 	std::vector<Ui::Hint> Ui::PlayerPage::hintList(const Player& p, bool chapters) const
 	{
 		if (!p.settings.buttonHotkeys) return {{"", "Button hotkeys are off: the keys on this screen do it all"}};
-		if (focus.zone == 2) return {{"A", "List"}, {"B", "Back to playing"}};
 		if (ui.pageDrives(p))
 			return {{"A", ui.pagePlaying() ? "Pause there" : "Play there"}, {"Hold A", "Play here"}, {"L/R", "Step"}, {"X", "More"}, {"B", "Back"}};
-		std::vector<Hint> out{{"LEFT/RIGHT", "Seek"}, {"DOWN", "Next line"}};
+		std::vector<Hint> out{{"LEFT/RIGHT", "Seek"}, {"SELECT", "View"}};
 		if (chapters) out.push_back({"L2/R2", "Chapter"});
 		out.push_back({"X", "More"});
 		out.push_back({"B", "Back, keeps playing"});
@@ -2010,7 +1990,7 @@ namespace bp
 			}
 		}
 
-		// ---- Like, Playlist, List, View ----
+		// ---- Like, Playlist, List, Stop ----
 		{
 			Uint32 now = SDL_GetTicks();
 			bool liked = ui.likedNow(p), added = ui.addFlashUntil && now < ui.addFlashUntil;
@@ -2026,7 +2006,9 @@ namespace bp
 				double sw = std::sin(M_PI * (now - listPulseAt) / (double)(LIST_PULSE_MS / 2));
 				keys[2].glow = sw * sw;
 			}
-			keys[3].glyph = &G_EYE; keys[3].label = "View"; keys[3].key = capOf("SELECT");
+			// Stop: the row's fourth, at the right edge, in plain ink (More's red tile stays). It stops everywhere,
+			// the place kept: no cap, since no button does it on this screen
+			keys[3].glyph = &G_STOP; keys[3].label = "Stop";
 			for (int i = 0; i < 4; i++)
 			{
 				keys[i].off = !usable(T_LIKE + i, p);
@@ -2049,7 +2031,6 @@ namespace bp
 			Kit::Line line;
 			line.label = "Next";
 			line.pressed = pressed == T_NEXTLINE;
-			line.focused = focus.zone == 2;
 			if (nx.round)
 			{
 				line.glyph = &G_SHUFFLE;
@@ -2078,11 +2059,11 @@ namespace bp
 
 	std::string Ui::PlayerPage::signature(const Player& p) const
 	{
-		// what draw() shows that Ui's own signature doesn't hold: the finger and the focus, the lock, what comes next,
+		// what draw() shows that Ui's own signature doesn't hold: the finger, the lock, what comes next,
 		// the song's tags (they arrive after its title)
 		if (p.playingPhoto()) return "";
 		NextUp nx = nextUp(p);
-		std::string sig = "|pp" + std::to_string(pressed) + "," + std::to_string(focus.zone) + "," +
+		std::string sig = "|pp" + std::to_string(pressed) + "," +
 			std::to_string(touchLocked) + "," + std::to_string(seekHeld >= 0) + "|" + nx.path + "|" + nx.note + (nx.round ? "r" : "") + (nx.any ? "a" : "") +
 			"|" + p.artist() + "|" + p.album();
 		if (touchLocked && lockHoldAt) sig += "|hold" + std::to_string((SDL_GetTicks() - lockHoldAt) / 50);

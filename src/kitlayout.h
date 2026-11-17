@@ -115,7 +115,7 @@ namespace bp
 			Box line, lineHit;	// the chapter line (a key), or a song's artist and album
 			Box bar, barHit, times;
 			Box transport[5];	// Prev, back 5 s, Play, forward 10 s, Next
-			Box keys[4];	// Like, Playlist, List, View
+			Box keys[4];	// Like, Playlist, List, Stop
 			int chips = 0;
 			Box chip[PLAYER_CHIPS_MAX];
 			Box next;	// the Next line
@@ -123,15 +123,6 @@ namespace bp
 			Box lock;	// the lock's key, while touch is locked
 		};
 		PlayerLayout playerLayout(int chips);
-		// where the D-pad's focus is: 0 the playing keys (nothing lit: LEFT / RIGHT seek), 2 the Next line. The chips
-		// are touch only, so the D-pad never lands on them
-		struct PlayerFocus
-		{
-			int zone = 0;
-			bool operator==(const PlayerFocus& o) const { return zone == o.zone; }
-		};
-		// DOWN steps onto the Next line; UP comes back; LEFT / RIGHT are not the focus's
-		PlayerFocus playerFocusMove(PlayerFocus f, Dir d);
 
 		// a chip's value for a track: its language ("English"), or "Track 2" when the file names none. Two tracks of
 		// the list in that language: what tells this one apart comes after it ("English · Commentary")

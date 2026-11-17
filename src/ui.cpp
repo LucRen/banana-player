@@ -138,7 +138,7 @@ namespace bp
 		webInputAt = SDL_GetTicks();
 		// dark (Screen off, or off by itself): over what plays, the playback keys work blind and leave it dark (play
 		// and pause, seek, next and previous, chapters, like: issue #3, watching with the bottom screen off; not UP /
-		// DOWN since they stopped being the speed: they move a focus nobody can see);
+		// DOWN, which do nothing on the player now);
 		// any other button, or anywhere else (a list: A there would open whatever the cursor is on), brings the
 		// panel back and does nothing else, as a touch does. F + START still quits, in main
 		if (!panel.on())

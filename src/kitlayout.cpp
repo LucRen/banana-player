@@ -215,13 +215,6 @@ namespace bp
 			return l;
 		}
 
-		PlayerFocus playerFocusMove(PlayerFocus f, Dir d)
-		{
-			if (d == Dir::Down) f.zone = 2;
-			else if (d == Dir::Up) f.zone = 0;
-			return f;
-		}
-
 		std::string chipTrack(const Track& t, int n, const std::vector<Track>& all)
 		{
 			std::string lang = languageName(t.lang);
