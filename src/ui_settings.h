@@ -39,9 +39,8 @@ namespace bp
 		bool settingsDown(int x, int y);
 		void openGroup(int g, Player* p = nullptr);
 		void stepGroup(int dir, Player* p = nullptr);	// to the settings group before (-1) or after (1), round
-		// a settings group's tile (Settings opens on them: two to a row, lay::settingsTile) and a row of a group
+		// a settings group's tile (Settings opens on them: two to a row, lay::settingsTile)
 		Rect groupRect(int g) const { return lay::settingsTile(groupArea(), GROUPS, 2, g); }
-		Rect rowRect(int i) const { return lay::settingsRows().row(i); }
 		bool styleFromSubs = false;	// the subtitle style opened from the Subtitles list: B goes back to it
 
 	private:

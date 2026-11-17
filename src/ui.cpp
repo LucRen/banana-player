@@ -206,8 +206,8 @@ namespace bp
 		if (b == Button::L2 || b == Button::R2)
 		{
 			if (page == Page::Settings || page == Page::Web) { area()->key(b, p); return false; }
-			// About is a settings group too (its page its own): back to its neighbours (not as the menu's tab)
-			if (page == Page::About && !inMenu)
+			// About is a settings group too (its page its own): back to its neighbours, unless it is the menu's own tab
+			if (page == Page::About && menuTab != TAB_ABOUT)
 			{
 				setGroup = GROUP_ABOUT;
 				settingsPage->stepGroup(b == Button::R2 ? 1 : -1, &p);
@@ -235,6 +235,16 @@ namespace bp
 			}
 			// B in the subtitle style opened from the Subtitles list, or in a settings group: back (SettingsPage)
 			if (b == Button::B && page == Page::Settings && settingsPage->menuBack(p)) return false;
+			// B in About opened from Settings: back to the groups' tiles, not out of the menu (the menu's own About tab
+			// still closes it)
+			if (b == Button::B && page == Page::About && menuTab != TAB_ABOUT)
+			{
+				page = Page::Settings;
+				setGroup = -1;
+				cursor = GROUP_ABOUT;
+				scroll = 0;
+				return false;
+			}
 			if (b == Button::Start || b == Button::B) { closeMenu(p); return false; }
 			if (page == Page::Exit)
 			{

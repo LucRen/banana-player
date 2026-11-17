@@ -6,6 +6,10 @@
 // flag each in press/pointer/renderPage: the browser-check message, Files' Info card and the quick settings.
 #include "ui_internal.h"
 #include "ui_manga.h"
+#include "session_host.h"
+#ifdef BP_WEB
+#include "web/server.h"
+#endif
 
 namespace bp
 {
@@ -68,6 +72,107 @@ namespace bp
 			if (!o->done) s += std::string("|") + o->name() + ":" + o->signature(p);
 		return s;
 	}
+
+	// Turning incognito on cuts off every browser signed in to the dashboard: asked once, and only then (with nobody
+	// signed in, incognito turns on at once). The safe key is Cancel (B, yellow); A turns it on. The sentence names the
+	// browsers and what a playing one loses; a dim line under it names the lid choice. The word incognito never reaches
+	// a browser (nothing here is sent; the server is stopped with the generic "off" goodbye).
+	struct Ui::IncognitoAsk : Ui::Overlay
+	{
+		explicit IncognitoAsk(Ui& u) : Overlay(u) {}
+		const char* name() const override { return "incogask"; }
+
+		int browsers() const
+		{
+#ifdef BP_WEB
+			return ui.web ? ui.web->clients() : 0;
+#else
+			return 0;
+#endif
+		}
+		std::string browserName() const
+		{
+#ifdef BP_WEB
+			if (ui.web)
+			{
+				auto tabs = ui.web->playTabs();
+				if (!tabs.empty()) return tabs.front().name;
+			}
+#endif
+			return "";
+		}
+		std::string sentence() const
+		{
+			int n = browsers();
+			std::string s = "The Web dashboard turns off while incognito is on.";
+			if (n > 0)
+			{
+				std::string name = n == 1 ? browserName() : "";
+				s += " " + std::to_string(n) + (n == 1 ? " browser is" : " browsers are") + " signed in" +
+					(name.empty() ? "" : ": " + name) + ". It can\xE2\x80\x99t reach the handheld until you leave incognito.";
+			}
+			if (SessionHost::get().pageIsOutput()) s += " What it plays stops; its place is kept.";
+			return s;
+		}
+		std::string lidLine(const Player& p) const
+		{
+			int v = p.settings.lidIncognito;
+			return std::string("Lid or sleep in incognito: ") +
+				(v == LID_INCOGNITO_NOTHING ? "nothing" : v == LID_INCOGNITO_QUIT ? "quits" : "closes all") +
+				" (Settings \xE2\x80\xBA Power & screens).";
+		}
+		Rect box() const
+		{
+			int lines = (int)ui.wrapText(sentence(), 0, 468 - 56, 4).size();
+			int h = 170 + lines * 24 + 30;
+			return {86, (H - h) / 2 - 10, 468, h};
+		}
+		Rect button(int i) const
+		{
+			Rect b = box();
+			return {b.x + 22 + i * 212, b.y + b.h - 64, 202, 46};
+		}
+		void turnOn(Player& p)
+		{
+			close();
+			ui.applyIncognito(true, p, true);
+		}
+		bool key(Button b, Player& p) override
+		{
+			if (b == Button::A) turnOn(p);
+			else if (b == Button::B) close();
+			return false;
+		}
+		bool pointer(const Pointer& pt, int x, int y, Player& p) override
+		{
+			if (pt.kind != Pointer::Up) return false;
+			if (button(0).hit(x, y)) close();
+			else if (button(1).hit(x, y)) turnOn(p);
+			else if (!box().hit(x, y)) close();
+			return false;
+		}
+		void draw(const Player& p) override
+		{
+			Rect b = box();
+			ui.drawDialog(b, "");
+			ui.drawGlyphMid(G_INCOGNITO, b.x + 40, b.y + 38, ACCENT);
+			ui.drawTextMid("Turn on incognito?", 1, TEXT, b.x + 64, b.y + 38, b.w - 88);
+			auto lines = ui.wrapText(sentence(), 0, b.w - 56, 4);
+			for (size_t i = 0; i < lines.size(); i++) ui.drawTextMid(lines[i], 0, DIM_ON, b.x + 28, b.y + 78 + (int)i * 24, b.w - 56);
+			ui.drawTextMid(lidLine(p), 0, DIM, b.x + 28, b.y + 86 + (int)lines.size() * 24, b.w - 56);
+			// Cancel is the safe key: left, yellow, B; Turn on is A
+			for (int i = 0; i < 2; i++)
+			{
+				Rect r = button(i);
+				ui.drawBox(r, i == 0 ? ACCENT : BUTTON, R_BUTTON);
+				ui.drawTextMid(i == 0 ? "Cancel" : "Turn on", 1, i == 0 ? ON_ACCENT : TEXT, r.x + r.w / 2, r.y + r.h / 2, r.w - 16, 2);
+			}
+			ui.drawHints({{"B", "Cancel"}, {"A", "Turn on"}});
+		}
+		std::string signature(const Player&) const override { return sentence() + "|" + std::to_string(ui.webClients()); }
+	};
+
+	void Ui::askIncognito() { pushOverlay(std::make_unique<IncognitoAsk>(*this)); }
 
 	// A message that needs reading: its title, up to four lines, OK. A or B or a tap anywhere closes it (nothing
 	// else, so a press meant for the page isn't lost on it).

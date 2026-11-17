@@ -693,6 +693,12 @@ one is. Tap it to open the page. When a browser signs in, a note pops up on the 
 Nothing runs while the dashboard is off. While it's on and idle it uses next to no battery, and a browser tab that's
 hidden disconnects.
 
+**Incognito:** while it's on the dashboard's server does not listen. Its switch keeps the value you set, and the server
+comes back by itself when you leave incognito, with the same PIN and the browsers still signed in. Quick settings' tile
+and Settings' tile say **Off in incognito**, and the page shows the switch at 45%, the reason, and **Leave incognito**
+(Y). A browser that was connected shows **The dashboard is off** (it is never told why) and tries again quietly; a page
+that was playing stops, its place kept on the handheld. With a browser signed in, turning incognito on asks first.
+
 ### Security
 
 - Only devices on your home network (private addresses) can connect. Nothing outside it can.
@@ -1261,7 +1267,10 @@ Press the **Menu/Function** button (F), anywhere, for a panel on the bottom scre
 - **Incognito mode** (a tick box): while it's on, nothing you play goes into Recent and nothing you read
   goes into the manga History; where you stopped a film, your reading places and read marks, playlists, Liked and
   downloads all work as usual. A hat-and-glasses mark sits beside the clock while it's on. It's never saved: off again
-  whenever Banana Player starts.
+  whenever Banana Player starts. While it's on the **Web dashboard is off** (the switch keeps its value; the server is
+  back with the same PIN and sign-ins when you leave), the globe leaves the header, and Play on isn't offered; with a
+  browser signed in, turning it on asks **Turn on incognito?** first. Its second line says what the lid or a sleep
+  does: **Lid or sleep: closes all** or **quits** (Settings › Power & screens › Lid or sleep in incognito).
 - **Quit Banana Player.**
 
 **F** again, **B** or a tap outside the panel closes it. (F with another button, like F + L2 or F + volume, does that
@@ -1295,12 +1304,19 @@ combination instead.)
   Settings meanwhile, your choice stays. After a crash the launcher puts it back; after a power loss, the next start
   does. `log.txt`: `lid: sleep off while playing…`, `lid: sleep restored`, `lid: restore skipped, changed in BananaOS
   Settings`. With BananaOS's lid sleep already off, nothing is changed and closing the lid keeps playing.
+- **Lid or sleep in incognito** (Settings › Power & screens): what happens while incognito is on when the lid closes or
+  the handheld sleeps (by the power key's 2 s hold or BananaOS's idle minutes): **Nothing**, **Close all** (the default:
+  what plays stops everywhere, a book, PDF, comic, photo and the Manga reader close, sheets close, Home shows, and
+  incognito ends; no note on waking) or **Quit** (Banana Player quits). Close all and Quit win over Keep playing; a book's
+  place and read marks are kept as Stop keeps them. With Keep playing and nothing loaded the handheld sleeps as BananaOS
+  normally does.
 - **Power key with the lid shut:** while the lid is shut with **Keep playing** and something is loaded here (playing or
   paused, not stopped), the power key is play/pause: a short press pauses or plays, as **A** does. Holding it 2 seconds
   sleeps: the player lets the key go and asks BananaOS for the sleep closing the lid would bring. With the lid open,
   nothing loaded, or **Pause** set, the power key is BananaOS's as before. After a hold's sleep it lets go until the
   wake (and is play/pause again then), so the key that wakes the handheld reaches bananad; a key bananad holds
-  exclusively stays BananaOS's too. `log.txt`: `power: … taken: lid shut…`, `power:
+  exclusively stays BananaOS's too. With incognito on, the 2 s hold does **Lid or sleep in incognito** first (Close all
+  or Quit), then sleeps. `log.txt`: `power: … taken: lid shut…`, `power:
   press: play/pause`, `power: hold: asking bananad to sleep`, `power: released (…)`.
 - **Volume keys with the lid shut:** while the lid is shut with **Keep playing** and something is loaded (playing or
   paused), the player takes the volume keys' own input device (`gpio-keys-volume`, apart from the power key and the lid

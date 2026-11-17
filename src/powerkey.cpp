@@ -74,10 +74,11 @@ namespace bp
 	}
 #endif
 
-	void PowerKey::tick(bool want, const char* why)
+	void PowerKey::tick(bool want, const char* why, int incognito)
 	{
 		if (!want && why) wantWhy = why;
 		wantGrab = want;
+		incognitoMode = incognito;
 		beat = monoMs();
 	}
 
@@ -228,9 +229,19 @@ namespace bp
 			if (fd >= 0 && holdNow)
 			{
 				// held: the sleep the power key would bring. The grab goes first, so bananad reads the key again
-				// while the handheld sleeps and the same key wakes it
+				// while the handheld sleeps and the same key wakes it. In incognito, Close all and Quit are decided
+				// before the sleep: main gets the event, closes (or quits), and asks for the sleep itself
 				held = true;
 				pressedAt = 0;
+				int incog = incognitoMode.load();
+				if (incog == 1 || incog == 2)
+				{
+					fprintf(stderr, "power: hold: incognito says %s; main decides, then sleeps\n", incog == 1 ? "close all" : "quit");
+					pushPress(incog == 1 ? SleepAfterCloseAll : SleepAfterQuit);
+					release(fd, "the 2 s hold: incognito decides first");
+					slept = true;
+					continue;
+				}
 				fprintf(stderr, "power: hold: asking bananad to sleep\n");
 				release(fd, "the 2 s hold: the sleep asked for");
 				if (!askBananadSleep()) fprintf(stderr, "power: can't ask bananad to sleep\n");

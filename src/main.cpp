@@ -72,7 +72,7 @@ namespace bp
 }
 #endif
 
-static Uint32 evMpv, evRender, evTouch, evLevel, evNet, evFound, evWeb, evDur, evCover, evAmp, evMangaLib, evUnplug, evPower, evVolKey;
+static Uint32 evMpv, evRender, evTouch, evLevel, evNet, evFound, evWeb, evDur, evCover, evAmp, evMangaLib, evUnplug, evPower, evVolKey, evLidIncognito;
 #ifdef BP_WEB
 // the dashboard's server for the sleep watch's thread (made on the main thread, never destroyed)
 static std::atomic<bp::WebServer*> webForWatch{nullptr};
@@ -311,6 +311,7 @@ int main(int argc, char** argv)
 	evUnplug = evMpv + 11;	// the headphones went (SleepWatch): a pause, if something plays here
 	evPower = evMpv + 12;	// a short press of the power key with the lid shut (PowerKey): play/pause
 	evVolKey = evMpv + 13;	// a volume key with the lid shut (VolumeKey): one step, or next / previous on a hold
+	evLidIncognito = evMpv + 14;	// the lid closed in incognito with Close all or Quit (SleepWatch): main closes or quits
 
 	// On the handheld (SDL's KMSDRM) each panel is a display and each window fills one; elsewhere, two windows
 	if (windowed < 0) windowed = strcmp(SDL_GetCurrentVideoDriver(), "KMSDRM") != 0;
@@ -596,11 +597,27 @@ int main(int argc, char** argv)
 		// When the lid closes: Keep playing (set by the main loop: the watch's thread reads it)
 		static std::atomic<bool> keepOnLid{false};
 		keepOnLid = player.settings.lidKeepPlaying;
+		// Incognito and its Lid or sleep choice, for the watch's thread: Close all and Quit are decided on the main
+		// thread (it owns the Player and the Ui), so the thread only sends the event; if the handheld sleeps before
+		// that, main finishes on waking, before the first picture is drawn
+		static std::atomic<bool> incognitoOn{false};
+		static std::atomic<int> lidIncognitoMode{0};
 		IdleSleep idleSleep;
 		SleepWatch sleepWatch;
 		sleepWatch.start([&player, &photos](bool lid) {
 			// Keep playing: the lid shut is only the panels going dark (BananaOS's lid sleep is off while it plays,
 			// LidGuard). If the handheld sleeps after all, the SIGCONT after it pauses as always
+			if (lid && incognitoOn.load() && lidIncognitoMode.load() != LID_INCOGNITO_NOTHING)
+			{
+				// Close all / Quit win over Keep playing: main does it (and asks for the sleep when it is its own)
+				SDL_Event ev{};
+				ev.type = evLidIncognito;
+				ev.user.code = lidIncognitoMode.load();
+				SDL_PushEvent(&ev);
+				fprintf(stderr, "incognito: the lid closed: %s (decided on the main thread)\n",
+					lidIncognitoMode.load() == LID_INCOGNITO_QUIT ? "quit" : "close all");
+				return;
+			}
 			if (lid && keepOnLid.load())
 			{
 				fprintf(stderr, "lid: closed, keeps playing\n");
@@ -870,8 +887,11 @@ int main(int argc, char** argv)
 				bool keep = player.settings.lidKeepPlaying;
 				bool shut = sleepWatch.lidClosed();
 				const char* why = !keep ? "Keep playing is off" : !shut ? "the lid opened" : "nothing is loaded";
-				powerKey.tick(keep && shut && player.playing(), why);
+				powerKey.tick(keep && shut && player.playing(), why,
+					ui.incognitoOn() ? player.settings.lidIncognito : LID_INCOGNITO_NOTHING);
 				volumeKey.tick(keep && shut && player.playing(), why);
+				incognitoOn = ui.incognitoOn();
+				lidIncognitoMode = player.settings.lidIncognito;
 			}
 			// Under the lid nothing but the volume keys, Power and the shoulder keys (by their setting) does anything:
 			// the face keys, the D-pad, START, SELECT, F, the stick and the touch screen are ignored while the lid is
@@ -1089,12 +1109,45 @@ int main(int argc, char** argv)
 					fprintf(stderr, "audio: the speaker amplifier %s didn't start\n", chip ? chip->c_str() : "?");
 					if (!ampReloadAt) ampReloadAt = SDL_GetTicks() + 600;
 				}
+				else if (e.type == evLidIncognito)
+				{
+					// the lid closed in incognito with Close all or Quit: decided first, then the lid does what it does
+					if (e.user.code == LID_INCOGNITO_QUIT)
+					{
+						fprintf(stderr, "incognito: the lid closed: quitting\n");
+						running = false;
+					}
+					else
+					{
+						fprintf(stderr, "incognito: the lid closed: close all\n");
+						closePhoto(false);
+						if (haveUi) ui.incognitoCloseAllNow(player);
+					}
+				}
 				else if (e.type == evPower)
 				{
+					int holdMode = e.user.code;
+					if (holdMode == PowerKey::SleepAfterCloseAll || holdMode == PowerKey::SleepAfterQuit)
+					{
+						// a 2 s hold in incognito: Close all / Quit first, then the sleep the hold asked for
+						if (holdMode == PowerKey::SleepAfterQuit)
+						{
+							fprintf(stderr, "incognito: power hold: quitting, then sleeping\n");
+							running = false;
+							askBananadSleep();
+						}
+						else
+						{
+							fprintf(stderr, "incognito: power hold: close all, then sleeping\n");
+							closePhoto(false);
+							if (haveUi) ui.incognitoCloseAllNow(player);
+							askBananadSleep();
+						}
+					}
 					// the power key with the lid shut, let go before 2 s: play/pause, the same Session path A takes (its
 					// Play/Pause, then mpv). A page that plays it is taken over here, as A does. The conditions are
 					// checked again: a press queued as they ended (the lid opening) does nothing
-					if (player.playing() && player.settings.lidKeepPlaying && sleepWatch.lidClosed())
+					else if (player.playing() && player.settings.lidKeepPlaying && sleepWatch.lidClosed())
 					{
 						if (SessionHost::get().pageIsOutput())
 						{
@@ -1760,7 +1813,13 @@ int main(int argc, char** argv)
 					h.browserOut = webServer && webServer->running() && ui.pageIsOut() && ui.pagePlaying();
 					h.webActive = webServer && webServer->running() && webServer->activeWithin(120000);
 #endif
-					idleSleep.tick(now, h);
+					idleSleep.tick(now, h, [&] {
+						// incognito decides first, just before the sleep the player asks for
+						if (!ui.incognitoOn()) return;
+						int mode = player.settings.lidIncognito;
+						if (mode == LID_INCOGNITO_CLOSE_ALL) { closePhoto(false); ui.incognitoCloseAllNow(player); }
+						else if (mode == LID_INCOGNITO_QUIT) { fprintf(stderr, "incognito: idle sleep: quitting\n"); running = false; }
+					});
 				}
 			}
 			// When the lid closes: Keep playing. BananaOS's lid sleep off while something plays here, back after; and the

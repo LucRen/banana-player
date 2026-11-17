@@ -847,6 +847,10 @@ namespace bp
 		const std::vector<BrowseRoot>& places() const { return roots; }
 		// main's lid-shut keys (docs/redesign/lid-and-incognito.md): the chapter before / after, on what plays
 		void chapterStepForLid(int dir, Player& p) { chapterStep(dir, p); }
+		// incognito, for main's lid, power-hold and idle-sleep rules (the quick settings and the page use the methods)
+		bool incognitoOn() const { return incognito; }
+		void incognitoSet(bool on, Player& p, bool note = true) { setIncognito(on, p, note); }
+		void incognitoCloseAllNow(Player& p) { incognitoCloseAll(p); }
 	private:
 
 		static constexpr int ROW_Y = 84, ROW_H = 48, ROWS_SHOWN = 7;	// 7 rows end at 420, above the hints (and the mini bar)
@@ -1025,6 +1029,9 @@ namespace bp
 		// browser is signed in), turning it off starts it again when its switch says on. note: the "Incognito on/off"
 		// note (false: none, as closing everything and a sleep say nothing)
 		void setIncognito(bool on, Player& p, bool note = true);
+		void askIncognito();	// the confirm sheet (a browser is signed in) then applyIncognito on A
+		// the change itself, after the ask (public for the ask sheet, which is nested)
+		void applyIncognito(bool on, Player& p, bool note);
 		// Close all, at the lid or a sleep: Stop, a book/photo/comic/the Manga reader and sheets close, Home shows,
 		// incognito ends. main closes its photo viewer before calling this (the photo is another player)
 		void incognitoCloseAll(Player& p);
