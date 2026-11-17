@@ -6,6 +6,7 @@
 #include "resume.h"
 #include "settings.h"
 #include "tracks.h"
+#include "vizlite.h"
 #include <mpv/client.h>
 #include <mpv/render_gl.h>
 #include <map>
@@ -224,6 +225,18 @@ namespace bp
 		// back to no file (the browser): the place kept first
 		void stop();
 		bool playing() const { return !playlist.empty(); }
+		// A song's Lite style (VIS_LITE): the player itself draws it on the top panel, from one astats tap in the af
+		// chain (no lavfi-complex graph, no video frames). liteShown says the top panel is to draw it now (the song is
+		// loaded, the display shows a visualizer, and no reader covers the panel); the rest is what it draws.
+		bool liteShown() const;
+		bool liteOverArt() const;
+		double liteLevel() const { return lite.level; }
+		double liteRecent(int back) const { return lite.recent(back); }
+		double liteBassLevel() const { return liteBass.level; }
+		double liteBassRecent(int back) const { return liteBass.recent(back); }
+		uint64_t liteBeats() const { return liteBass.beats; }	// the bass's kicks: the beat the glow follows
+		bool liteSilent() const { return lite.silent; }
+		LiteMeter lite, liteBass;	// the tap's readings (src/vizlite.h): the whole sound, and its bass
 		std::string currentPath() const { return playlist.empty() ? "" : playlist[current]; }
 		// the files it plays from, in their order (index(): the one playing)
 		const std::vector<std::string>& paths() const { return playlist; }
@@ -385,10 +398,12 @@ namespace bp
 		std::string eqPart() const;	// the EQ's entry for this file ("" off, flat, or not a song)
 		std::string fxPart();		// the effect's, its impulse response written first ("" none)
 		std::string afWant() { return joinAf(eqPart(), fxPart()); }
-		// a song's af: its input entry (@bpin, bpcore's afInputFilter), then the EQ's and the effect's; a video's none
+		// a song's af: its input entry (@bpin, bpcore's afInputFilter), then Lite's meter while that style is chosen,
+		// then the EQ's and the effect's; a video's none
 		std::string joinAf(const std::string& eq, const std::string& fx) const
 		{
 			std::string s = isAudio ? afInputFilter() : "";
+			if (isAudio && settings.visualizer == VIS_LITE) s += "," + liteTapFilter();
 			for (const std::string* p : {&eq, &fx})
 				if (!p->empty()) s += (s.empty() ? "" : ",") + *p;
 			return s;

@@ -107,7 +107,7 @@ namespace bp
 		static const char* STYLE_NAMES[VISUALIZERS] = {"Bars", "Waves", "Spectrum", "Circle", "Peaks", "Peaks", "Pocket",
 			"Hi-fi LED", "Synth", "Bananas", "Night city", "Scope", "Pulse", "Campfire", "Aurora", "Garden", "Turntable",
 			"Sea", "Bunnies", "Boba", "Jellyfish", "Music box", "Fishbowl", "Disco", "Dancer", "Cat",
-			"Popcorn", "Jelly", "Tube man", "Long cat", "Washer"};
+			"Popcorn", "Jelly", "Tube man", "Long cat", "Washer", "Lite"};
 		drawDialog({32, DISPLAY_BOX_Y, 576, DISPLAY_BOX_H}, "Display");
 		// (the style the arrows rest on is the one lit, before it's applied)
 		int show = std::clamp(p.settings.musicShow, 0, SHOWS - 1), vis = std::clamp(displayPending >= 0 ? displayPending : p.settings.visualizer, 0, VISUALIZERS - 1);
@@ -136,7 +136,8 @@ namespace bp
 		}
 		const char* help = show == SHOW_ART ? "The style shows with Art + viz or Visualizer"
 			: show == SHOW_BOTH ? (vis == VIS_CIRCLE ? "Bars round a ring, the art inside it" : "The visualizer over the bottom of the art")
-			: show == SHOW_VIS ? (vis == VIS_PEAKS || vis == VIS_PEAKS_BANANA ? "Bars with caps that hold their highest and fall back"
+			: show == SHOW_VIS ? (vis == VIS_LITE ? "The cheapest: a glow and a few bars, drawn without video frames from mpv"
+				: vis == VIS_PEAKS || vis == VIS_PEAKS_BANANA ? "Bars with caps that hold their highest and fall back"
 				: vis == VIS_POCKET ? "Peaks on an old handheld's screen: four greens, chunky dots"
 				: vis == VIS_LED ? "An old stereo's meter: green, yellow, then red, a peak that holds"
 				: vis == VIS_SYNTHWAVE ? "Neon bars on a glowing grid under a striped sunset"

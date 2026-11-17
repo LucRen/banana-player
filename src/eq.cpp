@@ -159,6 +159,19 @@ namespace bp
 
 	std::string afInputFilter() { return "@bpin:lavfi=[aformat=sample_rates=44100|48000]"; }
 
+	std::string liteTapFilter()
+	{
+		// 1024 samples: ~47 readings a second at 48 kHz, short enough that a kick is seen as it happens. A lowpass
+		// copy (the bass, 150 Hz) is joined beside the untouched sound as a 4.0 picture's front centre and back centre
+		// only long enough for astats to measure each channel (the bass on channels 3 and 4), then pan drops it: what
+		// goes on to the EQ and the effect is the sound as it came, sample for sample. Per-channel figures are just
+		// those four; the overall ones are the whole sound
+		return "@bplite:lavfi=[aformat=channel_layouts=stereo,asetnsamples=n=1024:p=0,asplit=2[lmain][llow];"
+			   "[llow]lowpass=f=150[lbase];[lmain][lbase]join=inputs=2:channel_layout=4.0:map=0.0-FL|0.1-FR|1.0-FC|1.1-BC,"
+			   "astats=metadata=1:reset=1:measure_perchannel=RMS_level+Peak_level:measure_overall=RMS_level+Peak_level,"
+			   "pan=stereo|c0=c0|c1=c1]";
+	}
+
 	std::string eqFilterString(const EqGains& g)
 	{
 		if (eqFlat(g)) return "";
