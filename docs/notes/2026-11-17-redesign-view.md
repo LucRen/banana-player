@@ -29,8 +29,8 @@ is a new feature, out of this step).
   A tap on a tab or a row acts on the lift (slide off to cancel). Touch is ignored while the player's lock is on,
   as for the List and More sheets.
 - **Where it opens**: SELECT on a video (the tab last used); the Subtitles / Audio / Picture chips open their tab;
-  the Speed chip opens Speed. A song's SELECT is still the Display popup and its Sound chip the Sound page, so a
-  song's Speed chip still steps round the choices — music is unchanged.
+  the Speed chip opens Speed. A song opens `SongViewSheet` instead (Display, Equalizer, Effects, Speed: see
+  `2026-11-17-redesign-rest.md`); its Sound chip opens Equalizer, Top screen Display and Speed Speed.
 
 ## The pieces added for it
 
@@ -45,10 +45,9 @@ Desktop build (macOS): `cmake --build build -j` clean, `./build/core-test` ends 
 
 ## Not verified
 
-- **No scripted run and no screenshots**: this session's `opencode.json` allows only `cmake`, `./build/core-test`,
-  `ls`, `cat`, `head`, `tail`, `wc`, `grep`, `sed -n`, `unzip -l`, `od`, `xxd`, `file` and `git status` / `diff` /
-  `log` in the shell. `ffmpeg`, making the scratch media and `./build/banana-player --press ...` are refused, so the
-  four tabs were not seen on a panel, and nothing could be committed (`git add` / `commit` are refused too).
+- ~~No scripted run and no screenshots.~~ Driven and photographed on 2026-11-17: Subtitles, Audio, Picture and
+  Speed, the style row's way to Settings and B's way back (`redesign-shots/rest/vview-bottom.png`,
+  `viewback-bottom.png`).
 - The handheld's panel at one pixel a unit: the 12-unit header note and the 14-pixel radios are the things to look
   at first.
 - A file with many tracks (the sheet's paging and scroll mark) and a file that can't play with the sheet open.

@@ -80,7 +80,7 @@ Moved out of `CLAUDE.md`, which keeps the one-line rules and the map; the reason
   `video-out-params` of the last file (or the idle window) can't tell.
 - **Chapters** come by `observe_property` (`chapter-list`, `chapter`), as the track list does; `chapterTarget` in bpcore
   computes each L2/R2 jump, a pending chapter covers quick repeated presses, and the L2/R2 card shares `osd-overlay` id 2 with the volume card.
-- **`Ui`** is the whole bottom panel (its definitions are split over `src/ui*.cpp` by area: see "Where things live" below): pages (Main (the player, `PlayerPage`: its SELECT is the View sheet, `ViewSheet`, with tabs Subtitles, Audio, Picture and Speed), Tracks (the old page, still Settings' way back to the Subtitles list; tabs Chapters, Subtitles, Audio, Picture (Fit/Fill/Stretch): `tracksTabs()`; the Chapters tab is `Page::Chapters`), Up next (`Page::UpNext`: the Session's queue, `upNextList`; a row is a `PlayRequest` of that list), Settings, Browse, Info, About, Exit, Sound (Equalizer & Effects tabs)), START's tabbed
+- **`Ui`** is the whole bottom panel (its definitions are split over `src/ui*.cpp` by area: see "Where things live" below): pages (Main (the player, `PlayerPage`: its SELECT is the View sheet, `ViewSheet` for a video (Subtitles, Audio, Picture, Speed) and `SongViewSheet` for a song (Display, Equalizer, Effects, Speed)), Settings, Browse, Info, About, Exit, Sound (Equalizer & Effects tabs, Settings' way in)), START's tabbed
   menu (`inMenu`: Playing (`Page::Playing`, while a song or video plays: Like, Add to playlist…; `menuTabs`), Settings, About; no Quit: quick settings and F + START quit), the Options menu (X), Lock, Screen off. The browser's first page is **Home**
   (`browseDir` `HOMEDIR`, `drawHome`, `homeKey`, `homePointer`): the Recent strip (`recent`, built by `listRecent` from the
   history and resume.tsv's positions and `#duration` lines; cards `CARD_W` wide, `STRIDE` apart, the focused one kept in
@@ -223,7 +223,7 @@ Ui (class declared in `src/ui.h`; file-static names shared by the files are in `
 | `ui_overlay.cpp` | the overlay stack (`Ui::Overlay`: a dialog or sheet as one nested struct that gets the keys, the touches, its drawing and its part of `signature()` from the stack; docs/notes/overlay-stack.md) and the message dialog (`alert`). `ui_light.cpp`: the readers' Brightness sheet, an overlay |
 | `ui_docs.h`, `ui_docs.cpp` | Files' document viewers, an **area** (`Ui::Docs : Ui::Area`): the text viewer (`Page::DocText`) and the PDF/comic viewer (`Page::DocPages`) with all their state (places, bookmarks, Find, the menus, the channel to main's `TextReader`). An area is a struct nested in `Ui`, in its own header, that `press`, `pointer`, `tick`, `renderPage`, `signature` and `animating` send its pages to (`Ui::area()`); a feature inside one touches its two files, not `ui.h` (docs/notes/ui-areas.md) |
 | `ui_slider.cpp` | the sliders (`slideGrab`, `slideFollow`, `drawSlider`; the arithmetic in `slider.h`, bpcore's side): every bar a finger moves is grabbed through it and kept until the finger lifts (docs/notes/sliders.md) |
-| `ui_menus.cpp` | rows/`choose`, START menu tabs, Tracks/Chapters pages (`openTracks`, `drawChapters`), Up next (`openUpNext`, `drawUpNext`), quick settings (F), update popup, the browse Options menu's drawing, Exit/About/Info, Like, Playing tab, `volumeLevel` |
+| `ui_menus.cpp` | rows/`choose`, START menu tabs, the List sheet's Up next and chapters lists (`upNextList`, `playUpNext`, `chapterStep`), quick settings (F), update popup, the browse Options menu's drawing, Exit/About/Info, Like, Playing tab, `volumeLevel` |
 | `ui_browse.cpp` | the file list: `enterFolder`, `netListed`, sections/tabs, Options menu items (`openBrowseMenu`, `chooseBrowseMenu`), `drawTracks` (the list), `folderChanged` |
 | `ui_forms.cpp` | connection form, found servers, the on-screen keyboard |
 | `ui_playlists.cpp` | the Playlists pages, select/move/drag, picker, add, their drawing, edits from the web |
@@ -231,7 +231,7 @@ Ui (class declared in `src/ui.h`; file-static names shared by the files are in `
 | `ui_main.cpp` | photo view (`drawPhoto`, `drawLeave`), predicted position, `musicKey`, `buttonRect` |
 | `ui_player.cpp` | the playing screen (`Ui::PlayerPage`, the area for `Page::Main`): transport, chips, the Next line, its More list, Play on's sheet, the List sheet (`ListSheet`), the View sheet (`ViewSheet`), the lock |
 | `ui_kit.cpp`, `ui_more.cpp` | the redesign's component kit (`Ui::Kit`: caps, keys, chips, line keys, the bar, sheets, rows) and the More sheet overlay; layout maths in `kitlayout.cpp` (bpcore) |
-| `ui_sound.cpp` | the Display popup, the Sound page (Equalizer, Effects) |
+| `ui_sound.cpp` | the Sound page (Equalizer, Effects); a song's View sheet calls its actions |
 | `ui_web.cpp` | the Web dashboard page and the header's globe |
 | `ui_home.cpp` | Home: the Recent strip, tiles, section header; what plays behind the browser: the mini bar, the playing row's chip |
 

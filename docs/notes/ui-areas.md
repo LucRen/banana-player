@@ -220,12 +220,12 @@ Custom, the effect cursor, `closeSound`'s way back to Settings or Home. 56 lines
   `sound->eqNameSubmit/eqNameNote` (the keyboard, `ui_forms.cpp`), `sound->dialogOpen()` (the mini bar is not under a
   dialog), `sound->tabRect(t)` (`buttonRect`), `sound->eqPick/eqToggle/fxChoose/eqCustom/stashOn` (the dashboard's
   `/api/eq`, `/api/fx`, `web/api_player.cpp`).
-- **Stayed `Ui`'s**: the **Display popup** (SELECT over a song's page, `page == Main`: `displayOpen`, its chips, its
-  keys), still in `ui_sound.cpp`; the equalizer's touch ids (`SOUND_TAB0`, `EQ_*`, `DLG_ROW`, `FX_ROW`, which
-  `buttonRect` and `act` share with the grid), the slider (`ui.slideGrab(SL_EQ…)` and `slide`), `eqWebDirtyAt` (the
-  dashboard writes it, `tick` commits the curve a second later), the keyboard's `EQ_NAME` field. The signature's `|snd`
-  term split in two: the area's (tab, band, cursor, dialogs, list, preset serial, stash, slider held) and Ui's `|dsp`
-  for the Display popup. Key repeat and L2/R2 are page lists in `Ui::repeats`/`press` and did not change.
+- **Stayed `Ui`'s**: the equalizer's touch ids (`SOUND_TAB0`, `EQ_*`, `DLG_ROW`, `FX_ROW`, which `buttonRect` and
+  `act` share with the grid), the slider (`ui.slideGrab(SL_EQ…)` and `slide`), `eqWebDirtyAt` (the dashboard writes
+  it, `tick` commits the curve a second later), the keyboard's `EQ_NAME` field. The signature's `|snd` term is the
+  area's (tab, band, cursor, dialogs, list, preset serial, stash, slider held); the Display popup's `|dsp` went with
+  the popup (`61c4ba1`: View's Display tab). Key repeat and L2/R2 are page lists in `Ui::repeats`/`press` and did not
+  change.
 
 ### Web (`src/ui_web.h`, `src/ui_web.cpp`)
 

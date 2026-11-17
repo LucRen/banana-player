@@ -166,8 +166,8 @@ see "What moved".)
 
 **Don't fit as they are**
 
-- **Shown by a condition, not opened**: the update popup (`popupShown(p)`), the Display popup (`displayOpen &&
-  displayShown(p)`), Play on (`playOnOpen && inMenu && page == Page::Playing && …`). Their "open" is recomputed from the
+- **Shown by a condition, not opened**: the update popup (`popupShown(p)`), Play on (`playOnOpen && inMenu && page ==
+  Page::Playing && …`). Their "open" is recomputed from the
   player's state on every press. The stack would need one more hook, `virtual bool alive(const Player&) const { return
   true; }`, asked before input, drawing and the signature (false: dropped). Small, but not added now: nothing
   converted needs it. The update popup is better left a condition.
@@ -176,6 +176,6 @@ see "What moved".)
 - **Not modal**: the extension notice (`drawExtNotice`), the clip bar (`clipPointer` takes only its own touches), the
   mini bar, the level card. An overlay takes all input; these are parts of the page.
 - **Key repeat**: `Ui::repeats` decides by page which held buttons repeat, and knows nothing of overlays (it didn't
-  know of the sheet before either: unchanged). A dialog that must not repeat (as the Display popup, "a held key would
-  spin the chips round") needs `repeats` to ask the top overlay: one more optional hook when the first such dialog
-  moves.
+  know of the sheet before either: unchanged). A dialog that must not repeat (a held key would spin a list round)
+  needs `repeats` to ask the top overlay: one more optional hook when the first such dialog moves. (The Display
+  popup's case went with the popup, now View's Display tab.)

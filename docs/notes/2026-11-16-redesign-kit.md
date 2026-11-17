@@ -83,13 +83,14 @@ and `pointer()` ask it.** `PlayerPage::rect(id, layout)` is the only place an id
   line under the label). The timing stayed `Ui`'s (`playHoldAt`: the mini bar's play mark holds the same way).
 - The **lock** is the area's flag and `Kit::lock`'s drawing, not an overlay: an overlay takes the keys, and locked
   the buttons must go on working.
-- The **header** is drawn by the area from `Kit::iconKey` and Ui's own status marks (`drawBattery`, asked to end
-  left of the More key). A `Kit::header` (title, crumb, back, More, a right slot) is the first thing the next screen
-  should add: every redesigned page has one.
+- The **header** is `Kit::header` (title, crumb, back, More, a right slot): the area fills it and its right slot is a
+  lambda that draws Ui's status marks (`drawBattery` and the place in the list) and returns their left edge, so the
+  crumb ends before them. Every redesigned page uses it.
 
 ## Not in the kit yet (components.md names them)
 
-Section rail, the header with a title and badges, the mini bar's pills, filter chips used as filters, the settings
+Section rail, the header's badges (the title, crumb and right slot are `Kit::header` now), the mini bar's pills,
+filter chips used as filters, the settings
 row's stepper, form rows, alert / confirm / busy sheets (today's `alert()` and dialogs still draw the centred box),
 tiles with a summary, cover cells, cards, the empty state, the notice row, the top screen's cards. `Kit::bar`, `pill`,
 `toggle`, `row`'s chevron and switch, `tabs` and `segment` are written and drawn by Play on's sheet or the List sheet:
@@ -103,13 +104,13 @@ checked by eye only where a screen uses them.
 - **Keys:** A play / pause (hold: take over from a browser); LEFT / RIGHT 5 s back / 10 s forward; L / R previous /
   next; L2 / R2 chapters; DOWN onto the chips, then the Next line, UP or B back; X More; Y the list; SELECT the view;
   L3 Like; START the menu; B back (it keeps playing).
-- **Still today's pages**, until their sheets are built: SELECT opens **View**'s sheet (a video: Subtitles, Audio,
-  Picture, Speed; a song: the Display popup), the Subtitles / Audio / Picture chips open their View tab and Speed its
-  Speed tab, Sound opens the Sound page, START opens the menu with its Playing tab. Y opens the List sheet (or a
-  playlist's own page).
-- **Left for its own step:** a song's View (Display, Equalizer, Effects, Speed) is still the Display popup and the
-  Sound page; its Speed chip therefore still steps round the five choices. Adjust and the picture looks are new
-  features, not built; a video's Repeat chip opens the List sheet on its last tab.
+- **SELECT · View**, one sheet for either: a video's Subtitles, Audio, Picture, Speed; a song's Display (the Show mode
+  and the visualizer's style), Equalizer, Effects, Speed. The track chips open their tab, Sound opens Equalizer, Top
+  screen Display, Speed Speed. Y opens the List sheet (or a playlist's own page); START the menu with its Playing tab.
+  The old Tracks page and Display popup are gone, and so are the Chapters and Up next pages the List sheet replaced.
+  Adjust and the picture looks are new features, not built; a video's Repeat chip opens the List sheet.
+- **The header** is `Kit::header` (back, crumb, place, status marks, More, title and state): every next page says a
+  title and a crumb through it.
 - **The photo viewer** is `Page::Main` too and was not redesigned in this step: `PlayerPage` hands its keys, touches
   and drawing to Ui's `photoKey`, `photoDown`, `drawPhoto` (ui_main.cpp).
 
@@ -121,7 +122,8 @@ Desktop build (macOS), `core-test` and `manga-test` pass. Scripted runs (`--pres
 
 - a video: playing, paused, a chapter jumped (L2 / R2), the bar dragged, Next, the list, Info, Screen off (A pauses
   blind, X wakes it), Stop from More; the chips by touch and by DOWN / LEFT / RIGHT / A; the Next line by DOWN and A;
-- a song: the same, Like by L3 and from More, the Sound page and the Display popup from their chips and from View;
+- a song: the same, Like by L3 and from More; the Display popup and the Sound page from their chips and from View
+  (since `61c4ba1`: View's Display, Equalizer, Effects and Speed tabs, `2026-11-17-redesign-rest.md`);
 - the lock: from More, a tap on a dimmed key (nothing), the hold on the lock (its bar filling), unlocked; More
   opened by X while locked (touch ignored), A on Unlock touch;
 - a file that can't play: the keys that still work, the rest at 45%;
@@ -142,10 +144,9 @@ Desktop build (macOS), `core-test` and `manga-test` pass. Scripted runs (`--pres
 
 ## Handover (2026-11-16): where it stopped, and the steps left
 
-Stopped at a clean point by the owner's word. Everything in steps 1-5 below is committed on `redesign`, builds, and
-`core-test` / `manga-test` pass. Step B's video part (item 6) is finished in the working tree; this session's
-`opencode.json` allows only `git status` / `diff` / `log`, so `git add` and `git commit` were refused and the owner
-has to make that commit.
+**All of steps A, B and C below are done** (2026-11-17). Everything is committed on `redesign`, builds, and
+`core-test` / `manga-test` pass. What is left is in `2026-11-17-redesign-rest.md` ("Left for later"): the photo screen,
+Adjust and the picture looks (new features), and what no scripted run could reach.
 
 ### Done (commits on `redesign`, oldest first)
 
@@ -154,15 +155,20 @@ has to make that commit.
    theme tokens, fonts and glyphs, the old `drawMain` and its ids removed, FEATURES.md.
 3. `363fd99` this note, ui-areas.md, architecture.md, CLAUDE.md.
 4. `ecb11b6` a dimmed Next still answers a tap.
-5. Step A of the list below: Y · List as a sheet (the tabs, the Shuffle switch and Repeat choice, Chapters beside Up
-   next), with `2026-11-16-redesign-list.md` for what it is and what was checked.
-6. Step B's video part (finished here, left for the owner to commit): SELECT · View as a sheet over the player —
-   Subtitles / Audio / Picture / Speed, radio rows, Speed set at once; the track chips open its tabs and a video's
-   Speed chip opens Speed. See `2026-11-17-redesign-view.md`.
+5. `26c36b9` Step A: Y · List as a sheet (the tabs, the Shuffle switch and Repeat choice, Chapters beside Up next),
+   with `2026-11-16-redesign-list.md`.
+6. `236637b` + `761474b` Step B's video part: SELECT · View as a sheet over the player — Subtitles / Audio / Picture /
+   Speed, radio rows, Speed set at once; the track chips open its tabs and a video's Speed chip opens Speed. See
+   `2026-11-17-redesign-view.md`. (`761474b` is the header declaration and the speed test the first commit left out.)
+7. `15ab0bd` Step B's follow-up: B in the subtitle style returns to View on Subtitles (`SettingsPage::menuBack`).
+8. `61c4ba1` Step B for songs: View's Display, Equalizer, Effects and Speed tabs; the Display popup, the old Tracks
+   page and the unreachable Chapters / Up next pages removed. Sound chip → Equalizer, Top screen → Display, Speed →
+   Speed. See `2026-11-17-redesign-rest.md`.
+9. `02706ca` Step C: `Kit::header` in `PlayerPage::draw`; the "Handheld only" chips while a page plays it; the Next
+   line's length; drag-to-scroll in the List and View sheets.
 
-Of the brief's scope: the kit (1) and the player screen with X › More (2) are whole, and so are step A (the List
-sheet) and the video's half of step B (the View sheet). A song's View is still the Display popup and the Sound page;
-Adjust and picture looks were not in this step.
+Of the brief's scope: the kit and the player screen (X › More) are whole; so are the List sheet, both View sheets,
+the header, and the smaller step C items. Adjust and picture looks were never in this step.
 
 ### Build and check
 
@@ -262,26 +268,24 @@ off; the songs must be longer than 30 s).
    Shuffle (the mock-up).
 5. Shots: both tabs, 42 chapters (a generated ffmetadata), a long name, Shuffle on, each Repeat.
 
-**B. SELECT · View as a sheet** (`video-view`, `video-speed`, `video-picture`, `music-view`, `music-eq`).
-1. **Done for a video: see `2026-11-17-redesign-view.md`.** `struct Ui::ViewSheet : Ui::Overlay`, tabs Subtitles /
-   Audio / Picture / Speed (rows from `ui.rows(p)` per `tracksTab`: `Ui::choose` has each row's action; a track is
-   chosen by id, `chooseTrack`), radio rows (`Kit::Row::radio`, `G_RADIO` / `G_RADIO_ON`). Speed: five rows from
-   `format.h`'s `speedChoices()`, `p.setSpeed` + the osd. A song keeps today's popup and Sound page (and its Speed
-   chip still steps).
-2. **Done for a video**: SELECT opens it on the tab last used; the track chips open their tab and the Speed chip opens
-   Speed.
-3. Left: a song's View (Display, Equalizer, Effects, Speed) is the Display popup and the Sound page moved into tabs:
-   larger; leave the song on today's popup and page until then.
+**B. SELECT · View as a sheet** (`video-view`, `video-speed`, `video-picture`, `music-view`, `music-eq`). **Done.**
+1. **Video: `2026-11-17-redesign-view.md`.** `struct Ui::ViewSheet : Ui::Overlay`, tabs Subtitles / Audio / Picture /
+   Speed (rows from `ui.rows(p)` per `tracksTab`: `Ui::choose` has each row's action; a track is chosen by id,
+   `chooseTrack`), radio rows (`Kit::Row::radio`, `G_RADIO` / `G_RADIO_ON`). Speed: five rows from `format.h`'s
+   `speedChoices()`, `p.setSpeed` + the osd.
+2. **Video**: SELECT opens it on the tab last used; the track chips open their tab and the Speed chip opens Speed.
+3. **Song: `2026-11-17-redesign-rest.md`.** `SongViewSheet` with Display, Equalizer, Effects and Speed: the Display
+   popup's Show modes and styles, the Sound page's bands and effects (its own actions), and the same five speeds.
+   The old Tracks page and Display popup are removed; the Sound page stays for Settings.
 4. "Adjust" and picture looks in the mock-ups are new features, not in this scope.
 
-**C. Smaller, independent.**
-- `Kit::header(title, crumb, back, more, right slot)` and use it in `PlayerPage::draw` (today drawn by hand there).
+**C. Smaller, independent.** **Done.**
+- `Kit::header(title, crumb, back, more, right slot)` and use it in `PlayerPage::draw` (it was drawn by hand there).
 - Browser output on the panel, per `browser-play`: dim the Sound / Top screen (and a video's Picture) chips with
   "Handheld only" as the value while `ui.predicting(p)`: `chips()` sets `look.off` and the value; `chipAct` then says
-  "Plays on the handheld only" by `p.osd`. Check with a real dashboard page as the output.
-- The Next line's note is the item's place ("2 of 7"); the mock-up shows its length. `DurationCache` (durations.h)
-  has it by `durationKey(path, size, mtime)` when the browser has probed the folder: look how `ui_browse.cpp` fills a
-  row's note.
+  "Plays on the handheld only" by `p.osd`. (Not driven: no browser page is reachable with this session's shell.)
+- The Next line's note is the item's length when `DurationCache` has it (probed from the browser or an earlier play),
+  else its place ("2 of 7").
 - Move the photo viewer's state and code from `Ui` (ui_main.cpp) into the area or a struct of its own when the photo
   screen is redesigned (`photo` in screens.js), not before.
 - The owner's open question: Stop is one press further (X, then the red tile). If a Stop key should be back on the
