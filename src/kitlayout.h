@@ -25,6 +25,9 @@ namespace bp
 		// the i-th of n cells across `area`, `gap` apart. Widths that don't divide: the spare units go one each to the
 		// last cells (five across 608: 115, 115, 115, 115, 116), so the row always ends on the area's right edge
 		Box cell(Box area, int n, int gap, int i);
+		// n cells in `cols` columns, `gap` apart, in rows that share `area`'s height (filled left to right, top to
+		// bottom): the Visualizer tab's style grid (docs/redesign, "music-viz-pick")
+		std::vector<Box> gridCells(Box area, int n, int cols, int gap = GAP);
 		// the transport row: five keys, the middle one (play) `mid` wide, the four others sharing the rest equally
 		Box transportCell(Box area, int i, int gap = GAP, int mid = 176);
 

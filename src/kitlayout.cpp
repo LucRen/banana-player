@@ -16,6 +16,21 @@ namespace bp
 			return {area.x + i * (w + gap) + wider, area.y, w + (i >= n - spare ? 1 : 0), area.h};
 		}
 
+		std::vector<Box> gridCells(Box area, int n, int cols, int gap)
+		{
+			std::vector<Box> out;
+			if (n <= 0 || cols <= 0) return out;
+			int rows = (n + cols - 1) / cols;
+			int h = (area.h - (rows - 1) * gap) / rows;
+			out.reserve(n);
+			for (int i = 0; i < n; i++)
+			{
+				Box line{area.x, area.y + (i / cols) * (h + gap), area.w, h};
+				out.push_back(cell(line, cols, gap, i % cols));
+			}
+			return out;
+		}
+
 		Box transportCell(Box area, int i, int gap, int mid)
 		{
 			int side = (area.w - mid - 4 * gap) / 4;

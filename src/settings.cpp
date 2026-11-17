@@ -23,16 +23,16 @@ namespace bp
 	static const char* TXT_TURN_IDS[] = {"fold", "off"};
 
 	static const char* SHOW_IDS[SHOWS] = {"art", "both", "visualizer", "none"};
-	static const char* SHOW_LABELS[SHOWS] = {"Album art", "Art + visualizer", "Visualizer", "None"};
+	static const char* SHOW_LABELS[SHOWS] = {"Album art only", "Art + visualizer", "Visualizer only", "None"};
 	static const char* VIS_IDS[VISUALIZERS] = {"bars", "waves", "spectrum", "circle", "peaks", "peaks-yellow", "pocket", "led",
 		"synthwave", "banana-stack", "night-city", "oscilloscope", "heartbeat", "campfire", "aurora", "sound-garden", "turntable", "pixel-sea",
 		"bunny-hop", "bubble-tea", "jellyfish", "music-box", "fishbowl", "disco-ball", "banana-dancer", "vibing-cat",
 		"popcorn-machine", "jelly-wobble", "tube-man", "long-cat", "washing-machine"};
-	static const char* VIS_LABELS[VISUALIZERS] = {"Bars", "Waves", "Spectrum", "Circle", "Peaks", "Peaks Banana", "Pocket console",
+	static const char* VIS_LABELS[VISUALIZERS] = {"Bars", "Waves", "Spectrum", "Circle", "Peaks", "Peaks", "Pocket console",
 		"Hi-fi LED", "Synthwave", "Banana stack", "Night city", "Oscilloscope", "Heartbeat", "Campfire", "Aurora",
 		"Sound garden", "Turntable", "Pixel sea", "Bunny hop",
 		"Bubble tea", "Jellyfish", "Music box", "Fishbowl", "Disco ball", "Banana dancer", "Vibing cat",
-		"Popcorn machine", "Jelly wobble", "Tube man", "Long cat", "Washing machine"};
+		"Popcorn", "Jelly wobble", "Tube man", "Long cat", "Washing machine"};
 	static const char* LOOP_IDS[LOOPS] = {"off", "all", "one"};
 	static const char* MANGA_MODE_IDS[MANGA_MODES] = {"rtl", "ltr", "strip"};
 	static const char* MANGA_FIT_IDS[MANGA_FITS] = {"page", "width", "fill"};
@@ -535,7 +535,7 @@ namespace bp
 	// output). A choice is stored as its index in `ids`; the page's `place` orders a group's rows (the page's own rows,
 	// such as Clear play history, have places of their own in ui_settings.cpp); a default is the member's initializer.
 
-	// a style not offered (Bars, Waves, Spectrum, and the ones kept but not offered: VIS_SHOWN) is read as Peaks Banana
+	// a style not offered (Bars, Waves, Spectrum, and the ones kept but not offered: VIS_SHOWN) is read as VIS_PEAKS_BANANA ("Peaks")
 	// (the default), and so is Timeline (0.5.x, briefly: it became Peaks)
 	static void readVisualizer(Settings& s, const std::string& value)
 	{
@@ -581,7 +581,7 @@ namespace bp
 			D::choice("music-show", &Settings::musicShow, SHOW_IDS, SHOWS)
 				.page(SG_MUSIC, 10, "Music display", "What the top screen shows while a song plays (SELECT while playing).").shownAs(SHOW_LABELS).stepped(true),
 			D::choice("visualizer", &Settings::visualizer, VIS_IDS, VISUALIZERS)
-				.page(SG_MUSIC, 20, "Visualizer", "How the music is drawn: twenty styles, from Peaks to Washing machine (SELECT while playing).")
+				.page(SG_MUSIC, 20, "Visualizer style", "Which visualizer is drawn: twenty styles, from Peaks to Washing machine (SELECT while playing).")
 				.shownAs(VIS_LABELS).stepped(true, stepVisualizer).afterRead(readVisualizer),
 			D::ints("visualizer-fps", &Settings::vizFps, VIZ_FPS, 3)
 				.page(SG_MUSIC, 30, "Visualizer frame rate", "How smoothly the visualizers move: 60 is smoothest, 30 lightest on the battery. Peaks and Circle stay at 30.")
@@ -842,7 +842,7 @@ namespace bp
 				else if (value == "bars" || value == "waves" || value == "spectrum")
 				{
 					s.musicShow = SHOW_VIS;
-					s.visualizer = VIS_PEAKS_BANANA;	// retired: read as Peaks Banana
+					s.visualizer = VIS_PEAKS_BANANA;	// retired: read as "Peaks"
 				}
 				else s.musicShow = SHOW_ART;
 			}

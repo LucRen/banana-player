@@ -6085,11 +6085,11 @@ static void testSettings()
 	CHECK_EQ(parseSettings("visualizer-fps = 50\n").vizFps, 45);
 	CHECK_EQ(parseSettings(serializeSettings(parseSettings("visualizer-fps = 60\n"))).vizFps, 60);
 	CHECK_EQ(Settings().songInfo, false);
-	// Peaks Banana is the default and the Peaks offered; the coral Peaks is kept but no longer offered, so a saved
-	// choice of it reads as Peaks Banana (as Hi-fi LED, Synthwave, Banana stack and Heartbeat)
+	// Peaks (VIS_PEAKS_BANANA) is the default and the Peaks offered; the coral VIS_PEAKS is kept but no longer offered, so
+	// a saved choice of it reads as VIS_PEAKS_BANANA (as Hi-fi LED, Synthwave, Banana stack and Heartbeat)
 	for (const char* id : {"peaks", "led", "synthwave", "banana-stack", "heartbeat", "oscilloscope", "turntable", "disco-ball"})
 		CHECK_EQ(parseSettings(std::string("visualizer = ") + id + "\n").visualizer, (int)VIS_PEAKS_BANANA);
-	CHECK_EQ(std::string(visualizerLabel(VIS_PEAKS_BANANA)), std::string("Peaks Banana"));
+	CHECK_EQ(std::string(visualizerLabel(VIS_PEAKS_BANANA)), std::string("Peaks"));
 	CHECK_EQ(visualizerGraph(VIS_PEAKS_BANANA, false) != visualizerGraph(VIS_PEAKS, false), true);
 	CHECK_EQ(visualizerGraph(VIS_PEAKS_BANANA, true) != visualizerGraph(VIS_PEAKS, true), true);
 	CHECK_EQ(visualizerGraph(VIS_PEAKS_BANANA, false).find("lagfun=decay=") != std::string::npos, true);
@@ -8855,6 +8855,25 @@ static void testKitLayout()
 	CHECK_EQ(sr.help.y + sr.help.h, 444);	// two lines, clear of the hint bar's rule at 450
 	CHECK_EQ(sr.row(0).x, MARGIN);
 	CHECK_EQ(sr.row(0).w, PANEL_W - 2 * MARGIN);
+
+	// the Visualizer tab's style grid: 20 styles, five a row, inside its area, in rows that meet its edges
+	Box grid{16, 300, 608, 202};
+	auto cells = gridCells(grid, VIS_SHOWN_COUNT, 5, 6);
+	CHECK_EQ((int)cells.size(), VIS_SHOWN_COUNT);
+	CHECK_EQ(cells[0].x, 16);
+	CHECK_EQ(cells[4].x + cells[4].w, 624);
+	CHECK_EQ(cells[0].h, 46);
+	CHECK_EQ(cells[5].y, cells[0].y + cells[0].h + 6);
+	CHECK_EQ(cells[VIS_SHOWN_COUNT - 1].y + cells[VIS_SHOWN_COUNT - 1].h, grid.y + grid.h);
+	for (int i = 0; i < (int)cells.size(); i++)
+	{
+		CHECK(cells[i].x >= grid.x && cells[i].x + cells[i].w <= grid.x + grid.w);
+		CHECK(cells[i].y >= grid.y && cells[i].y + cells[i].h <= grid.y + grid.h);
+		for (int j = i + 1; j < (int)cells.size(); j++)
+			CHECK(cells[i].x + cells[i].w <= cells[j].x || cells[j].x + cells[j].w <= cells[i].x ||
+				cells[i].y + cells[i].h <= cells[j].y || cells[j].y + cells[j].h <= cells[i].y);
+	}
+	CHECK(gridCells(grid, 0, 5).empty());
 
 	// the player screen: everything inside the panel, nothing over anything else, every key a finger's size
 	for (int chips : {4, 5})

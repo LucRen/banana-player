@@ -30,7 +30,7 @@ namespace bp
 	enum MusicShow { SHOW_ART, SHOW_BOTH, SHOW_VIS, SHOW_NONE, SHOWS };
 	// Circle: the bars round a ring (cyan to purple to pink), drawn by looking each pixel up in two tables (remap)
 	// Peaks: a spectrum analyser's bars (coral) with a cap over each (green) that holds the bar's top and falls back
-	// Peaks Banana: the same in BananaOS's colours (yellow bars, cream caps)
+	// Peaks Banana: the same in BananaOS's colours (yellow bars, cream caps), offered as "Peaks" (the coral one retired)
 	// Bars, Waves and Spectrum are retired, their graphs and enum values kept: nothing offers them and a setting
 	// naming one reads as Peaks; VIS_SHOWN lists what's offered, in order
 	// Pocket: Peaks as an old handheld's screen, four greens on a grid of chunky dots
@@ -39,7 +39,7 @@ namespace bp
 	// Jellyfish, Music box, Fishbowl, Disco ball and Banana dancer. Vibing cat; then Popcorn machine, Jelly wobble,
 	// Tube man, Long cat and Washing machine. Peaks (coral), Oscilloscope, Turntable, Disco ball, Hi-fi LED,
 	// Synthwave, Banana stack and Heartbeat are kept but not offered (the owner's pick, 0.7.12): Peaks Banana is the
-	// default, and a setting naming one not offered reads as it
+	// default (offered as "Peaks"), and a setting naming one not offered reads as it
 	enum Visualizer { VIS_BARS, VIS_WAVES, VIS_SPECTRUM, VIS_CIRCLE, VIS_PEAKS, VIS_PEAKS_BANANA, VIS_POCKET, VIS_LED,
 		VIS_SYNTHWAVE, VIS_BANANA_STACK, VIS_CITY, VIS_SCOPE, VIS_HEART, VIS_FIRE, VIS_AURORA, VIS_GARDEN, VIS_VINYL, VIS_SEA, VIS_BUNNY, VIS_BOBA,
 		VIS_JELLY, VIS_MUSICBOX, VIS_FISHBOWL, VIS_DISCO, VIS_DANCER, VIS_CAT, VIS_POPCORN, VIS_WOBBLE, VIS_TUBEMAN,
