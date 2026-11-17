@@ -228,8 +228,9 @@ and `src/ui_sound.cpp`; the old display popup (`Ui::displaySet`, `drawDisplay`, 
 redesign already removed it.
 
 Checked: a song with generated art, Visualizer only, Lite chosen in the grid; the top panel draws the glow and the
-twelve bars (`redesign-shots/q5/lite-top.png`). Not fixed here: Lite's af tap ends a **mono** file's playback (an
-`af`/`join` failure); the checks used a stereo MP3. The vizlite branch's own note is `2026-11-17-viz-lite.md`.
+twelve bars (`redesign-shots/q5/lite-top.png`). Not fixed here: Lite's af tap ended a **mono** file's playback (an
+`af`/`join` failure); the checks used a stereo MP3. Fixed in §7 below. The vizlite branch's own note is
+`2026-11-17-viz-lite.md`.
 
 ### 2. START, the Menu of places
 
@@ -277,9 +278,103 @@ Generated media only: a stereo 220/330 Hz sine MP3 with a generated cover. The a
 
 ### Not verified
 
-- Lite with a mono file (it ends the file, above) and the handheld's panel at one pixel a unit for the fifth grid row.
+- Lite with a mono file (fixed in §7 below) and the handheld's panel at one pixel a unit for the fifth grid row.
 - The Menu's Manga tile stopping a playing video (the spec's guard sheet is not built).
 - The power and volume devices on the handheld: no lid switch, power key or `gpio-keys-volume` on a Mac.
+
+## 7. The Equalizer's height, a drag's lift, Lite on mono, five chips (2026-11-18)
+
+The owner's four bugs and spec items after the vizlite merge. Four commits:
+
+| Commit | What |
+|---|---|
+| `e16bf90` | A song's View: the Equalizer tab takes the sheet's full height (470), its bands about 300 tall |
+| `400014d` | A drag's lift in the List and View sheets puts the highlight on the row under the finger |
+| `5ce7c8f` | Lite: the tap takes any channel count, and the track comes back while no graph is set |
+| `029aa1c` | A song's five chips: Sound, Sound FX, Display, Speed, Shuffle |
+
+### 1. The Equalizer tab's height
+
+`SongViewSheet::layout` sized every tab with `lay::listSheet(shown(p))`. The Equalizer's own tab is not a list, so
+`count()` is 0 and `shown()` gave 1: a 149-tall sheet whose body left the ten bands 38 units (and the scale crossed
+itself). A new pure `lay::listSheetBody(body, header)` (kitlayout, tested in `testKitLayout`) makes a sheet with a
+body instead of rows, clamped to 226..470; the Equalizer asks for `SHEET_MAX`'s body (367), which is a 470-unit sheet
+with a 363-unit body: the bands are 311 tall (about the spec's 296; its drawing counts the three labels in the 296).
+The other tabs already sized themselves to their content: Display 5 rows (333), Visualizer the 5 × 5 grid (357, 421
+with the notice), Effects 7 rows (425), Speed 5 (333); a video's Subtitles/Audio/Picture/Speed likewise (2, 2, 3, 5
+rows). A second bug came out of the same `shown()`: the Equalizer's own lists (Options, the presets, Delete) asked
+`count()` rather than `listCount()`, so each showed a single row; `shown()` now asks `isList()` as `settle()` did.
+
+The finger scrub still works: `bandGrab` and `eqLayout` both follow the sheet, so the band's column and track are the
+new ones; a run with `down:288:300,move:288:270,up:288:270` set the 500 Hz band to +2 dB (the af's `equalizer@b4`).
+
+### 2. A drag's lift
+
+The three sheets (List, a video's View, a song's View) worked the lift's row out as `scroll + grabbed - scrollAtDown`.
+With the rows moving one row per 46 units and the finger moving freely, that is one row off whenever the finger moved
+50 units in a step (rounding), and at a clamped end (a drag down when the list is at its top, so it cannot scroll) it
+never moved the highlight at all. `lay::rowAt(y, rowsY, scroll, shown, n)` (tested) takes the lift's own y: the row
+whose box holds it, the nearest one when the finger is off the rows, always inside the list. A drag still chooses
+nothing; a tap still acts (a chapter row seeks and closes, a speed row sets it).
+
+### 3. Lite on mono
+
+Two causes were found, the second not mono-specific:
+
+- The tap brought the sound to stereo with `aformat=channel_layouts=stereo`; a mono file reached `join` with one
+  channel and its `map` (`0.0-FL|0.1-FR|...`) failed, so mpv dropped the audio and the song ended. `eq.cpp`'s tap now
+  starts with `aresample=ochl=stereo`, an explicit conversion for any channel count (mono is duplicated, 5.1 is
+  downmixed; the mono, stereo and 5.1 checks all pass it).
+- Choosing Lite while Show is **Visualizer only** (or **Art + visualizer** on a file with no art, which `shownMusic`
+  makes Visualizer only) takes the graph off; the graph had carried the audio track, and `applyAudioDisplay` restored
+  the aid only for **Album art only** and **Art + visualizer**, so the file was left with no audio and mpv ended it.
+  The aid is now restored whenever the graph is empty; the art is still chosen only in those two modes. This ended a
+  stereo file too, so the owner's "mono" was partly this and partly the join. (The merge note said the tap's join
+  failed on one channel; with this Mac's mpv/ffmpeg the old tap worked on a mono file in every path that kept a graph,
+  so the graph-less path is what the handheld's report matches.)
+
+Checked with generated media only: a mono sine MP3, a stereo one and a 5.1 AAC; Lite chosen, Show set to Visualizer
+only. Playback goes on (`time-pos` climbing, `eof-reached = no`), the log shows `aid 1 ...` restored and the tap in the
+af, and the top panel draws Lite's glow and bars.
+
+### 4. Five chips
+
+`PlayerPage::chips` gave a song four: Sound (`soundSummary`: preset · effect), Top screen, Speed, Shuffle. It now gives
+five, at a video's widths (four of 115, the last 116): **Sound** (the preset, `Off` when the equalizer is off; opens
+Equalizer), **Sound FX** (`FX_SHORT`: None, Room, Hall…; opens Effects), **Display** (renamed; its value is
+`SHOW_SHORT`: Art, Art + viz, Visualizer, None; opens Display), **Speed** and **Shuffle**. Each sound chip is yellow
+with its dot for its own state only. While a browser plays, the three handheld-only chips read **Handheld** (the
+spec's word; it was "Handheld only" and does not fit 115). The last chip ends at 624 of 640: its outline, label and dot
+are clear of the edge (checked in the shot).
+
+### Checked
+
+Desktop build (macOS); `./build/core-test` ends `core: all passed`; `cmake --build build --target manga-check` prints
+`manga: all passed` before each commit. Scripted runs (`--press`, `BP_SHOTS`, generated media only: a stereo sine MP3,
+a mono one, a 5.1 AAC, and a 60 s testsrc MP4 with eight chapters). Shots under `redesign-shots/q6/` (not committed):
+
+- `eq-bottom.png`, `eq-after-bottom.png` (the tall Equalizer tab; the 500 Hz band after the finger's move);
+  `tab-display`, `tab-viz`, `tab-eq`, `tab-fx`, `tab-speed` (a song's five tabs), `vsubs`, `vaudio`, `vpicture`,
+  `vspeed` (a video's four), each its own height;
+- `list-before`, `list-after-drag` (a drag down at the top: the ring on **Five**), `list-drag-up` (after a scroll:
+  **Four**), `list-tap` (a tap on **Seven** still seeks), `view-before`/`view-after-drag` (Speed's **2x**),
+  `song-view-after-drag` (Display's **None**);
+- `mono-lite` (Lite's glow and bars over a mono file after Show became Visualizer only; the track back, the tap in the
+  af), `stereo-lite`;
+- `song-chips` (the five chips: Bass Boost, Room, Art + viz, 1×, Off), `song-chips-shuffle` (Shuffle On, its right edge
+  clear), `chip-sound` (the Equalizer tab), `chip-fx` (Effects), `chip-display` (Display).
+
+The arm64 bundle: `packaging/build-bundle.sh --quick` (Docker) run once at the end.
+
+### Not verified
+
+- **The handheld's touch panel at one pixel a unit**: the tall Equalizer's 12-unit values and frequency labels in a
+  363-unit body, the band's 311-unit column, and the 115-wide chips' short values ("Art + viz", "Visualizer").
+- **A finger's drag on the handheld**: the moves and the lift were driven by `--press` (a drag in ten 30 ms steps);
+  the rounding case (a 50-unit move) and the clamped top are what `rowAt` was written for, not a real fingertip.
+- **A browser playing the song** (the three "Handheld" chips and their dim look): the dashboard was not driven here;
+  the path is the one `ui.predicting` branch in `chips()` and `chipAct`.
+- **The 5.1 file on the handheld**: it played here; its downmix happens in `aresample` before the tap.
 
 
 

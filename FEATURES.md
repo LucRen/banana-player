@@ -254,9 +254,10 @@ Like a song or a video to keep it in **Liked**, a playlist of its own. Photos an
   the same Stop in red). **SELECT** opens **View** (a video's tracks and speed, or a song's display, visualizer,
   equalizer and effects); the hint bar says **SELECT View**.
 - **The chips** under them say how it is set, and a tap changes or opens each (they are touch only: the D-pad never
-  lands on one): on a video **Subtitles**, **Audio** and **Picture** (each opens its tab of View), **Speed** (View's
-  Speed tab) and **Repeat**; on a song **Sound** (View's Equalizer tab: the preset and effect), **Top screen** (View's
-  Display tab; its value is the Show mode's name only, never the style), **Speed** (View's Speed tab) and **Shuffle**.
+  lands on one). Five on both. A video: **Subtitles**, **Audio** and **Picture** (each opens its tab of View), **Speed**
+  (View's Speed tab) and **Repeat**. A song: **Sound** (the equalizer's preset, opening View's Equalizer tab), **Sound
+  FX** (the effect, opening Effects), **Display** (opening Display; its value is the Show mode in its short form, **Art**,
+  **Art + viz**, **Visualizer** or **None**, never the style), **Speed** (View's Speed tab) and **Shuffle**.
   A chip whose value isn't the normal one is yellow with a dot (a speed that isn't 1x, Repeat all or one, Shuffle, Fill
   or Stretch, an equalizer or effect left on), so it can't go unnoticed. **Speed** opens View's Speed tab on both; the
   speed is set there.
@@ -265,7 +266,8 @@ Like a song or a video to keep it in **Liked**, a playlist of its own. Photos an
   place in the list ("2 of 7"; "shuffled" with Shuffle on), **A new shuffled round** at a round's end, **Nothing after
   this** at the end of a list played in order. A tap opens the List sheet on Up next, as **Y** does.
 - **Chapters:** tap the chapter line above the progress bar (`2 / 8 · its name`) for the List sheet on Chapters.
-- **Lists:** tap to choose, drag to scroll.
+- **Lists:** tap to choose, drag to scroll. A drag moves only the highlight, to the row under your finger when you lift
+  it (it never plays); a tap still plays.
 - **Back to the list:** tap **<** (top left): it keeps playing. **Stop** is the second row's fourth key, at the right
   (and in **More**, **⋯** or **X**, in red): it stops it, where **<** and **B** only leave the player.
 - **Lock touch**, **Screen off** and **Info** are in **More** too. Locked, the controls go dark under one large lock:
@@ -527,7 +529,8 @@ Songs show their title, artist and album on the top screen. While a song plays:
   **Visualizer** tab; with Album art only or None it reads "<style> · not shown" and can still be changed. The
   **Visualizer** tab is the style grid, twenty-one of them: **Lite** (the cheapest: one glowing
   pulse on the beat and twelve bars, drawn by the player itself, with no video frames from mpv at all; it is meant for
-  long listening on the battery, not accuracy), **Peaks** (default: 64 yellow bars, bass on
+  long listening on the battery, not accuracy, and works with any file, mono or multichannel), **Peaks** (default: 64
+  yellow bars, bass on
   the left, each with a cream cap that stays at the bar's highest point and slowly falls back, over a faint grid),
   **Circle** (bars round a glowing ring, cyan to pink; with Art + visualizer, the album art sits inside the ring),
   **Pocket console** (Peaks on an old handheld's screen: 15 bars of chunky dots in four greens, with falling caps;
@@ -578,11 +581,12 @@ used: its lookup tables are worked out once in the background and kept beside th
 ## Sound: equalizer and effects
 
 The equalizer and the sound effects change the sound of music: songs and audiobooks. Videos are never changed. Open
-them from **View**: **SELECT** then the **Equalizer** or **Effects** tab (the **Sound** button opens View on Equalizer).
-Settings › Music › **Sound FX** still opens the Sound page, whose two tabs are the same. In View's Equalizer and Effects
-tabs, **L / R** switch tabs, **LEFT / RIGHT** pick a band and **UP / DOWN** changes it, **L2 / R2** step the presets,
-**Y** turns the equalizer on or off, **A** saves, and **X** opens Options. On the Sound page itself the keys are the
-ones below.
+them from **View**: **SELECT** then the **Equalizer** or **Effects** tab (the **Sound** chip opens View on Equalizer,
+**Sound FX** on Effects). Settings › Music › **Sound FX** still opens the Sound page, whose two tabs are the same. In
+View's Equalizer and Effects tabs, **L / R** switch tabs, **LEFT / RIGHT** pick a band and **UP / DOWN** changes it,
+**L2 / R2** step the presets, **Y** turns the equalizer on or off, **A** saves, and **X** opens Options. On the Sound
+page itself the keys are the ones below. The Equalizer tab's sheet is the full height a sheet may have (470 units), so
+its ten bands are about 300 tall.
 
 **Equalizer** shapes the sound with ten bands, from 31 Hz to 16 kHz, each boosted or cut by up to 12 dB.
 
