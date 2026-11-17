@@ -1537,11 +1537,7 @@ namespace bp
 			if (pt.kind == Pointer::Move)
 			{
 				// a finger dragging the rows scrolls them (a tap still chooses)
-				if (press == P_ROW && !drag && std::abs(y - dragY) > 12)
-				{
-					drag = true;
-					ui.swallowTouch = false;
-				}
+				if (press == P_ROW && !drag && std::abs(y - dragY) > 12) drag = true;
 				if (!drag) return false;
 				int n = listCount(p);
 				int maxScroll = std::max(0, n - shown(p));
@@ -1701,7 +1697,8 @@ namespace bp
 				std::to_string(press) + "," + std::to_string(pressAt) + "," + std::to_string(eqMode) + "," +
 				std::to_string(ui.sound->eqBand) + "," +
 				std::to_string(ui.sound->soundTab) + "," + std::to_string(p.eqPresetSerial()) + "," + std::to_string(p.playingAudio());
-			for (int i = 0; i < 2; i++) sig += "|" + ui.sound->eqCycle(p)[std::min(i, (int)ui.sound->eqCycle(p).size() - 1)];
+			// the presets the equalizer cycles through (the stash of a Custom one shows as Custom)
+			for (auto& c : ui.sound->eqCycle(p)) sig += "|" + c;
 			return sig;
 		}
 	};
