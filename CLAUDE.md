@@ -33,7 +33,7 @@ tools/make-sprite.py                                 # web/sprite.svg from the G
 - **Test budget:** every change: build, `core-test`, one check aimed at it. Before a release: `tools/web-smoke.sh`.
   The owner finds the real bugs on the handheld and in Safari; no long suites unless asked. A bug not pinned by
   `log.txt`: add logging that would.
-- **Linux-only code** (`touch.*`, `sleepwatch.*`, `levelwatch.*`, `panel.*`): run the arm64 Docker check (DEVELOPMENT.md).
+- **Linux-only code** (`touch.*`, `sleepwatch.*`, `volumekey.*`, `levelwatch.*`, `panel.*`): run the arm64 Docker check (DEVELOPMENT.md).
 - **Releasing:** `docs/workflow.md` (bump `CMakeLists.txt` + README links, bundle, `.sha256`, `gh release`, mark the
   previous superseded). Versions compare numerically (0.5.10 > 0.5.9).
 

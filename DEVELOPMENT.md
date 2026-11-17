@@ -43,6 +43,7 @@ tested and laid out.
 | `src/input.*` | SDL keys and pads to the handheld's buttons (Nintendo layout: A is east) |
 | `src/touch.*` | The bottom touchscreen from evdev, one finger |
 | `src/sleepwatch.*` | Pause on the lid's `SW_LID` and on `SIGCONT` |
+| `src/powerkey.*`, `src/volumekey.*` | The keys with the lid shut: Power's `EVIOCGRAB` (a press = play/pause, 2 s = sleep) and the volume keys' (a press = one step, 0.6 s = next / previous) |
 | `src/panel.*` | The bottom backlight on/off, restored on quit and on a crash |
 | `src/web/*`, `web/` | The web dashboard (`BP_WEB`): the server (cpp-httplib, the gate, PIN sign-in, SSE), its API for files, the player and playlists, the file probe (libavformat) and the address list. `web/` is the browser app, embedded at build time |
 | `src/aspect.*`, `tracks.*`, `format.*`, `substyle.*`, `settings.*`, `resume.*`, `history.*`, `playlist.*`, `playlists.*`, `browser.*`, `photo.*`, `webauth.*`, `webpath.*`, `json.*`, `webmedia.*`, `webstate.*` | No window code; covered by `tests/core_test.cpp` |

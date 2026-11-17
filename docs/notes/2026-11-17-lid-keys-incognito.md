@@ -87,22 +87,29 @@ Settings table's new rows); `cmake --build build --target manga-check` prints `m
 Scripted runs, generated media only (a testsrc H.264 MP4 with a quiet sine, a quiet sine MP3):
 Settings' ten groups and Power & screens scrolled to the two lid rows; incognito on from Quick settings
 (its second line and the Web tile at 45%), the Settings tiles with "Off in incognito", the Web dashboard page
-held off with Leave incognito, and leaving it. Shots: `redesign-shots/settings/settings-groups-*`,
+held off with Leave incognito, and leaving it: the dashboard came back on its own with the same PIN and
+address. Shots: `redesign-shots/settings/settings-groups-*`,
 `set-playback-*`, `set-subtitles-*`, `set-music-*`, `set-photos-*`, `set-reading-*`, `set-files-*`,
 `set-power-*`, `set-power-lidincog-*`, `set-web-*`, `set-updates-*`, `set-about-*`, `incog-quick-*`,
 `incog-settings-tiles-*`, `incog-web-*`, `incog-web-back-*` (not committed).
 
+The idle-sleep hook was driven on a Mac with `BP_IDLE_SLEEP_S=2` and a run folder: incognito on over a paused
+song then no input for 2 s — Close all stopped it, Home showed, the incognito mark went and no note appeared
+(`redesign-shots/settings/close-all-*`); with Quit the app exited after the same idle ('incognito: idle sleep:
+quitting').
+
 ## Not verified
 
 - **The handheld's own devices**: no lid switch, `gpio-keys-volume` or power key on a Mac. The arm64 Docker
-  check (DEVELOPMENT.md) builds the Linux code; the grab, the 0.6 s and 5 s timings, a press's volume step and
-  BananaOS's `volume` script were not run. The 100% stop and the browser-volume branch are code paths only.
+  check (DEVELOPMENT.md) could not run in this session (the shell here refuses `docker`), so the Linux
+  branches were not compiled and the grab, the 0.6 s and 5 s timings, a press's volume step and BananaOS's
+  `volume` script were not run. The 100% stop and the browser-volume branch are code paths only.
 - **The ask sheet with a browser signed in**: no browser was connected in these runs, so it was not drawn.
   The text is built from `WebServer::clients()`/`playTabs()`; a handheld and a phone are needed for it.
-- **The dashboard coming back in place** (same PIN, same signed-in browsers) after incognito: not driven; the
-  server's restart path is the one its own Off/On switch already uses, and `start()` reads `web.conf` and
-  `web-sessions.tsv`.
-- **Close all / Quit at the lid, the power hold and idle sleep**: no lid, power key or bananad on a Mac. The
-  hooks and logs are in place; the screenshots stop at the settings, quick settings and dashboard screens.
+- **The dashboard coming back in place**: the same PIN and address came back (driven); a browser still
+  signed in was not (it needs a browser), the server's restart path being the one its own Off/On switch
+  already uses (`start()` reads `web.conf` and `web-sessions.tsv`).
+- **Close all / Quit at the lid and the power key's 2 s hold**: no lid or power key on a Mac (the idle
+  sleep's hook was driven, above); the lid and power events were not, only their code and logs.
 - The quick settings' tile (and the whole quick sheet) is still the old centred box, not the redesign's tile
   sheet: only its Web / Incognito lines and the 45% treatment changed here.
