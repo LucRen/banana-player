@@ -55,6 +55,10 @@ namespace bp
 		// the chapter line and the Next line open it on theirs
 		int listTab = 0;
 		void openList(int tab, Player& p);
+		// View (SELECT, a video): the View sheet (ui_player.cpp), tabs Subtitles / Audio / Picture / Speed, opened on
+		// the one last used; the track chips open it on theirs and the Speed chip on Speed
+		int viewTab = 0;
+		void openView(int tab, Player& p);
 
 		// ---- X: the More sheet's list, and Play on's sheet ----
 		MoreSpec moreSpec(const Player& p) const;

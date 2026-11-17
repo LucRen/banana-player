@@ -5731,6 +5731,9 @@ static void testChapters()
 
 static void testSpeed()
 {
+	CHECK_EQ(speedChoices().size(), (size_t)5);
+	CHECK_EQ(speedChoices().front(), 0.5);
+	CHECK_EQ(speedChoices().back(), 2.5);
 	CHECK_EQ(stepSpeed(1.0, 1), 1.5);
 	CHECK_EQ(stepSpeed(2.5, 1), 2.5);		// stops at the top
 	CHECK_EQ(stepSpeed(2.5, 1, true), 0.5);	// a tap goes round
