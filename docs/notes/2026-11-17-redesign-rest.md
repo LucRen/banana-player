@@ -63,10 +63,23 @@ them. `Ui::modeLabel` stays (the dashboard). `upsNextList` / `playUpNext` / `cha
   alone until the lift, and the lift chooses nothing (the cursor goes to the row under the finger). The song's View
   rows have the same. A tap that does not move still chooses, on the lift.
 
+## 4. The chips are touch only
+
+Owner feedback: the D-pad could land on the chips row, and a stray press put a focus ring there. `PlayerPage`'s focus
+lost its chip zone: **DOWN** now goes straight to the **Next** line, **UP** or **B** comes back to the playing keys,
+and **LEFT / RIGHT** never leave it (with nothing lit they seek, as before). No chip draws a focus ring from a key; a
+tap still does what it did. `lay::PlayerFocus` lost `chip` and `playerFocusMove` lost its chip moves (and the layout
+tests with them). The hint bar says **DOWN Next line** rather than **Chips**. **SELECT** · View and **Y** · List are
+unchanged, and a chip still opens the tab it did.
+
 ## Checked
 
 Desktop build (macOS): `cmake --build build -j` clean apart from the existing settings enum warnings;
 `./build/core-test` ends `core: all passed`; `cmake --build build --target manga-check` prints `manga: all passed`.
+
+The chips are touch only: on a song and on a video, **DOWN** lights the Next line with no chip ring and the hint bar
+reads **A List** / **B Back to playing** (`redesign-shots/chips/song-down-bottom.png`,
+`video-down-bottom.png`, not committed; generated sine MP3 and testsrc MP4).
 
 Scripted runs (`--press`, `BP_SHOTS`; generated media only: `ffmpeg` testsrc + quiet sine, an SRT beside it, a
 20-chapter remux, a 9-audio-track MKV, and two sine MP3s with title/artist/album tags). No copyrighted media and none

@@ -32,7 +32,7 @@ namespace bp
 		bool act(int id, Player& p);	// true: leave the player
 		void dropTouch() { pressed = T_NONE; }
 
-		// ---- the D-pad's focus: DOWN onto the chips, then the Next line; UP or B back to the playing keys ----
+		// ---- the D-pad's focus: DOWN onto the Next line; UP or B back to the playing keys (the chips are touch only) ----
 		lay::PlayerFocus focus;
 
 		// ---- the chips ----

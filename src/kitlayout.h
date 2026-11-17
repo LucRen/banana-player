@@ -107,15 +107,15 @@ namespace bp
 			Box lock;	// the lock's key, while touch is locked
 		};
 		PlayerLayout playerLayout(int chips);
-		// where the D-pad's focus is: 0 the playing keys (nothing lit: LEFT / RIGHT seek), 1 a chip, 2 the Next line
+		// where the D-pad's focus is: 0 the playing keys (nothing lit: LEFT / RIGHT seek), 2 the Next line. The chips
+		// are touch only, so the D-pad never lands on them
 		struct PlayerFocus
 		{
-			int zone = 0, chip = 0;
-			bool operator==(const PlayerFocus& o) const { return zone == o.zone && chip == o.chip; }
+			int zone = 0;
+			bool operator==(const PlayerFocus& o) const { return zone == o.zone; }
 		};
-		// DOWN steps onto the chips, then the Next line (when shown); UP comes back; LEFT / RIGHT choose a chip (they
-		// are not the focus's while nothing is lit, nor on the Next line)
-		PlayerFocus playerFocusMove(PlayerFocus f, Dir d, int chips, bool next);
+		// DOWN steps onto the Next line; UP comes back; LEFT / RIGHT are not the focus's
+		PlayerFocus playerFocusMove(PlayerFocus f, Dir d);
 
 		// a chip's value for a track: its language ("English"), or "Track 2" when the file names none. Two tracks of
 		// the list in that language: what tells this one apart comes after it ("English · Commentary")

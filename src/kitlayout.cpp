@@ -191,24 +191,10 @@ namespace bp
 			return l;
 		}
 
-		PlayerFocus playerFocusMove(PlayerFocus f, Dir d, int chips, bool next)
+		PlayerFocus playerFocusMove(PlayerFocus f, Dir d)
 		{
-			f.chip = std::clamp(f.chip, 0, std::max(0, chips - 1));
-			if (f.zone == 1 && !chips) f.zone = 0;
-			if (f.zone == 2 && !next) f.zone = chips ? 1 : 0;
-			switch (d)
-			{
-			case Dir::Down:
-				if (f.zone == 0) f.zone = chips ? 1 : next ? 2 : 0;
-				else if (f.zone == 1 && next) f.zone = 2;
-				break;
-			case Dir::Up:
-				if (f.zone == 2) f.zone = chips ? 1 : 0;
-				else f.zone = 0;
-				break;
-			case Dir::Left: if (f.zone == 1) f.chip = std::max(0, f.chip - 1); break;
-			case Dir::Right: if (f.zone == 1) f.chip = std::min(chips - 1, f.chip + 1); break;
-			}
+			if (d == Dir::Down) f.zone = 2;
+			else if (d == Dir::Up) f.zone = 0;
 			return f;
 		}
 

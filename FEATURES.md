@@ -226,7 +226,7 @@ Like a song or a video to keep it in **Liked**, a playlist of its own. Photos an
 | **LEFT / RIGHT** | Back 5 seconds / forward 10 seconds (hold to keep going); the **5 s** and **10 s** keys either side of Play do the same by touch |
 | **L / R** | Previous (5 s or more in: back to the start) / next file in the folder |
 | **L2 / R2** | Previous / next chapter (**F + L2** is still the screenshot) |
-| **DOWN / UP** | **DOWN** steps onto the chips (then **LEFT / RIGHT** choose one and **A** changes or opens it), **DOWN** again onto the **Next** line (**A** opens the list); **UP** or **B** goes back to the playing keys. They no longer change the speed: that is the **Speed** chip |
+| **DOWN / UP** | **DOWN** steps onto the **Next** line (**A** opens the list); **UP** or **B** goes back to the playing keys. The chips are touch only: the D-pad never lands on them. They no longer change the speed: that is the **Speed** chip |
 | **X** | **More**: a sheet with **Lock touch**, **Screen off**, **Info** and **Stop** (in red) as its first four keys, then **Like**, **Add to playlist…**, **Show in folder** and, while a dashboard page that can play is open, **Play on…**. The D-pad moves, **A** chooses, **X** or **B** closes |
 | **Y** | **List** (the **List** key): one sheet with **Up next** (the folder or playlist that plays, in its own order, the one playing marked **Now**) and **Chapters** (every chapter with its start; a file without chapters has only Up next), with **Shuffle**'s switch and **Repeat** (Off / All / One) in its header. **L / R** step the tabs, **UP / DOWN** move, **LEFT / RIGHT** page, **A** plays from the row, **L2 / R2** jump a chapter with the sheet open, **Y** or **B** closes |
 | **SELECT** | **View**, a sheet over the controls. A video: **Subtitles** (Off, the file's tracks, and **Subtitle style…**), **Audio**, **Picture** (Fit, Fill, Stretch) and **Speed** (0.5x to 2.5x). A song: **Display** (what the top screen shows, and the visualizer's style), **Equalizer**, **Effects** and **Speed**. **L / R** switch tabs, **UP / DOWN** move, **LEFT / RIGHT** page a long list, **A** chooses, **SELECT** or **B** closes (on a song's Display, **SELECT** steps the Show mode); it opens on the tab you used last |
@@ -251,10 +251,10 @@ Like a song or a video to keep it in **Liked**, a playlist of its own. Photos an
 - **The transport row:** **Prev**, **5 s** back, **Play / Pause** (the wide yellow key), **10 s** forward, **Next**.
 - **The second row**, the same on a video and a song: **Like**, **Playlist** (Add to playlist…), **List** (Up next,
   **Y**) and **View** (**SELECT**: a video's tracks and speed, or a song's display, equalizer and effects).
-- **The chips** under them say how it is set, and a tap changes or opens each: on a video **Subtitles**, **Audio** and
-  **Picture** (each opens its tab of View), **Speed** (View's Speed tab) and **Repeat**; on a song **Sound** (View's
-  Equalizer tab: the preset and effect), **Top screen** (View's Display tab), **Speed** (View's Speed tab) and
-  **Shuffle**.
+- **The chips** under them say how it is set, and a tap changes or opens each (they are touch only: the D-pad never
+  lands on one): on a video **Subtitles**, **Audio** and **Picture** (each opens its tab of View), **Speed** (View's
+  Speed tab) and **Repeat**; on a song **Sound** (View's Equalizer tab: the preset and effect), **Top screen** (View's
+  Display tab), **Speed** (View's Speed tab) and **Shuffle**.
   A chip whose value isn't the normal one is yellow with a dot (a speed that isn't 1x, Repeat all or one, Shuffle, Fill
   or Stretch, an equalizer or effect left on), so it can't go unnoticed. **Speed** opens View's Speed tab on both; the
   speed is set there.

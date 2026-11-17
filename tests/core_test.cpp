@@ -8833,32 +8833,16 @@ static void testKitLayout()
 	}
 	CHECK_EQ(playerLayout(9).chips, PLAYER_CHIPS_MAX);
 
-	// the D-pad's focus: DOWN onto the chips, then the Next line; UP back; LEFT / RIGHT along the chips only
+	// the D-pad's focus: DOWN onto the Next line, UP back; the chips are touch only, so LEFT / RIGHT never move it
 	PlayerFocus f;
-	CHECK_EQ(playerFocusMove(f, Dir::Left, 5, true) == f, true);	// nothing lit: LEFT is the seek's, not the focus's
-	CHECK_EQ(playerFocusMove(f, Dir::Up, 5, true) == f, true);
-	f = playerFocusMove(f, Dir::Down, 5, true);
-	CHECK_EQ(f.zone, 1);
-	CHECK_EQ(f.chip, 0);
-	f = playerFocusMove(f, Dir::Left, 5, true);
-	CHECK_EQ(f.chip, 0);	// no wrap
-	for (int i = 0; i < 7; i++) f = playerFocusMove(f, Dir::Right, 5, true);
-	CHECK_EQ(f.chip, 4);
-	f = playerFocusMove(f, Dir::Down, 5, true);
+	CHECK_EQ(playerFocusMove(f, Dir::Left) == f, true);	// nothing lit: LEFT is the seek's, not the focus's
+	CHECK_EQ(playerFocusMove(f, Dir::Right) == f, true);
+	CHECK_EQ(playerFocusMove(f, Dir::Up) == f, true);
+	f = playerFocusMove(f, Dir::Down);
 	CHECK_EQ(f.zone, 2);
-	CHECK_EQ(playerFocusMove(f, Dir::Right, 5, true) == f, true);
-	CHECK_EQ(playerFocusMove(f, Dir::Down, 5, true) == f, true);
-	f = playerFocusMove(f, Dir::Up, 5, true);
-	CHECK_EQ(f.zone, 1);
-	CHECK_EQ(f.chip, 4);	// back on the chip it left
-	// (a song after a video: four chips, the fifth's focus comes back onto the last)
-	CHECK_EQ(playerFocusMove(f, Dir::Left, 4, true).chip, 2);
-	CHECK_EQ(playerFocusMove(PlayerFocus{1, 4}, Dir::Down, 4, true).chip, 3);
-	f = playerFocusMove(f, Dir::Up, 5, true);
-	CHECK_EQ(f.zone, 0);
-	CHECK_EQ(playerFocusMove(PlayerFocus{1, 2}, Dir::Down, 5, false).zone, 1);	// no Next line: it stays
-	CHECK_EQ(playerFocusMove(PlayerFocus{}, Dir::Down, 0, true).zone, 2);	// no chips: straight to the line
-	CHECK_EQ(playerFocusMove(PlayerFocus{2, 0}, Dir::Up, 0, true).zone, 0);
+	CHECK_EQ(playerFocusMove(f, Dir::Right) == f, true);
+	CHECK_EQ(playerFocusMove(f, Dir::Down) == f, true);
+	CHECK_EQ(playerFocusMove(f, Dir::Up).zone, 0);
 
 	// a chip's value for a track: the language; two in one language: what tells them apart; none: its number
 	Track en;

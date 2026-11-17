@@ -376,23 +376,18 @@ namespace bp
 		if (err && (b == Button::A || b == Button::Select)) return false;
 		if (!p.playingPhoto())
 		{
-			// the D-pad's focus: DOWN onto the chips, then the Next line; UP comes back. With nothing lit LEFT / RIGHT
-			// seek, as ever (UP / DOWN used to change the speed: the easiest keys to hit by mistake in a film)
-			auto list = chips(p);
+			// the D-pad's focus: DOWN onto the Next line, UP or B back to the playing keys; the chips are touch only,
+			// so the D-pad never lands on them. With nothing lit LEFT / RIGHT seek, as ever (UP / DOWN used to change
+			// the speed: the easiest keys to hit by mistake in a film)
 			lay::Dir dir = b == Button::Up ? lay::Dir::Up : b == Button::Down ? lay::Dir::Down : b == Button::Left ? lay::Dir::Left : lay::Dir::Right;
 			bool arrow = b == Button::Up || b == Button::Down || b == Button::Left || b == Button::Right;
 			if (b == Button::Up || b == Button::Down || (arrow && focus.zone))
 			{
-				focus = lay::playerFocusMove(focus, dir, (int)list.size(), true);
+				focus = lay::playerFocusMove(focus, dir);
 				return false;
 			}
 			if (focus.zone && b == Button::B) { focus = {}; return false; }
-			if (focus.zone && b == Button::A)
-			{
-				if (focus.zone == 2) return listAct(p);
-				if (focus.chip < (int)list.size()) chipAct(list[focus.chip].kind, p);
-				return false;
-			}
+			if (focus.zone && b == Button::A) return listAct(p);
 		}
 		switch (b)
 		{
@@ -1830,11 +1825,10 @@ namespace bp
 	std::vector<Ui::Hint> Ui::PlayerPage::hintList(const Player& p, bool chapters) const
 	{
 		if (!p.settings.buttonHotkeys) return {{"", "Button hotkeys are off: the keys on this screen do it all"}};
-		if (focus.zone == 1) return {{"LEFT/RIGHT", "Chip"}, {"A", "Change"}, {"UP/B", "Back to playing"}, {"DOWN", "Next line"}};
-		if (focus.zone == 2) return {{"A", "List"}, {"UP", "Chips"}, {"B", "Back to playing"}};
+		if (focus.zone == 2) return {{"A", "List"}, {"B", "Back to playing"}};
 		if (ui.pageDrives(p))
 			return {{"A", ui.pagePlaying() ? "Pause there" : "Play there"}, {"Hold A", "Play here"}, {"L/R", "Step"}, {"X", "More"}, {"B", "Back"}};
-		std::vector<Hint> out{{"LEFT/RIGHT", "Seek"}, {"DOWN", "Chips"}};
+		std::vector<Hint> out{{"LEFT/RIGHT", "Seek"}, {"DOWN", "Next line"}};
 		if (chapters) out.push_back({"L2/R2", "Chapter"});
 		out.push_back({"X", "More"});
 		out.push_back({"B", "Back, keeps playing"});
@@ -2045,7 +2039,6 @@ namespace bp
 		for (int i = 0; i < l.chips; i++)
 		{
 			Kit::Chip c = chipList[i].look;
-			c.focused = focus.zone == 1 && focus.chip == i;
 			c.pressed = pressed == T_CHIP0 + i;
 			k.chip(l.chip[i], c);
 		}
@@ -2089,7 +2082,7 @@ namespace bp
 		// the song's tags (they arrive after its title)
 		if (p.playingPhoto()) return "";
 		NextUp nx = nextUp(p);
-		std::string sig = "|pp" + std::to_string(pressed) + "," + std::to_string(focus.zone) + "," + std::to_string(focus.chip) + "," +
+		std::string sig = "|pp" + std::to_string(pressed) + "," + std::to_string(focus.zone) + "," +
 			std::to_string(touchLocked) + "," + std::to_string(seekHeld >= 0) + "|" + nx.path + "|" + nx.note + (nx.round ? "r" : "") + (nx.any ? "a" : "") +
 			"|" + p.artist() + "|" + p.album();
 		if (touchLocked && lockHoldAt) sig += "|hold" + std::to_string((SDL_GetTicks() - lockHoldAt) / 50);

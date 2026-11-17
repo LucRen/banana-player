@@ -102,8 +102,8 @@ checked by eye only where a screen uses them.
 `browser-play` / `browser-hold`.
 
 - **Keys:** A play / pause (hold: take over from a browser); LEFT / RIGHT 5 s back / 10 s forward; L / R previous /
-  next; L2 / R2 chapters; DOWN onto the chips, then the Next line, UP or B back; X More; Y the list; SELECT the view;
-  L3 Like; START the menu; B back (it keeps playing).
+  next; L2 / R2 chapters; DOWN onto the Next line, UP or B back; X More; Y the list; SELECT the view;
+  L3 Like; START the menu; B back (it keeps playing). The chips are touch only.
 - **SELECT · View**, one sheet for either: a video's Subtitles, Audio, Picture, Speed; a song's Display (the Show mode
   and the visualizer's style), Equalizer, Effects, Speed. The track chips open their tab, Sound opens Equalizer, Top
   screen Display, Speed Speed. Y opens the List sheet (or a playlist's own page); START the menu with its Playing tab.
@@ -121,7 +121,7 @@ Desktop build (macOS), `core-test` and `manga-test` pass. Scripted runs (`--pres
 (b4b1371's player) and after:
 
 - a video: playing, paused, a chapter jumped (L2 / R2), the bar dragged, Next, the list, Info, Screen off (A pauses
-  blind, X wakes it), Stop from More; the chips by touch and by DOWN / LEFT / RIGHT / A; the Next line by DOWN and A;
+  blind, X wakes it), Stop from More; the chips by touch; the Next line by DOWN and A;
 - a song: the same, Like by L3 and from More; the Display popup and the Sound page from their chips and from View
   (since `61c4ba1`: View's Display, Equalizer, Effects and Speed tabs, `2026-11-17-redesign-rest.md`);
 - the lock: from More, a tap on a dimmed key (nothing), the hold on the lock (its bar filling), unlocked; More
