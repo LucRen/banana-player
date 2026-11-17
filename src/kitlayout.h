@@ -69,6 +69,9 @@ namespace bp
 		// the first row shown so that `cursor` is one of them, the scroll kept inside the list: what LEFT / RIGHT
 		// paging and a tap leave behind
 		int listScroll(int cursor, int scroll, int shown, int n);
+		// the row under a finger at `y` with the list scrolled to `scroll`: a drag's lift puts the highlight there.
+		// Outside the rows it is the nearest one (above them the first shown, below them the last), and always in 0..n-1
+		int rowAt(int y, int rowsY, int scroll, int shown, int n);
 
 		// ---- the bottom sheet (the More sheet: tiles, then rows in one or two columns) ----
 		constexpr int SHEET_HEAD = 54, SHEET_PAD = 14, SHEET_ROW = 46, SHEET_TILE = 60, SHEET_MIN = 226, SHEET_MAX = 470;

@@ -715,8 +715,9 @@ namespace bp
 			drag = false;
 			if (dragged)
 			{
-				// the finger scrolled: nothing chosen; the cursor goes to the row under it where there is one
-				cursor = std::clamp(scroll + (at >= dragScroll ? at - dragScroll : 0), 0, std::max(0, n - 1));
+				// the finger scrolled: nothing chosen; the highlight goes to the row under it at the lift (the finger's
+				// own place, not one row per scroll step: rounding and a clamped end would land beside it)
+				cursor = lay::rowAt(y, s.rowsY, scroll, shown(p), n);
 				settle(p);
 				return false;
 			}
@@ -1019,8 +1020,9 @@ namespace bp
 			drag = false;
 			if (dragged)
 			{
-				// the finger scrolled: nothing chosen; the cursor goes to the row under it where there is one
-				cursor = std::clamp(scroll + (at >= dragScroll ? at - dragScroll : 0), 0, std::max(0, n - 1));
+				// the finger scrolled: nothing chosen; the highlight goes to the row under it at the lift (the finger's
+				// own place, not one row per scroll step: rounding and a clamped end would land beside it)
+				cursor = lay::rowAt(y, s.rowsY, scroll, shown(p), n);
 				settle(p);
 				return false;
 			}
@@ -1651,9 +1653,10 @@ namespace bp
 			drag = false;
 			if (dragged)
 			{
-				// the finger scrolled: nothing chosen; the cursor goes to the row under it if one is
+				// the finger scrolled: nothing chosen; the highlight goes to the row under it at the lift (the finger's
+				// own place, not one row per scroll step: rounding and a clamped end would land beside it)
 				int n = listCount(p), shownN = shown(p);
-				cursor = std::clamp(scroll + (at >= dragScroll ? at - dragScroll : 0), 0, std::max(0, n - 1));
+				cursor = lay::rowAt(y, s.rowsY, scroll, shownN, n);
 				settle(p);
 				return false;
 			}

@@ -8833,6 +8833,16 @@ static void testKitLayout()
 	CHECK_EQ(listScroll(41, 30, 7, 42), 35);
 	CHECK_EQ(listScroll(2, 0, 7, 3), 0);
 	CHECK_EQ(listScroll(9, 99, 7, 0), 0);
+	// the row under a finger at a drag's lift: its own y in the scrolled list, not one row per scroll step. At a
+	// clamped end (the list can't scroll) the finger still moved over another row; off the rows, the nearest
+	CHECK_EQ(rowAt(200, 120, 0, 7, 8), 1);
+	CHECK_EQ(rowAt(320, 120, 0, 7, 8), 4);	// dragged down at the top: the list stays, the highlight follows the finger
+	CHECK_EQ(rowAt(250, 120, 1, 7, 8), 3);	// scrolled a row: the same row is still under the finger
+	CHECK_EQ(rowAt(100, 120, 2, 7, 8), 2);	// above the rows: the first one shown
+	CHECK_EQ(rowAt(500, 120, 2, 7, 8), 7);	// below them: the last the list has
+	CHECK_EQ(rowAt(400, 120, 0, 7, 3), 2);
+	CHECK_EQ(rowAt(400, 120, 9, 7, 8), 7);
+	CHECK_EQ(rowAt(400, 120, 0, 7, 0), 0);
 
 	// the More sheet: four tiles over two columns of rows
 	SheetSpec spec{4, 4, 2, 0};

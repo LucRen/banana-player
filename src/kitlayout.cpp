@@ -140,6 +140,16 @@ namespace bp
 			return std::clamp(scroll, 0, std::max(0, n - shown));
 		}
 
+		int rowAt(int y, int rowsY, int scroll, int shown, int n)
+		{
+			if (n <= 0) return 0;
+			if (shown <= 0) return std::clamp(scroll, 0, n - 1);
+			// (above the rows `y - rowsY` is negative; truncation would round it to 0, and the clamp says first)
+			int i = (y - rowsY) / LIST_ROW;
+			i = std::clamp(i, 0, shown - 1);
+			return std::clamp(scroll + i, 0, n - 1);
+		}
+
 		Sheet sheet(const SheetSpec& s)
 		{
 			Sheet out;
