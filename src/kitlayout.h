@@ -90,6 +90,21 @@ namespace bp
 		// the cursor moved over the tiles and the rows (two columns: LEFT / RIGHT cross). No wrap: at an edge it stays
 		int sheetMove(const SheetSpec& s, int cursor, Dir d);
 
+		// ---- the Settings page (docs/redesign: settings, settings-group) ----
+		// its groups' tiles, two to a row (58 tall, 8 apart), and a group's rows (46 tall, the focused row's help at the
+		// foot): the page's own frame (the menu's header, the hint bar) is today's, so the area starts under it
+		constexpr int SET_TILE_H = 58, SET_TILE_GAP = GAP, SET_TILE_TOP = 70;
+		constexpr int SET_ROW_H = 46, SET_ROWS = 6, SET_ROW_TOP = 92, SET_HELP_Y = 400;
+		// the i-th tile of n, in `cols` columns; the rows share `area`'s height evenly
+		Box settingsTile(Box area, int n, int cols, int i);
+		struct SettingsRows
+		{
+			Box area;
+			Box row(int i) const;
+			Box help;	// the focused row's line(s) above the hint bar
+		};
+		SettingsRows settingsRows(int shown = SET_ROWS);
+
 		// ---- the player screen ----
 		constexpr int PLAYER_CHIPS_MAX = 5;
 		struct PlayerLayout

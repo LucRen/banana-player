@@ -155,6 +155,24 @@ namespace bp
 		int pill(int right, int cy, const std::string& text, Pill tone = Pill::Live);	// its width
 		void toggle(int x, int cy, bool on);	// 40 x 22, its left edge at x
 
+		// ---- the Settings page's pieces (docs/redesign/components.md: "Settings row (stepper)", "Settings tile") ----
+		// a row: the label left, the value in a stepper at the right (< value >), or an action's note and a chevron.
+		// 46 tall; the focused row lit, its label and value yellow; off: the 45% look with the note in the value's place
+		struct SettingRow
+		{
+			std::string label, value;
+			bool focused = false, pressed = false, off = false, action = false;
+		};
+		void settingRow(Rect r, const SettingRow& s);
+		// a group's tile: the mark, its name and a live summary (58 tall, the mock-up's "Settings tile")
+		struct SettingTile
+		{
+			const Glyph* glyph = nullptr;
+			std::string name, summary;
+			bool focused = false, pressed = false;
+		};
+		void settingTile(Rect r, const SettingTile& t);
+
 		// ---- the lock over a screen ----
 		void lock(Rect key, double held);	// held 0..1: the hold that unlocks, filling
 	};

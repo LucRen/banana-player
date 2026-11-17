@@ -26,8 +26,8 @@ Moved out of CLAUDE.md word for word (CLAUDE.md keeps the commands and a line on
   `/proc/asound/cards`), and `BP_LID_RESTORE_ONLY=STATEDIR packaging/launch.sh` (only the launcher's lid undo);
   web: `BP_WEB_FORCE=1`, `BP_WEB_PIN`, `BP_WEB_PORT`, `BP_WEB_DIR` (serve `web/` from disk, not the embedded copy),
   `BP_WEB_IP` (`none` = no Wi-Fi), `BP_WEB_FAIL`, `BP_WEB_KEEPALIVE`. Crash log: `<state>/crash.log` (DEVELOPMENT.md).
-- **Linux-only code** (evdev touch, lid, inotify, backlight) compiles only on Linux: after touching `touch.*`,
-  `sleepwatch.*`, `levelwatch.*`, `panel.*` (or Ui's includes) run the arm64 Docker check in DEVELOPMENT.md ("Linux check").
+- **Linux-only code** (evdev touch, lid, inotify, backlight, the volume keys' grab) compiles only on Linux: after touching `touch.*`,
+  `sleepwatch.*`, `volumekey.*`, `levelwatch.*`, `panel.*` (or Ui's includes) run the arm64 Docker check in DEVELOPMENT.md ("Linux check").
 - **Bundle:** `build-bundle.sh` caches source builds in `.cache/bundle` and outputs `dist/ports/` and
   `dist/BananaPlayer-<version>-aarch64.zip` (`BananaPlayer/`, `Banana Player.sh`, `media/box/Banana Player.png`). The card
   is `/Volumes/BANANA`; copy into `roms/ports/` with `COPYFILE_DISABLE=1 cp -X` and `dot_clean` (a stray

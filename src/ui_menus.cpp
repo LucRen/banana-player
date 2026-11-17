@@ -17,10 +17,13 @@
 #include <qrcodegen.hpp>
 #endif
 #include "ui_internal.h"
+#include "ui_kit.h"
 #include "ui_browse.h"
 #include "ui_playlists.h"
 #include "ui_home.h"
 #include "ui_settings.h"
+#include "ui_docs.h"
+#include "ui_manga.h"
 #include "pagebook.h"
 #include <strings.h>
 #include "durations.h"
@@ -245,10 +248,10 @@ namespace bp
 
 	void Ui::quickAdjust(int row, int dir, Player& p)
 	{
-		// Web dashboard's row: LEFT the switch, RIGHT its Settings button (while it's on)
+		// Web dashboard's row: LEFT the switch, RIGHT its Settings button (while it's on); while incognito, nothing moves
 		if (row == Q_WEB)
 		{
-			quickSub = dir > 0 && p.settings.webDashboard ? 1 : 0;
+			if (!incognito) quickSub = dir > 0 && p.settings.webDashboard ? 1 : 0;
 			return;
 		}
 		if (row == Q_VOLUME && volumePct >= 0)
@@ -286,6 +289,61 @@ namespace bp
 		});
 	}
 
+	void Ui::setIncognito(bool on, Player& p, bool note)
+	{
+		if (on == incognito) return;
+		// turning it on cuts off a browser: asked once, and only when a browser is signed in (no question with nobody)
+		if (on)
+		{
+#ifdef BP_WEB
+			if (p.settings.webDashboard && web && web->running() && web->clients() > 0)
+			{
+				fprintf(stderr, "incognito: %d browser(s) signed in: asking\n", web->clients());
+				askIncognito();
+				return;
+			}
+#endif
+		}
+		applyIncognito(on, p, note);
+	}
+
+	void Ui::applyIncognito(bool on, Player& p, bool note)
+	{
+		incognito = on;
+		p.incognito = on;
+		// the dashboard's switch keeps its saved value; the server is held off while incognito is on and comes back
+		// with the same PIN and sign-ins when it ends (the WebServer keeps both in the state folder)
+		if (p.settings.webDashboard && webPower) webPower(!on);
+		fprintf(stderr, "incognito mode %s%s\n", on ? "on" : "off", on ? " (the Web dashboard is off while it is on)" : "");
+		if (note) p.osd(on ? "Incognito on" : "Incognito off", on ? 3000 : 2000);
+	}
+
+	void Ui::incognitoCloseAll(Player& p)
+	{
+		// Close all: Stop everywhere, a book / PDF / comic / the Manga reader and sheets close, Home shows, and
+		// incognito ends. Places and read marks are kept as Stop keeps them; copies and downloads go on. main closes
+		// its photo viewer (another player) before this.
+		fprintf(stderr, "incognito: close all: stop, close, Home, incognito off\n");
+		stopPressed = true;
+		homeAfterCloseAll = true;	// Stop's back-to-where-it-came-from must not undo Home
+		if (page == Page::DocText || page == Page::DocPages) docs->docClose(p);
+		if (page == Page::MangaRead) manga->mangaCloseReader();
+		for (auto& o : overlays) o->done = true;
+		dropClosedOverlays();
+		inMenu = false;
+		ctxOpen = false;
+		kbOpen = false;
+		playOnOpen = false;
+		browse->playlists->pickerOpen = false;
+		swallowTouch = true;
+		browse->homeView->goHome(Home::HOME_GRID, 0, p);
+		page = Page::Browse;
+		setGroup = -1;
+		cursor = scroll = 0;
+		// leaving incognito starts the dashboard again when its switch says on; no note (it went to sleep or Home)
+		applyIncognito(false, p, false);
+	}
+
 	void Ui::quickChoose(int row, Player& p)
 	{
 		if (row == Q_SAME)
@@ -301,15 +359,19 @@ namespace bp
 		else if (row == Q_WEB)
 		{
 			// its Settings button: the Web dashboard page (the QR code, the PIN, New PIN), the quick settings put away
+			if (incognito)
+			{
+				// off in incognito: the switch keeps its saved value; a note says why it can't be changed
+				p.osd("Leave incognito to use the Web dashboard", 2500);
+				return;
+			}
 			if (quickSub == 1 && p.settings.webDashboard) { closeQuick(); openWeb(); }
 			else webTurn(!p.settings.webDashboard, p);
 		}
 		else if (row == Q_INCOGNITO)
 		{
-			// the Ui's and the player's, never a setting saved: off at every start
-			incognito = !incognito;
-			p.incognito = incognito;
-			fprintf(stderr, "incognito mode %s\n", incognito ? "on" : "off");
+			// the Ui's and the player's, never a setting saved: off at every start; with a browser signed in, it asks
+			setIncognito(!incognito, p);
 		}
 		else if (row == Q_QUIT) quitRequested = true;
 	}
@@ -413,24 +475,34 @@ namespace bp
 			}
 			if (row == Q_INCOGNITO)
 			{
-				// a tick box, and what it keeps out of the history
+				// a tick box, and what it keeps out of the history; while it's on, what the lid or a sleep does
 				Rect box{r.x + 16, mid - 13, 26, 26};
 				fillRound(box, at ? ACCENT : TEXT, R_FIELD);
 				fillRound({box.x + 2, box.y + 2, box.w - 4, box.h - 4}, at ? BUTTON : SURFACE, R_FIELD - 2);
 				if (incognito) drawGlyphMid(G_CHECK, box.x + box.w / 2, box.y + box.h / 2, ACCENT);
-				drawTextMid("Incognito mode", 1, at ? ACCENT : TEXT, r.x + 56, mid, 300);
+				drawTextMid("Incognito mode", 1, at ? ACCENT : TEXT, r.x + 56, incognito && p.settings.lidIncognito != LID_INCOGNITO_NOTHING ? mid - 8 : mid, 300);
 				drawGlyphMid(G_INCOGNITO, r.x + r.w - 24, mid, incognito ? ACCENT : (at ? DIM_ON : DIM));
+				if (incognito && p.settings.lidIncognito != LID_INCOGNITO_NOTHING)
+					drawTextMid(p.settings.lidIncognito == LID_INCOGNITO_QUIT ? "Lid or sleep: quits" : "Lid or sleep: closes all", 0,
+						DIM, r.x + 56, mid + 12, 320);
 				continue;
 			}
 			if (row == Q_WEB)
 			{
-				// a tick box (on or off), its name, and while it's on a button to its page in Settings
-				bool on = p.settings.webDashboard, onSwitch = at && (quickSub == 0 || !on);
+				// a tick box (on or off), its name, and while it's on a button to its page in Settings. Incognito holds
+				// the dashboard off: the box at 45%, its reason in the note, and nothing changes
+				bool off = incognito, on = p.settings.webDashboard && !off;
+				bool onSwitch = !off && at && (quickSub == 0 || !on);
 				Rect box{r.x + 16, mid - 13, 26, 26};
-				fillRound(box, onSwitch ? ACCENT : TEXT, R_FIELD);
-				fillRound({box.x + 2, box.y + 2, box.w - 4, box.h - 4}, at ? BUTTON : SURFACE, R_FIELD - 2);
+				fillRound(box, Kit::off(onSwitch ? ACCENT : TEXT, off), R_FIELD);
+				fillRound({box.x + 2, box.y + 2, box.w - 4, box.h - 4}, Kit::off(at ? BUTTON : SURFACE, off), R_FIELD - 2);
 				if (on) drawGlyphMid(G_CHECK, box.x + box.w / 2, box.y + box.h / 2, ACCENT);
-				drawTextMid("Web dashboard", 1, onSwitch ? ACCENT : TEXT, r.x + 56, mid, 200);
+				drawTextMid("Web dashboard", 1, Kit::off(onSwitch ? ACCENT : TEXT, off), r.x + 56, off ? mid - 8 : mid, 200);
+				if (off)
+				{
+					drawTextMid("Off in incognito", 0, DIM, r.x + 56, mid + 12, 240);
+					continue;
+				}
 				if (on)
 				{
 					Rect b = quickPinBtn(i);
@@ -866,7 +938,10 @@ namespace bp
 			}
 		}
 		drawScrollBar(INFO_Y, INFO_SHOWN * INFO_H, scroll, INFO_SHOWN, (int)infoLines.size());
-		if (inMenu) drawHints({{"UP/DOWN", "Scroll"}, {"B", "Close"}, {"L/R", "Tabs"}});
+		// About opened as a settings group (not the menu's own tab): L2 / R2 go to its neighbours
+		bool aboutGroup = page == Page::About && menuTab != TAB_ABOUT;
+		if (inMenu && !aboutGroup) drawHints({{"UP/DOWN", "Scroll"}, {"B", "Close"}, {"L/R", "Tabs"}});
+		else if (aboutGroup) drawHints({{"UP/DOWN", "Scroll"}, {"L2/R2", "Group"}, {"B", "Back"}});
 		else drawHints({{"UP/DOWN", "Scroll"}, {"A/B", "Back"}});
 	}
 
@@ -970,7 +1045,7 @@ namespace bp
 		return out;
 	}
 
-	bool Ui::playOnShown() const { return outChoices().size() > 1; }
+	bool Ui::playOnShown() const { return !incognito && outChoices().size() > 1; }
 
 	std::string Ui::pageName() const
 	{

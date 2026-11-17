@@ -21,13 +21,17 @@ namespace bp
 	{
 	public:
 		static constexpr int Press = 1;	// the SDL user event's code: a short press (play/pause)
+		// a 2 s hold with incognito on and Lid or sleep in incognito at Close all or Quit: the event says so, and main
+		// closes everything (or quits) before asking for the sleep, as the spec has it
+		static constexpr int SleepAfterCloseAll = 2, SleepAfterQuit = 3;
 		// event: the SDL user event's type (main's, from SDL_RegisterEvents). False: not started (a Mac, no pipe)
 		bool start(uint32_t event);
 		void stop();
 		~PowerKey() { stop(); }
 		// main, each pass: grab while want; why names the condition that ended (read only when want is false: "the lid
-		// opened", "nothing is loaded"...). The beat tells the thread this loop still runs
-		void tick(bool want, const char* why);
+		// opened", "nothing is loaded"...). The beat tells the thread this loop still runs. incognito: 0 (or Nothing),
+		// LidIncognito's Close all or Quit; a hold hands the sleep to main instead of asking for it here
+		void tick(bool want, const char* why, int incognito = 0);
 
 	private:
 		void run();
@@ -35,6 +39,7 @@ namespace bp
 		int stopPipe[2] = {-1, -1};
 		std::atomic<bool> wantGrab{false};
 		std::atomic<const char*> wantWhy{"nothing is loaded"};
+		std::atomic<int> incognitoMode{0};	// LidIncognito's Close all or Quit while incognito is on (0: none)
 		std::atomic<long long> beat{0};	// CLOCK_MONOTONIC, ms
 		std::atomic<bool> quitting{false};
 		uint32_t eventType = 0;

@@ -5851,10 +5851,23 @@ static void testSettingsTable()
 		}
 	}
 	// the page's rows come in their places, by group
-	auto controls = settingsOfGroup(SG_CONTROLS);
-	CHECK_EQ(std::string(defs[controls.front()].key), "lid-close");
-	CHECK_EQ(std::string(defs[controls[1]].key), "same-brightness");
-	CHECK_EQ(std::string(defs[controls.back()].key), "screen-off-video");
+	auto playback = settingsOfGroup(SG_PLAYBACK);
+	CHECK_EQ(std::string(defs[playback.front()].key), "remember-position");
+	CHECK_EQ(std::string(defs[playback.back()].key), "button-hotkeys");
+	auto screen = settingsOfGroup(SG_SCREEN);
+	CHECK_EQ(std::string(defs[screen.front()].key), "same-brightness");
+	CHECK_EQ(std::string(defs[screen[1]].key), "screen-off");
+	CHECK_EQ(std::string(defs[screen.back()].key), "clock");
+	// the lid's two rows, under When the lid closes
+	auto lid = std::find_if(screen.begin(), screen.end(), [&](int i) { return std::string(defs[i].key) == "lid-close"; });
+	CHECK_EQ(lid != screen.end(), true);
+	CHECK_EQ(std::string(defs[*(lid + 1)].key), "lid-shoulder");
+	CHECK_EQ(std::string(defs[*(lid + 2)].key), "lid-incognito");
+	// the readers' choices moved to Reading from no page at all
+	auto reading = settingsOfGroup(SG_READING);
+	CHECK_EQ(reading.size(), (size_t)7);
+	CHECK_EQ(std::string(defs[reading.front()].key), "text-font");
+	CHECK_EQ(std::string(defs[reading.back()].key), "pdf-view");
 	auto files = settingsOfGroup(SG_FILES);
 	CHECK_EQ(files.size(), (size_t)4);
 	CHECK_EQ(std::string(defs[files[1]].key), "show-hidden-folders");	// (not the file's order: its row's)
@@ -5886,6 +5899,25 @@ static void testSettingsTable()
 	stepSetting(pan, s, -1);
 	CHECK_EQ(settingValueText(pan, s), "Right");
 	CHECK_EQ(serializeSettings(s).find("pan-area = right\n") != std::string::npos, true);
+	// the lid's two new rows: Ignored by default, and Close all for incognito
+	const SettingDef& sh = defs[settingIndex("lid-shoulder")];
+	CHECK_EQ(settingValueText(sh, s), "Ignored");
+	stepSetting(sh, s, 1);
+	CHECK_EQ(settingValueText(sh, s), "Hold");
+	stepSetting(sh, s, 1);
+	CHECK_EQ(settingValueText(sh, s), "As usual");
+	stepSetting(sh, s, 1);
+	CHECK_EQ(settingValueText(sh, s), "Ignored");	// round
+	const SettingDef& linc = defs[settingIndex("lid-incognito")];
+	CHECK_EQ(settingValueText(linc, s), "Close all");
+	stepSetting(linc, s, 1);
+	CHECK_EQ(settingValueText(linc, s), "Quit");
+	stepSetting(linc, s, 1);
+	CHECK_EQ(settingValueText(linc, s), "Nothing");
+	const SettingDef& pdfv = defs[settingIndex("pdf-view")];
+	CHECK_EQ(settingValueText(pdfv, s), "Single page");
+	stepSetting(pdfv, s, 1);
+	CHECK_EQ(settingValueText(pdfv, s), "Strip");
 	const SettingDef& scr = defs[settingIndex("screen-off")];
 	s.screenOffAfter = SOFF_NEVER;
 	stepSetting(scr, s, -1);
@@ -8800,6 +8832,29 @@ static void testKitLayout()
 	CHECK_EQ(sheetMove(list, 0, Dir::Up), 0);
 	CHECK_EQ(sheetMove(list, 1, Dir::Right), 1);
 	CHECK_EQ(sheetMove({0, 0, 1, 0}, 3, Dir::Down), 0);
+
+	// the Settings page: ten tiles, two a row, all inside; a group's six rows 46 tall, clear of the help and hints
+	Box tiles{16, SET_TILE_TOP, 608, 5 * SET_TILE_H + 4 * SET_TILE_GAP};
+	for (int i = 0; i < 10; i++)
+	{
+		Box t = settingsTile(tiles, 10, 2, i);
+		CHECK(t.x >= tiles.x && t.x + t.w <= tiles.x + tiles.w);
+		CHECK(t.y >= tiles.y && t.y + t.h <= tiles.y + tiles.h);
+		CHECK_EQ(t.h, SET_TILE_H);
+		if (i % 2) CHECK_EQ(t.x, settingsTile(tiles, 10, 2, i - 1).x + settingsTile(tiles, 10, 2, i - 1).w + SET_TILE_GAP);
+		if (i >= 2) CHECK_EQ(t.y, settingsTile(tiles, 10, 2, i - 2).y + SET_TILE_H + SET_TILE_GAP);
+	}
+	CHECK_EQ(settingsTile(tiles, 10, 2, 9).x + settingsTile(tiles, 10, 2, 9).w, 624);
+	CHECK_EQ(settingsTile(tiles, 10, 2, 9).y + SET_TILE_H, 70 + 5 * SET_TILE_H + 4 * SET_TILE_GAP);
+	SettingsRows sr = settingsRows();
+	CHECK_EQ(sr.row(0).y, SET_ROW_TOP);
+	CHECK_EQ(sr.row(0).h, SET_ROW_H - 2);
+	for (int i = 1; i < SET_ROWS; i++) CHECK_EQ(sr.row(i).y, sr.row(i - 1).y + SET_ROW_H);
+	CHECK_EQ(sr.row(SET_ROWS - 1).y + sr.row(SET_ROWS - 1).h, SET_ROW_TOP + SET_ROWS * SET_ROW_H - 2);
+	CHECK(sr.row(SET_ROWS - 1).y + sr.row(SET_ROWS - 1).h < sr.help.y);	// the help's line starts under the rows
+	CHECK_EQ(sr.help.y + sr.help.h, 444);	// two lines, clear of the hint bar's rule at 450
+	CHECK_EQ(sr.row(0).x, MARGIN);
+	CHECK_EQ(sr.row(0).w, PANEL_W - 2 * MARGIN);
 
 	// the player screen: everything inside the panel, nothing over anything else, every key a finger's size
 	for (int chips : {4, 5})

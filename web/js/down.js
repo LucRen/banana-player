@@ -11,7 +11,7 @@ import { Icon } from './icons.js';
 /* ================= down screen: the handheld closed, off, asleep or out of reach ================= */
 const DOWN = {
 	quit: ['Banana Player was closed on your handheld', 'Open Banana Player on your handheld. This page reconnects by itself.'],
-	off: ['The web dashboard was turned off', 'Turn it on again on your handheld: START › Settings › Web dashboard. This page reconnects by itself.'],
+	off: ['The dashboard is off', 'It was turned off on the handheld. This page comes back by itself when it is on again.'],
 	sleep: ['Your handheld is asleep', 'Open its lid to carry on. This page reconnects by itself.'],
 	none: ["Can't reach your handheld", 'It may be asleep, or off this Wi-Fi. This page reconnects by itself.'],
 };
@@ -31,7 +31,7 @@ export function DownScreen() {
 		<p class="down-sub">${sub}</p>
 		${B.meta && B.parkedPlaying && html`<div class="box surface down-card"><span class="tile"><${Art} seed=${B.meta.p} kind=${B.meta.kind} /></span><div class="grow"><div class="t">${B.meta.title}</div><div class="dim" style="font-size:13px">Was playing here · stopped at <span class="num">${fmtTime(B.parked)}</span></div></div></div>`}
 		<p class="down-status" role="status" aria-live="polite"><span class="wdots" aria-hidden="true"><i></i><i></i><i></i></span>${trying ? 'Trying again…' : 'Next try in ' + fmtTime(left)}</p>
-		<button class="btn" disabled=${s.probing} onClick=${() => probe()}><${Icon} n="refresh" k=${2} />Try again</button>
+		<button class="btn" disabled=${s.probing} onClick=${() => probe()}><${Icon} n="refresh" k=${2} />${s.downReason === 'off' ? 'Try now' : 'Try again'}</button>
 	</div></main>`;
 }
 

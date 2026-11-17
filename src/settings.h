@@ -59,6 +59,10 @@ namespace bp
 	enum ScreenOffAfter { SOFF_NEVER, SOFF_15, SOFF_30, SOFF_60, SOFF_120, SOFF_300, SCREEN_OFFS };
 	int screenOffSeconds(int v);	// 0: never
 	const char* screenOffLabel(int v);	// "Never", "15 seconds", "1 minute"...
+	// L, R, L2 and R2 with the lid shut (docs/redesign/lid-and-incognito.md, "Shoulder keys, lid shut")
+	enum LidShoulder { LID_SHOULDER_IGNORED, LID_SHOULDER_HOLD, LID_SHOULDER_AS_USUAL, LID_SHOULDERS };
+	// what incognito does when the lid closes or the handheld sleeps: nothing, close all, quit
+	enum LidIncognito { LID_INCOGNITO_NOTHING, LID_INCOGNITO_CLOSE_ALL, LID_INCOGNITO_QUIT, LID_INCOGNITOS };
 	const char* musicShowLabel(int v);
 	const char* visualizerLabel(int v);
 	const char* loopLabel(int v);
@@ -122,11 +126,15 @@ namespace bp
 		// closing the lid while something plays: pause (false), or keep playing (BananaOS's lid sleep switched off while
 		// it plays: lidsleep_host.h)
 		bool lidKeepPlaying = false;
+		// with the lid shut and Keep playing: L / R / L2 / R2 ignored, held 0.6 s, or as with the lid open
+		int lidShoulder = LID_SHOULDER_IGNORED;
+		// incognito while the lid closes or the handheld sleeps: nothing, close everything, or quit
+		int lidIncognito = LID_INCOGNITO_CLOSE_ALL;
 		// (not saved) the file named no lid-close: the choice is asked once at start (Ui::askLid), then kept
 		bool lidAsk = false;
-		// the time left of the battery (Settings › Controls & screen): 24-hour, 12-hour or none
+		// the time left of the battery (Settings › Power & screens): 24-hour, 12-hour or none
 		int clock = CLOCK_24;
-		// the bottom panel off by itself (Settings › Controls & screen) while a song or video plays and nothing is touched
+		// the bottom panel off by itself (Settings › Power & screens) while a song or video plays and nothing is touched
 		int screenOffAfter = SOFF_30;		// while a song plays
 		int screenOffVideo = SOFF_30;		// while a video plays: a dark bottom panel keeps the eye on the film; Never for those who want its controls lit (issue #5)
 		// photos: the next one opens at the zoom (and the place in it) the last was left at; off: each at its size
@@ -138,7 +146,7 @@ namespace bp
 		bool dragBox = true;
 		// the built-in updater (a Ports install): look for a new release at each start, in the background
 		bool checkUpdates = true;
-		// one brightness for both panels (quick settings and Settings › Controls & screen); off: each its own
+		// one brightness for both panels (quick settings and Settings › Power & screens); off: each its own
 		bool sameBrightness = true;
 		// its pop-up's "Not until tomorrow": not shown before this time (seconds since 1970)
 		long long updateRemindAfter = 0;
@@ -201,7 +209,7 @@ namespace bp
 	Settings parseSettings(const std::string& text);
 
 	// The Settings page's groups (Ui::SetGroup's order: ui_settings.cpp checks it), and the manga reader's own page
-	enum SettingsGroup { SG_NONE = -1, SG_SUBS, SG_MUSIC, SG_PHOTOS, SG_REMEMBER, SG_FILES, SG_CONTROLS, SG_UPDATES, SG_WEB, SG_MANGA = 100 };
+	enum SettingsGroup { SG_NONE = -1, SG_PLAYBACK, SG_SUBS, SG_MUSIC, SG_PHOTOS, SG_READING, SG_FILES, SG_SCREEN, SG_WEB, SG_UPDATES, SG_MANGA = 100 };
 
 	// One setting of settings.conf, declared once in settings.cpp's table: its key, its member, how its value is read and
 	// written, and (when a page shows it) the group, place, label, value text and help line of its row. Parsing,

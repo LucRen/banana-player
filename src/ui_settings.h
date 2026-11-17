@@ -1,10 +1,12 @@
 // The Settings page (the groups' tiles, a group's rows, the subtitle style's preview): an area of Ui (Ui::Area, ui.h;
 // docs/notes/ui-areas.md). Its keys, its touches, its drawing and the rows' stepping are here and in ui_settings.cpp.
-// The manga reader's own settings page (Page::MangaSettings) is Manga's, but its rows are drawn, stepped and touched
-// by this struct's settingsDown, drawSettingRow, settingHelp and changeSetting. Stayed Ui's: the group and row ids
-// (SetGroup, STYLE_ROW0..MANGA_JAVA_ROW), the list's measures (SET_Y, SET_H...), setGroup (the open group: the
-// way-back records of showPlayer, the dashboard and Browse keep it), the lift of a list's touch in Ui::pointer (one
-// block for every list) and the Brightness rows' setBrightness (the quick settings' too).
+// The groups are the redesign's (docs/redesign/src/screens.js, "settings" and "settings-group"): Playback, Subtitles,
+// Music & sound, Photos, Reading, Files & history, Power & screens, Web dashboard, Updates, About; L2 / R2 step between
+// them. The manga reader's own settings page (Page::MangaSettings) is Manga's, but its rows are drawn, stepped and
+// touched by this struct's settingsDown, drawSettingRow, settingHelp and changeSetting. Stayed Ui's: the group and row
+// ids (SetGroup, STYLE_ROW0..MANGA_JAVA_ROW), the list's measures (the lay::settingsRows layout), setGroup (the open
+// group: the way-back records of showPlayer, the dashboard and Browse keep it), the lift of a list's touch in
+// Ui::pointer (one block for every list) and the Brightness rows' setBrightness (the quick settings' too).
 #pragma once
 #include "ui.h"
 
@@ -35,13 +37,18 @@ namespace bp
 		void drawSettingRow(int row, int y, bool at, const Player& p);
 		// a finger down on the settings' list (Settings', Manga's): its row, the touch begun
 		bool settingsDown(int x, int y);
-		void openGroup(int g);
-		void stepGroup(int dir);	// to the settings group before (-1) or after (1), round
-		// a settings group's tile (Settings opens on them: two to a row)
-		Rect groupRect(int g) const { return {16 + g % 2 * 312, 70 + g / 2 * 86, 296, 78}; }
+		void openGroup(int g, Player* p = nullptr);
+		void stepGroup(int dir, Player* p = nullptr);	// to the settings group before (-1) or after (1), round
+		// a settings group's tile (Settings opens on them: two to a row, lay::settingsTile)
+		Rect groupRect(int g) const { return lay::settingsTile(groupArea(), GROUPS, 2, g); }
 		bool styleFromSubs = false;	// the subtitle style opened from the Subtitles list: B goes back to it
 
 	private:
+		static Rect groupArea() { return {16, lay::SET_TILE_TOP, 608, 5 * lay::SET_TILE_H + 4 * lay::SET_TILE_GAP}; }
+		// the tile's live line ("Resume on · tracks remembered", "Off in incognito")
+		std::string groupSummary(int g, const Player& p) const;
+		// a group's name where the page's neighbours name it either side of the title ("Music", "Power")
+		std::string shortGroupName(int g) const;
 		void drawPreview(const SubStyle& st, Rect box);
 	};
 }

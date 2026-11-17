@@ -167,6 +167,30 @@ namespace bp
 			}
 		}
 
+		// ---- the Settings page ----
+
+		Box settingsTile(Box area, int n, int cols, int i)
+		{
+			if (n <= 0 || cols <= 0) return {area.x, area.y, 0, 0};
+			int lines = (n + cols - 1) / cols;
+			int h = (area.h - (lines - 1) * SET_TILE_GAP) / lines;
+			Box line{area.x, area.y + (i / cols) * (h + SET_TILE_GAP), area.w, h};
+			return cell(line, cols, SET_TILE_GAP, i % cols);
+		}
+
+		Box SettingsRows::row(int i) const
+		{
+			return {area.x, area.y + i * SET_ROW_H, area.w, SET_ROW_H - 2};
+		}
+
+		SettingsRows settingsRows(int shown)
+		{
+			SettingsRows l;
+			l.area = {MARGIN, SET_ROW_TOP, PANEL_W - 2 * MARGIN, shown * SET_ROW_H - 2};
+			l.help = {24, SET_HELP_Y, PANEL_W - 2 * 24, 2 * 22};
+			return l;
+		}
+
 		PlayerLayout playerLayout(int chips)
 		{
 			PlayerLayout l;

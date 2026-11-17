@@ -45,7 +45,7 @@ namespace bp
 		return m;
 	}
 
-	void IdleSleep::tick(unsigned nowMs, const IdleHolds& holds)
+	void IdleSleep::tick(unsigned nowMs, const IdleHolds& holds, const std::function<void()>& beforeSleep)
 	{
 		// the process was stopped (a sleep, the lid): waking is input, whatever the clock counted meanwhile
 		if (lastTickMs && (unsigned)(nowMs - lastTickMs) > 10000) lastInputMs = nowMs;
@@ -71,6 +71,7 @@ namespace bp
 			heldLogged = false;
 			lastHeld.clear();
 			fprintf(stderr, "idle sleep: asking bananad to sleep: %.0f s without input, nothing keeps it awake\n", idle);
+			if (beforeSleep) beforeSleep();
 			if (FILE* f = fopen((runDir() + "/sleep-now").c_str(), "w")) fclose(f);
 			else fprintf(stderr, "idle sleep: can't write %s/sleep-now\n", runDir().c_str());
 #ifdef __linux__

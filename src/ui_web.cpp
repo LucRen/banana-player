@@ -16,6 +16,7 @@
 #include <qrcodegen.hpp>
 #endif
 #include "ui_internal.h"
+#include "ui_kit.h"
 #include "ui_settings.h"
 #include "ui_web.h"
 
@@ -25,6 +26,8 @@ namespace bp
 
 	int Ui::webView(const Player& p) const
 	{
+		// incognito holds the dashboard off whatever its switch says (the switch keeps its saved value)
+		if (incognito) return WEB_INCOGNITO_VIEW;
 		if (!p.settings.webDashboard) return WEB_OFF_VIEW;
 #ifdef BP_WEB
 		if (!web || !web->running()) return WEB_FAILED_VIEW;
@@ -72,9 +75,9 @@ namespace bp
 
 	bool Ui::webIndicatorShown(const Player& p) const
 	{
-		// (the photo player is left as it is: it has its own header, all its room taken)
+		// (the photo player is left as it is: it has its own header, all its room taken; no globe in incognito)
 #ifdef BP_WEB
-		return p.settings.webDashboard && !(page == Page::Main && p.playingPhoto());
+		return p.settings.webDashboard && !incognito && !(page == Page::Main && p.playingPhoto());
 #else
 		(void)p;
 		return false;
@@ -91,9 +94,9 @@ namespace bp
 
 	std::string Ui::webSig(const Player& p) const
 	{
-		char b[96];
-		snprintf(b, sizeof b, "|web%d %d %d %d %d %d %d", p.settings.webDashboard, webView(p), webClients(), pinArmed != 0, quickSub,
-			webIndicatorShown(p), (int)webIndDown);
+		char b[112];
+		snprintf(b, sizeof b, "|web%d %d %d %d %d %d %d %d", p.settings.webDashboard, webView(p), webClients(), pinArmed != 0, quickSub,
+			webIndicatorShown(p), (int)webIndDown, (int)incognito);
 		return b + webPin() + " " + webAddress();
 	}
 
@@ -195,6 +198,25 @@ namespace bp
 		int v = ui.webView(p);
 		// the mini bar's right end says SELECT: back to what plays (the page has no SELECT of its own)
 		if (b == Button::Select && ui.nowPlayable(ui.barPlayer(p))) { ui.goNowPlaying(p); return false; }
+		// it is a settings group: L2 / R2 step to the one before / after, back on the Settings page's frame (the
+		// dashboard page was opened from a group or from elsewhere; this is the group navigation either way)
+		if (b == Button::L2 || b == Button::R2)
+		{
+			ui.page = Page::Settings;
+			ui.inMenu = true;
+			ui.menuTab = TAB_SETTINGS;
+			ui.setGroup = GROUP_WEB;
+			ui.settingsPage->stepGroup(b == Button::R2 ? 1 : -1, &p);
+			ui.cursor = ui.scroll = 0;
+			return false;
+		}
+		if (v == WEB_INCOGNITO_VIEW)
+		{
+			// the one key the page has in incognito: leave it (the dashboard comes back by itself)
+			if (b == Button::Y) ui.setIncognito(false, p);
+			else if (b == Button::B) { close(); if (ui.page == Page::Main && !p.playing()) ui.page = Page::Browse; }
+			return false;
+		}
 		if (b == Button::B)
 		{
 			close();
@@ -233,6 +255,7 @@ namespace bp
 		if (id == BACK_ICON) return key(Button::B, p);
 		if (id == WEB_NEWPIN && v == WEB_ON_VIEW) webNewPin(p);
 		else if (id == WEB_OFF && v == WEB_ON_VIEW) ui.webTurn(false, p);
+		else if (id == EMPTY_BTN && v == WEB_INCOGNITO_VIEW) ui.setIncognito(false, p);
 		else if (id == EMPTY_BTN && v != WEB_ON_VIEW) webPrimary(p);
 		return false;
 	}
@@ -241,6 +264,29 @@ namespace bp
 	{
 		ui.drawHeader("Web dashboard", p);
 		int v = ui.webView(p);
+		if (v == WEB_INCOGNITO_VIEW)
+		{
+			// held off by incognito: the switch at 45% with its reason, one sentence, and the way out (Y). No QR,
+			// address or PIN (there is nothing to sign in to while it is off)
+			Rect row{16, 72, 608, 52};
+			ui.fillRound(row, SURFACE, R_BUTTON);
+			ui.drawTextMid("Web dashboard", 1, DIM, 32, row.y + row.h / 2, 260);
+			Rect sw{row.x + row.w - 16 - 40, row.y + row.h / 2 - 11, 40, 22};
+			ui.drawTextMid("Off in incognito", 0, DIM, sw.x - 12, row.y + row.h / 2, 240, 1);
+			ui.fillRound(sw, Kit::off(TRACK), 11);
+			ui.fillRound({sw.x + 4, sw.y + 4, 14, 14}, Kit::off(DIM), 7);
+			auto lines = ui.wrapText("The Web dashboard is off while incognito is on. It comes back by itself when you leave incognito.",
+				0, 560, 3);
+			for (size_t i = 0; i < lines.size(); i++) ui.drawTextMid(lines[i], 0, DIM_ON, W / 2, 156 + (int)i * 24, 560, 2);
+			Rect b = ui.buttonRect(EMPTY_BTN);
+			ui.drawBox(b, ui.pressedBtn == EMPTY_BTN ? PRESSED : ACCENT, R_BUTTON, true);
+			int gw = ui.glyphW(G_INCOGNITO), tw = (int)std::lround(ui.textWidth("Leave incognito", 0) / sx);
+			int x = b.x + b.w / 2 - (gw + 10 + tw) / 2;
+			ui.drawGlyphMid(G_INCOGNITO, x + gw / 2, b.y + b.h / 2, ON_ACCENT);
+			ui.drawTextMid("Leave incognito", 0, ON_ACCENT, x + gw + 10, b.y + b.h / 2, 300);
+			ui.drawHints({{"Y", "Leave incognito"}, {"L2/R2", "Group"}, {"B", "Back"}});
+			return;
+		}
 		if (v != WEB_ON_VIEW)
 		{
 			// one of the empty pages: a mark, what it is, the lines under it (two at most), the button
@@ -252,8 +298,8 @@ namespace bp
 			ui.drawEmpty(g, title, "", v == WEB_OFF_VIEW ? "Turn on" : "Try again", v == WEB_OFF_VIEW ? &G_POWER : &G_REFRESH);
 			auto lines = ui.wrapText(sub, 0, 520, 2);
 			for (size_t i = 0; i < lines.size(); i++) ui.drawTextMid(lines[i], 0, DIM, W / 2, 242 + (int)i * 24, 560, 2);
-			if (v == WEB_OFF_VIEW) ui.drawHints({{"A", "Turn on"}, {"B", "Back"}});
-			else ui.drawHints({{"A", "Try again"}, {"X", "Turn off"}, {"B", "Back"}});
+			if (v == WEB_OFF_VIEW) ui.drawHints({{"A", "Turn on"}, {"L2/R2", "Group"}, {"B", "Back"}});
+			else ui.drawHints({{"A", "Try again"}, {"X", "Turn off"}, {"L2/R2", "Group"}, {"B", "Back"}});
 			return;
 		}
 		std::string addr = ui.webAddress(), pin = ui.webPin();
@@ -356,6 +402,6 @@ namespace bp
 		else ui.drawButton(np, ui.pinArmed ? nullptr : &G_REFRESH, ui.pinArmed ? "Press again" : "New PIN", "Y", false, 1);
 		ui.drawBox(off, ui.pressedBtn == WEB_OFF ? PRESSED : BUTTON, R_BUTTON);
 		ui.drawButton(off, &G_POWER, "Turn off", "X", false, 1);
-		ui.drawHints({{"Y", "New PIN"}, {"X", "Turn off"}, {"B", "Back"}});
+		ui.drawHints({{"Y", "New PIN"}, {"X", "Turn off"}, {"L2/R2", "Group"}, {"B", "Back"}});
 	}
 }

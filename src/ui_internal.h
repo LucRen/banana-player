@@ -73,16 +73,18 @@ namespace bp
 		for (auto& r : all) out.push_back(r.second);
 		return out;
 	}
-	struct GroupName { const char* name; const char* about; };
-	inline const GroupName GROUP_NAMES[] = {
-		{"Subtitles", "Font, size, text encoding"},
-		{"Music", "Display, visualizer, sound"},
-		{"Photos", "Zoom, pan area, drag"},
-		{"Remember", "Position, tracks"},
-		{"Files", "Folders, play history"},
-		{"Controls & screen", "Brightness, buttons"},
-		{"Updates", "New versions"},
-		{"Web dashboard", ""},	// (its line is its state: drawSettings)
+	// the Settings page's groups in the spec's order (Ui::SetGroup)
+	inline const char* const GROUP_NAMES[] = {
+		"Playback",
+		"Subtitles",
+		"Music & sound",
+		"Photos",
+		"Reading",
+		"Files & history",
+		"Power & screens",
+		"Web dashboard",
+		"Updates",
+		"About",
 	};
 	inline const char* RECENT = "\x01recent";
 	inline const char* HOMEDIR = "\x01home";	// Home: the Recent strip and the sections' tiles
