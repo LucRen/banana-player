@@ -420,7 +420,9 @@ namespace bp
 			// as the quick settings do it (BananaOS's script, on its thread), and its card over the top panel
 			u.volumePct = v;
 			if (u.volume.present()) u.volume.set(v);
-			p.showLevel("Volume", v);
+			// the level card goes through main (takeLevelShown), which puts it over a reader's pages too
+			u.levelLabel = "Volume";
+			u.levelPct = v;
 			u.levelMs = 1500;
 		}
 

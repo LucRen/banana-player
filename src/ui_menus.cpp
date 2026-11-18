@@ -423,8 +423,8 @@ namespace bp
 		if (row == Q_VOLUME && volumePct >= 0)
 		{
 			// bananad's keys' step
-			volumePct = std::clamp((volumePct + (dir > 0 ? 5 : -1)) / 5 * 5, 0, 100);	// to the next five either way
-			volume.set(volumePct);
+			// (the whole level: past 100 is the player's gain, as the volume bar shows it)
+			setVolumeTotal(p, (volumeTotal(p) + (dir > 0 ? 5 : -1)) / 5 * 5, true);	// to the next five either way
 		}
 		else if (row == Q_BRIGHT || row == Q_BOTTOM)
 		{
@@ -441,10 +441,9 @@ namespace bp
 		if (which == Q_VOLUME)
 		{
 			if (volumePct < 0) return;
-			slideGrab(SL_QUICK, row, {quickBar(row), {0, 100, 5}, false, 0, (double)std::min(volumePct, 100)}, x, y, p, [this](double v, bool, Player&) {
-				if ((int)v == volumePct) return;
-				volumePct = (int)v;
-				volume.set(volumePct);
+			slideGrab(SL_QUICK, row, {quickBar(row), {0, (double)std::max(100, p.settings.volumeMax), 5}, false, 0, (double)volumeTotal(p)}, x, y, p, [this](double v, bool, Player& p) {
+				if ((int)v == volumeTotal(p)) return;
+				setVolumeTotal(p, (int)v, false);
 			});
 			return;
 		}
@@ -685,7 +684,7 @@ namespace bp
 			std::string label;
 			if (row == Q_VOLUME)
 			{
-				pct = volumePct;
+				pct = volumePct >= 100 && p.boost > 100 ? p.boost : volumePct;
 				label = "Volume";
 			}
 			else
@@ -699,7 +698,7 @@ namespace bp
 			drawTextMid(label, 1, ink, r.x + 46, mid, 146);
 			// (the bar under a finger: its value, left of the bar, lit; a knob where the fill ends, as a held one's)
 			bool held = slideHeld(SL_QUICK, i);
-			drawTextMid(pct < 0 ? "-" : std::to_string(pct) + "%", 0, held ? ACCENT : at ? DIM_ON : DIM, quickMinus(i).x - 6, mid, 0, 1);
+			if (row != Q_VOLUME) drawTextMid(pct < 0 ? "-" : std::to_string(pct) + "%", 0, held ? ACCENT : at ? DIM_ON : DIM, quickMinus(i).x - 6, mid, 0, 1);
 			for (int k = 0; k < 2; k++)
 			{
 				Rect bt = k ? quickPlus(i) : quickMinus(i);
@@ -707,9 +706,22 @@ namespace bp
 				drawGlyphMid(k ? G_PLUS : G_MINUS, bt.x + bt.w / 2, bt.y + bt.h / 2, TEXT);
 			}
 			Rect bar = quickBar(i);
-			int fillW = pct > 0 ? bar.w * std::min(pct, 100) / 100 : 0;
-			drawLevel(bar, fillW, at ? BG : TRACK);
-			if (held) drawSlideKnob({bar.x + fillW - 5, bar.y - 1, 10, bar.h + 2});
+			if (row == Q_VOLUME)
+			{
+				// the kit's volume bar: cream to 100, yellow to 120, red past it, the 100 mark; its number left of the buttons
+				int vmax = std::max(100, p.settings.volumeMax);
+				lay::VolumeBar vb;
+				vb.bar = {bar.x, bar.y + (bar.h - 12) / 2, bar.w, 12};
+				vb.number = {quickMinus(i).x - 6 - 64, mid - 12, 64, 24};
+				vb.tickX = vmax > 100 ? lay::volumeX(vb.bar, 100, vmax) : -1;
+				Kit(*this).volumeBar(vb, std::max(0, pct), vmax);
+				if (held) drawSlideKnob({lay::volumeX(vb.bar, std::max(0, pct), vmax) - 5, vb.bar.y - 4, 10, vb.bar.h + 8});
+			}
+			else
+			{
+				// the redesign's slider: 14 tall, the knob 8 taller; its share the screen's level (never under 10%)
+				drawSlider({bar.x, bar.y + (bar.h - 14) / 2, bar.w, 14}, pct > 0 ? std::min(pct, 100) / 100.0 : 0, held);
+			}
 		}
 		if (p.settings.buttonHotkeys) drawHints({{"UP/DOWN", "Choose"}, {"LEFT/RIGHT", "Change"}, {"F/B", "Close"}});
 		else drawFooterText("Tap outside to close", DIM);
