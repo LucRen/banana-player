@@ -205,6 +205,9 @@ namespace bp
 		PageCache* pageCache = nullptr;
 		std::string chapterKey;
 		std::set<int> fetching, failed;
+		// the pages of a URL chapter whose file is on the card: filled at open and at each arrival, so a scroll never
+		// stats the card once per wanted page per frame (want(), the fetch plan and jumpTargetIn read it)
+		std::set<int> onCard;
 		std::unique_ptr<PageBook> pbook;	// a chapter in one file (CBZ, CBR, PDF); null for a folder or URLs
 		bool archive = false;
 		int viewW = 0, viewH = 0, forceFrames = 0;

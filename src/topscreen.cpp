@@ -2,6 +2,7 @@
 // viewer, the frame taken from mpv under them, the level card over them, and the panel's drawing and screenshots.
 #include "topscreen.h"
 #include "epub.h"
+#include "framewatch.h"
 #include "javaext.h"
 #include "levelcard.h"
 #include "manganet.h"
@@ -793,12 +794,20 @@ namespace bp
 		{
 			// the pages, not mpv's picture (what plays goes on under them: drainUnder)
 			renderPending = false;
-			if (reader.frame(now) || refresh)
+			bool pageFrame;
+			{
+				FrameWatchScope fw("reader frame");
+				pageFrame = reader.frame(now);
+			}
+			if (pageFrame || refresh)
 			{
 				SDL_GL_MakeCurrent(top, gl);
 				int w, h;
 				SDL_GL_GetDrawableSize(top, &w, &h);
-				reader.draw(w, h);
+				{
+					FrameWatchScope fw("reader draw");
+					reader.draw(w, h);
+				}
 				SDL_GL_SwapWindow(top);
 			}
 		}
