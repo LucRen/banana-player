@@ -206,7 +206,9 @@ namespace bp
 		Timer tm;
 		const std::string t = "dt";
 		const int N = 32, CW = 10, W = 320, H = overCover ? 100 : 240;
-		const int S = overCover ? 9 : 22, Y0 = (H - S * CW) / 2;
+		// alone 17 rows from 10 above the foot: the tallest column tops out at 75% of the height (the song's lines
+		// above it, on the ground); in the band 9, centred
+		const int S = overCover ? 9 : 17, Y0 = overCover ? (H - S * CW) / 2 : H - 10 - S * CW;
 		// a pixel a dot (N x S): 1 unlit, 2 lit (the level past the dot's middle), by a still of each dot's row
 		std::string g = "[aid1] asplit [ao] [a]; " + (overCover ? artIn(t) : std::string()) + spectrumRow(t, N) +
 						"[" + t + "L] scale=" + n(N) + ":" + n(S) + ":flags=neighbor,setsar=1 [" + t + "V]; " +
@@ -272,7 +274,13 @@ namespace bp
 		const std::string t = "sp";
 		const int N = 20, BW = 16, W = 320, H = overCover ? 100 : 240;
 		const int E = overCover ? 2 : 1;	// the outline's top, in steps (~2.4 and ~2.9 rows)
-		const std::string r = "1+floor(83*(" + n(H - 1) + "-Y)/" + n(H - 1) + ")";
+		// each row's step (1..84, 3 levels a step). Alone the steps reach only 75% of the height (row T: the song's
+		// lines above, on the ground): there 1..83 up to T, and 84 above it, never lit nor a peak (`lit`, `step`)
+		const int T = overCover ? 0 : H / 4;
+		const std::string r = overCover ? "1+floor(83*(" + n(H - 1) + "-Y)/" + n(H - 1) + ")"
+										: "if(lt(Y," + n(T) + "),84,1+floor(82*(" + n(H - 1) + "-Y)/" + n(H - 1 - T) + "))";
+		const std::string lit = overCover ? "lte(3*mod(y,85),x)" : "(lte(3*mod(y,85),x)*lt(mod(y,85),84))";
+		const std::string peak = overCover ? "eq(mod(y,85),floor(x/3))" : "eq(mod(y,85),floor(x/3))*lt(mod(y,85),84)";
 		std::string g = "[aid1] asplit [ao] [a]; " + (overCover ? artIn(t) : std::string()) + spectrumRow(t, N) +
 						"[" + t + "L] split=3 [" + t + "l1] [" + t + "l2] [" + t + "l3]; "
 						"[" + t + "l1] " + stretch(W, H, "neighbor") + " [" + t + "V]; "
@@ -282,12 +290,12 @@ namespace bp
 						"[" + t + "l3] format=gray16le,lut=c0='65535*exp((val/257-252)/24)',lagfun=decay=0.95,"
 						"lut=c0='clip(257*(252+24*log(max(val,1)/65535)),0,257*252)',format=gray," + stretch(W, H, "neighbor") + " [" + t + "P]; " +
 						still(W, H, r + "+85*gte(X," + n(BW) + ")*lt(mod(X," + n(BW) + "),2)") + " [" + t + "R]; "
-						"[" + t + "Vl] [" + t + "R] bplut2=c0='if(gte(y,85),85+mod(y,85)+85*lte(3*mod(y,85),x),y)' [" + t + "Q]; "
+						"[" + t + "Vl] [" + t + "R] bplut2=c0='if(gte(y,85),85+mod(y,85)+85*" + lit + ",y)' [" + t + "Q]; "
 						// 1 the outline, 2 the fill, else the step (as class*85 + step: the peak's lut2 needs the step)
-						"[" + t + "V] [" + t + "Q] bplut2=c0='85*if(gt(3*mod(y,85),x-" + n(3 * E) + ")*lte(3*mod(y,85),x)+gte(y,85)*"
-						"(1-eq(lte(3*mod(y,85),x),gte(y,170))),1,if(lte(3*mod(y,85),x),2,0))+mod(y,85)' [" + t + "S]; "
+						"[" + t + "V] [" + t + "Q] bplut2=c0='85*if(gt(3*mod(y,85),x-" + n(3 * E) + ")*" + lit + "+gte(y,85)*"
+						"(1-eq(" + lit + ",gte(y,170))),1,if(" + lit + ",2,0))+mod(y,85)' [" + t + "S]; "
 						// the peak's step: 3 (DIM) where not the outline
-						"[" + t + "P] [" + t + "S] bplut2=c0='if(eq(floor(y/85),1),1,if(gt(x,3)*eq(mod(y,85),floor(x/3)),3,floor(y/85)))' [" + t + "C]; ";
+						"[" + t + "P] [" + t + "S] bplut2=c0='if(eq(floor(y/85),1),1,if(gt(x,3)*" + peak + ",3,floor(y/85)))' [" + t + "C]; ";
 		g += paint(t, overCover, false, classes({yuvOf(theme::ACCENT), yuvOf(theme::BUTTON), yuvOf(theme::DIM)}));
 		fprintf(stderr, "visualizer: Steps in %s: outline #%s, fill #%s, peaks #%s on #%s; graph built in %.1f ms\n", themeName(),
 				hex(theme::ACCENT).c_str(), hex(theme::BUTTON).c_str(), hex(theme::DIM).c_str(), hex(theme::BG).c_str(), tm.ms());
