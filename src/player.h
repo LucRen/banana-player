@@ -354,7 +354,7 @@ namespace bp
 		// the level card's pixels by the serial of the command that took them: mpv reads them when the command runs
 		// (and again while shown), so they live till its answer, the shown one till it's replaced or removed
 		// overlay-add's ids (the idle icon has 0): later ones are drawn over earlier ones
-		static constexpr int OV_LOAD = 1, OV_STATE = 2, OV_LEVEL = 3, OV_NOTE = 4, OV_COUNT = 5;
+		static constexpr int OV_LOAD = 2, OV_STATE = 3, OV_LEVEL = 4, OV_NOTE = 5, OV_COUNT = 6;	// 1: the song art (ART_OVERLAY), under every card
 		std::map<uint64_t, std::shared_ptr<std::vector<uint8_t>>> levelPixels;
 		uint64_t levelSerial = 0, shownSerial[OV_COUNT] = {};
 		uint64_t noteUntil = 0;	// the note's time (ticks), 0: none up
@@ -434,7 +434,7 @@ namespace bp
 			int px = 0;
 			double ms = 0;
 		};
-		static constexpr int ART_OVERLAY = 4;	// (overlay-add's id: the idle icon 0, the level card 1)
+		static constexpr int ART_OVERLAY = 1;	// (overlay-add's id: the idle icon 0; the cards OV_LOAD..OV_NOTE above it)
 		std::shared_ptr<SongArtJob> artJob;	// the one decoding or decoded for this song
 		std::string artKey;	// its file and size
 		enum class ArtState { Unknown, Shown, None };
