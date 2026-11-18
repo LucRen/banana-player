@@ -2017,6 +2017,78 @@ static void testDlQueue()
 	rmdir(root.c_str());
 }
 
+// removing queue items: a failed or a waiting chapter can leave, and Clear failed takes the failed ones only
+static void testMangaDlRemove()
+{
+	auto mk = [](const std::string& id) {
+		DlItem it;
+		it.id = id;
+		it.seriesId = "s";
+		it.chapterId = id;
+		it.chapterTitle = "Chapter " + id;
+		it.pageUrls = {"https://example.org/" + id + "/1.jpg"};
+		return it;
+	};
+
+	DownloadQueue q;
+	CHECK_EQ(q.load(""), false);	// no state folder: the queue still works in memory
+	q.add(mk("a"));
+	q.add(mk("b"));
+	q.add(mk("c"));
+	q.failed("b", "network gone");
+	CHECK_EQ(q.items().size(), size_t(3));
+
+	// the failed one goes; the others keep their order
+	uint64_t serial = q.serial();
+	q.remove("b");
+	CHECK_EQ(q.items().size(), size_t(2));
+	CHECK_EQ(q.serial() > serial, true);
+	CHECK_EQ(q.items()[0].id, std::string("a"));
+	CHECK_EQ(q.items()[1].id, std::string("c"));
+
+	// a queued (waiting) one goes the same way
+	serial = q.serial();
+	q.remove("a");
+	CHECK_EQ(q.items().size(), size_t(1));
+	CHECK_EQ(q.items()[0].id, std::string("c"));
+	CHECK_EQ(q.serial() > serial, true);
+
+	// an id that isn't there is no change, so nothing redraws
+	serial = q.serial();
+	q.remove("nope");
+	CHECK_EQ(q.items().size(), size_t(1));
+	CHECK_EQ(q.serial(), serial);
+
+	// Clear failed takes the failed ones only: the running, waiting and done ones stay
+	DownloadQueue q2;
+	q2.load("");
+	q2.add(mk("run"));
+	q2.add(mk("wait"));
+	q2.add(mk("bad1"));
+	q2.add(mk("done"));
+	q2.add(mk("bad2"));
+	q2.started("run");
+	q2.failed("bad1", "gone");
+	q2.finished("done");
+	q2.failed("bad2", "gone again");
+	CHECK_EQ(q2.items().size(), size_t(5));
+	serial = q2.serial();
+	q2.clearFailed();
+	CHECK_EQ(q2.items().size(), size_t(3));
+	CHECK_EQ(q2.serial() > serial, true);
+	CHECK_EQ(q2.items()[0].id, std::string("run"));
+	CHECK_EQ(q2.items()[0].state, DlItem::Running);
+	CHECK_EQ(q2.items()[1].id, std::string("wait"));
+	CHECK_EQ(q2.items()[1].state, DlItem::Waiting);
+	CHECK_EQ(q2.items()[2].id, std::string("done"));
+	CHECK_EQ(q2.items()[2].state, DlItem::Done);
+	// with none failed it changes nothing
+	serial = q2.serial();
+	q2.clearFailed();
+	CHECK_EQ(q2.items().size(), size_t(3));
+	CHECK_EQ(q2.serial(), serial);
+}
+
 // the repository index (design 5.3): reading it, validating its sources, checksums, versions, resolving file URLs
 static void testMangaRepo()
 {
@@ -12205,6 +12277,7 @@ int main()
 	testPageCache();
 	testCoverCache();
 	testDlQueue();
+	testMangaDlRemove();
 	testMangaRepo();
 	testOpds();
 	testCbzWrite();

@@ -61,6 +61,7 @@ namespace bp
 		void retry(const std::string& id);	// Failed -> Waiting
 		void finished(const std::string& id);	// Done; stays in items() until clearDone()
 		void clearDone();
+		void clearFailed();	// the failed ones only: waiting, running, paused and done stay
 		std::vector<DlItem> items() const;	// queue order, Done included
 		int pendingPages() const;	// pages not written yet, Done items aside
 		uint64_t serial() const { return serial_; }	// grows with every change: the UI redraws on it

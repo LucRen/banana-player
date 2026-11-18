@@ -977,7 +977,8 @@ pick up. It is the handheld's Home Recent strip, in the browser.
   installed sources stay), and the handheld's note under the card — then **Installed** (**Update** when there's one,
   the bin to uninstall, which asks first) and **Available** (**Install**). Adult sources are left out unless **Adult
   sources** is **Shown**.
-- **Downloads**: the queue — each chapter with its pages done, pause or resume one, delete one, **Pause all** /
+- **Downloads**: the queue — each chapter with its pages done, pause or resume one, **Y** removes a failed or queued
+  one (again to confirm), **Clear failed** removes every failed chapter and its partial pages, **Pause all** /
   **Resume all**, and a **Low on card space** note when the card is nearly full. Downloads are started here too, from
   a series' chapter list in **Library**; with none queued the page reads **Queue chapters from a series page**.
 
@@ -1159,7 +1160,9 @@ card**.
 
 **Downloads.** The storage line says what the downloads take and the card's free space. While something is queued, the
 queue comes next: each chapter's series, chapter and pages done of total over a progress line, **X** pauses or resumes
-the one under the cursor, and a **Pause all / Resume all** row stops or starts the queue. With nothing queued that room
+the one under the cursor, **Y** removes a failed or queued chapter after a second press, and a **Pause all / Resume all**
+row stops or starts the queue; its right end, **Clear failed**, takes every failed chapter and the partial pages it
+left (offered while one has failed). With nothing queued that room
 collapses to one dim **Nothing queued** line, and **On the card · N series** and its rows rise right under it, as many
 series as fit above the hints line. What is on the card is listed by series, with its chapters and size; **A** lists a
 series' chapters (and **A** on one reads it), **X** deletes a chapter or a series after a second press. Downloads need

@@ -57,6 +57,11 @@ namespace bp
 		// cancelled one is left for the Downloads page (the queue keeps it paused, not running).
 		void pauseAll();
 		void cancel(const std::string& id);
+		// Take an item out of the queue and delete the pages its work folder was left with (a failed chapter keeps
+		// them for a retry). A running one has its requests stopped first, as cancel does.
+		void remove(const std::string& id);
+		// The failed items leave as remove() takes one, partial pages and all; running, queued, paused and done stay.
+		void clearFailed();
 
 		Status status() const { return st_; }
 		uint64_t serial() const { return serial_; }	// grows on every change: the Ui redraws on it

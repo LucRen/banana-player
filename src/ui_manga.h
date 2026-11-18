@@ -1052,6 +1052,8 @@ namespace bp
 		int mdlCardCursor = 0, mdlCardScroll = 0;
 		std::string mdlDeletePath;	// X once: the series folder or chapter armed; again within 2 s deletes
 		Uint32 mdlDeleteAt = 0;
+		std::string mdlRemoveId;	// Y once: a failed or queued item armed; again within 2 s removes it
+		Uint32 mdlRemoveAt = 0;
 		std::string mdlNote;		// a page list that didn't come, or what the card couldn't do
 		Uint32 mdlNoteUntil = 0;
 		// the Download sheet over a source's series page
@@ -1077,6 +1079,7 @@ namespace bp
 		uint64_t mangaDlCardBytes() const;
 		uint64_t mangaDlFreeBytes() const;			// statvfs of the downloads folder, or its nearest parent
 		int mangaDlQueueCount() const;				// items still waiting, running, paused or failed
+		int mangaDlFailedCount() const;				// items whose download failed (Clear failed offers itself)
 		const MangaDlCardChapter* mangaDlCardFor(const std::string& sourceId, const std::string& seriesId,
 			const MangaChapter& c) const;
 		MangaDlMark mangaDlMarkFor(const std::string& sourceId, const std::string& seriesId, const MangaChapter& c) const;
@@ -1118,6 +1121,9 @@ namespace bp
 			return std::max(1, (ui.footY() - 16 - MDL_CARD_TOP_C) / MDL_CROW);
 		}
 		int mdlCardTop() const { return mangaDlQueueCount() > 0 ? MDL_CARD_TOP : MDL_CARD_TOP_C; }
+		// a failed or queued row's right end removes it (Y, or a tap there); the Pause all row's right end clears failed
+		static Rect mdlRemoveRect(const Rect& row) { return {row.x + row.w - 92, row.y, 92, row.h}; }
+		static Rect mdlClearFailedRect() { return {512, MDL_ALL_Y, 112, 32}; }
 
 		// ---- the manga reader's settings (ui_manga_settings.cpp) ----
 		// A page of the app's own, not a group of Banana Player's Settings: START on the app's pages (any tab) or over

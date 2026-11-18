@@ -619,6 +619,39 @@ namespace bp
 		touch();
 	}
 
+	void MangaDownloader::remove(const std::string& id)
+	{
+		// A running chapter must stop before its folder goes: an answer still on its way would be dropped anyway,
+		// and the part file the fetcher cleans up is inside that folder.
+		if (running_ && item_.id == id)
+		{
+			dropFlights(false);
+			retries_.clear();
+			resetRun();
+		}
+		queue_.remove(id);
+		// A failed chapter's pages are this engine's work folder, not the queue's: they go with it, as a finished
+		// chapter's do (removeTree), so a later download starts clean.
+		std::string dir = itemDir(id);
+		if (!dir.empty()) removeTree(dir);
+		queue_.save();
+		touch();
+	}
+
+	void MangaDownloader::clearFailed()
+	{
+		// No request is in flight for a failed one, so only its work folder is left to delete
+		for (const DlItem& it : queue_.items())
+		{
+			if (it.state != DlItem::Failed) continue;
+			std::string dir = itemDir(it.id);
+			if (!dir.empty()) removeTree(dir);
+		}
+		queue_.clearFailed();
+		queue_.save();
+		touch();
+	}
+
 	void MangaDownloader::resetRun()
 	{
 		bool low = lowSpace_;
