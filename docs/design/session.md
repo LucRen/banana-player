@@ -141,8 +141,10 @@ Rules the reducer applies, in order:
 5. **Absolute** intents: last to arrive on the main thread wins. Applying the same one twice changes nothing.
 6. Any change bumps `v`; a pure `Pos` report updates `pos/posAt` only (no `v` bump, no publish beyond the clock).
 
-`Step` (the only place for Prev 5 s, end of list and loop): `posNow >= RESTART_S && n < 0` → first press restarts
-(`seekN++`), the rest step `n+1`; target clamped (or wrapped for `LOOP_ALL`); at the first/last with nothing to do →
+`Step` (the only place for Prev 5 s, end of list and loop): a song `posNow >= RESTART_S && n < 0` → first press restarts
+(`seekN++`), the rest step `n+1`; a video never restarts: it goes to the one before, and on the first one of its list with
+no Loop All it is rejected `first` (§17); target clamped (or wrapped for `LOOP_ALL`, and for a song's `LOOP_ONE` too); at
+the first/last with nothing to do →
 reject `first`/`last` and a `Note`. A new index sets `load++`, `itemV = v`, `pos = 0`, `audio/sub` kept as picks
 (matched per file, §4), `error` cleared. `Step ×15` then `×-7` is 22 synchronous applies on the main thread: the index
 ends at +8 whatever order the renderers load in, and the executor coalesces (below), so only the last file loads.
@@ -188,7 +190,8 @@ New route: `POST /api/intent` (JSON `{origin, seq, basis, type, …}`) → `{ok,
 
 ## 5. The rules, once
 
-- **Prev**: `Step(n<0)` at ≥ `RESTART_S` restarts; the handheld's L, the page's Prev, the Media Session, `/api/cmd prev`
+- **Prev**: `Step(n<0)` into a song at ≥ `RESTART_S` restarts; a video always goes to the video before it (`§17`); the
+  handheld's L, the page's Prev, the Media Session, `/api/cmd prev`
   all send `Step`. No other copy of the rule (`Player::back()` and `browserNext`'s go).
 - **Unplayable in the browser**: `CantPlay(format|timeout)` from the page → `out = Handheld`, `playing` kept, `pos` kept,
   `Note "This one plays on the handheld"` + `PageToast`. The page stays the *preferred* output (`pref`, a field
@@ -243,6 +246,7 @@ New route: `POST /api/intent` (JSON `{origin, seq, basis, type, …}`) → `{ok,
 | I14 | `goneBye ⇒ goneAt ≠ 0 && goneTab` non-empty | set by `TabGone` with `on` (the closing page's goodbye: grace `TAB_BYE_GRACE_MS`, 3 s, not 10); cleared with `goneAt` (`TabBack`, the grace's end, a `SetOutput`) |
 | I15 | `picked ⇒ index ≥ 0` | `Open` sets it, `newItem` clears it |
 | I16 | `Ended` on the last song of a list with Loop off keeps that song: same `index`, same `load`, `pos == 0`, `!playing`, no `HhUnload`; a song with one after it goes on to it (`load` bumped, `pos == 0`, no `HhUnload`) (§16) | the reducer's `Ended` branch; checked by `checkTransition` (the named case and the fuzz) |
+| I17 | An applied `Step(n<0)` on a video never leaves it on the same item: it moves to another one or is rejected (§17) | the reducer's `Step` branch (only a song restarts); checked by `checkTransition` (the named cases and the fuzz) |
 
 ### Failure modes
 
@@ -275,8 +279,10 @@ Named reducer cases (each a sequence of intents with times, then `CHECK_EQ`s on 
 - `tracks survive browser→handheld→browser` (pick ord 2 / sub label "English [ASS]"; renderer counts differ).
 - `an unplayable audio pick plays the default in the browser and comes back on the handheld`.
 - `photo over music keeps the browser's song` / `photo over music on the handheld parks and resumes at its place`.
-- `Prev ≥5 s restarts`, `Prev <5 s goes back`, `Prev burst from 7 s restarts then n-1`, `Prev on the first <5 s rejects
-  with "This is the first one"`.
+- `Prev ≥5 s restarts` (a song), `Prev <5 s goes back` (a song), `Prev burst from 7 s restarts then n-1`, `Prev on the
+  first song <5 s rejects with "This is the first one"` (§17).
+- `a video's Prev at 6 s and at 2 s goes to the one before`; `the first video's Prev does nothing (no restart)`;
+  `the first video with Repeat All wraps to the last` (§17).
 - `end of list stops, says Finished` (a video); `the end of a song list keeps it, paused at its start` (§16); `loop one
   restarts`; `loop all wraps both ways`.
 - `handheld Stop with the browser as output stops the page; next pick goes to the browser` (`pref`).
@@ -555,7 +561,7 @@ an `Open` of that queue from that index, as a pick from the list: Shuffle makes 
 - **Nothing visible is reordered**: `queue` keeps the list's own order (Up next, the handheld's list, `3 / 12`).
   `Session::order` is the hidden play order: the queue's places, each once, the item picked first
   (`shuffleOrder(n, index, rnd)`), made by `Open` and by `SetShuffle` on (from the item playing: no reload, no effect).
-- **Next / Ended** go to the next place in `order`; **Previous** back (after the RESTART_S rule, as before). Past the
+- **Next / Ended** go to the next place in `order`; **Previous** back (in a song, after the RESTART_S rule, as before). Past the
   last place: Loop all → a new round (`shuffleOrder(n, -1, rnd)`, its first not the item just played), Loop off →
   Step says "last" and Ended ends the list (the finished state, §13), Loop one → Ended repeats the item (unchanged).
   In order is as before. `hasNext()` gives the handheld's Next key its dimmed state.
@@ -624,3 +630,31 @@ Videos keep what they did.
 - **Tests**: the named case "the end of a song list keeps it, paused at its start" in core-test (handheld and browser
   outputs, one song, the repeated end is a no-op, Play reuses the load, Loop one/all, a mid-list end), I16 in the fuzz,
   and one scripted run on the Mac (3 s sine MP3, `--press ... prop:time-pos prop:pause shot:end`).
+
+## 17. Previous: a song restarts, a video steps (2026-11-18)
+
+**Asked:** 5 s or more into a file, Previous (L, the Prev button, a page's Previous, the List sheet, the lid-shut volume
+hold) went back to that file's start — for videos too. The owner wants that only for **songs**. A video's Previous always
+goes to the video before it, however far in it is; on the **first** video of the list it does nothing (no restart, no
+wrap) unless **Repeat All** is on, which goes round to the last as it always did. Songs keep the rule exactly.
+
+- **The kind of file comes from the session**: `s.audioOnly`, set by the output's `Loaded` (the handheld's
+  `player.playingAudio()`, the page's `audio: B.meta.kind === 'audio'`), cleared by a new item. It is the same fact I16
+  (§16) branches on, so no new field and no path or extension guessing in bpcore (a file not loaded yet counts as a
+  video: its place is under `RESTART_S` anyway).
+- **The reducer** (`Step`): the restart branch gains `&& s.audioOnly`. The wrap branch (`s.loop != LOOP_OFF` →
+  modulo) becomes `k > 0 || s.audioOnly || s.loop == LOOP_ALL`: Next still wraps for both kinds and both loops, a song's
+  Previous keeps wrapping with Repeat One as before, and a video's Previous wraps only with Repeat All. A video at its
+  first one with Repeat One is `reject "first"` + **This is the first one**, like a song in its first 5 s. Shuffle's
+  hidden order is untouched (it never wrapped): a song restarts first there, as before; a video steps back along it.
+- **I17** (`checkTransition`, so the fuzz checks it): an applied `Step(n<0)` on a video never leaves it on the same item
+  (`index == old.index && reject.empty() && !old.audioOnly` is a bug); it either moves or is refused.
+- **Every path is the Session's**: the L key and the Prev button, the lid-shut shoulder hold, and the page's Prev all
+  send `Step`; `/api/cmd prev` does too while the session holds the item (`stepsHere`). The page then renders the answer
+  — a new `load` loads the previous video, a refusal shows **This is the first one** — so the browser output needs no
+  rule of its own. The `Player::back()` fallback (a session that doesn't hold the item, logged) is untouched: it only
+  runs when the session disagrees or a photo plays.
+- **Tests**: the six named cases in core-test — a song at 6 s restarts, a song at 2 s goes previous, a video at 6 s and
+  at 2 s both go previous, the first video's Previous does nothing (the place kept, no seek), the first video with
+  Repeat All wraps to the last — plus I17 on every apply of the fuzz. One scripted run on the Mac: two generated 10 s
+  videos in a folder, L on the second at 6 s (the first), then L on the first (`time-pos` kept, no restart).

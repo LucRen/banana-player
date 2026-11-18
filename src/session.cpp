@@ -415,8 +415,9 @@ namespace bp
 					if (s.index < 0) return "nothing";
 					int k = i.n;
 					bool did = false;
-					// Prev RESTART_S or more in: the first press goes back to the start, the rest step
-					if (k < 0 && posNow(s, now) >= RESTART_S)
+					// Prev at RESTART_S or more: a SONG's first press goes back to its start, the rest step. A video never
+					// restarts: Previous always goes to the one before, however far in it is (the owner, 2026-11-18)
+					if (k < 0 && s.audioOnly && posNow(s, now) >= RESTART_S)
 					{
 						n.pos = 0;
 						n.posAt = now;
@@ -437,7 +438,10 @@ namespace bp
 						if (at + k >= size && k > 0) round = true;	// (Next past the round's end: a new one)
 						else to = s.order[std::clamp(at + k, 0, size - 1)];
 					}
-					else if (s.loop != SESSION_LOOP_OFF) to = ((to % size) + size) % size;	// (Loop all or one: round)
+					// (Loop all or one: round. A video's Previous on its first one wraps only with Repeat all; Repeat one
+					// is a song's rule (which wraps there as before), not a video's)
+					else if (s.loop != SESSION_LOOP_OFF && (k > 0 || s.audioOnly || s.loop == SESSION_LOOP_ALL))
+						to = ((to % size) + size) % size;
 					else to = std::clamp(to, 0, size - 1);
 					if (to == s.index)
 					{
@@ -982,6 +986,11 @@ namespace bp
 			for (auto& e : r.fx)
 				if (e.kind == Effect::HhUnload) return "I16: a song mid-list unloaded the one that ended";
 		}
+		// I17: Previous never restarts a video: it goes to another item or is refused (a song's, RESTART_S in, goes
+		// back to its start first: an applied Step that stays on the same item would be that restart)
+		if (i.type == IntentType::Step && i.n < 0 && r.reject.empty() && !r.dup && old.index >= 0 && !old.audioOnly &&
+			r.s.index == old.index)
+			return "I17: a video restarted by Previous";
 		bool report = i.type == IntentType::Loaded || i.type == IntentType::Pos || i.type == IntentType::Ended ||
 			i.type == IntentType::CantPlay || i.type == IntentType::Blocked;
 		if (report && r.reject.empty() && (i.origin != outOrigin(old) || i.load != old.load)) return "I8: a report from elsewhere taken";

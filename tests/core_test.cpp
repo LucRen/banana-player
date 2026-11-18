@@ -8655,17 +8655,18 @@ namespace
 			}
 			return go(i);
 		}
-		Result report(IntentType t, const std::string& origin, uint64_t load, double tPos = 0, bool playing = true)
+		Result report(IntentType t, const std::string& origin, uint64_t load, double tPos = 0, bool playing = true, bool audio = false)
 		{
 			Intent i = mk(t, origin);
 			i.load = load;
 			i.dur = 100;
 			i.t = tPos;
 			i.playing = playing;
+			i.audioOnly = audio;
 			i.reason = "format";
 			return go(i);
 		}
-		Result loaded() { return report(IntentType::Loaded, outOrigin(s), s.load); }
+		Result loaded(bool audio = false) { return report(IntentType::Loaded, outOrigin(s), s.load, 0, true, audio); }
 		Result step(int n, const std::string& origin = "hh")
 		{
 			Intent i = mk(IntentType::Step, origin);
@@ -9345,10 +9346,10 @@ static void testSessionNamed()
 		CHECK_EQ(m.fx.size() == 2 && m.fx[0].kind == Effect::HhLoad && m.fx[0].t == 42.0 && m.fx[1].kind == Effect::HhPlay, true);
 	}
 	{
-		// Prev ≥5 s restarts, Prev <5 s goes back, a Prev burst from 7 s restarts then n-1, Prev on the first <5 s rejects
+		// a song's Prev: ≥5 s restarts, <5 s goes back, a burst from 7 s restarts then n-1, on the first <5 s rejects
 		Sim m;
 		m.open(10, 5);
-		m.loaded();
+		m.loaded(true);
 		m.report(IntentType::Pos, "hh", m.s.load, 7);
 		uint64_t seekN = m.s.seekN;
 		m.step(-1);
@@ -9358,18 +9359,73 @@ static void testSessionNamed()
 		m.now += 3000;
 		m.step(-1);
 		CHECK_EQ(m.s.index, 4);
-		m.loaded();
+		m.loaded(true);
 		m.report(IntentType::Pos, "hh", m.s.load, 7);
 		m.step(-3);
 		CHECK_EQ(m.s.index, 2);
 		Sim f;
 		f.open(10, 0);
-		f.loaded();
+		f.loaded(true);
 		f.now += 2000;
 		f.fx.clear();
 		CHECK_EQ(f.step(-1).reject, std::string("first"));
 		CHECK_EQ(f.said("This is the first one"), true);
 		CHECK_EQ(f.s.index, 0);
+	}
+	{
+		// a song 6 s in restarts; 2 s in goes to the one before (the two sides of RESTART_S)
+		Sim six;
+		six.open(3, 1);
+		six.loaded(true);
+		six.report(IntentType::Pos, "hh", six.s.load, 6);
+		six.step(-1);
+		CHECK_EQ(six.s.index, 1);
+		CHECK_EQ(six.s.pos, 0.0);
+		CHECK_EQ(six.s.seekN, 1u);
+		Sim two;
+		two.open(3, 1);
+		two.loaded(true);
+		two.report(IntentType::Pos, "hh", two.s.load, 2);
+		two.step(-1);
+		CHECK_EQ(two.s.index, 0);
+		CHECK_EQ(two.s.seekN, 0u);
+	}
+	{
+		// a video's Prev always goes to the one before, 6 s in or 2 s in (never back to its own start); on the first
+		// one it does nothing (no restart, no wrap) unless Repeat all is on, which wraps to the last as it always did
+		Sim six;
+		six.open(3, 1);
+		six.loaded();
+		six.report(IntentType::Pos, "hh", six.s.load, 6);
+		six.step(-1);
+		CHECK_EQ(six.s.index, 0);
+		CHECK_EQ(six.s.seekN, 0u);
+		Sim two;
+		two.open(3, 1);
+		two.loaded();
+		two.report(IntentType::Pos, "hh", two.s.load, 2);
+		two.step(-1);
+		CHECK_EQ(two.s.index, 0);
+		Sim first;
+		first.open(3, 0);
+		first.loaded();
+		first.report(IntentType::Pos, "hh", first.s.load, 6);
+		CHECK_EQ(first.step(-1).reject, std::string("first"));
+		CHECK_EQ(first.s.index, 0);
+		CHECK_EQ(first.s.seekN, 0u);
+		CHECK_EQ(first.said("This is the first one"), true);
+		CHECK_EQ(first.s.pos, 6.0);
+		Sim all;
+		all.open(3, 0);
+		Intent l = all.mk(IntentType::SetLoop);
+		l.loop = SESSION_LOOP_ALL;
+		all.go(l);
+		all.loaded();
+		all.report(IntentType::Pos, "hh", all.s.load, 6);
+		all.step(-1);
+		CHECK_EQ(all.s.index, 2);
+		CHECK_EQ(all.s.pos, 0.0);
+		CHECK_EQ(all.s.seekN, 0u);
 	}
 	{
 		// end of list stops, says Finished; loop one restarts; loop all wraps both ways

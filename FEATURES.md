@@ -73,9 +73,11 @@ under the header shows where you are (`share / Movies`), and the bottom line sho
 button's name in yellow, then what it does. See [Playlists](#playlists).
 
 Everything in a folder plays as one playlist: **L/R** go to the previous or next file, and the next one starts when
-the current one ends. **Previous**: 5 seconds or more into a song or video, it goes back to
-its start; before that, to the file before. On the first file in its first 5 seconds it does nothing (the top screen
-says **This is the first one**), so the Prev button is never greyed out. The web dashboard's Previous (both targets, and
+the current one ends. **Previous** on a **song**: 5 seconds or more in, it goes back to its start; before that, to the
+file before. **Previous** on a **video** always goes to the video before it, however far in it is; on the first video
+of the list it does nothing (the top screen says **This is the first one**) unless Repeat All is on, which goes round to
+the last one. On the first song in its first 5 seconds it does nothing too (the same note), so the Prev button is never
+greyed out. The web dashboard's Previous (both targets, and
 a headset's or the lock screen's) follows the same rule. Photos simply step back. Folders can mix videos and music. Photos are a list of their own: from a photo you step through
 the folder's photos, and from a video or a song through its videos and songs. When you stop something, you're back in
 its folder on that file.
@@ -224,7 +226,7 @@ Like a song or a video to keep it in **Liked**, a playlist of its own. Photos an
 |---|---|
 | **A** | Play / pause |
 | **LEFT / RIGHT** | Back 5 seconds / forward 10 seconds (hold to keep going); the **5 s** and **10 s** keys either side of Play do the same by touch |
-| **L / R** | Previous (5 s or more in: back to the start) / next file in the folder |
+| **L / R** | Previous / next file in the folder (a song 5 s or more in restarts first; a video always goes to the one before; on the first video: nothing, unless Repeat All) |
 | **L2 / R2** | Previous / next chapter (**F + L2** is still the screenshot) |
 | **UP / DOWN** | Nothing: the Next line is a tap, and the chips are touch only. (They no longer change the speed; that is the **Speed** chip or View's Speed tab) |
 | **X** | **More**: a sheet with **Lock touch**, **Screen off**, **Info** and **Stop** (in red) as its first four keys, then **Like**, **Add to playlist…**, **Show in folder** and, while a dashboard page that can play is open, **Play on…**. The D-pad moves, **A** chooses, **X** or **B** closes |
@@ -756,7 +758,7 @@ handheld, carries on at 1:27"):
   The top screen's card says **Hold A to play here** on the player, and **Go to the player to play it here** on any other
   page (where A does that page's own thing).
   **L / R** on the handheld move the browser's list on, however fast they're pressed: every press counts, and both end
-  on the same file (**L** 5 s or more into the browser's song restarts it first, as Previous does everywhere).
+  on the same file (**L** 5 s or more into the browser's song restarts it first; a video always goes to the one before).
 - **Where it plays is one choice for the whole system**, the switch's: anything opened plays there, whichever device
   it was picked on. With **This browser** chosen, a song or video opened on the handheld (from the list, Recent, a
   playlist, Play folder, Shuffle play, the mini bar) or in another browser tab plays **in that browser**, in the
