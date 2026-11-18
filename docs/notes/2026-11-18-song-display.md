@@ -45,6 +45,15 @@ choice tile), Tabs, Themes › The top screen; screens `music-view`, `music-viz-
   leave), 0 otherwise. The overlay's decode already cut the art square from its middle.
 - Checked on the Mac: all twelve switches among the four modes, a song with art and one without: no end, no skip.
 
+- **The art off centre** (Album art only and Art + visualizer): the group (art + 28 + lines) was centred on the
+  letters' estimate of the lines' width (`songTextWidth`), ~8% wide on Inter (Sunny Peel: 135 for 126), so the group
+  sat left. The lines are now measured with SDL_ttf in the bundle's Inter (what libass draws with on the handheld;
+  `\fs` taken as the font's ascent + descent) and cut by the same measure; the estimate stays where the fonts can't be
+  read. Log: `… art S at X,Y (px P at x,y on WxH), text W wide at X (lines M, estimated E)`.
+- **Fill lost on Next**: `load` sets the aspect mode's panscan (0) for every file, and the margins, unchanged, weren't
+  sent again. `load` now clears `marginsSet`, so a song's next `updateOverlay` sends margins and panscan again (a
+  video's: the aspect mode's own panscan). Checked: a 600x400 cover filled and centred, Next to a square one, filled.
+
 ## Not done / differs from the spec
 - **Circle** keeps its own colours (cyan to pink, a pale blue ring) and black ground: the spec's "ACCENT bars, TEXT caps,
   Yellow unchanged" doesn't hold for Circle (Yellow's Circle isn't yellow), and its ring fades to black (a dark halo on

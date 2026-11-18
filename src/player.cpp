@@ -1,5 +1,6 @@
 #include "player.h"
 #include "durations.h"
+#include "cardcanvas.h"
 #include "filesave.h"
 #include "format.h"
 #include "levelcard.h"
@@ -635,6 +636,9 @@ namespace bp
 			exif = ExifInfo();
 			prop("vf", "");
 			for (auto& a : aspectProperties(aspect)) prop(a.first, a.second);
+			// (that panscan is the aspect mode's: a song's Album art only sets its own again, margins and all, at its
+			// next updateOverlay: the next song's art filled its square no longer)
+			marginsSet = "?";
 			prop("dscale", "bilinear");
 			prop("correct-downscaling", "no");
 		}
@@ -2456,11 +2460,12 @@ namespace bp
 		marginsSet = lrtb;
 		double m[4] = {0, 0, 0, 0};
 		if (!lrtb.empty()) sscanf(lrtb.c_str(), "%lf %lf %lf %lf", &m[0], &m[1], &m[2], &m[3]);
+		// (sent again after a file's own panscan: load sets the aspect mode's, so marginsSet is cleared there)
 		const char* names[4] = {"video-margin-ratio-left", "video-margin-ratio-right", "video-margin-ratio-top", "video-margin-ratio-bottom"};
 		for (int i = 0; i < 4; i++) mpv_set_property_async(mpv, 0, names[i], MPV_FORMAT_DOUBLE, &m[i]);
 		// the art fills its square (cropped from a picture that isn't square), as the overlay's decode does: panscan
 		// crops to the box the margins leave. 0 with no margins (Art + visualizer, Visualizer only, None, a video)
-		double pan = lrtb.empty() ? 0 : 1;
+		double pan = lrtb.empty() ? (aspect == AspectMode::Fill ? 1 : 0) : 1;	// (none: a video's own aspect mode)
 		mpv_set_property_async(mpv, 0, "panscan", MPV_FORMAT_DOUBLE, &pan);
 		fprintf(stderr, "music: top panel margins %s, panscan %g\n", lrtb.empty() ? "none (the whole panel)" : lrtb.c_str(), pan);
 	}
@@ -2614,8 +2619,41 @@ namespace bp
 		// the art shown as mpv's own video (Album art only, no graph): put in the art's box by the video's margins,
 		// in the layout of the mode it is shown in (a mode just changed: the graph comes half a second later)
 		bool videoArt = (graphSet.empty() || graphSet == artPassGraph()) && hasCover(tracks);
-		const int widest = std::max({songTextWidth(title, SONG_TITLE_FS, true), songTextWidth(chapter, SONG_ARTIST_FS),
-									 songTextWidth(artist, SONG_ARTIST_FS), songTextWidth(album, SONG_ALBUM_FS)});
+		// the lines' widths as libass will draw them: measured in the bundle's Inter (what libass uses on the handheld),
+		// \fs being the font's ascent + descent; the letter estimate (songTextWidth) where the fonts can't be read. The
+		// estimate ran ~8% wide, and the group (art + lines) centred on it sat left of the middle
+		int estimated = 0;
+		auto lineW = [&](const std::string& t, int fs, bool bold) {
+			if (t.empty()) return 0;
+			int est = songTextWidth(t, fs, bold);
+			estimated = std::max(estimated, std::min(est, 560));
+			TTF_Font* f = opts.fontsDir.empty() ? nullptr : card::faceFont(opts.fontsDir, bold ? card::INTER_BOLD : card::INTER, 100);
+			int w = 0, h = 0;
+			if (!f || TTF_SizeUTF8(f, t.c_str(), &w, &h) != 0) return est;
+			int em = TTF_FontAscent(f) - TTF_FontDescent(f);
+			return em > 0 ? (int)std::ceil(w * (double)fs / em) : est;
+		};
+		// a line cut to w units with "…", by the same measure (the estimate cut "Sunny Peel" in a column made for it)
+		auto fitLine = [&](const std::string& t, int fs, int w, bool bold) {
+			if (lineW(t, fs, bold) <= w) return t;
+			std::vector<size_t> ends;
+			for (size_t i = 0; i < t.size(); i += card::u8len(t, i)) ends.push_back(i);
+			size_t lo = 0, hi = ends.size();	// prefixes of ends[k] bytes; the longest whose "…" fits
+			auto cut = [&](size_t k) {
+				std::string p = t.substr(0, ends[k]);
+				while (!p.empty() && p.back() == ' ') p.pop_back();
+				return p + "\xe2\x80\xa6";
+			};
+			while (lo + 1 < hi)
+			{
+				size_t mid = (lo + hi) / 2;
+				if (lineW(cut(mid), fs, bold) <= w) lo = mid;
+				else hi = mid;
+			}
+			return cut(lo);
+		};
+		const int widest = std::max({lineW(title, SONG_TITLE_FS, true), lineW(chapter, SONG_ARTIST_FS, false),
+									 lineW(artist, SONG_ARTIST_FS, false), lineW(album, SONG_ALBUM_FS, false)});
 		SongLayout artOnly = songLayout(true, widest);
 		if (videoArt)
 		{
@@ -2773,8 +2811,11 @@ namespace bp
 			}
 			why = box == ART ? (show == SHOW_ART ? "mpv's art in the margins" : "the graph's art") : box == OVERLAY ? "the decoded art"
 				: box == PLACEHOLDER ? "the placeholder" : "nothing yet";
-			char lg[160];
-			snprintf(lg, sizeof lg, "art %d at %d,%d, text %d wide at %d", l.artS, l.artX, l.artY, l.textW, l.textX);
+			char lg[320];
+			const int pw = topW > 0 ? topW : 960, ph = topH > 0 ? topH : 720;
+			snprintf(lg, sizeof lg, "art %d at %d,%d (px %ld at %ld,%ld on %dx%d), text %d wide at %d (lines %d, estimated %d)", l.artS, l.artX,
+				l.artY, std::lround(l.artS * ph / 480.0), std::lround(l.artX * pw / 640.0), std::lround(l.artY * ph / 480.0), pw, ph, l.textW,
+				l.textX, widest, estimated);
 			why += std::string(", ") + lg;
 
 			// the lines to the art's right, their block centred on the art's middle, each cut to the column
@@ -2794,7 +2835,7 @@ namespace bp
 					y += ln.gap;
 					double mid = y + ln.fs * 0.6;
 					ev += "{\\an4\\pos(" + num(u(l.textX)) + "," + num(u(mid)) + ")\\bord0\\shad0\\q2\\fs" + num(u(ln.fs)) +
-						  (ln.bold ? "\\b1" : "\\b0") + "\\1c" + ln.colour + "}" + assText(songFitText(ln.text, ln.fs, l.textW, ln.bold)) + "\n";
+						  (ln.bold ? "\\b1" : "\\b0") + "\\1c" + ln.colour + "}" + assText(fitLine(ln.text, ln.fs, l.textW, ln.bold)) + "\n";
 					y += ln.fs * 1.2;
 				}
 			}
