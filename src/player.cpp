@@ -2608,7 +2608,9 @@ namespace bp
 		// the lines TEXT, DIM_ON, DIM, the art's edge edgeOf(SURFACE); a visualizer alone keeps its picture
 		// Peaks alone is drawn on BG too (its bars ACCENT, caps TEXT: settings.cpp's peaksThemed), so its lines are the
 		// theme's; the other styles alone keep their picture and the white lines with a shadow
-		const bool peaksAlone = show == SHOW_VIS && settings.visualizer == VIS_PEAKS_BANANA;
+		// (and Night city alone in a theme but Yellow: its sky is the theme's BG, docs/notes/2026-11-19-viz-theme.md)
+		const bool peaksAlone = show == SHOW_VIS && (settings.visualizer == VIS_PEAKS_BANANA ||
+			(settings.visualizer == VIS_CITY && theme::currentTheme() != 0));
 		const bool themed = group || show == SHOW_NONE || peaksAlone;
 		setGround(themed);
 		const std::string INK = ass(TEXT), INK2 = ass(DIM_ON), INK3 = ass(DIM), MARK = ass(ACCENT), EDGE = ass(edgeOf(SURFACE)),
@@ -2874,10 +2876,13 @@ namespace bp
 					  assText(songFitText(s, fs, 596, bold)) + "\n";
 				y += fs * 1.2;
 			};
-			line(title, 26, true, pocket ? "&H0F380F&" : peaksAlone ? INK : WHITE, 0);
-			if (!chapter.empty()) line(chapter, 17, false, pocket ? std::string("&H306230&") : peaksAlone ? MARK : ass(TOP_TITLE), 4);
-			if (!artist.empty()) line(artist, 17, false, pocket ? "&H0F380F&" : peaksAlone ? INK2 : CREAM, 5);
-			if (!album.empty()) line(album, 14, false, pocket ? "&H306230&" : peaksAlone ? INK3 : GREY, 3);
+			// (Pocket console's: its screen's ink and mid, the theme's: pocketInks; Yellow's the greens #0F380F, #306230)
+			const PocketInks pk = pocketInks();
+			const std::string PINK = ass(pk.ink), PMID = ass(pk.mid);
+			line(title, 26, true, pocket ? PINK : peaksAlone ? INK : WHITE, 0);
+			if (!chapter.empty()) line(chapter, 17, false, pocket ? PMID : peaksAlone ? MARK : ass(TOP_TITLE), 4);
+			if (!artist.empty()) line(artist, 17, false, pocket ? PINK : peaksAlone ? INK2 : CREAM, 5);
+			if (!album.empty()) line(album, 14, false, pocket ? PMID : peaksAlone ? INK3 : GREY, 3);
 		}
 		// the manga engine starting over Album art only (the visualizers rest as None): its note at the foot
 		if (engineLoading && show != SHOW_NONE)

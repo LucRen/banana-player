@@ -29,7 +29,7 @@
 namespace bp
 {
 	// a new name whenever the stills change: they're cached by size
-	static const char* FIRE_FILES[7] = {"fire1-a.pgm", "fire1-as.pgm", "fire1-n.pgm", "fire1-s.pgm",
+	static const char* FIRE_FILES[7] = {"fire1-a.pgm", "fire2-as.pgm", "fire1-n.pgm", "fire1-s.pgm",
 										"fire1-y.pgm", "fire1-u.pgm", "fire1-v.pgm"};
 	static const int GW = 80, GH = 60, SR = 25;	// the grid alone, and the strip's rows over the art
 	static const int NP = 120, SP = 36;			// the noise's and the sparks' periods, in rows
@@ -38,8 +38,10 @@ namespace bp
 	// 63 no fire there. Zone: 0 no sparks, 1 low sky (yellow sparks), 2 high sky (orange)
 	static const int NOFIRE = 63;
 	static const double KC_ALONE = 0.62, KC_STRIP = 1.15;
-	// the fire alone: 48 columns from 16, its base on row 49 (the logs from 50), up to 46 rows high
+	// the fire alone: 48 columns from 16, its base on row 49 (the logs from 50), up to 46 rows high. Over the art (the
+	// band along the foot) it spans the whole width: 80 columns, 5 a band (the same grid: the same cost a frame)
 	static const int X0 = 16, FW = 48, BASE = 49, FROWS = 46;
+	static const int SX0 = 0, SFW = GW;
 
 	struct Yuv { int y, u, v; };
 	static Yuv yuv(int rgb)
@@ -77,18 +79,18 @@ namespace bp
 
 	// the shape map for rows pixels high, the fire's base on row base, its spark zones' rows (high from 0, low from
 	// lowTop, to zoneEnd), the code scaled by kc
-	static std::vector<unsigned char> shapeMap(int rows, int base, int frows, int lowTop, int zoneEnd, double kc)
+	static std::vector<unsigned char> shapeMap(int rows, int base, int frows, int lowTop, int zoneEnd, double kc, int x0 = X0, int fw = FW)
 	{
 		std::vector<unsigned char> m((size_t)GW * rows);
 		for (int r = 0; r < rows; r++)
 			for (int c = 0; c < GW; c++)
 			{
 				int zone = (c >= 20 && c < 60 && r < zoneEnd) ? (r < lowTop ? 2 : 1) : 0;
-				int code = NOFIRE, x = c - X0, y = base - r;
-				if (x >= 0 && x < FW && y >= 0 && y < frows)
+				int code = NOFIRE, x = c - x0, y = base - r;
+				if (x >= 0 && x < fw && y >= 0 && y < frows)
 				{
 					// the flames lean in towards the middle and taper at the sides (the preview's shape)
-					double s = 1 - std::pow(std::fabs(x - FW / 2.0 + 0.5) / (FW / 2.0), 2) * 0.55;
+					double s = 1 - std::pow(std::fabs(x - fw / 2.0 + 0.5) / (fw / 2.0), 2) * 0.55;
 					code = std::min(NOFIRE - 1, (int)std::lround(y / s * kc));
 				}
 				m[(size_t)r * GW + c] = (unsigned char)(zone * 64 + code);
@@ -147,7 +149,7 @@ namespace bp
 			Y[i] = (unsigned char)c.y; U[i] = (unsigned char)c.u; V[i] = (unsigned char)c.v;
 		}
 		return writePgm(p[0], GW, GH, shapeMap(GH, BASE, FROWS, 15, 31, KC_ALONE)) &&
-			   writePgm(p[1], GW, SR, shapeMap(SR, SR - 1, SR, 7, 15, KC_STRIP)) && writePgm(p[2], GW, NH, noise) &&
+			   writePgm(p[1], GW, SR, shapeMap(SR, SR - 1, SR, 7, 15, KC_STRIP, SX0, SFW)) && writePgm(p[2], GW, NH, noise) &&
 			   writePgm(p[3], GW, SPH, sparks) && writePgm(p[4], GW, GH, Y) && writePgm(p[5], GW, GH, U) && writePgm(p[6], GW, GH, V);
 	}
 
@@ -175,8 +177,10 @@ namespace bp
 			 "lut=c0='clip(257*(252+24*log(max(val,1)/65535)),0,257*252)',format=gray,split [fil] [fit]; "
 			 // the treble: bands 12-15 as one value, over the whole grid
 			 "[fit] crop=4:1:12:0,scale=1:1:flags=area,scale=" + n(GW) + ":" + n(R) + ":flags=neighbor,setsar=1 [fiT]; "
-			 // each fire column its band's level (3 columns a band, from column 16), down the grid
-			 "[fil] scale=" + n(N * 3) + ":1:flags=neighbor,pad=" + n(GW) + ":1:" + n(X0) + ":0:black,scale=" + n(GW) + ":" + n(R) +
+			 // each fire column its band's level (alone 3 columns a band, from column 16; over the art 5, the whole
+			 // width), down the grid
+			 "[fil] scale=" + (overCover ? n(SFW) + ":1:flags=neighbor,pad=" + n(GW) + ":1:" + n(SX0)
+				: n(N * 3) + ":1:flags=neighbor,pad=" + n(GW) + ":1:" + n(X0)) + ":0:black,scale=" + n(GW) + ":" + n(R) +
 			 ":flags=neighbor,setsar=1 [fiL]; "
 			 "movie=" + q(overCover ? 1 : 0) + " [fiA]; movie=" + q(2) + " [fiN]; movie=" + q(3) + " [fiS]; "
 			 // the base heat, 1 - y / h, kept 0..63 (as (heat + 0.3) * 48) under the zone (x 64)

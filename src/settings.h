@@ -3,6 +3,7 @@
 #include "soundfx.h"
 #include "substyle.h"
 #include <cstdint>
+#include "theme.h"
 #include <string>
 #include <vector>
 
@@ -83,6 +84,14 @@ namespace bp
 	std::string visualizerGraph(int vis, bool overCover, const std::string& mapsDir = "", int fps = 60);
 	// the same before vizAtFps, with its cacheable lut and lut2 marked (vizCacheLuts, src/vizcache.h, makes it a graph)
 	std::string visualizerGraphMarked(int vis, bool overCover, const std::string& mapsDir = "");
+	// Pocket console's screen in the theme (docs/notes/2026-11-19-viz-theme.md): its ink (a bar), mid (a cap, a bar's
+	// top, the floor) and screen; over the art its two lit inks. Yellow: the old handheld's greens, as before. The
+	// song's lines over it (Visualizer only) are drawn in ink and mid
+	struct PocketInks { theme::Rgb ink, mid, screen, grid, light, bright; };
+	PocketInks pocketInks();
+	// a theme colour helper the styles share: WCAG contrast, and `c` moved towards `to` till it reaches `ratio` on `on`
+	double colourContrast(theme::Rgb a, theme::Rgb b);
+	theme::Rgb inkOn(theme::Rgb c, theme::Rgb on, theme::Rgb to, double ratio);
 	// Circle's tables, remap's xmap and ymap as 16-bit PGMs, in dir (made once, kept); false if they can't be written
 	bool writeCircleMaps(const std::string& dir);
 	// every style's stills into dir (Circle's tables, and what the six newer ones read): true when all are there
