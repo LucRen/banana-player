@@ -38,7 +38,8 @@ namespace bp
 
 	void TopScreen::drainUnder(Player& player, Player& photos, bool readerOnTop)
 	{
-		if ((!photos.playing() && !readerOnTop) || !player.playing() || !player.frameDue()) return;
+		// (and under the Theme row's preview pane, which covers whatever plays)
+		if ((!photos.playing() && !readerOnTop && !paneUp) || !player.playing() || !player.frameDue()) return;
 		SDL_GL_MakeCurrent(top, gl);
 		if (!sinkFbo)
 		{
@@ -85,7 +86,7 @@ namespace bp
 		auto readPixels = (ReadPixels)SDL_GL_GetProcAddress("glReadPixels");
 		if (!readPixels) return nullptr;
 		if (qr && drawQr(w, h)) {}	// About's support QR, large
-		else if (paneUp && paneReady) paneRender.draw({{0, 0, 0, (float)w, (float)h}}, w, h);	// the Preview pane
+		else if (paneUp && paneReady) drawPaneNow(w, h);	// the Preview pane
 		else if (reader.isOpen() && readerOnTop) reader.draw(w, h);	// a manga chapter's pages
 		else if (textReader.isOpen() && readerOnTop) textReader.draw(w, h);	// a document's text
 		else shown.render(w, h);	// a video, a photo, or the icon with nothing playing
@@ -155,8 +156,16 @@ namespace bp
 			// in the log: the pane up and each change (a top panel stuck on it would show here)
 			fprintf(stderr, "top: preview pane %s %s %dx%d in %u ms\n", first ? "up" : "now", key.c_str(), w, h, SDL_GetTicks() - t0);
 		}
-		paneRender.draw({{0, 0, 0, (float)w, (float)h}}, w, h);
+		drawPaneNow(w, h);
 		return true;
+	}
+
+	void TopScreen::drawPaneNow(int w, int h)
+	{
+		// the pane, and the level card over it while one is up (mpv's own would be under it)
+		std::vector<PageRenderer::Placed> placed{{0, 0, 0, (float)w, (float)h}};
+		paneCard.place(paneRender, placed, w, h, SDL_GetTicks());
+		paneRender.draw(placed, w, h);
 	}
 
 	void TopScreen::cardOnReader(const std::string& label, int percent, bool bar, int barTop, int ms)
@@ -166,7 +175,12 @@ namespace bp
 		LevelCardImage c = drawLevelCard(fontsDir, th, label, percent, barTop, levelIcon(label));
 		SDL_GL_MakeCurrent(top, gl);
 		int64_t until = (int64_t)SDL_GetTicks() + ms;
-		if (c.ok() && reader.isOpen()) reader.showOverlay(c.rgba, c.w, c.h, until);
+		if (c.ok() && paneUp)
+		{
+			paneCard.show(paneRender, c.rgba, c.w, c.h, until);
+			paneCardNew = true;
+		}
+		else if (c.ok() && reader.isOpen()) reader.showOverlay(c.rgba, c.w, c.h, until);
 		else if (c.ok()) textReader.showOverlay(c.rgba, c.w, c.h, until);
 	}
 
@@ -431,19 +445,22 @@ namespace bp
 			qrRender.keepOnly({});
 			qrRender.flushDead();
 		}
-		// the Preview pane: only while nothing plays (a video, a song, a photo: the top screen is the picture) and no
-		// reader has the panel; down again, mpv's idle picture is drawn once more
+		// the Preview pane, whatever plays (the Theme row's: the one help that takes the top screen from a picture,
+		// docs/redesign Themes › Where it is changed): a video or a song goes on under it, its frames taken unseen
+		// (drainUnder), its sound on. Not while a reader has the panel. Down again, mpv's picture is drawn once more
 		PaneSpec pane;
-		bool paneNow = !qrNow && !player.playing() && !photos.playing() && !reader.isOpen() && !textReader.isOpen() && ui.topPane(pane);
+		bool paneNow = !qrNow && !reader.isOpen() && !textReader.isOpen() && ui.topPane(pane);
 		if (!paneNow && paneUp)
 		{
 			paneUp = false;
 			paneKey.clear();
+			paneCard = CardOverlay{};
 			SDL_GL_MakeCurrent(top, gl);
 			paneRender.keepOnly({});
 			paneRender.flushDead();
 			topDark = false;
-			fprintf(stderr, "top: preview pane dropped\n");
+			renderPending = true;	// (what plays: its picture at once, not at its next frame)
+			fprintf(stderr, "top: preview pane dropped%s\n", player.playing() || photos.playing() ? ": the picture of what plays is back" : "");
 		}
 		if (qrNow)
 		{
@@ -461,7 +478,13 @@ namespace bp
 			int w, h;
 			SDL_GL_GetDrawableSize(top, &w, &h);
 			std::string key = pane.key + "|" + theme::themeId(theme::currentTheme());
-			if ((key != paneKey || paneW != w || paneH != h || refresh) && drawPane(pane, key, w, h)) SDL_GL_SwapWindow(top);
+			if (!paneUp && (player.playing() || photos.playing()))
+				fprintf(stderr, "top: preview pane over what plays (%s): it goes on under it\n", player.playing() ? player.currentPath().c_str() : "a photo");
+			// the level card over it: up, fading, or just down (its texture let go)
+			bool ended = false, cardNeed = paneCard.frame(SDL_GetTicks(), ended) || paneCardNew;
+			paneCardNew = false;
+			if (ended && paneUp) paneRender.keepOnly({0});
+			if ((key != paneKey || paneW != w || paneH != h || refresh || cardNeed) && drawPane(pane, key, w, h)) SDL_GL_SwapWindow(top);
 		}
 		else if (reader.isOpen() && onTop(ui))
 		{

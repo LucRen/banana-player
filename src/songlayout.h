@@ -20,10 +20,10 @@ namespace bp
 		int midY = 0;	// the lines' block is centred on this (the art's middle)
 	};
 
-	// showArt: Album art only (true) or Art + visualizer (false); info: Song info on top; widest: the widest of the
-	// lines as they'd be drawn uncut (units; songTextWidth). The group (art + 28 + text) is centred on its real width
-	// in 40-unit margins; the text column never reaches under the art
-	SongLayout songLayout(bool showArt, bool info, int widest);
+	// showArt: Album art only (true) or Art + visualizer (false); widest: the widest of the lines as they'd be drawn
+	// uncut (units; songTextWidth). The title lines are always shown (there is no setting): the group (art + 28 + text)
+	// is centred on its real width in 40-unit margins; the text column never reaches under the art
+	SongLayout songLayout(bool showArt, int widest);
 
 	// a line's width estimated at font size fs (units): libass measures nothing for us, so letters are counted, about
 	// 0.45 x fs a Latin one (Inter; 0.48 bold: measured on its rendering, a little over), fs a wide (CJK) one
@@ -31,12 +31,15 @@ namespace bp
 	// the line cut to maxW units, "…" when cut
 	std::string songFitText(const std::string& s, int fs, int maxW, bool bold = false);
 
-	// the art box's look: radius 8, a 2-unit #26242e edge
+	// the art box's look: radius 8, a 2-unit edge (edgeOf(SURFACE): it shows on a light ground and a dark one)
 	constexpr int SONG_ART_RADIUS = 8, SONG_ART_EDGE = 2;
 
 	// lavfi-complex: a style's art + visualizer graph with its art input ("[vid1] scale=640:480:..." up to setsar)
-	// swapped for a black still (art == 0: the art is laid over by the player), or for the art fitted once into an
-	// art x art square at (x, y). Styles that use the art their own way (Circle's ring, Turntable's label) are left
-	// as they are; the graph then still names [vid1]
-	std::string vizPlaceArt(const std::string& graph, int x, int y, int art);
+	// swapped for a still of the theme's ground (art == 0: the art is laid over by the player), or for the art fitted
+	// once into an art x art square at (x, y) on that ground. ground: lavfi's colour ("black", "0xRRGGBB"); band: the
+	// colour of the rows the style draws its strip over (SONG_BAND_TOP down), its own ground (today black, the styles'
+	// own; the hook for a themed band). Styles that use the art their own way (Circle's ring, Turntable's label) are
+	// left as they are; the graph then still names [vid1]
+	std::string vizPlaceArt(const std::string& graph, int x, int y, int art, const std::string& ground = "black",
+		const std::string& band = "black");
 }

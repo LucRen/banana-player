@@ -829,7 +829,7 @@ int main(int argc, char** argv)
 		auto showLevelCard = [&](const std::string& label, int percent, int ms) {
 			bool bar = label != "Zoom";
 			if (bar) shown().showLevel(label, percent);
-			if (haveUi && readerOnTop())
+			if (haveUi && (readerOnTop() || ts.paneUp))
 				ts.cardOnReader(label, percent, bar, bar ? levelTop(label, player.settings.volumeMax) : 0, ms);
 			if (!bar) return;
 			levelUntil = SDL_GetTicks() + ms;

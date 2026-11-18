@@ -385,6 +385,7 @@ namespace bp
 		bool lutsWarmed = false;	// every style's lut lookups asked for (graphFor), once a run
 		std::string graphSet;	// lavfi-complex as last set (prop)
 		uint64_t graphAskedAt = 0;	// when a song's graph was last changed while it played (the log times the switch)
+		bool graphFrameLogged = true;	// the switch's first frame logged (render)
 		uint64_t displayDueAt = 0;	// the display changed: its graph applied then (checkDisplay)
 		// The equalizer and the sound effect as mpv has them: af = a song's input entry (@bpin), the EQ's (@bpeq),
 		// then the effect's (@bpfx), either left out when off. afSet: the af last set (prop; af-command's changes don't show in mpv's af);
@@ -449,6 +450,18 @@ namespace bp
 		void artReplied(uint64_t serial);
 		void dropSongArt();	// the overlay off and the job forgotten (another file, another mode)
 		std::string marginsSet;	// the video margins as last set ("" none)
+		// a song's top panel on the theme's ground (Album art only, Art + visualizer, None: docs/redesign, Song layout):
+		// BG as lavfi writes it ("0xRRGGBB"), None's and the placeholder's picture of it, and mpv's background-color
+		// (themed: BG; else black) as last sent
+		static std::string groundColour();
+		// the hook for themed visualizers (a style's ground and ink by the theme, not written yet): what the band of Art +
+		// visualizer is drawn over (today black, the styles' own) and the ink a style may take. A theme change rebuilds
+		// any graph that names them (themeChanged: displayDueAt, the switch timed by graphAskedAt)
+		struct VizColours { std::string ground = "black", ink; };
+		static VizColours vizColours();
+		std::string blankGround() const { return blankGraph(groundColour()); }
+		std::string groundSet;
+		void setGround(bool themed);
 		void setSongMargins(const std::string& lrtb);
 		std::string layoutLogged;	// the last layout's log line, so each change is logged once
 		bool isAudio = false, isPhoto = false;

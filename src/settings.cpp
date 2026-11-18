@@ -206,7 +206,30 @@ namespace bp
 	// - full size: only the luma, scaled x2 (nearest: a bar 8 pixels, a gap 2, a cap 4)
 	// No RGB anywhere, nothing converted: YUV straight to mpv. Over the art no alpha either: the art's slice (made
 	// once, one frame) is split into its planes and each plane is a lut2's second input, kept where nothing's drawn
-	struct PeaksColours { int barY, barU, barV, capY, capU, capV; };
+	struct PeaksColours { int barY, barU, barV, capY, capU, capV; int groundY = 16, groundU = 128, groundV = 128; };
+	// a colour in BT.601 limited YUV, as mpv reads a picture this size (Peaks' numbers: #FFD23F is 193/57/158)
+	static void yuv601(theme::Rgb c, int& y, int& u, int& v)
+	{
+		double r = c.r / 255.0, g = c.g / 255.0, b = c.b / 255.0;
+		y = (int)std::floor(16 + 65.481 * r + 128.553 * g + 24.966 * b + 1e-9);	// (down: as Peaks' own numbers were)
+		u = (int)std::lround(128 - 37.797 * r - 74.203 * g + 112.0 * b);
+		v = (int)std::lround(128 + 112.0 * r - 93.786 * g - 18.214 * b);
+	}
+	// Peaks in the theme (docs/redesign, Themes: the bars ACCENT, the caps TEXT, on BG when alone; Yellow's are
+	// today's yellow, cream and black). A bar's, a cap's and the ground's Y must differ (the planes are told apart by it)
+	static PeaksColours peaksThemed()
+	{
+		PeaksColours c{};
+		yuv601(theme::ACCENT, c.barY, c.barU, c.barV);
+		yuv601(theme::TEXT, c.capY, c.capU, c.capV);
+		yuv601(theme::BG, c.groundY, c.groundU, c.groundV);
+		auto apart = [](int& y, int from) { if (y == from) y += y < 235 ? 1 : -1; };
+		apart(c.capY, c.barY);
+		apart(c.barY, c.groundY);
+		apart(c.capY, c.groundY);
+		apart(c.capY, c.barY);
+		return c;
+	}
 	static std::string peaksGraph(bool overCover, const PeaksColours& c)
 	{
 		const int N = 64, BW = 5, W = N * BW;	// at half size: a bar 4 columns and a 1-column gap
@@ -257,10 +280,10 @@ namespace bp
 					   "[pkY] [pkU] [pkW] mergeplanes=0x001020:yuv420p [strip]; [top] [strip] vstack [vo]";
 		}
 		// the luma at half size, then U and V from it (a lut each) and the luma scaled up
-		g += "[pkV] [pkQ] bplut2=c0='if(eq(y,254)," + cY + ",if(lte(y,x)*lt(y,253)," + bY + ",16))',split=3 [pky] [pku] [pkw]; "
+		g += "[pkV] [pkQ] bplut2=c0='if(eq(y,254)," + cY + ",if(lte(y,x)*lt(y,253)," + bY + "," + std::to_string(c.groundY) + "))',split=3 [pky] [pku] [pkw]; "
 			 "[pky] scale=640:480:flags=neighbor [pkY]; "
-			 "[pku] bplut=c0='if(eq(val," + cY + ")," + cU + ",if(eq(val," + bY + ")," + bU + ",128))' [pkU]; "
-			 "[pkw] bplut=c0='if(eq(val," + cY + ")," + cV + ",if(eq(val," + bY + ")," + bV + ",128))' [pkW]; "
+			 "[pku] bplut=c0='if(eq(val," + cY + ")," + cU + ",if(eq(val," + bY + ")," + bU + "," + std::to_string(c.groundU) + "))' [pkU]; "
+			 "[pkw] bplut=c0='if(eq(val," + cY + ")," + cV + ",if(eq(val," + bY + ")," + bV + "," + std::to_string(c.groundV) + "))' [pkW]; "
 			 "[pkY] [pkU] [pkW] mergeplanes=0x001020:yuv420p";
 		// a faint line every 96 pixels (white at 10%), over the bars too: four 1-pixel boxes
 		for (int y = 96; y < 480; y += 96) g += ",drawbox=x=0:y=" + std::to_string(y) + ":w=640:h=1:c=white@0.1:t=fill";
@@ -455,7 +478,7 @@ namespace bp
 		}
 		// Peaks: coral and green; Peaks Banana: Midnight's yellow #FFD23F bars, cream #E8E2D3 caps
 		if (vis == VIS_PEAKS) return peaksGraph(overCover, {153, 103, 178, 182, 108, 106});
-		if (vis == VIS_PEAKS_BANANA) return peaksGraph(overCover, {193, 57, 158, 210, 121, 132});
+		if (vis == VIS_PEAKS_BANANA) return peaksGraph(overCover, peaksThemed());
 		// near the format the filter draws in, which mpv shows as it is: converting each frame to yuv420p cost 6.5-7 ms
 		// a frame on the A55s, more than drawing Waves or Spectrum. RGBA's alpha dropped (rgb0, a byte shuffle: 0.5 ms):
 		// mpv would lay a clear background over a checkerboard; Spectrum's YUV as it comes
@@ -481,9 +504,9 @@ namespace bp
 			   "[top] [strip] vstack [vo]";
 	}
 
-	std::string blankGraph()
+	std::string blankGraph(const std::string& ground)
 	{
-		return "[aid1] asplit [ao] [a]; [a] showwaves=s=32x24:rate=5,drawbox=c=black:t=fill,format=yuv420p [vo]";
+		return "[aid1] asplit [ao] [a]; [a] showwaves=s=32x24:rate=5,drawbox=c=" + ground + ":t=fill,format=yuv420p [vo]";
 	}
 
 
@@ -668,8 +691,6 @@ namespace bp
 				.page(SG_MANGA, 50, "Open fullscreen", "A chapter opens on both screens. SELECT leaves."),
 			D::flag("manga-secure-dns", &Settings::mangaSecureDns)
 				.page(SG_MANGA, 120, "Secure DNS", "Looks up sites through Cloudflare over HTTPS (one.one.one.one), past a network that blocks them.").shownAs(SHOWN_DNS),
-			D::flag("song-info", &Settings::songInfo)
-				.page(SG_MUSIC, 40, "Song info on top", "The song's title, artist and album over the top screen's picture (None shows the title anyway)."),
 			// (the ids and names are theme.cpp's table: a theme added there is a value here)
 			D::choice("theme", &Settings::theme, theme::themeIds(), theme::themeCount())
 				.page(SG_SCREEN, 5, "Theme", "The app's colours, on both screens and on the Web dashboard. Videos, pictures, album art, subtitles and a book's page keep their own.")

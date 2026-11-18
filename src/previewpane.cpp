@@ -126,14 +126,15 @@ namespace bp
 			d.box(b.x, b.y, b.w, b.h, 9, chosen ? ACCENT : edgeOf(SURFACE));
 			d.box(b.x + EDGE, b.y + EDGE, b.w - 2 * EDGE, b.h - 2 * EDGE, 9 - EDGE, t.BG);
 			float ix = b.x + EDGE, iy = b.y + EDGE, iw = b.w - 2 * EDGE, ih = b.h - 2 * EDGE;
-			d.box(ix + 6, iy + 5, 26, 14, 4, edgeOf(t.SURFACE, t.TEXT, t.EDGE_MIX));
-			d.box(ix + 7, iy + 6, 24, 12, 3, t.SURFACE);
-			d.box(ix + iw - 6 - 16, iy + 5, 16, 14, 4, t.ACCENT);
-			d.box(ix + 6, iy + ih - 6 - 4, 30, 4, 2, t.TEXT);
-			d.box(ix + iw - 6 - 10, iy + ih - 6 - 4, 10, 4, 2, t.ACCENT);
+			// (84 x 30: a surface and a key along the top, the text's line and an accent mark under them)
+			d.box(ix + 6, iy + 4, 34, 11, 3, edgeOf(t.SURFACE, t.TEXT, t.EDGE_MIX));
+			d.box(ix + 7, iy + 5, 32, 9, 2, t.SURFACE);
+			d.box(ix + iw - 6 - 20, iy + 4, 20, 11, 3, t.ACCENT);
+			d.box(ix + 6, iy + ih - 4 - 4, 38, 4, 2, t.TEXT);
+			d.box(ix + iw - 6 - 12, iy + ih - 4 - 4, 12, 4, 2, t.ACCENT);
 		}
 
-		// the Theme row's block: the fifteen swatches, then "As it looks" and the pieces drawn in the theme now
+		// the Theme row's block: every theme's swatch (seventeen: 6 + 6 + 5), then "As it looks" and the pieces drawn in the theme now
 		float themesBlock(PaneDraw& d, const PaneSpec& s, float x, float y, float w)
 		{
 			using namespace theme;
@@ -144,10 +145,10 @@ namespace bp
 				const lay::Box& b = boxes[i];
 				swatch(d, b, palette(i), i == s.chosen);
 				std::string name = palette(i).name;
-				float nw = d.textW(INTER, 10, name);
-				d.text(INTER, 10, name, b.x + (b.w - nw) / 2, b.y + b.h + 3, i == s.chosen ? ACCENT : DIM_ON);
+				float nw = d.textW(INTER, 10.5f, name);
+				d.text(INTER, 10.5f, name, b.x + (b.w - nw) / 2, b.y + b.h + 3, i == s.chosen ? ACCENT : DIM_ON);
 			}
-			int rows = (n + 7) / 8;
+			int rows = (n + lay::SWATCH_PER_ROW - 1) / lay::SWATCH_PER_ROW;
 			y += rows * (lay::SWATCH_H + lay::SWATCH_NAME) + (rows - 1) * lay::SWATCH_ROW_GAP + 13;
 			d.spaced(INTER_BOLD, 11, "AS IT LOOKS", x, y, DIM, 0.09f);
 			y += d.lineH(INTER_BOLD, 11) / d.c.k + 7;

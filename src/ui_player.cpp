@@ -167,11 +167,11 @@ namespace bp
 		case C_AUDIO: openView(1, p); break;
 		case C_PICTURE: openView(2, p); break;
 		// a song's: View's Equalizer, Effects and Display tabs (the preset, the effect, the Show mode)
-		case C_SOUND: openView(2, p); break;
-		case C_FX: openView(3, p); break;
+		case C_SOUND: openView(1, p); break;
+		case C_FX: openView(2, p); break;
 		case C_TOP: openView(0, p); break;
-		// Speed is View's fifth tab for both (the one place it is set now)
-		case C_SPEED: openView(4, p); break;
+		// Speed: View's last tab for both (the one place it is set now): a video's fifth, a song's fourth
+		case C_SPEED: openView(p.playingAudio() ? 3 : 4, p); break;
 		// the List sheet: Repeat and Shuffle are set there; a song's Shuffle chip turns it on or off
 		case C_MODE: openList(listTab, p); break;
 		case C_SHUFFLE:
@@ -1097,16 +1097,16 @@ namespace bp
 		}
 	};
 
-	// View (SELECT) on a song: Display, Visualizer, Equalizer, Effects and Speed in one sheet, where the Display popup
-	// and the Sound page used to be three places (docs/redesign, "music-view", "music-viz-pick", "music-eq"). Display is
-	// the four Show modes plus the Visualizer style row; Visualizer is the style grid alone (the top screen follows the
-	// cursor, and a notice with Show it (Y) when the mode shows none); the equalizer is the Sound page's bands in the
-	// sheet's body, its preset options as rows. L / R step the tabs, B closes (SELECT closes too, but on Display it steps
-	// the Show mode as the popup did).
+	// View (SELECT) on a song: Display, Equalizer, Effects and Speed in one sheet, where the Display popup and the Sound
+	// page used to be three places (docs/redesign, "music-view", "music-viz-pick", "music-eq"). Display is one page for
+	// both choices (lay::displayPage): the four Show modes in a row of choice tiles, the twenty visualizer styles in a
+	// 5 x 4 grid under them; the cursor moves over both and changes nothing, A sets what is under it (the top screen
+	// follows at once). The equalizer is the Sound page's bands in the sheet's body, its preset options as rows. L / R
+	// step the tabs, B closes (SELECT closes too, but on Display it steps the Show mode as the popup did).
 	struct Ui::SongViewSheet : Ui::Overlay
 	{
-		enum Tab { TAB_SHOW, TAB_VIZ, TAB_EQ, TAB_FX, TAB_SPEED, TABS };
-		enum Press { P_NONE, P_ROW, P_TAB, P_PREV, P_NEXT, P_NAME, P_ON, P_SAVE, P_STYLE, P_SHOWIT };
+		enum Tab { TAB_SHOW, TAB_EQ, TAB_FX, TAB_SPEED, TABS };
+		enum Press { P_NONE, P_ROW, P_TAB, P_PREV, P_NEXT, P_NAME, P_ON, P_SAVE, P_TILE };
 		enum EqMode { EQ_MAIN, EQ_OPTIONS, EQ_LIST, EQ_DELETE };
 		int tab = 0, cursor = 0, scroll = 0, press = P_NONE, pressAt = -1;
 		int eqMode = EQ_MAIN;	// (its lists are the sheet's rows: cursor and scroll)
@@ -1117,32 +1117,39 @@ namespace bp
 		{
 			tab = std::clamp(at, 0, TABS - 1);
 			ui.playerPage->songViewTab = tab;
-			cursor = tab == TAB_VIZ ? visualizerSlot(p.settings.visualizer) : currentRow(p);
-			scroll = lay::listScroll(cursor, 0, shown(p), count(p));
+			cursor = currentRow(p);
+			scroll = tab == TAB_SHOW ? 0 : lay::listScroll(cursor, 0, shown(p), count(p));
 		}
 		const char* name() const override { return "songview"; }
 
-		static std::vector<std::string> labels() { return {"Display", "Visualizer", "Equalizer", "Effects", "Speed"}; }
-		// the Display tab's four rows: today's Show modes, each named for all of what it shows (the spec's names)
-		static const char* showNote(int i)
-		{
-			static const char* N[SHOWS] = {"The cover alone \xC2\xB7 the default", "The cover over a band of the visualizer",
-				"The whole top screen", "The title alone \xC2\xB7 lightest on the battery"};
-			return N[std::clamp(i, 0, SHOWS - 1)];
-		}
+		static std::vector<std::string> labels() { return {"Display", "Equalizer", "Effects", "Speed"}; }
 		static bool showHidesVisualizer(const Player& p)
 		{
 			int show = std::clamp(p.settings.musicShow, 0, SHOWS - 1);
 			return show == SHOW_ART || show == SHOW_NONE;
 		}
-		// Show it (Y): from Album art only to Art + visualizer, from None to Visualizer only
-		static void showVisualizer(Player& p)
+		// Display's tiles: the four modes, then the styles (VIS_SHOWN's order); the cursor is an index over both
+		static constexpr int DISPLAY_N = SHOWS + VIS_SHOWN_COUNT;
+		static lay::DisplayPage displayLayout() { return lay::displayPage(VIS_SHOWN_COUNT); }
+		static int displayInUse(const Player& p, bool style)
 		{
-			Settings s = p.settings;
-			s.musicShow = s.musicShow == SHOW_ART ? SHOW_BOTH : SHOW_VIS;
-			p.setSettings(s);
+			return style ? SHOWS + visualizerSlot(p.settings.visualizer) : std::clamp((int)p.settings.musicShow, 0, SHOWS - 1);
 		}
-		// the grid's cursor puts that style on the top screen at once (the mock-up's rule); the choice is kept
+		// A on a tile (or a tap): the mode or the style set, and the top screen follows; a style is kept when the
+		// mode shows none ("not shown now")
+		static void setTile(int i, Player& p)
+		{
+			if (i < 0 || i >= DISPLAY_N) return;
+			if (i < SHOWS)
+			{
+				if (p.settings.musicShow == i) return;
+				Settings s = p.settings;
+				s.musicShow = i;
+				p.setSettings(s);
+				return;
+			}
+			applyStyle(i - SHOWS, p);
+		}
 		static void applyStyle(int slot, Player& p)
 		{
 			int v = VIS_SHOWN[std::clamp(slot, 0, VIS_SHOWN_COUNT - 1)];
@@ -1151,13 +1158,13 @@ namespace bp
 			s.visualizer = v;
 			p.setSettings(s);
 		}
-		// the list of a tab: Display's four modes and its style row, Effects' choices, Speed's five
+		// the list of a tab: Display's tiles, Effects' choices, Speed's five
 		int count(const Player& p) const
 		{
-			if (tab == TAB_SHOW) return SHOWS + 1;
+			if (tab == TAB_SHOW) return DISPLAY_N;
 			if (tab == TAB_FX) return SOUNDFX_COUNT;
 			if (tab == TAB_SPEED) return (int)speedChoices().size();
-			return tab == TAB_VIZ ? VIS_SHOWN_COUNT : 0;
+			return 0;
 		}
 		int shown(const Player& p) const { return std::min(std::max(1, isList() ? listCount(p) : count(p)), lay::LIST_ROWS); }
 		lay::ListSheet layout(const Player& p) const
@@ -1168,35 +1175,11 @@ namespace bp
 				return lay::listSheetBody(lay::SHEET_MAX - 11 - lay::LIST_HEAD - 8 - lay::HINTS_H);
 			return lay::listSheet(shown(p));
 		}
-		// the Visualizer tab: the style grid alone, and the notice over it while the mode shows no visualizer
-		static constexpr int VIZ_COLS = 5;
-		static constexpr int VIZ_ROWS = (VIS_SHOWN_COUNT + VIZ_COLS - 1) / VIZ_COLS;
-		int vizBodyH(const Player& p) const { return (showHidesVisualizer(p) ? 56 + 8 : 0) + VIZ_ROWS * 46 + (VIZ_ROWS - 1) * 6; }
-		lay::Sheet vizLayout(const Player& p) const { return lay::sheet({0, 0, 0, vizBodyH(p)}); }
-		struct VizLayout
-		{
-			Rect notice, showIt;
-			Rect style[VIS_SHOWN_COUNT];
-		};
-		VizLayout vizRects(const lay::Sheet& s, const Player& p) const
-		{
-			VizLayout v;
-			int top = s.bodyY;
-			if (showHidesVisualizer(p))
-			{
-				v.notice = {16, top, 608, 56};
-				v.showIt = {v.notice.x + v.notice.w - 16 - 132, top + 6, 132, 44};
-				top += 56 + 8;
-			}
-			auto cells = lay::gridCells({16, top, 608, VIZ_ROWS * 46 + (VIZ_ROWS - 1) * 6}, VIS_SHOWN_COUNT, VIZ_COLS, 6);
-			for (int i = 0; i < VIS_SHOWN_COUNT; i++) v.style[i] = cells[i];
-			return v;
-		}
-		bool isList() const { return (tab != TAB_EQ && tab != TAB_VIZ) || eqMode == EQ_OPTIONS || eqMode == EQ_LIST || eqMode == EQ_DELETE; }
+		bool isList() const { return (tab != TAB_EQ && tab != TAB_SHOW) || eqMode == EQ_OPTIONS || eqMode == EQ_LIST || eqMode == EQ_DELETE; }
 		void settle(const Player& p)
 		{
 			if (drag) return;	// (a finger's own scroll, while it drags)
-			if (tab == TAB_VIZ) { cursor = std::clamp(cursor, 0, VIS_SHOWN_COUNT - 1); scroll = 0; return; }
+			if (tab == TAB_SHOW) { cursor = std::clamp(cursor, 0, DISPLAY_N - 1); scroll = 0; return; }
 			int n = isList() ? listCount(p) : count(p);
 			if (n <= 0) { cursor = scroll = 0; return; }
 			cursor = std::clamp(cursor, 0, n - 1);
@@ -1206,9 +1189,9 @@ namespace bp
 		{
 			tab = std::clamp(t, 0, TABS - 1);
 			eqMode = EQ_MAIN;
-			if (tab == TAB_VIZ)
+			if (tab == TAB_SHOW)
 			{
-				cursor = visualizerSlot(p.settings.visualizer);
+				cursor = currentRow(p);
 				scroll = 0;
 				ui.playerPage->songViewTab = tab;
 				return;
@@ -1220,7 +1203,7 @@ namespace bp
 		}
 
 		// ---- Display and the two lists into rows ----
-		struct Line { std::string name, note; bool on = false, off = false, style = false; };
+		struct Line { std::string name, note; bool on = false, off = false; };
 		int listCount(const Player& p) const
 		{
 			if (tab == TAB_EQ)
@@ -1234,18 +1217,7 @@ namespace bp
 		Line lineAt(int i, const Player& p) const
 		{
 			Line l;
-			if (tab == TAB_SHOW)
-			{
-				if (i < SHOWS) { l.name = musicShowLabel(i); l.on = p.settings.musicShow == i; l.note = showNote(i); }
-				else
-				{
-					// the style, named on its own row; "· not shown" while the mode has no visualizer (the choice is kept)
-					l.name = "Visualizer style";
-					l.note = std::string(visualizerLabel(p.settings.visualizer)) + (showHidesVisualizer(p) ? " \xC2\xB7 not shown" : "");
-					l.style = true;
-				}
-			}
-			else if (tab == TAB_FX)
+			if (tab == TAB_FX)
 			{
 				l.name = soundFxName((SoundFx)i);
 				l.note = FX_ABOUT[std::clamp(i, 0, SOUNDFX_COUNT - 1)];
@@ -1287,7 +1259,7 @@ namespace bp
 		}
 		int currentRow(const Player& p) const
 		{
-			if (tab == TAB_SHOW) return std::clamp((int)p.settings.musicShow, 0, SHOWS - 1);
+			if (tab == TAB_SHOW) return displayInUse(p, false);
 			if (tab == TAB_FX) return (int)p.settings.soundFx;
 			if (tab == TAB_SPEED)
 				for (size_t i = 0; i < speedChoices().size(); i++)
@@ -1306,18 +1278,7 @@ namespace bp
 		void choose(int i, Player& p)
 		{
 			cursor = i;
-			if (tab == TAB_SHOW)
-			{
-				if (i < SHOWS)
-				{
-					Settings s = p.settings;
-					s.musicShow = std::clamp(i, 0, SHOWS - 1);
-					if (s.musicShow != p.settings.musicShow) p.setSettings(s);
-				}
-				// the Visualizer style row: its own tab (the twenty styles)
-				else openTab(TAB_VIZ, p);
-				return;
-			}
+			if (tab == TAB_SHOW) { setTile(i, p); return; }
 			if (tab == TAB_FX) { ui.sound->fxChoose(i, p); return; }
 			if (tab == TAB_SPEED)
 			{
@@ -1484,20 +1445,19 @@ namespace bp
 			}
 			return true;
 		}
-		// the Visualizer tab's cursor: the style under it goes on the top screen at once; A confirms it (nothing changes)
-		bool vizKey(Button b, Player& p)
+		// Display: the cursor moves over the modes and the styles (lay::displayMove) and changes nothing; A sets
+		bool displayKey(Button b, Player& p)
 		{
-			int was = cursor;
+			lay::DisplayPage d = displayLayout();
 			switch (b)
 			{
-			case Button::Up: cursor = std::max(0, cursor - 5); break;
-			case Button::Down: cursor = std::min(VIS_SHOWN_COUNT - 1, cursor + 5); break;
-			case Button::Left: cursor = std::max(0, cursor - 1); break;
-			case Button::Right: cursor = std::min(VIS_SHOWN_COUNT - 1, cursor + 1); break;
-			case Button::A: applyStyle(cursor, p); return true;
+			case Button::Up: cursor = lay::displayMove(d, cursor, lay::Dir::Up); break;
+			case Button::Down: cursor = lay::displayMove(d, cursor, lay::Dir::Down); break;
+			case Button::Left: cursor = lay::displayMove(d, cursor, lay::Dir::Left); break;
+			case Button::Right: cursor = lay::displayMove(d, cursor, lay::Dir::Right); break;
+			case Button::A: setTile(cursor, p); break;
 			default: return false;
 			}
-			if (cursor != was) applyStyle(cursor, p);
 			return true;
 		}
 		bool key(Button b, Player& p) override
@@ -1513,19 +1473,21 @@ namespace bp
 				settle(p);
 				return false;
 			}
-			// the style grid: L / R step the tabs, Y shows the visualizer while the mode has none, A / B close as View
-			if (tab == TAB_VIZ)
+			// Display: L / R step the tabs, SELECT steps the Show mode (as the popup did), B (and Y: List opens there) close
+			if (tab == TAB_SHOW)
 			{
 				switch (b)
 				{
-				case Button::L: openTab(TAB_SHOW, p); break;
 				case Button::R: openTab(TAB_EQ, p); break;
-				case Button::Select: case Button::B: close(); break;
-				case Button::Y:
-					if (showHidesVisualizer(p)) showVisualizer(p);
-					else close();
+				case Button::B: case Button::Y: close(); break;
+				case Button::Select:
+					{
+						Settings s = p.settings;
+						s.musicShow = (s.musicShow + 1) % SHOWS;
+						p.setSettings(s);
+					}
 					break;
-				default: vizKey(b, p); break;
+				default: displayKey(b, p); break;
 				}
 				settle(p);
 				return false;
@@ -1535,17 +1497,8 @@ namespace bp
 			case Button::L: if (tab > 0) openTab(tab - 1, p); break;
 			case Button::R: if (tab + 1 < TABS) openTab(tab + 1, p); break;
 			case Button::B: close(); break;
-			// (Display: SELECT steps the Show mode, as the popup did; the other tabs close, as View does)
-			case Button::Select:
-				if (tab != TAB_SHOW) { close(); break; }
-				{
-					Settings s = p.settings;
-					s.musicShow = (s.musicShow + 1) % SHOWS;
-					p.setSettings(s);
-					cursor = s.musicShow;
-					settle(p);
-				}
-				break;
+			// (the tabs but Display close, as View does)
+			case Button::Select: close(); break;
 			// (the equalizer turns on and off with Y, as the Sound page had SELECT; elsewhere Y closes: List opens there)
 			case Button::Y:
 				if (!(tab == TAB_EQ && eqMode == EQ_MAIN && eqMainKey(b, p))) close();
@@ -1564,22 +1517,20 @@ namespace bp
 		{
 			if (ui.touchIsLocked()) return false;
 			if (!p.playing() || p.playingPhoto() || !p.playingAudio() || ui.page != Page::Main) { close(); return false; }
-			// the style grid: a tab, Show it, or a style (a tap puts it on the top screen at once)
-			if (tab == TAB_VIZ)
+			// Display: a tab, or a tile (a tap sets it, as A does)
+			if (tab == TAB_SHOW)
 			{
-				lay::Sheet v = vizLayout(p);
+				lay::DisplayPage d = displayLayout();
 				if (pt.kind == Pointer::Down)
 				{
 					press = P_NONE;
 					pressAt = -1;
-					if (!v.box.hit(x, y)) { close(); ui.swallowTouch = true; return false; }
-					auto tabs = ui.kit->tabRects(v.head, labels(), true);
+					if (!d.sheet.box.hit(x, y)) { close(); ui.swallowTouch = true; return false; }
+					auto tabs = ui.kit->tabRects(d.sheet.head, labels(), true);
 					for (int i = 0; i < (int)tabs.size(); i++)
 						if (tabs[i].hit(x, y)) { press = P_TAB; pressAt = i; return false; }
-					VizLayout vr = vizRects(v, p);
-					if (showHidesVisualizer(p) && vr.showIt.hit(x, y)) { press = P_SHOWIT; return false; }
-					for (int i = 0; i < VIS_SHOWN_COUNT; i++)
-						if (vr.style[i].hit(x, y)) { press = P_STYLE; pressAt = i; cursor = i; return false; }
+					int at = lay::displayAt(d, x, y);
+					if (at >= 0) { press = P_TILE; pressAt = at; cursor = at; }
 					return false;
 				}
 				if (pt.kind != Pointer::Up) return false;
@@ -1588,15 +1539,10 @@ namespace bp
 				pressAt = -1;
 				if (kind == P_TAB)
 				{
-					auto tabs = ui.kit->tabRects(v.head, labels(), true);
+					auto tabs = ui.kit->tabRects(d.sheet.head, labels(), true);
 					if (at >= 0 && at < (int)tabs.size() && tabs[at].hit(x, y)) openTab(at, p);
 				}
-				else if (kind == P_SHOWIT && v.box.hit(x, y) && showHidesVisualizer(p)) showVisualizer(p);
-				else if (kind == P_STYLE)
-				{
-					VizLayout vr = vizRects(v, p);
-					if (at >= 0 && at < VIS_SHOWN_COUNT && vr.style[at].hit(x, y)) { cursor = at; applyStyle(at, p); }
-				}
+				else if (kind == P_TILE && at >= 0 && lay::displayAt(d, x, y) == at) setTile(at, p);
 				return false;
 			}
 			lay::ListSheet s = layout(p);
@@ -1750,42 +1696,56 @@ namespace bp
 			return b;
 		}
 
+		// Display: "Top screen shows", the four modes, the style's line, the twenty styles (docs/redesign "music-view")
+		void drawDisplay(const Player& p)
+		{
+			Kit& k = *ui.kit;
+			lay::DisplayPage d = displayLayout();
+			k.sheetBack(d.sheet.box, d.sheet.grab);
+			k.tabs(d.sheet.head, labels(), tab, "L/R");
+			int show = std::clamp((int)p.settings.musicShow, 0, SHOWS - 1);
+			static const Glyph* MODE_GLYPH[SHOWS] = {&G_PICTURE, &G_ARTVIZ, &G_VIS_BARS, &G_TITLE_ONLY};
+			ui.drawTextMid("TOP SCREEN SHOWS", F_I11B, DIM, d.modesLabel.x + 2, d.modesLabel.y + d.modesLabel.h / 2, d.modesLabel.w);
+			for (int i = 0; i < DISPLAY_N; i++)
+			{
+				Kit::Choice c;
+				c.on = i < SHOWS ? i == show : i == displayInUse(p, true);
+				c.focused = i == cursor;
+				c.pressed = press == P_TILE && pressAt == i;
+				if (i < SHOWS)
+				{
+					c.glyph = MODE_GLYPH[i];
+					c.name = musicShowLabel(i);
+					c.font = F_P13;
+				}
+				else
+				{
+					int v = VIS_SHOWN[i - SHOWS];
+					c.glyph = VIS_GLYPHS[v];
+					c.name = visualizerLabel(v);
+					c.over = true;
+					c.font = F_P12;
+				}
+				k.choiceTile(d.item(i), c);
+			}
+			// the style, named over the grid; "not shown now" while the mode shows no visualizer (nothing dimmed: it
+			// can still be set, and is kept for a mode that shows it)
+			int lx = d.styleLine.x + 2, cy = d.styleLine.y + d.styleLine.h / 2;
+			ui.drawTextMid("VISUALIZER", F_I11B, DIM, lx, cy, d.styleLine.w);
+			lx += k.textW("VISUALIZER", F_I11B) + 8;
+			std::string line = visualizerLabel(p.settings.visualizer);
+			if (showHidesVisualizer(p)) line += std::string(" \xC2\xB7 not shown now: the top screen shows ") + musicShowLabel(show);
+			ui.drawTextMid(line, F_I12, DIM_ON, lx, cy, d.styleLine.x + d.styleLine.w - lx);
+			k.hints({{"D-PAD", "Move"}, {"A", "Set"}, {"SELECT", "Next mode"}, {"L/R", "Tab"}, {"B", "Close"}});
+		}
+
 		void draw(const Player& p) override
 		{
 			if (!p.playing() || p.playingPhoto() || !p.playingAudio() || ui.page != Page::Main) { close(); return; }
 			Kit& k = *ui.kit;
-			if (tab == TAB_VIZ)
+			if (tab == TAB_SHOW)
 			{
-				// the style grid alone (a notice over it while the mode shows no visualizer)
-				lay::Sheet v = vizLayout(p);
-				k.sheetBack(v.box, v.grab);
-				k.tabs(v.head, labels(), tab, "L/R");
-				VizLayout vr = vizRects(v, p);
-				if (showHidesVisualizer(p))
-				{
-					k.flat(vr.notice, BUTTON, R_BUTTON, ACCENT);
-					ui.drawGlyphMid(G_INFO, vr.notice.x + 24, vr.notice.y + 28, ACCENT);
-					int room = vr.showIt.x - 8 - (vr.notice.x + 44);
-					ui.drawTextMid("Not on the top screen now", F_P16, TEXT, vr.notice.x + 44, vr.notice.y + 18, room);
-					ui.drawTextMid("Top screen shows: " + std::string(musicShowLabel(p.settings.musicShow)) +
-						". Your choice is kept.", F_I12, DIM, vr.notice.x + 44, vr.notice.y + 38, room);
-					Kit::Key show;
-					show.label = "Show it";
-					show.key = "Y";
-					show.pressed = press == P_SHOWIT;
-					k.key(vr.showIt, show);
-				}
-				for (int i = 0; i < VIS_SHOWN_COUNT; i++)
-				{
-					bool on = p.settings.visualizer == VIS_SHOWN[i];
-					bool focused = i == cursor;
-					k.flat(vr.style[i], focused ? BUTTON : SURFACE, R_BUTTON, on || focused ? ACCENT : k.edgeOf(SURFACE));
-					ui.drawTextMid(visualizerLabel(VIS_SHOWN[i]), F_I12, on ? ACCENT : focused ? TEXT : DIM_ON,
-						vr.style[i].x + vr.style[i].w / 2, vr.style[i].y + vr.style[i].h / 2, vr.style[i].w - 8, 2);
-				}
-				if (showHidesVisualizer(p))
-					k.hints({{"D-PAD", "Move"}, {"A", "Choose"}, {"Y", "Show it"}, {"L/R", "Tab"}, {"B", "Close"}});
-				else k.hints({{"D-PAD", "Move"}, {"A", "Choose"}, {"L/R", "Tab"}, {"B", "Close"}});
+				drawDisplay(p);
 				return;
 			}
 			lay::ListSheet s = layout(p);
@@ -1811,11 +1771,9 @@ namespace bp
 				row.note = l.note;
 				row.focused = i == cursor;
 				row.pressed = press == P_ROW && pressAt == i;
-				row.radio = !l.off && !l.style;
+				row.radio = !l.off;
 				row.radioOn = !l.off && l.on;
 				row.off = l.off;
-				row.trail = l.style ? Kit::Trail::Chevron : Kit::Trail::None;
-				row.glyph = l.style ? VIS_GLYPHS[p.settings.visualizer] : nullptr;
 				k.row(s.row(i - first), row);
 			}
 			ui.drawScrollBar(s.rowsY, shownN * lay::LIST_ROW, scroll, shownN, n);
@@ -1827,7 +1785,6 @@ namespace bp
 				std::vector<Hint> hints{{"UP/DOWN", "Move"}};
 				if (n > shownN) hints.push_back({"LEFT/RIGHT", "Page"});
 				hints.push_back({"A", "Choose"});
-				if (tab == TAB_SHOW) hints.push_back({"SELECT", "Show mode"});
 				hints.push_back({"L/R", "Tab"});
 				hints.push_back({"B", "Close"});
 				k.hints(hints);

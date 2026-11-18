@@ -32,8 +32,8 @@ namespace bp
 		void drainUnder(Player& player, Player& photos, bool readerOnTop);
 		// the top panel's pixels (RGBA, top row first), the frame drawn again for it: screenshots
 		SDL_Surface* capture(Player& shown, bool readerOnTop, bool qr);
-		// the level card (levelcard.h: one picture, the same on every screen) over a reader's pages, mpv's own being
-		// under them; barTop: the bar's whole (levelTop), 0 for the label alone (the reader's zoom)
+		// the level card (levelcard.h: one picture, the same on every screen) over a reader's pages or the Theme row's
+		// preview pane, mpv's own being under them; barTop: the bar's whole (levelTop), 0 for the label alone (the reader's zoom)
 		void cardOnReader(const std::string& label, int percent, bool bar, int barTop, int ms);
 		// the manga reader and Files' text viewer: what the bottom panel asked for, its commands, what they show back
 		void syncReaders(Ui& ui, Player& player, MangaNet* mangaNet, const std::string& stateDir, Uint32 now, bool woke, bool haveUi,
@@ -68,12 +68,15 @@ namespace bp
 		bool paneReady = false, paneUp = false;
 		std::string paneKey;
 		int paneW = 0, paneH = 0;
+		CardOverlay paneCard;	// the level card over the pane (mpv's is under it): cardOnReader puts it there
+		bool paneCardNew = false;
 
 	private:
 		// the QR drawn 1:1 into the top window (the context made current here); false when it couldn't be composed
 		bool drawQr(int w, int h);
 		// the pane drawn 1:1 (composed first when it changed); false when it couldn't be
 		bool drawPane(const PaneSpec& spec, const std::string& key, int w, int h);
+		void drawPaneNow(int w, int h);	// the composed pane and the card over it
 		// the text viewer's look (Settings: the Text viewer's rows)
 		TextReader::Style textStyle(const Settings& s) const;
 		Uint32 slowLogged = 0;	// when a take under the pages was last logged (once per 5 s)

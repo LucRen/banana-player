@@ -208,6 +208,73 @@ namespace bp
 			}
 		}
 
+		// ---- View › Display on a song ----
+
+		DisplayPage displayPage(int styles)
+		{
+			DisplayPage d;
+			styles = std::max(0, styles);
+			int lines = (styles + DISPLAY_COLS - 1) / DISPLAY_COLS;
+			int grid = lines * DISPLAY_TILE_H + std::max(0, lines - 1) * DISPLAY_STYLE_GAP;
+			// the label 16 and 4, the modes, 8, the style's line 16 and 4, the grid: as tall as the sheet leaves
+			int body = DISPLAY_H - (11 + SHEET_HEAD + 8 + HINTS_H);
+			d.sheet = sheet({0, 0, 1, body});
+			int y = d.sheet.bodyY + std::max(0, (body - (16 + 4 + DISPLAY_TILE_H + 8 + 16 + 4 + grid)) / 2);
+			const int modesW = DISPLAY_MODES * DISPLAY_MODE_W + (DISPLAY_MODES - 1) * DISPLAY_MODE_GAP;
+			const int stylesW = DISPLAY_COLS * DISPLAY_STYLE_W + (DISPLAY_COLS - 1) * DISPLAY_STYLE_GAP;
+			const int mx = (PANEL_W - modesW) / 2, sx = (PANEL_W - stylesW) / 2;
+			d.modesLabel = {mx, y, modesW, 16};
+			y += 16 + 4;
+			for (int i = 0; i < DISPLAY_MODES; i++) d.mode[i] = {mx + i * (DISPLAY_MODE_W + DISPLAY_MODE_GAP), y, DISPLAY_MODE_W, DISPLAY_TILE_H};
+			y += DISPLAY_TILE_H + 8;
+			d.styleLine = {mx, y, modesW, 16};
+			y += 16 + 4;
+			for (int i = 0; i < styles; i++)
+				d.style.push_back({sx + (i % DISPLAY_COLS) * (DISPLAY_STYLE_W + DISPLAY_STYLE_GAP),
+					y + (i / DISPLAY_COLS) * (DISPLAY_TILE_H + DISPLAY_STYLE_GAP), DISPLAY_STYLE_W, DISPLAY_TILE_H});
+			return d;
+		}
+
+		// the one of `boxes` whose middle is nearest x
+		static int nearestX(const Box* boxes, int n, int x)
+		{
+			int best = 0;
+			for (int i = 1; i < n; i++)
+				if (std::abs(boxes[i].x + boxes[i].w / 2 - x) < std::abs(boxes[best].x + boxes[best].w / 2 - x)) best = i;
+			return best;
+		}
+
+		int displayMove(const DisplayPage& d, int cursor, Dir dir)
+		{
+			int styles = (int)d.style.size(), n = d.count();
+			cursor = std::clamp(cursor, 0, n - 1);
+			if (cursor < DISPLAY_MODES)
+			{
+				if (dir == Dir::Left) return std::max(0, cursor - 1);
+				if (dir == Dir::Right) return std::min(DISPLAY_MODES - 1, cursor + 1);
+				if (dir == Dir::Up || !styles) return cursor;
+				const Box& m = d.mode[cursor];
+				return DISPLAY_MODES + nearestX(d.style.data(), std::min(styles, DISPLAY_COLS), m.x + m.w / 2);
+			}
+			int s = cursor - DISPLAY_MODES;
+			switch (dir)
+			{
+			case Dir::Left: return s > 0 ? cursor - 1 : cursor;
+			case Dir::Right: return s + 1 < styles ? cursor + 1 : cursor;
+			case Dir::Down: return s + DISPLAY_COLS < styles ? cursor + DISPLAY_COLS : cursor;
+			default:
+				if (s >= DISPLAY_COLS) return cursor - DISPLAY_COLS;
+				return nearestX(d.mode, DISPLAY_MODES, d.style[s].x + d.style[s].w / 2);
+			}
+		}
+
+		int displayAt(const DisplayPage& d, int x, int y)
+		{
+			for (int i = 0; i < d.count(); i++)
+				if (d.item(i).hit(x, y)) return i;
+			return -1;
+		}
+
 		// ---- the Settings page ----
 
 		Box settingsTile(Box area, int n, int cols, int i)

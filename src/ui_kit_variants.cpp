@@ -376,6 +376,32 @@ namespace bp
 		if (!t.note.empty()) ui.drawTextMid(t.note, F_I12, noteInk, x, cy + 11, std::max(1, right - x));
 	}
 
+	void Ui::Kit::choiceTile(Rect r, const Choice& c)
+	{
+		if (c.on && c.focused)
+		{
+			ui.fillRound({r.x - 4, r.y - 4, r.w + 8, r.h + 8}, ACCENT, theme::R_BUTTON + 4);
+			ui.fillRound({r.x - 2, r.y - 2, r.w + 4, r.h + 4}, SURFACE, theme::R_BUTTON + 2);
+		}
+		SDL_Color fill = c.on ? ACCENT : c.pressed ? PRESSED : SURFACE;
+		flat(r, fill, theme::R_BUTTON, c.focused && !c.on ? ACCENT : edgeOf(fill));
+		SDL_Color ink = c.on ? ON_ACCENT : c.focused ? ACCENT : TEXT;
+		int cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+		if (c.over)
+		{
+			// the icon 22 over the name
+			if (c.glyph) ui.drawGlyphMid(*c.glyph, cx, cy - 10, ink);
+			ui.drawTextMid(c.name, c.font, ink, cx, cy + 14, r.w - 8, 2);
+			return;
+		}
+		// the icon beside the name, the pair centred
+		int gw = c.glyph ? ui.glyphW(*c.glyph) : 0, gap = c.glyph ? 8 : 0;
+		int tw = std::min(textW(c.name, c.font), r.w - 12 - gw - gap);
+		int x = r.x + (r.w - gw - gap - tw) / 2;
+		if (c.glyph) ui.drawGlyphMid(*c.glyph, x + gw / 2, cy, ink);
+		ui.drawTextMid(c.name, c.font, ink, x + gw + gap, cy, tw);
+	}
+
 	// ---- the cards ----
 
 	// the picture's place: the caller's own drawing, or a TRACK square with the kind's mark

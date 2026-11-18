@@ -460,7 +460,7 @@ it); a word says when there's nothing more to find.
 words; the list, in reading order, goes to one with **A** and deletes one with **X** (twice).
 
 **Text options:** **Find…**, **Bookmarks**, **View** (Scroll or Book mode), **Hold** and **Page turn** (in Book mode), **Font** (Serif, Sans, Mono, Pixel, Pixel CJK), **Text size** (five sizes), **Line spacing**,
-**Margins**, **Colours** (Match theme, Dark, Light, Sepia, Black: Match theme, the default, is the Light page with the Light, 16-bit or 32-bit theme, Black with High contrast, else Dark; one picked by hand holds whatever the theme), **Brightness & filter** (the sheet below) and **Encoding** (a TXT only: Auto, or the code page an old file was written in, when
+**Margins**, **Colours** (Match theme, Dark, Light, Sepia, Black: Match theme, the default, is the Light page with the Light, 16-bit, 16-bit Lavender, 32-bit or Sakura theme, Black with High contrast, else Dark; one picked by hand holds whatever the theme), **Brightness & filter** (the sheet below) and **Encoding** (a TXT only: Auto, or the code page an old file was written in, when
 its letters come out wrong). They're kept for the next file. To go anywhere in the text, tap or drag the bar at the
 top of the bottom screen.
 
@@ -525,13 +525,14 @@ On a video, **SELECT** › **View** › **Picture**: **A** chooses, the one in u
 
 Songs show their title, artist and album on the top screen. While a song plays:
 
-- **SELECT: View › Display.** Four rows, one always chosen: **Album art only** (default),
-  **Art + visualizer** (the art above a band of the visualizer along the foot), **Visualizer only**, or **None** (just the title:
-  the lightest on the battery). A fifth row, **Visualizer style**, names the style in use and opens View's
-  **Visualizer** tab; with Album art only or None it reads "<style> · not shown" and can still be changed. The
-  **Visualizer** tab is the style grid, twenty of them: **Peaks** (default: 64
-  yellow bars, bass on
-  the left, each with a cream cap that stays at the bar's highest point and slowly falls back, over a faint grid),
+- **SELECT: View › Display** (View's tabs on a song: Display, Equalizer, Effects, Speed; the player's Display chip opens
+  it too). One page: under "Top screen shows", four tiles in a row, one always in use: **Album art only** (default),
+  **Art + visualizer** (the art above the visualizer along the foot), **Visualizer only**, or **None** (just the title:
+  the lightest on the battery). Under them the line "Visualizer · <style>" (with Album art only or None: "<style> · not
+  shown now: the top screen shows <mode>"; the style can still be set, and is kept), then the twenty styles in a 5 × 4
+  grid of tiles. The tile in use is filled in the theme's accent; the cursor is an accent edge. The styles: **Peaks**
+  (default: 64 bars in the theme's accent, bass on
+  the left, each with a cap in the theme's text colour that stays at the bar's highest point and slowly falls back, over a faint grid),
   **Circle** (bars round a glowing ring, cyan to pink; with Art + visualizer, the album art sits inside the ring),
   **Pocket console** (Peaks on an old handheld's screen: 15 bars of chunky dots in four greens, with falling caps;
   alone, the title is in the same dark green pixel type), **Night city** (a skyline whose windows light up with the
@@ -549,15 +550,14 @@ Songs show their title, artist and album on the top screen. While a song plays:
   socks and a duck tumbling). The bar styles' bars stand out from their neighbours, so the spectrum has peaks and
   valleys. Every style measures the music evened out (only for the picture: the sound is untouched), so a quiet song
   moves it about as much as a loud one, the treble side is lively too, and silence stays still. With Art + visualizer, every style but Circle is
-  drawn in a band along the bottom of the screen, under the art, which it never covers. Coral Peaks, Hi-fi LED, Synthwave, Banana stack,
+  drawn along the bottom of the screen, under the art, which it never covers, on the theme's ground. Coral Peaks, Hi-fi LED, Synthwave, Banana stack,
   Heartbeat, Oscilloscope, Turntable and Disco ball (earlier styles), and Bars, Waves and Spectrum, are retired: a
   saved choice of one of them becomes Peaks. The Lite style (drawn by the player itself, no graph) is removed for now:
-  a saved choice of it becomes Peaks too. The top screen
-  changes as you choose. On Display, **SELECT** steps the Show mode (Album art only → Art + visualizer → Visualizer
-  only → None), **A** sets the row, **B** closes. On Visualizer, the **D-pad** moves over the grid and the style under
-  it is on the top screen at once, **A** keeps it, **Y** shows it when the mode has no visualizer, **B** closes. The art
-  is a square with rounded corners and a thin dark edge: 260 units, centred, on Album art only; 240 above the band on
-  Art + visualizer. A song without art shows a placeholder in the art's place (a colour wheel with a note on it), in
+  a saved choice of it becomes Peaks too. The **D-pad** moves over both groups (DOWN from a mode to the style under
+  it, UP back), and moving changes nothing: **A** (or a tap) sets the mode or the style, and the top screen follows at
+  once. **SELECT** steps the mode (Album art only → Art + visualizer → Visualizer only → None), **L** / **R** the tabs,
+  **B** closes. The art is a square with rounded corners and a thin edge: 240 units on Album art only, 224 above the
+  visualizer on Art + visualizer. A song without art shows a placeholder in the art's place (a colour wheel with a note on it), in
   the same layout: the mode you chose is the mode you see. Album art can be inside the song file or a `cover.jpg` in
   the same folder.
 - **Y: List**, as on a video: **Up next**, and **Chapters** when the song or audiobook has them (**L2** / **R2** jump
@@ -573,14 +573,15 @@ Songs show their title, artist and album on the top screen. While a song plays:
   from the web, and after a restart. The web sets them separately. They apply to videos as to songs, from the same
   List sheet (a video's **Repeat** chip opens it; a song's **Shuffle** chip turns Shuffle on or off).
 
-Settings › Music has the same two choices as **Music display** and **Visualizer style**, and **Song info on top** (off by
-default): the song's title, artist and album (with its year) on the top screen, each line cut with "…" if it's too
-long. With the art (Album art only, Art + visualizer) the art moves left (240 units; 224 above the band) and the three
+Settings › Music has the same two choices as **Music display** and **Visualizer style**. The song's title, artist and
+album (with its year) are always on the top screen (there is no setting), each line cut with "…" if it's too long.
+With Album art only, Art + visualizer and None the top screen takes the theme: its ground is the theme's background (light
+in a light theme) and the lines are in its text colours; Peaks alone (Visualizer only) is drawn on it too. The other
+styles alone keep their own picture, with the lines in white with a shadow. With the art (Album art only, Art + visualizer) the art moves left (240 units; 224 above the band) and the three
 lines sit to its right, centred on the art's middle; the art and the lines are centred together on their real width, so
 a short title doesn't leave them hugging the left, and nothing is ever written over the art. Over Visualizer only the
 lines are at the top left, with a shadow (Pocket console: in its own green pixel type). An audiobook's or a song's
-chapter is a yellow line under the title. With it off the picture shows alone; **None** still shows the title in the
-middle (then "artist · album"), since that's all it shows. **Visualizer frame
+chapter is a line in the accent under the title. **None** shows the title in the middle (then "artist · album"). **Visualizer frame
 rate** (30, 45 or 60 fps; 45 by default) is how often the styles drawn at 60 (Pocket console and the pixel-art scenes)
 draw: everything moves at the same speed at any rate, only less smoothly at 30, which leaves the handheld more time
 for the sound. Peaks and Circle draw 30 a second at any setting. A style comes up quicker from the second time it's
@@ -661,7 +662,7 @@ opens the Subtitles group; **B** there goes back to that sheet, on Subtitles.
 | | Max volume | 120% | How far the volume keys go on the handheld: 100%, 120% or 150%. Past 100% (the handheld's own top) the player turns the sound up itself, 5% a press, for films mixed quiet; the volume card marks 100% and shows the rest in yellow, red past 120%, and the first time past 120% a warning says it can damage your hearing and the speakers. Down takes that off first. It starts again at 100% each time the player opens. The web dashboard's handheld volume goes as far; a browser playing the sound itself keeps its own 0–100%. Two volumes, each its own: while a browser plays the sound, the handheld's volume keys turn that browser's volume (the card says **Browser volume**) and leave the handheld's as it was; the dashboard's volume shows both then (**Browser volume**, **Handheld volume**), and moving one never moves the other |
 | | Button hotkeys | On | Off: buttons can't pause, skip or close while something plays (touch still can) |
 | **Subtitles** | Font, size, colour, border, border colour, text encoding | Inter, Medium, White, Normal, Black, Auto | How plain subtitles (SRT, VTT…) look, with a live preview. Styled subtitles (ASS/SSA) keep their own look. **Text encoding** is how a subtitle file's letters are read, on the handheld and in the browser: Auto reads UTF-8, and guesses an older code page (a file named for its language, like `movie.sl.srt`, tries that language's first); if letters like š, č or ж still come out wrong, pick the file's: Central European (Windows-1250, ISO-8859-2, DOS 852), Cyrillic (Windows-1251, KOI8-R), Greek, Turkish, Baltic, Hebrew, Arabic or Western. A subtitle showing changes at once. |
-| **Music & sound** | Music display, Visualizer style, Visualizer frame rate, Song info on top | Album art only, Peaks, 45 fps, On | What the top screen shows for music (also View › Display while a song plays), and which visualizer (View › Visualizer). **Sound** opens the [Sound page](#sound-equalizer-and-effects): the equalizer and the effects |
+| **Music & sound** | Music display, Visualizer style, Visualizer frame rate | Album art only, Peaks, 45 fps | What the top screen shows for music, and which visualizer (both also on View › Display while a song plays). **Sound** opens the [Sound page](#sound-equalizer-and-effects): the equalizer and the effects |
 | **Photos** | Keep zoom between photos | On | The next photo opens at the same zoom and place. Off: each opens whole |
 | | Pan area | Left | Which side of the bottom screen the photo's pan area is on |
 | | Drag moves | The box | A drag in the pan area moves the box over the small photo, or the photo itself (like a phone) |
@@ -673,7 +674,7 @@ opens the Subtitles group; **B** there goes back to that sheet, on Subtitles.
 | | Keep play history | On | Keeps Recent. Turning it off also deletes the history |
 | | Network files in Recent | On | Files played from a network folder go in Recent too. Off: they're left out, and the ones already there are removed |
 | | Clear play history | | Press **A** (or tap) twice. Positions you stopped at are kept |
-| **Power & screens** | Theme | Yellow | The app's colours on both screens and on the Web dashboard, fifteen: Yellow (the look before themes), Dark, Midnight blue, Dark purple, Dark red, Pink, Coffee, Mint, Retro green, Sunset, Candy, 16-bit, 32-bit, Light (warm paper, for sunlight) and High contrast. **LEFT/RIGHT** applies it at once, both screens and any open sheet redrawn; dashboard pages follow with their next state update (and open in it next time). Videos, photos, album art, visualizers, subtitles, the QR code and a book's page keep their own colours; the cards on the top screen (volume, chapter, notes, Playing in your browser) stay dark in every theme. While the row is focused and nothing plays, the top screen previews it in the theme's own colours: every theme as a swatch in two rows (the one in use outlined), a Play key, a Back key, a focused row, pills and a bar as they look now, and a small card that stays dark; it follows LEFT/RIGHT. While a video, a song or a photo plays the top screen stays the picture. Not in Quick settings |
+| **Power & screens** | Theme | Yellow | The app's colours on both screens and on the Web dashboard, seventeen: Yellow (the look before themes), Dark, Midnight blue, Dark purple, Dark red, Pink, Coffee, Mint, Retro green, Sunset, Candy, 16-bit, 16-bit Lavender, 32-bit, Sakura (cherry-blossom pink, light), Light (warm paper, for sunlight) and High contrast. **LEFT/RIGHT** applies it at once, both screens and any open sheet redrawn; dashboard pages follow with their next state update (and open in it next time). Videos, photos, album art, visualizers, subtitles, the QR code and a book's page keep their own colours; the cards on the top screen (volume, chapter, notes, Playing in your browser) stay dark in every theme. While the row is focused and nothing plays, the top screen previews it in the theme's own colours: every theme as a swatch in three rows of six (the one in use outlined), a Play key, a Back key, a focused row, pills and a bar as they look now, and a small card that stays dark; it follows LEFT/RIGHT. It shows whatever plays: a video or a song goes on underneath (its sound too), and its picture is back the moment the cursor leaves the row or Settings closes; a volume or brightness card still shows over the preview. Not in Quick settings |
 | | Brightness (or Top and Bottom brightness) | as BananaOS has them | The screens' backlight, 10% to 100%: the same levels as BananaOS's own Settings and the brightness keys, kept after a restart |
 | | Same for both screens | On | One brightness for both screens; off, each its own |
 | | Screen off (music) | 30 seconds | While a song plays, the bottom screen turns off by itself after that long without a touch or a button: Never, 15 or 30 seconds, 1, 2 or 5 minutes. Not while paused, and never while a photo or a comic is shown. A touch or any button brings it back |

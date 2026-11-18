@@ -5,8 +5,8 @@ lines beside it, Art + visualizer as art above a band, a placeholder for a song 
 
 ## Where it lives
 
-- `src/songlayout.*` (bpcore): the maths, in 640x480 units. `songLayout(showArt, info, widest)` gives the art box and
-  the text column (art 260 / 240 alone or with info on Album art only; 240 / 224 above the band; the group centred on
+- `src/songlayout.*` (bpcore): the maths, in 640x480 units. `songLayout(showArt, widest)` gives the art box and
+  the text column (art 240 on Album art only, 224 above the band; the lines always shown since 2026-11-18-song-display.md; the group centred on
   its real width in 40-unit margins). `songTextWidth` / `songFitText`: libass measures nothing for us, so a line's
   width is estimated from its letters (Inter: 0.45 x fs, 0.48 bold, measured on its rendering and a little over; a
   wide CJK letter 1 x fs). `vizPlaceArt`: swaps a style's art input in its art + visualizer graph. Tested in
@@ -67,3 +67,6 @@ KMSDRM and GLES: `video-margin-ratio` and the overlay's position are in the rend
 the art is decoded at `S x topH / 480`. glibc: the decoded art is ~0.25 MB (240 units on 480 rows), freed at the next
 song. The libass rendering of the placeholder on the A55 (once per song without art). Software decoding: the decode
 runs at nice 10.
+
+Later (2026-11-18-song-display.md): the lines are always on, and the ground is the theme's BG (mpv's background-color,
+the blank graph's and the art + visualizer graph's one `color=` frame) instead of black.

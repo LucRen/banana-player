@@ -99,6 +99,28 @@ namespace bp
 		// the cursor moved over the tiles and the rows (two columns: LEFT / RIGHT cross). No wrap: at an edge it stays
 		int sheetMove(const SheetSpec& s, int cursor, Dir d);
 
+		// ---- View › Display on a song (docs/redesign "music-view", "music-viz-pick"; components.md, Tile: a choice tile) ----
+		// One page for both choices, 452 tall, nothing scrolls: the label "Top screen shows", the four modes in a row
+		// (147 x 56, 8 apart, icon beside the name), the line naming the style, then the styles in a grid (117 x 56,
+		// 6 apart, five to a row, icon over the name). The cursor is one index: the modes first, then the styles
+		constexpr int DISPLAY_H = 452, DISPLAY_MODES = 4, DISPLAY_COLS = 5;
+		constexpr int DISPLAY_MODE_W = 147, DISPLAY_MODE_GAP = 8, DISPLAY_STYLE_W = 117, DISPLAY_STYLE_GAP = 6, DISPLAY_TILE_H = 56;
+		struct DisplayPage
+		{
+			Sheet sheet;	// the box, grab, tab strip (head) and hint bar
+			Box modesLabel, styleLine;
+			Box mode[DISPLAY_MODES];
+			std::vector<Box> style;
+			int count() const { return DISPLAY_MODES + (int)style.size(); }
+			Box item(int i) const { return i < DISPLAY_MODES ? mode[i] : style[i - DISPLAY_MODES]; }
+		};
+		DisplayPage displayPage(int styles);
+		// the cursor moved: LEFT / RIGHT along its group (the styles run on across their rows), DOWN from a mode to the
+		// style under its middle, UP from the first row of styles to the mode over it. No wrap: at an edge it stays
+		int displayMove(const DisplayPage& d, int cursor, Dir dir);
+		// the tile under a finger, -1 none
+		int displayAt(const DisplayPage& d, int x, int y);
+
 		// ---- the Settings page (docs/redesign: settings, settings-group) ----
 		// its groups' tiles, two to a row (58 tall, 8 apart), and a group's rows (46 tall, the focused row's help at the
 		// foot): the kit's header draws the title and the crumb beside its back key, so the area starts under that strip
@@ -305,10 +327,11 @@ namespace bp
 			Box cover;	// w 0: the text layout
 		};
 		Pane previewPane(bool cover);
-		// the Theme row's swatches: n of 62 x 38 in rows of `perRow`, 8 apart, each with its name's line (14) under it
-		// and 9 between the rows, from (left, top). The row is 8 * 62 + 7 * 8 = 552: the text column's width
-		constexpr int SWATCH_W = 62, SWATCH_H = 38, SWATCH_GAP = 8, SWATCH_NAME = 14, SWATCH_ROW_GAP = 9;
-		std::vector<Box> swatches(int n, int left, int top, int perRow = 8);
+		// the Theme row's swatches: n of 84 x 30 in rows of `perRow`, 9 apart, each with its name's line (14) under it
+		// and 9 between the rows, from (left, top): seventeen as 6 + 6 + 5. The row is 6 * 84 + 5 * 9 = 549, inside the
+		// text column's 552
+		constexpr int SWATCH_W = 84, SWATCH_H = 30, SWATCH_GAP = 9, SWATCH_NAME = 14, SWATCH_ROW_GAP = 9, SWATCH_PER_ROW = 6;
+		std::vector<Box> swatches(int n, int left, int top, int perRow = SWATCH_PER_ROW);
 
 		// ---- Book bar: the bottom sheet of Book mode, drawn upright as the handheld is held (sideways) ----
 		// Upright the touch panel is 480 wide and 640 tall. The sheet's boxes are its own (0, 0 at its top left);

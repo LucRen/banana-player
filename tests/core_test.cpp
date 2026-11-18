@@ -5853,6 +5853,33 @@ static void testThemes()
 		CHECK_EQ(p.TOP_CARD.r + p.TOP_CARD.g + p.TOP_CARD.b < 3 * 64, true);
 	}
 	CHECK_EQ(parseSettings("theme = no-such\n").theme, 0);
+	// seventeen, in the stepper's order (docs/redesign/themes.py ORDER)
+	{
+		std::string order;
+		for (int i = 0; i < themeCount(); i++) order += std::string(themeId(i)) + " ";
+		CHECK_EQ(order, std::string("yellow dark midnight-blue dark-purple dark-red pink coffee mint retro-green sunset candy 16-bit "
+			"16-bit-lavender 32-bit sakura light high-contrast "));
+	}
+	// 16-bit Lavender and Sakura: light-bodied, their own RAIL, the Light page, top cards from Dark purple and Pink
+	for (int i = 0; i < themeCount(); i++)
+	{
+		std::string id = themeId(i);
+		const Palette& p = palette(i);
+		if (id == "16-bit-lavender")
+		{
+			CHECK_EQ(hx(p.BG) + hx(p.SURFACE) + hx(p.BUTTON) + hx(p.RAIL) + hx(p.ACCENT) + hx(p.TEXT), "C2C2C2D4D4D6B5AFE1B8B8BA4E33753B3B3B");
+			CHECK_EQ(p.EDGE_MIX, 80);
+			CHECK_EQ(hx(p.TOP_TITLE), "B79CFF");
+			CHECK_EQ(p.page, 1);
+		}
+		if (id == "sakura")
+		{
+			CHECK_EQ(hx(p.BG) + hx(p.SURFACE) + hx(p.BUTTON) + hx(p.RAIL) + hx(p.ACCENT) + hx(p.TEXT), "FFE6E0FFF3EFE8B3CFFACFD8852A59561F33");
+			CHECK_EQ(hx(p.DANGER) + hx(p.ON_ACCENT), "7A3800FFE6E0");
+			CHECK_EQ(hx(p.TOP_TITLE), "FF8FC7");
+			CHECK_EQ(p.page, 1);
+		}
+	}
 	// Light: its own RAIL, edges darker than the fill (EDGE_MIX 55), Yellow's top cards; the spec's worked-out values
 	int light = -1, contrast = -1, dark = -1;
 	for (int i = 0; i < themeCount(); i++)
@@ -6161,7 +6188,9 @@ static void testSettings()
 	CHECK_EQ(parseSettings("visualizer-fps = 30\n").vizFps, 30);
 	CHECK_EQ(parseSettings("visualizer-fps = 50\n").vizFps, 45);
 	CHECK_EQ(parseSettings(serializeSettings(parseSettings("visualizer-fps = 60\n"))).vizFps, 60);
-	CHECK_EQ(Settings().songInfo, false);
+	// Song info on top is gone (the lines always show): a saved line is read as nothing and not written back
+	CHECK_EQ(serializeSettings(parseSettings("song-info = on\nvisualizer-fps = 60\n")).find("song-info"), std::string::npos);
+	CHECK_EQ(parseSettings("song-info = on\nvisualizer-fps = 60\n").vizFps, 60);
 	// Peaks (VIS_PEAKS_BANANA) is the default and the Peaks offered; the coral VIS_PEAKS is kept but no longer offered, so
 	// a saved choice of it reads as VIS_PEAKS_BANANA (as Hi-fi LED, Synthwave, Banana stack and Heartbeat)
 	for (const char* id : {"peaks", "led", "synthwave", "banana-stack", "heartbeat", "oscilloscope", "turntable", "disco-ball"})
@@ -9373,13 +9402,14 @@ static void testKitNewPreviewPane()
 	CHECK_EQ(c.column.x, 262);
 	CHECK_EQ(kitApart(c.cover, c.column), true);
 	CHECK_EQ(kitInside(c.cover, PANEL_W, PANEL_H) && kitInside(c.column, PANEL_W, PANEL_H), true);
-	// the Theme row's swatches: fifteen in two rows (eight, seven), the row exactly the column's width
-	auto sw = swatches(15, t.column.x, 180);
-	CHECK_EQ((int)sw.size(), 15);
-	CHECK_EQ(sw[7].x + sw[7].w, t.column.x + t.column.w);
-	CHECK_EQ(sw[8].x, t.column.x);
-	CHECK_EQ(sw[8].y, 180 + SWATCH_H + SWATCH_NAME + SWATCH_ROW_GAP);
-	CHECK_EQ(sw[14].y, sw[8].y);
+	// the Theme row's swatches: seventeen in three rows (six, six, five), each row inside the column's width
+	auto sw = swatches(17, t.column.x, 180);
+	CHECK_EQ((int)sw.size(), 17);
+	CHECK_EQ(sw[5].x + sw[5].w <= t.column.x + t.column.w, true);
+	CHECK_EQ(sw[6].x, t.column.x);
+	CHECK_EQ(sw[6].y, 180 + SWATCH_H + SWATCH_NAME + SWATCH_ROW_GAP);
+	CHECK_EQ(sw[16].y, sw[12].y);
+	CHECK_EQ(sw[12].y, 180 + 2 * (SWATCH_H + SWATCH_NAME + SWATCH_ROW_GAP));
 	for (size_t i = 1; i < sw.size(); i++) CHECK_EQ(kitApart(sw[i], sw[i - 1]), true);
 	CHECK_EQ(sw[1].x - sw[0].x, SWATCH_W + SWATCH_GAP);
 }
@@ -11884,21 +11914,57 @@ static void testCodePages()
 	CHECK(knownCodePage("cp852") && knownCodePage("IBM852") && knownCodePage("koi8-u"));
 }
 
+// View › Display on a song (docs/redesign "music-view"): one 452-tall page, four mode tiles 147 x 56 8 apart, twenty
+// style tiles 117 x 56 6 apart five to a row, all inside the sheet above its hints; the cursor over both groups
+static void testKitDisplayPage()
+{
+	using namespace lay;
+	DisplayPage d = displayPage(20);
+	CHECK_EQ(d.sheet.box.h, DISPLAY_H);
+	CHECK_EQ(d.count(), 24);
+	CHECK_EQ(d.mode[0].w, 147); CHECK_EQ(d.mode[0].h, 56); CHECK_EQ(d.mode[1].x - (d.mode[0].x + d.mode[0].w), 8);
+	CHECK_EQ(d.style[0].w, 117); CHECK_EQ(d.style[1].x - (d.style[0].x + d.style[0].w), 6);
+	CHECK_EQ(d.style[5].y - (d.style[0].y + d.style[0].h), 6); CHECK_EQ(d.style[5].x, d.style[0].x);
+	CHECK_EQ(d.modesLabel.y >= d.sheet.head.y + d.sheet.head.h, true);
+	CHECK_EQ(d.mode[0].y > d.modesLabel.y && d.styleLine.y > d.mode[0].y + d.mode[0].h && d.style[0].y > d.styleLine.y, true);
+	CHECK_EQ(d.style[19].y + d.style[19].h <= d.sheet.hints.y, true);
+	for (int i = 0; i < d.count(); i++)
+	{
+		CHECK_EQ(kitInside(d.item(i), PANEL_W, PANEL_H), true);
+		if (i) CHECK_EQ(kitApart(d.item(i), d.item(i - 1)), true);
+	}
+	// keys: along a group, no wrap; DOWN from a mode to the style under it, UP back to the mode over it
+	CHECK_EQ(displayMove(d, 0, Dir::Left), 0);
+	CHECK_EQ(displayMove(d, 3, Dir::Right), 3);
+	CHECK_EQ(displayMove(d, 0, Dir::Down), 4);	// Album art only -> Peaks
+	CHECK_EQ(displayMove(d, 3, Dir::Down), 8);	// None -> the fifth style
+	CHECK_EQ(displayMove(d, 4, Dir::Up), 0);
+	CHECK_EQ(displayMove(d, 8, Dir::Up), 3);
+	CHECK_EQ(displayMove(d, 8, Dir::Right), 9);	// (the styles run on across their rows)
+	CHECK_EQ(displayMove(d, 4, Dir::Left), 4);
+	CHECK_EQ(displayMove(d, 4, Dir::Down), 9);
+	CHECK_EQ(displayMove(d, 23, Dir::Down), 23);
+	CHECK_EQ(displayMove(d, 23, Dir::Right), 23);
+	// a finger: the tile under it, -1 between them
+	CHECK_EQ(displayAt(d, d.style[7].x + 5, d.style[7].y + 5), 11);
+	CHECK_EQ(displayAt(d, d.mode[0].x + d.mode[0].w + 3, d.mode[0].y + 10), -1);
+}
+
 // the top panel's song layout (docs/redesign/components.md, Song layout): the drawings' numbers
 static void testSongLayout()
 {
-	// Album art only, info off: 260 centred
-	SongLayout a = songLayout(true, false, 0);
-	CHECK_EQ(a.artS, 260); CHECK_EQ(a.artX, 190); CHECK_EQ(a.artY, 110); CHECK_EQ(a.text, false);
-	// info on, a long title: art 240 at the 40 margin, the text column to 600
-	SongLayout b = songLayout(true, true, 9999);
+	// the title lines are always on (no setting): Album art only, a long title: art 240 at the 40 margin, the text to 600
+	SongLayout b = songLayout(true, 9999);
 	CHECK_EQ(b.artS, 240); CHECK_EQ(b.artX, 40); CHECK_EQ(b.textX, 308); CHECK_EQ(b.textX + b.textW, 600); CHECK_EQ(b.midY, 240);
+	CHECK_EQ(b.text, true);
 	// a short title: the group centred on its real width (equal margins)
-	SongLayout c = songLayout(true, true, 100);
+	SongLayout c = songLayout(true, 100);
 	CHECK_EQ(c.artX, 640 - (c.textX + c.textW)); CHECK_EQ(c.textX - c.artX - c.artS, 28);
-	// Art + visualizer: above the band, never into it
-	SongLayout d = songLayout(false, false, 0), e = songLayout(false, true, 50);
-	CHECK_EQ(d.artS, 240); CHECK_EQ(d.artX, 200); CHECK_EQ(d.artY + d.artS <= SONG_BAND_TOP, true);
+	// no lines measured yet (a title still unknown): the art alone, centred
+	SongLayout a = songLayout(true, 0);
+	CHECK_EQ(a.artX, (640 - a.artS - 28) / 2);
+	// Art + visualizer: art 224 above the band, never into it
+	SongLayout e = songLayout(false, 50);
 	CHECK_EQ(e.artS, 224); CHECK_EQ(e.artY + e.artS <= SONG_BAND_TOP, true); CHECK_EQ(e.midY, 140);
 	// a cut line fits its width and ends in the ellipsis; a short one is left alone
 	std::string t = songFitText("The Long Way Round the Banana Grove (Live at the Peel)", 28, 280);
@@ -11913,12 +11979,35 @@ static void testSongLayout()
 	CHECK_EQ(placed.find("[vid1] scale=240:240:force_original_aspect_ratio=increase,crop=240:240,pad=640:480:200:20:black,setsar=1") != std::string::npos, true);
 	std::string spec = vizPlaceArt(visualizerGraphMarked(VIS_SPECTRUM, true, ""), 0, 0, 0);
 	CHECK_EQ(spec.find("[vid1]"), std::string::npos);
+	// Peaks takes the theme: Yellow's numbers as before (yellow bars 193/57/158, cream caps 210/121/132, black
+	// 16/128/128); Light's bars its ACCENT (#7A5200: Y 88) on its BG alone
+	{
+		const int was = theme::currentTheme();
+		theme::setTheme(0);
+		std::string y = visualizerGraphMarked(VIS_PEAKS_BANANA, false, "");
+		CHECK_EQ(y.find(",193,16)") != std::string::npos && y.find("(y,254),210,") != std::string::npos, true);
+		int light = -1;
+		for (int i = 0; i < theme::themeCount(); i++)
+			if (std::string(theme::themeId(i)) == "light") light = i;
+		theme::setTheme(light);
+		std::string l = visualizerGraphMarked(VIS_PEAKS_BANANA, false, "");
+		theme::setTheme(0);
+		CHECK_EQ(l != y, true);
+		CHECK_EQ(l.find("lt(y,253),88,") != std::string::npos, true);
+		CHECK_EQ(visualizerGraphMarked(VIS_PEAKS_BANANA, false, "") == y, true);
+		theme::setTheme(was);
+	}
+	// on the theme's ground: the top coloured, the band's rows black again (one frame)
+	std::string themed = vizPlaceArt(g, 0, 0, 0, "0xF4EFE3");
+	CHECK_EQ(themed.find("color=0xF4EFE3:s=640x480:r=1:d=1,drawbox=x=0:y=280:w=640:h=200:c=black:t=fill,setsar=1") != std::string::npos, true);
+	CHECK_EQ(vizPlaceArt(g, 200, 20, 240, "0x101010").find("pad=640:480:200:20:0x101010,drawbox") != std::string::npos, true);
 }
 
 int main()
 {
 	testSlider();
 	testSongLayout();
+	testKitDisplayPage();
 	testFileSave();
 	testWriteQueue();
 	testImageSize();

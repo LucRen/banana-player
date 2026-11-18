@@ -5,20 +5,15 @@
 
 namespace bp
 {
-	SongLayout songLayout(bool showArt, bool info, int widest)
+	SongLayout songLayout(bool showArt, int widest)
 	{
 		SongLayout l;
 		l.art = true;
 		// Album art only: the whole panel; Art + visualizer: the space above the band
 		const int top = 0, bottom = showArt ? 480 : SONG_BAND_TOP;
-		l.artS = showArt ? (info ? 240 : 260) : (info ? 224 : 240);
+		l.artS = showArt ? 240 : 224;
 		l.midY = (top + bottom) / 2;
 		l.artY = l.midY - l.artS / 2;
-		if (!info)
-		{
-			l.artX = (640 - l.artS) / 2;
-			return l;
-		}
 		const int gap = 28, room = 560 - l.artS - gap;
 		l.text = true;
 		l.textW = std::clamp(widest, 0, room);
@@ -69,8 +64,11 @@ namespace bp
 		return s;
 	}
 
-	std::string vizPlaceArt(const std::string& graph, int x, int y, int art)
+	std::string vizPlaceArt(const std::string& graph, int x, int y, int art, const std::string& ground, const std::string& bandGround)
 	{
+		// the band's rows in their own ground over the top's (one frame: drawn once, held)
+		const std::string band = ground == bandGround ? "" : ",drawbox=x=0:y=" + std::to_string(SONG_BAND_TOP) + ":w=640:h=" +
+			std::to_string(480 - SONG_BAND_TOP) + ":c=" + bandGround + ":t=fill";
 		static const std::string from = "[vid1] scale=640:480:", until = ",setsar=1";
 		std::string g = graph;
 		for (size_t at = g.find(from); at != std::string::npos; at = g.find(from, at + 1))
@@ -78,9 +76,10 @@ namespace bp
 			size_t end = g.find(until, at);
 			if (end == std::string::npos) break;
 			// one frame either way (a still: the art's picture, or one black frame), held by what follows (settb, split)
-			std::string in = art <= 0 ? "color=black:s=640x480:r=1:d=1"
+			std::string in = art <= 0 ? "color=" + ground + ":s=640x480:r=1:d=1" + band
 				: "[vid1] scale=" + std::to_string(art) + ":" + std::to_string(art) + ":force_original_aspect_ratio=increase,crop=" +
-					std::to_string(art) + ":" + std::to_string(art) + ",pad=640:480:" + std::to_string(x) + ":" + std::to_string(y) + ":black";
+					std::to_string(art) + ":" + std::to_string(art) + ",pad=640:480:" + std::to_string(x) + ":" + std::to_string(y) + ":" +
+					ground + band;
 			g.replace(at, end - at, in);
 		}
 		return g;

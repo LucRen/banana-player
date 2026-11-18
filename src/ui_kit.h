@@ -292,6 +292,18 @@ namespace bp
 			bool focused = false, pressed = false, off = false, lit = false;
 		};
 		void tile(Rect r, const Tile& t);
+		// a choice tile, one of a set (View › Display: the modes, icon beside the name; the styles, icon over it): the one
+		// in use filled ACCENT with ON_ACCENT ink, the cursor the ACCENT edge (and, on the one in use, an ACCENT ring 2
+		// clear of it: its edge would not show on its own fill)
+		struct Choice
+		{
+			const Glyph* glyph = nullptr;
+			std::string name;
+			bool on = false, focused = false, pressed = false;
+			bool over = false;	// the icon over the name (else beside it)
+			int font = F_P13;
+		};
+		void choiceTile(Rect r, const Choice& c);
 
 		// ---- the Recent card and the Continue card ----
 		struct Card

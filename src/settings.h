@@ -98,9 +98,9 @@ namespace bp
 	// the tables cover only the circle's square (its bars' reach, 200 out from 320,274; black round it is pad's): the
 	// lookup is most of a frame's cost, and the square is half the picture
 	constexpr int CIRCLE_BOX = 400, CIRCLE_X = 120, CIRCLE_Y = 74;
-	// None's picture: black, a tiny one at 5 frames a second drawn from the sound (so it ends with it): the last
-	// visualizer's frame would stay otherwise
-	std::string blankGraph();
+	// None's picture: a tiny one at 5 frames a second drawn from the sound (so it ends with it), filled with `ground`
+	// (lavfi's colour: the theme's BG under a song's lines, "0xRRGGBB"): the last visualizer's frame would stay otherwise
+	std::string blankGraph(const std::string& ground = "black");
 
 	// <stateDir>/settings.conf: what the Settings page changes, for every file
 	// text-theme's values: Match theme (the page the app's theme picks: settings.h's txtPage), then textreader.h's
@@ -113,9 +113,6 @@ namespace bp
 		bool rememberPosition = true, rememberAudio = true, rememberSubs = true;
 		// the browser opens where it was left, rather than at its first page
 		bool rememberFolder = false;
-		// the song's title, artist and album over the top panel's picture (off: the picture alone; None still shows the
-		// title, that being all it shows)
-		bool songInfo = false;
 		// the videos played, for Recently watched; off: none kept (and those kept so far gone)
 		bool keepHistory = true;
 		// network files in Recently watched too; off: they're left out (and those kept so far go)

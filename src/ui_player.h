@@ -55,8 +55,8 @@ namespace bp
 		int listTab = 0;
 		void openList(int tab, Player& p);
 		// View (SELECT): the View sheet (ui_player.cpp), opened on the tab last used. A video: Subtitles / Audio /
-		// Picture / Speed; the track chips open it on theirs, the Speed chip on Speed. A song: Display / Visualizer /
-		// Equalizer / Effects / Speed; Sound opens Equalizer, Sound FX Effects, Display Display, Speed Speed.
+		// Picture / Speed; the track chips open it on theirs, the Speed chip on Speed. A song: Display (the mode and the
+		// style on one page) / Equalizer / Effects / Speed; Sound opens Equalizer, Sound FX Effects, Display Display.
 		int viewTab = 0, songViewTab = 0;
 		void openView(int tab, Player& p);
 
