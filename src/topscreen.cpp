@@ -287,19 +287,45 @@ namespace bp
 			liteDrew = false;
 			forced = true;
 		}
+		// (the first frame of an episode is drawn at once, forced: the panel must not keep another style's picture, and
+		// the log's first window starts here. Then, once per 10 s, what the tap gave and what was presented: a panel
+		// that stays black says with it whether mpv sent af-metadata/bplite at all (the count climbing: the drawing is
+		// what's wrong) or nothing came)
+		if (!liteLogAt) forced = true;
+		if (!liteLogAt || now - liteLogAt >= 10000)
+		{
+			if (liteLogAt)
+				fprintf(stderr, "lite: in %u ms: %llu metadata updates, %llu readings, %llu frames drawn (level %.2f, bass %.2f%s)\n",
+					(unsigned)(now - liteLogAt), (unsigned long long)(shown.liteMetaUpdates - liteMetaShown),
+					(unsigned long long)(shown.lite.samples - liteReadingsShown), (unsigned long long)(liteFrames - liteFramesShown),
+					shown.liteLevel(), shown.liteBassLevel(), shown.liteSilent() ? ", silent" : "");
+			liteLogAt = now;
+			liteMetaShown = shown.liteMetaUpdates;
+			liteReadingsShown = shown.lite.samples;
+			liteFramesShown = liteFrames;
+		}
 		// paused: the picture stays as it was (a key's card may still ask for one draw); nothing moves
 		if ((shown.paused || shown.liteSilent()) && liteDrew && !forced) return;
 		if (!forced && liteAt && now - liteAt < interval) return;
 		if (shown.paused && !forced) return;
-		drawLiteFrame(shown, now, forced);
+		bool drew = drawLiteFrame(shown, now, forced);
+		// the frame goes to the panel: drawing alone leaves it in the back buffer, where nobody sees it (the window is
+		// double buffered, and the loop's other paths each swap: Lite's has to as well, or the top panel keeps the last
+		// frame another path swapped, black or frozen, while the bottom panel moves on)
+		if (drew)
+		{
+			SDL_GL_SwapWindow(top);
+			shown.reportSwap();
+			liteFrames++;
+		}
 		renderPending = false;
-		liteDrew = true;
+		if (drew) liteDrew = true;
 		liteAt = now;
 	}
 
 	// the glow and the bars, into the top panel's framebuffer (the caller swaps it); shared by the loop's own
 	// frames and by screenshots, which read the pixels after this
-	void TopScreen::drawLiteFrame(Player& shown, Uint32 now, bool force)
+	bool TopScreen::drawLiteFrame(Player& shown, Uint32 now, bool force)
 	{
 		int fps = std::clamp(shown.settings.vizFps, 30, 60);
 		double dt = liteTickAt && now > liteTickAt ? std::min(0.25, (now - liteTickAt) / 1000.0) : 1.0 / fps;
@@ -328,7 +354,7 @@ namespace bp
 		}
 		if (litePulse < 0.01) litePulse = 0;
 		// silent or paused and everything has fallen back: leave the panel alone (the last frame is the still one)
-		if (quiet && litePulse == 0 && liteDrew && !force) return;
+		if (quiet && litePulse == 0 && liteDrew && !force) return false;
 
 		SDL_GL_MakeCurrent(top, gl);
 		int w = 0, h = 0;
@@ -337,7 +363,7 @@ namespace bp
 		if (!g.ok)
 		{
 			// no GL side (a driver without shaders): the panel still shows mpv's picture or black
-			return;
+			return false;
 		}
 		// with the art, mpv draws it (and its OSD) first; alone, black first and mpv's OSD over it (a card or the
 		// song's title still shows; there is no graph's picture)
@@ -428,6 +454,7 @@ namespace bp
 		g.DisableVertexAttribArray((unsigned)g.aCol);
 		g.BindBuffer(LITE_ARRAY_BUFFER, 0);
 		if (g.BindVertexArray) g.BindVertexArray(0);
+		return true;
 	}
 
 	void TopScreen::syncReaders(Ui& ui, Player& player, MangaNet* mangaNet, const std::string& stateDir, Uint32 now, bool woke,
@@ -668,6 +695,32 @@ namespace bp
 	void TopScreen::draw(Player& player, Player& photos, Player& shown, const Ui& ui, Uint32 now, bool refresh, Uint32 levelUntil,
 		std::atomic<bool>& renderPending)
 	{
+		// Lite on the top panel or off it: one line each way, saying which path draws the panel (a black or frozen top
+		// panel is told by these: the player's own GL glow and bars, or mpv's frame, and for what file)
+		bool liteNow = player.liteShown() && !photos.playing() && !(reader.isOpen() && onTop(ui)) && !(textReader.isOpen() && onTop(ui));
+		if (liteNow != liteOnPanel)
+		{
+			liteOnPanel = liteNow;
+			liteLogAt = 0;
+			if (liteNow)
+			{
+				int w = 0, h = 0;
+				SDL_GL_GetDrawableSize(top, &w, &h);
+				liteFrames = 0;
+				fprintf(stderr, "lite: the top panel %dx%d, %d fps: the player's own GL draws and swaps it (%s), no mpv video frame, no graph\n",
+					w, h, std::clamp(shown.settings.vizFps, 30, 60),
+					shown.liteOverArt() ? "over mpv's album art" : "on black, mpv's OSD only");
+			}
+			else
+			{
+				const char* why = photos.playing() ? "a photo is shown"
+					: (reader.isOpen() || textReader.isOpen()) && onTop(ui) ? "a reader is over it"
+					: !player.playing() ? "nothing plays" : "another style, or its display shows no visualizer";
+				fprintf(stderr, "lite: off the top panel after %llu frames (%llu metadata updates): %s, style %s\n",
+					(unsigned long long)liteFrames, (unsigned long long)player.liteMetaUpdates, why,
+					visualizerLabel(player.settings.visualizer));
+			}
+		}
 		if (reader.isOpen() && onTop(ui))
 		{
 			// the pages, not mpv's picture (what plays goes on under them: drainUnder)

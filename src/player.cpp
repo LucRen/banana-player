@@ -963,7 +963,29 @@ namespace bp
 					// 1 and 2 the sound as it plays. Only while the tap is in the chain: a stale map after a style
 					// change is left alone
 					auto* n = p->format == MPV_FORMAT_NODE ? (mpv_node*)p->data : nullptr;
-					if (!n || n->format != MPV_FORMAT_NODE_MAP || settings.visualizer != VIS_LITE) break;
+					if (!n || n->format != MPV_FORMAT_NODE_MAP)
+					{
+						// the property has no value until the tap's chain is built (mpv's first events say so): once in
+						// the log, so "no value ever" is told apart from "values that never come"
+						if (!liteMetaEmptyLogged)
+						{
+							liteMetaEmptyLogged = true;
+							fprintf(stderr, "lite: af-metadata/bplite has no value yet (format %d)\n", (int)p->format);
+						}
+						break;
+					}
+					liteMetaUpdates++;
+					// (in the log: the first value the tap gives, whatever it is. On the handheld it says whether the
+					// bundled mpv sends af-metadata at all, and what the keys are called; then only the 10 s counts)
+					if (!liteMetaLogged)
+					{
+						liteMetaLogged = true;
+						std::string keys;
+						for (int i = 0; i < n->u.list->num && keys.size() < 200; i++)
+							keys += (i ? " " : "") + std::string(n->u.list->keys[i]);
+						fprintf(stderr, "lite: first af-metadata/bplite: %d keys: %s\n", n->u.list->num, keys.c_str());
+					}
+					if (settings.visualizer != VIS_LITE) break;
 					double rms = NAN, peak = NAN, brms[2] = {NAN, NAN}, bpeak[2] = {NAN, NAN};
 					for (int i = 0; i < n->u.list->num; i++)
 					{

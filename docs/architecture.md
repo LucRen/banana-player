@@ -31,9 +31,9 @@ Moved out of `CLAUDE.md`, which keeps the one-line rules and the map; the reason
   Lite is the cheap way out: no `lavfi-complex` graph and no picture at all. A labelled `astats` tap in the af chain
   (`@bplite`, after `@bpin`, 1024-sample frames; a lowpass copy joined beside the sound for its bass channels and then
   dropped by `pan`) is read by `observe_property` on `af-metadata/bplite`; the player draws a glow and twelve bars itself
-  on the top panel (`src/topscreen.cpp`, GL, additive, at `visualizer-fps`, stopping when paused or silent), over the
-  album art or on black (`vid=no`). It is only in the af while Lite is chosen and a song plays (joined by `joinAf`), and
-  it writes nothing to the card.
+  on the top panel (`src/topscreen.cpp`, GL, additive, at `visualizer-fps`, stopping when paused or silent) and swaps the
+  panel itself (no other path draws it while Lite shows), over the album art or on black (`vid=no`). It is only in the af
+  while Lite is chosen and a song plays (joined by `joinAf`), and it writes nothing to the card.
   Every visual branch starts with `aformat=sample_rates=44100|48000` (mono where channels share a colour; a 192 kHz
   file otherwise costs up to 2× and draws ultrasound), makes at most 30 frames per second of the song (the filter's own
   `rate=`/`fps=`; the graph runs before `speed`, so 2× shows 60/s), and converts no frame: no per-frame `format=`

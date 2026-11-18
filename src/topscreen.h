@@ -42,8 +42,9 @@ namespace bp
 		// Lite (VIS_LITE): the player draws its glow and bars itself, from the af tap's level, in place of mpv's
 		// picture (the art is still mpv's, under it). Called only while a song with Lite plays.
 		void drawLite(Player& shown, Player& photos, Uint32 now, bool refresh, std::atomic<bool>& renderPending);
-		// the glow and bars into the current framebuffer (no swap); the loop and screenshots both use it
-		void drawLiteFrame(Player& shown, Uint32 now, bool force);
+		// the glow and bars into the current framebuffer (no swap); the loop and screenshots both use it. False when
+		// nothing was drawn (quiet and fallen back, or no GL): the panel still shows the frame it had
+		bool drawLiteFrame(Player& shown, Uint32 now, bool force);
 		SDL_Window* top;
 		SDL_GLContext gl;
 		std::string fontsDir;
@@ -69,6 +70,11 @@ namespace bp
 		uint64_t liteBeatsSeen = 0;
 		int liteLoads = -1;
 		bool liteDrew = false;
+		// where Lite's frames go (in the log): whether the panel is drawing it now, how many frames were presented
+		// and what the tap gave since the last 10 s line
+		bool liteOnPanel = false;
+		uint64_t liteFrames = 0, liteFramesShown = 0, liteMetaShown = 0, liteReadingsShown = 0;
+		Uint32 liteLogAt = 0;
 
 	private:
 		// the text viewer's look (Settings: the Text viewer's rows)

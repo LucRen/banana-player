@@ -237,6 +237,12 @@ namespace bp
 		uint64_t liteBeats() const { return liteBass.beats; }	// the bass's kicks: the beat the glow follows
 		bool liteSilent() const { return lite.silent; }
 		LiteMeter lite, liteBass;	// the tap's readings (src/vizlite.h): the whole sound, and its bass
+		// the tap as it comes in: how many af-metadata/bplite values mpv sent (a top panel with no bars: zero says the
+		// tap is never heard, the count climbing says it is and the drawing is what's wrong). The 10 s line is the
+		// top panel's (topscreen.cpp)
+		uint64_t liteMetaUpdates = 0;
+		bool liteMetaLogged = false;	// the first value, once a run (what the bundled mpv actually sends)
+		bool liteMetaEmptyLogged = false;	// the first "no value yet" (the chain not built), once a run
 		std::string currentPath() const { return playlist.empty() ? "" : playlist[current]; }
 		// the files it plays from, in their order (index(): the one playing)
 		const std::vector<std::string>& paths() const { return playlist; }
