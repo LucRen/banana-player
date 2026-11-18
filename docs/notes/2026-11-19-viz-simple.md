@@ -115,3 +115,24 @@ grep -E "mpv: (set|graph|core-idle|idle-active|eof|pause)|end-file|play pressed|
 - `mpv: <core-idle|idle-active|eof-reached|pause|paused-for-cache|ao|audio-reconfig|playback-restart> -> v (+N ms after
   graph)`: only for 10 s after a graph change.
 - `session: play pressed: session <state>, mpv pause=.., core-idle=.., ...`: the last values seen (never read).
+
+## The stall
+
+Switching a simple style then pausing, seeking or switching again stopped the handheld: every mpv thread on a futex, no
+sound, Play did nothing. These graphs split the sound (`[aid1] asplit [ao] [a]`) and feed the visualizer from the same
+branch. That branch reads one-frame stills (`color=…:r=1:d=1`, and Rings' `movie=` maps) inside `lut2` (and `vstack`
+in Horizon). A filter still waiting for, or ending with, its still stops pulling: the sound branch behind `asplit` then
+blocks `[ao]` too, so every thread waits on a frame that never comes.
+
+FFmpeg's framesync defaults already repeat a still's last frame; the graphs were relying on that silently. They now
+state it: every still-fed `lut2` says `:eof_action=repeat:shortest=0:repeatlast=1`, Horizon's stacks say `shortest=0`,
+and no still is looped (one frame, as the music-graph rules ask). `mergeplanes` takes no such option and is only fed
+moving frames here; `remap` has no framesync options either and holds its one-frame maps (checked with ffmpeg: a moving
+source and 1 fps maps made all 60 frames), so Rings needs nothing there. `testVizSimple` walks each graph: every
+one-frame source's label must reach a `lut2` with those options (or a stack with `shortest=0`).
+
+Checked on the Mac (FFmpeg 9.0.2): the twelve graphs render 135 frames each, and the player check (`music-show = both`,
+a fresh `--state-dir`, `A,info,A,info,Right,info,Right,info`) shows t advancing for Mirror bars, Dots, Barcode, Rings,
+Horizon and Steps. The Mac did not stall before this change either (the freeze is the handheld's mpv), so the options
+make the graph's contract explicit rather than change a frame; if it still stalls, the next suspect is mpv's graph
+flush on seek dropping the repeated still.

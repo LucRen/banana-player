@@ -5946,6 +5946,56 @@ static void testVizTheme()
 	CHECK_EQ(system(rm.c_str()), 0);
 }
 
+// Every filter that takes a still (one frame from color=...:r=1:d=1 or movie=) must keep that frame and not end with
+// it: a visualizer branch that stops pulling audio blocks [ao] behind the same asplit (the stall). Walks the graph: a
+// one-frame source's label is a still; a multi-input filter reading it must say repeat/eof. remap has no framesync
+// options and holds its maps (driven by its source); mergeplanes has none either and is never fed a still here.
+static void checkStillRepeats(const std::string& g)
+{
+	std::set<std::string> stills;
+	std::vector<std::string> segs;
+	for (size_t at = 0; at < g.size();)
+	{
+		size_t end = g.find(';', at);
+		if (end == std::string::npos) end = g.size();
+		segs.push_back(g.substr(at, end - at));
+		const std::string& s = segs.back();
+		if (s.find("r=1:d=1") != std::string::npos || s.find("movie=") != std::string::npos)
+		{
+			size_t open = s.rfind('[');
+			size_t close = open == std::string::npos ? std::string::npos : s.find(']', open);
+			if (close != std::string::npos) stills.insert(s.substr(open + 1, close - open - 1));
+		}
+		at = end + 1;
+	}
+	for (const std::string& s : segs)
+	{
+		static const char* FILTERS[] = {"lut2", "overlay", "blend", "mergeplanes", "vstack", "hstack", "remap"};
+		size_t f = std::string::npos;
+		const char* name = "";
+		for (const char* n : FILTERS)
+		{
+			size_t k = s.find(n);
+			if (k != std::string::npos && (k == 0 || !isalnum((unsigned char)s[k - 1])) && k < f) { f = k; name = n; }
+		}
+		if (f == std::string::npos) continue;
+		bool fromStill = false;
+		for (size_t open = s.find('['); open != std::string::npos && open < f; open = s.find('[', open + 1))
+		{
+			size_t close = s.find(']', open);
+			if (close == std::string::npos || close > f) break;
+			if (stills.count(s.substr(open + 1, close - open - 1))) fromStill = true;
+		}
+		if (!fromStill) continue;
+		if (std::string(name) == "remap") continue;	// (its maps are held; ffmpeg's remap takes no framesync options)
+		if (std::string(name) == "mergeplanes") continue;	// (never fed a still here: it takes no repeat option)
+		if (std::string(name) == "vstack" || std::string(name) == "hstack")
+			CHECK_EQ(s.find("shortest=0") != std::string::npos, true);
+		else
+			CHECK_EQ(s.find(":eof_action=repeat:shortest=0:repeatlast=1") != std::string::npos, true);
+	}
+}
+
 // The six simple styles (src/viz_simple.cpp): the graph rules, the theme's colours in them
 static void testVizSimple()
 {
@@ -5962,12 +6012,13 @@ static void testVizSimple()
 		{
 			std::string g = visualizerGraph(v, art, dir, 45);
 			yellow.push_back(g);
+			checkStillRepeats(g);
 			CHECK_EQ(g.find("aformat=sample_rates=44100|48000") != std::string::npos, true);
 			CHECK_EQ(g.find("loop=") == std::string::npos && g.find("rgb") == std::string::npos && g.find("colorkey") == std::string::npos, true);
 			CHECK_EQ(g.find("rate=45") != std::string::npos && g.find("rate=60") == std::string::npos, true);	// at the setting's rate
 			CHECK_EQ(g.find("mergeplanes=0x001020:yuv420p") != std::string::npos, true);
 			CHECK_EQ(g.find("[vid1]") != std::string::npos, art);
-			CHECK_EQ(g.find("vstack [vo]") != std::string::npos, art);
+			CHECK_EQ(g.find("vstack=shortest=0 [vo]") != std::string::npos, art);
 			CHECK_EQ(g.find("bplut"), std::string::npos);	// (the markers made plain)
 			// the song's band on the theme's ground: the art's input swapped for one frame of it, as every style's
 			if (art) CHECK_EQ(vizPlaceArt(g, 0, 0, 0, "0x101010", "0x101010").find("[vid1]"), std::string::npos);
@@ -5988,6 +6039,7 @@ static void testVizSimple()
 	CHECK_EQ(visualizerGraph(VIS_BARCODE, false).find("crop=96:256:0:0") != std::string::npos, true);
 	// Horizon: the row mirrored (bass in the middle), the reflection flipped; Area's and Radial's ids read as the new ones
 	CHECK_EQ(visualizerGraph(VIS_HORIZON, false).find("hflip") != std::string::npos && visualizerGraph(VIS_HORIZON, false).find("vflip") != std::string::npos, true);
+	CHECK_EQ(visualizerGraph(VIS_HORIZON, false).find("vstack=shortest=0") != std::string::npos, true);	// its reflection's still never ends the stack
 	CHECK_EQ(visualizerGraph(VIS_AREA, false) == visualizerGraph(VIS_HORIZON, false), true);
 	CHECK_EQ(visualizerGraph(VIS_RADIAL, true) == visualizerGraph(VIS_STEPS, true), true);
 	CHECK_EQ(visualizerGraph(VIS_STEPS, false).find("remap"), std::string::npos);
