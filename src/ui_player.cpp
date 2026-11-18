@@ -1343,7 +1343,7 @@ namespace bp
 		// ---- the equalizer's body: the preset row and the ten bands ----
 		struct EqLayout
 		{
-			Rect body, save, toggle, prevCap, nextCap, name;
+			Rect body, save, toggle, prevCap, nextCap, name, prevArrow, nextArrow;
 			int cy = 0, toggleX = 0, onCapX = 0, onLabelX = 0;
 			Rect band[EQ_BANDS], track[EQ_BANDS];
 			int gainY = 0, freqY = 0, trackY = 0, trackH = 0;
@@ -1360,6 +1360,8 @@ namespace bp
 			e.prevCap = {e.body.x + 52, e.cy - 10, 19, 19};
 			e.name = {e.prevCap.x + 19 + 8, e.cy - 14, 160, 28};
 			e.nextCap = {e.name.x + e.name.w + 6, e.cy - 10, 19, 19};
+			e.prevArrow = {e.name.x, e.cy - 14, 18, 28};
+			e.nextArrow = {e.name.x + e.name.w - 18, e.cy - 14, 18, 28};
 			int top = e.body.y + 52;
 			e.gainY = top + 8;
 			e.freqY = e.body.y + e.body.h - 8;
@@ -1561,8 +1563,8 @@ namespace bp
 					EqLayout e = eqLayout(s);
 					if (e.save.hit(x, y)) press = P_SAVE;
 					else if (Rect{e.toggleX, e.cy - 11, 40, 22}.hit(x, y)) press = P_ON;
-					else if (e.prevCap.hit(x, y) || Rect{e.body.x, e.cy - 20, 48, 40}.hit(x, y)) press = P_PREV;
-					else if (e.nextCap.hit(x, y)) press = P_NEXT;
+					else if (e.prevCap.hit(x, y) || e.prevArrow.hit(x, y) || Rect{e.body.x, e.cy - 20, 48, 40}.hit(x, y)) press = P_PREV;
+					else if (e.nextCap.hit(x, y) || e.nextArrow.hit(x, y)) press = P_NEXT;
 					else if (e.name.hit(x, y)) press = P_NAME;
 					if (press != P_NONE) return false;
 					for (int i = 0; i < EQ_BANDS; i++)
@@ -1620,8 +1622,8 @@ namespace bp
 			}
 			else if (kind == P_SAVE && eqLayout(s).save.hit(x, y)) ui.sound->eqSave(p);
 			else if (kind == P_ON && Rect{eqLayout(s).toggleX, eqLayout(s).cy - 11, 40, 22}.hit(x, y)) ui.sound->eqToggle(p);
-			else if (kind == P_PREV && eqLayout(s).prevCap.hit(x, y)) ui.sound->eqStep(-1, p);
-			else if (kind == P_NEXT && eqLayout(s).nextCap.hit(x, y)) ui.sound->eqStep(1, p);
+			else if (kind == P_PREV && (eqLayout(s).prevCap.hit(x, y) || eqLayout(s).prevArrow.hit(x, y))) ui.sound->eqStep(-1, p);
+			else if (kind == P_NEXT && (eqLayout(s).nextCap.hit(x, y) || eqLayout(s).nextArrow.hit(x, y))) ui.sound->eqStep(1, p);
 			else if (kind == P_NAME && eqLayout(s).name.hit(x, y))
 			{
 				eqMode = EQ_LIST;
@@ -1645,7 +1647,10 @@ namespace bp
 			int cy = e.cy;
 			ui.drawTextMid("Preset", F_I12, DIM, e.body.x, cy, 46);
 			k.caps("L2", e.prevCap.x, cy, ACCENT, SURFACE);
-			ui.drawTextMid(preset, F_P16, on ? TEXT : DIM, e.name.x, cy, e.name.w);
+			// ‹ name ›: the stepper's arrows, as every other stepper (and the old Sound page) has them
+			ui.drawGlyphMid(G_LEFT, e.prevArrow.x + e.prevArrow.w / 2, cy, on ? TEXT : DIM);
+			ui.drawGlyphMid(G_RIGHT, e.nextArrow.x + e.nextArrow.w / 2, cy, on ? TEXT : DIM);
+			ui.drawTextMid(preset, F_P16, on ? TEXT : DIM, e.name.x + e.name.w / 2, cy, e.name.w - 2 * e.prevArrow.w - 8, 2);
 			k.caps("R2", e.nextCap.x, cy, ACCENT, SURFACE);
 			// On / Off on Y, then Save on A
 			ui.drawTextMid(on ? "On" : "Off", F_I12, on ? TEXT : DIM, e.onLabelX, cy, 24, 1);
