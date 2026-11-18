@@ -812,6 +812,7 @@ namespace bp
 		photo += webSig(p);
 		// About's support QR up: its hint bar says how to close it
 		photo += aboutQrUp() ? "|qr" : "";
+		if (galleryNew) photo += "|gal" + std::to_string(galleryNew);	// (test only: --press gallery:new)
 		// where it plays (the player's Play on sheet and the status line)
 		{
 			SessionHost& sh = SessionHost::get();

@@ -366,4 +366,51 @@ namespace bp
 		std::vector<MoreItem> tiles, rows;	// a first row of keys (four across), then the list
 		int cols = 1;	// the list's columns
 	};
+
+	// ======== kit-new: Section rail, Book bar, Away-from-normal, Screen-off warning (ui_kit_new.cpp) ========
+	// Written beside Ui::Kit as a struct of its own (another branch adds members to Kit at the same time); each draws on the
+	// Rects of kitlayout.h's kit-new block, which the touches test too. The Preview pane is the top panel's
+	// (previewpane.h). Not used by a screen yet: --press gallery:new draws them (docs/workflow.md).
+	struct Ui::KitNew
+	{
+		// ---- Section rail: RAIL ground, a rule on its right, the sections, the L / R caps, Settings at the foot ----
+		struct RailItem
+		{
+			const Glyph* glyph = nullptr;
+			std::string label;
+			bool warn = false;	// a red mark: opening it would stop what plays
+		};
+		// active: the section lit (sections.size(): Settings; -1 none); pressed: the cell under a finger
+		static void rail(Kit& k, const lay::Rail& r, const std::vector<RailItem>& sections, const RailItem& settings, int active,
+			int pressed = -1);
+
+		// ---- Book bar: Book mode's bottom sheet, drawn upright as the handheld is held ----
+		struct BookKey
+		{
+			const Glyph* glyph = nullptr;
+			std::string label, key;
+			std::string lit;	// a lit key's state ("Warm · -30%"): ACCENT, the state in place of the cap, the dot
+		};
+		struct BookSpec
+		{
+			std::string title, value, note;	// the slider row: "7%" on its left, "Chapter 1 of 12" on its right
+			double share = 0;
+			BookKey keys[4];
+			std::string leave, leaveKey;	// "Back to scrolling", "B"
+			std::vector<Hint> hints;	// directions as seen while held
+			bool topLeft = true;	// the top screen on the left as held (lay::sideways)
+			int pressed = -1;	// lay::bookBarAt's piece under a finger
+			bool veil = true;	// the page dimmed under it (the test gallery leaves its other pieces clear)
+		};
+		// the veil over the page and the sheet, turned a quarter onto the panel; false: the renderer has no target
+		// textures, and the sheet was drawn unturned at the panel's foot
+		static bool bookBar(Kit& k, const lay::BookBar& b, const BookSpec& s);
+
+		// ---- Away-from-normal: the tone's ink and the dot in a control's corner ----
+		static SDL_Color awayInk(lay::AwayTone t);	// TEXT, ACCENT or DANGER
+		static void awayDot(Kit& k, Rect control, lay::AwayTone t);	// nothing when Normal
+
+		// ---- Screen-off warning: the veil and the notice row (the panel's, or `over`) ----
+		static void screenOffWarn(Kit& k, int msLeft, Rect over = {0, 0, W, H});
+	};
 }

@@ -9315,6 +9315,171 @@ static void testKitLayout()
 }
 
 // Session: nextPlace, what the player's "Next" line names (Step's own choice, read without stepping)
+// ---- kit-new's layouts (kitlayout.h's kit-new block): one named test each ----
+static bool kitInside(lay::Box b, int w, int h) { return b.x >= 0 && b.y >= 0 && b.x + b.w <= w && b.y + b.h <= h; }
+static bool kitApart(lay::Box a, lay::Box b) { return a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y; }
+
+static void testKitNewSectionRail()
+{
+	using namespace lay;
+	// six sections fit between the caps, Settings pinned at the foot; none over another, all inside the strip
+	Rail r = rail(6);
+	CHECK_EQ((int)r.cell.size(), 6);
+	CHECK_EQ(r.area.w, 78);
+	CHECK_EQ(r.settings.y + r.settings.h, PANEL_H - RAIL_PAD);
+	CHECK_EQ(r.cell[0].y, r.capL.y + r.capL.h + RAIL_GAP);
+	CHECK_EQ(r.capR.y, r.cell[5].y + r.cell[5].h + RAIL_GAP);
+	CHECK_EQ(r.capR.y + r.capR.h <= r.settings.y, true);
+	for (size_t i = 0; i < r.cell.size(); i++)
+	{
+		CHECK_EQ(r.cell[i].w, 68);
+		CHECK_EQ(r.cell[i].h, 56);
+		CHECK_EQ(kitInside(r.cell[i], RAIL_W - 1, PANEL_H), true);	// left of the rule
+		CHECK_EQ(kitApart(r.cell[i], r.settings), true);
+		if (i) CHECK_EQ(kitApart(r.cell[i], r.cell[i - 1]), true);
+		// a tap on the cell (or beside it, still on the rail) is that section
+		CHECK_EQ(railAt(r, r.cell[i].x + 30, r.cell[i].y + 20), (int)i);
+		CHECK_EQ(railAt(r, 1, r.cell[i].y + 1), (int)i);
+	}
+	CHECK_EQ(railAt(r, 40, r.settings.y + 10), 6);
+	CHECK_EQ(railAt(r, 40, r.capL.y + 2), -1);
+	CHECK_EQ(railAt(r, 100, r.cell[0].y + 10), -1);	// off the rail
+	// more than fit: the last left out, Settings never covered
+	Rail many = rail(9);
+	CHECK_EQ((int)many.cell.size(), 6);
+	CHECK_EQ(many.capR.y + many.capR.h <= many.settings.y, true);
+	// L / R wrap
+	CHECK_EQ(railStep(0, -1, 7), 6);
+	CHECK_EQ(railStep(6, 1, 7), 0);
+	CHECK_EQ(railStep(2, 1, 7), 3);
+	CHECK_EQ(railStep(0, 1, 0), 0);
+}
+
+static void testKitNewPreviewPane()
+{
+	using namespace lay;
+	// the text layout: from 74, 44 from the sides; the cover layout: the cover at 36, 66, the column from 262
+	Pane t = previewPane(false);
+	CHECK_EQ(t.column.x, 44);
+	CHECK_EQ(t.column.y, 74);
+	CHECK_EQ(t.column.x + t.column.w, PANEL_W - 44);
+	CHECK_EQ(t.cover.w, 0);
+	CHECK_EQ(kitApart(t.brandTile, t.column), true);
+	Pane c = previewPane(true);
+	CHECK_EQ(c.cover.x, 36);
+	CHECK_EQ(c.cover.y, 66);
+	CHECK_EQ(c.cover.w, 196);
+	CHECK_EQ(c.cover.h, 278);
+	CHECK_EQ(c.column.x, 262);
+	CHECK_EQ(kitApart(c.cover, c.column), true);
+	CHECK_EQ(kitInside(c.cover, PANEL_W, PANEL_H) && kitInside(c.column, PANEL_W, PANEL_H), true);
+	// the Theme row's swatches: fifteen in two rows (eight, seven), the row exactly the column's width
+	auto sw = swatches(15, t.column.x, 180);
+	CHECK_EQ((int)sw.size(), 15);
+	CHECK_EQ(sw[7].x + sw[7].w, t.column.x + t.column.w);
+	CHECK_EQ(sw[8].x, t.column.x);
+	CHECK_EQ(sw[8].y, 180 + SWATCH_H + SWATCH_NAME + SWATCH_ROW_GAP);
+	CHECK_EQ(sw[14].y, sw[8].y);
+	for (size_t i = 1; i < sw.size(); i++) CHECK_EQ(kitApart(sw[i], sw[i - 1]), true);
+	CHECK_EQ(sw[1].x - sw[0].x, SWATCH_W + SWATCH_GAP);
+}
+
+static void testKitNewBookBar()
+{
+	using namespace lay;
+	BookBar b = bookBar();
+	// upright: 480 wide on the foot, about 340 tall; every piece inside the sheet, the keys 222 wide, none overlapping
+	CHECK_EQ(b.box.w, BOOK_W);
+	CHECK_EQ(b.box.y + b.box.h, BOOK_H);
+	CHECK_EQ(b.box.h >= 320 && b.box.h <= 360, true);
+	Box local{0, 0, b.box.w, b.box.h};
+	Box all[] = {b.title, b.progress, b.slider, b.keys[0], b.keys[1], b.keys[2], b.keys[3], b.leave, b.hints};
+	for (Box x : all) CHECK_EQ(kitInside(x, local.w, local.h), true);
+	for (int i = 0; i < 4; i++)
+	{
+		CHECK_EQ(b.keys[i].w, 222);
+		CHECK_EQ(b.keys[i].h, 60);
+		CHECK_EQ(kitApart(b.keys[i], b.leave), true);
+		for (int j = 0; j < i; j++) CHECK_EQ(kitApart(b.keys[i], b.keys[j]), true);
+	}
+	CHECK_EQ(b.leave.h, 56);
+	CHECK_EQ(b.keys[1].x + b.keys[1].w, b.leave.x + b.leave.w);
+	CHECK_EQ(b.slider.h, 14);
+	// turned onto the panel: inside it, along the edge that is the foot as held (the left, top screen on the left)
+	for (bool topLeft : {true, false})
+	{
+		Box p = sideways(b.box, topLeft);
+		CHECK_EQ(p.w, b.box.h);
+		CHECK_EQ(p.h, b.box.w);
+		CHECK_EQ(kitInside(p, PANEL_W, PANEL_H), true);
+		CHECK_EQ(topLeft ? p.x == 0 : p.x + p.w == PANEL_W, true);
+		// every unit of a key comes back to that key upright: a touch hits what was drawn
+		for (int i = 0; i < 4; i++)
+		{
+			Box k{b.keys[i].x + b.box.x, b.keys[i].y + b.box.y, b.keys[i].w, b.keys[i].h};
+			Box pk = sideways(k, topLeft);
+			int corners[4][2] = {{pk.x, pk.y}, {pk.x + pk.w - 1, pk.y}, {pk.x, pk.y + pk.h - 1}, {pk.x + pk.w - 1, pk.y + pk.h - 1}};
+			for (auto& c : corners)
+			{
+				int ux, uy;
+				uprightPoint(c[0], c[1], topLeft, ux, uy);
+				CHECK_EQ(bookBarAt(b, ux, uy), i);
+			}
+		}
+		int ux, uy;
+		Box lv = sideways({b.leave.x + b.box.x, b.leave.y + b.box.y, b.leave.w, b.leave.h}, topLeft);
+		uprightPoint(lv.x + lv.w / 2, lv.y + lv.h / 2, topLeft, ux, uy);
+		CHECK_EQ(bookBarAt(b, ux, uy), 4);
+	}
+	// a point above the sheet (the page) is off it
+	CHECK_EQ(bookBarAt(b, 240, 10), -1);
+	CHECK_EQ(bookBarAt(b, 240, b.box.y + b.title.y + 10), 6);
+	CHECK_EQ(bookBarAt(b, b.box.x + b.slider.x + 5, b.box.y + b.slider.y + 5), 5);
+}
+
+static void testKitNewAway()
+{
+	using namespace lay;
+	// normal: the name, no dot; away: the value in its place, the dot; danger past the line
+	Away n = away("Speed", "1\xC3\x97", "1\xC3\x97");
+	CHECK_EQ(n.tone == AwayTone::Normal, true);
+	CHECK_EQ(n.words, std::string("Speed"));
+	CHECK_EQ(n.dot, false);
+	Away a = away("Light", "Warm", "Off");
+	CHECK_EQ(a.tone == AwayTone::Away, true);
+	CHECK_EQ(a.words, std::string("Warm"));
+	CHECK_EQ(a.dot, true);
+	CHECK_EQ(away("Network", "Offline", "Online", true).tone == AwayTone::Danger, true);
+	CHECK_EQ(awayLevel("Volume", 100, 100, 120).tone == AwayTone::Normal, true);
+	CHECK_EQ(awayLevel("Volume", 110, 100, 120).tone == AwayTone::Away, true);
+	CHECK_EQ(awayLevel("Volume", 140, 100, 120).tone == AwayTone::Danger, true);
+	CHECK_EQ(awayLevel("Volume", 140, 100, 120).words, std::string("140%"));
+	CHECK_EQ(awayLevel("Brightness", 300, 100).tone == AwayTone::Away, true);	// (no danger line)
+	// the dot: 6 units in the control's top right corner, where the state chip puts it
+	Box d = awayDot({100, 40, 115, 52});
+	CHECK_EQ(d.w, 6);
+	CHECK_EQ(d.x + d.w, 100 + 115 - AWAY_INSET);
+	CHECK_EQ(d.y, 40 + AWAY_INSET);
+}
+
+static void testKitNewScreenOffWarn()
+{
+	using namespace lay;
+	// the notice row: 52 tall, 40 above the foot, 16 from the sides; the moon and the line inside it
+	ScreenOffWarn w = screenOffWarn();
+	CHECK_EQ(w.row.h, 52);
+	CHECK_EQ(w.row.y + w.row.h, PANEL_H - 40);
+	CHECK_EQ(w.row.x, 16);
+	CHECK_EQ(w.row.x + w.row.w, PANEL_W - 16);
+	CHECK_EQ(kitInside(w.icon, PANEL_W, PANEL_H) && w.icon.y > w.row.y && w.icon.y + w.icon.h < w.row.y + w.row.h, true);
+	CHECK_EQ(w.text.x > w.icon.x + w.icon.w && w.text.x + w.text.w < w.row.x + w.row.w, true);
+	// the count: whole seconds, rounded up, never 0
+	CHECK_EQ(screenOffWords(5000), std::string("Screen off in 5 s"));
+	CHECK_EQ(screenOffWords(4001), std::string("Screen off in 5 s"));
+	CHECK_EQ(screenOffWords(1), std::string("Screen off in 1 s"));
+	CHECK_EQ(screenOffWords(0), std::string("Screen off in 1 s"));
+}
+
 static void testSessionNextPlace()
 {
 	Session s;
@@ -11857,6 +12022,11 @@ int main()
 	testKitVariantEmpty();
 	testKitVariantNotice();
 	testKitVariantBars();
+	testKitNewSectionRail();
+	testKitNewPreviewPane();
+	testKitNewBookBar();
+	testKitNewAway();
+	testKitNewScreenOffWarn();
 	testSessionNextPlace();
 	testTrackList();
 	testSuwayomi();

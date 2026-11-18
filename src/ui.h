@@ -30,6 +30,7 @@ namespace bp
 {
 	class WebServer;
 	class DurationWorker;
+	struct PaneSpec;	// previewpane.h
 
 	// the on-screen keyboard's field for a repository's URL (Ui's Sources page; the form's are in ui_internal.h)
 	inline constexpr int SRC_URL_FIELD = 62;
@@ -105,6 +106,12 @@ namespace bp
 		// top panel's own picture, as a reader's pages are); B, Y or a tap takes it down, and leaving About closes it
 		bool aboutQrUp() const { return aboutQr && page == Page::About; }
 		static lay::Box aboutQrRect() { return {24, 352, 84, 84}; }	// the small code at About's foot (drawAboutSupport)
+		// kit-new (ui_kit_new.cpp): the Preview pane the top panel shows while nothing plays (previewpane.h), false
+		// for none: the Theme row's (Settings › Power & screens), the test gallery's. topscreen.cpp asks every pass
+		bool topPane(PaneSpec& out) const;
+		// test only (--press gallery:new, gallery:new:2): kit-new's components drawn in place of the page (0: off)
+		int galleryNew = 0;
+		void drawGalleryNew();
 		// the player's own Stop (X's More sheet, START › Playing › Stop, the mini bar's menu), once: main stops what plays
 		bool takeStopPressed() { bool r = stopPressed; stopPressed = false; return r; }
 		// the mini bar's tap over a photo: the photo closes and the player of what plays takes the screen (once; main
@@ -408,6 +415,7 @@ namespace bp
 		// the pieces the redesigned screens are drawn from (key caps, keys, chips, line keys, the bar, sheets, rows):
 		// each takes its inputs and draws, and holds no screen's state
 		struct Kit;
+		struct KitNew;	// kit-new's components, beside Kit (ui_kit.h's kit-new block)
 		std::unique_ptr<Kit> kit;
 		// the More sheet (ui_more.cpp): a bottom sheet of tiles and rows, fed a list each time it is drawn (MoreSpec,
 		// ui_kit.h), as an overlay. X on the player opens the player's (PlayerPage::moreSpec)

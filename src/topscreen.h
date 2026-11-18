@@ -17,6 +17,7 @@ namespace bp
 	class Player;
 	struct Settings;
 	struct Ui;
+	struct PaneSpec;
 
 	struct TopScreen
 	{
@@ -61,10 +62,18 @@ namespace bp
 		PageRenderer qrRender;
 		bool qrReady = false, qrUp = false;
 		int qrW = 0, qrH = 0;
+		// the Preview pane (previewpane.h: Ui::topPane says which) while nothing plays: the panel's own picture as the
+		// QR's is, composed again only when its key (with the theme) or the panel's size changes
+		PageRenderer paneRender;
+		bool paneReady = false, paneUp = false;
+		std::string paneKey;
+		int paneW = 0, paneH = 0;
 
 	private:
 		// the QR drawn 1:1 into the top window (the context made current here); false when it couldn't be composed
 		bool drawQr(int w, int h);
+		// the pane drawn 1:1 (composed first when it changed); false when it couldn't be
+		bool drawPane(const PaneSpec& spec, const std::string& key, int w, int h);
 		// the text viewer's look (Settings: the Text viewer's rows)
 		TextReader::Style textStyle(const Settings& s) const;
 		Uint32 slowLogged = 0;	// when a take under the pages was last logged (once per 5 s)

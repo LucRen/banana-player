@@ -274,5 +274,89 @@ namespace bp
 			Box box, text, key[2];	// "... here" (SELECT), Cancel (X)
 		};
 		ClipBar clipBar();
+		// ======== kit-new: Section rail, Preview pane, Book bar, Away-from-normal, Screen-off warning ========
+		// (docs/redesign/components.md, each under its own name; their drawing: ui_kit.h's kit-new block and
+		// previewpane.h; tests: testKitNew in tests/core_test.cpp)
+
+		// ---- Section rail: 78 wide, full height, at the panel's left ----
+		// From the top: the L cap's row, the sections (68 x 56, 2 apart), the R cap's row; Settings pinned at the foot.
+		// More sections than fit above Settings: the last ones are left out (cells.size() says how many were placed)
+		constexpr int RAIL_W = 78, RAIL_CELL_W = 68, RAIL_CELL_H = 56, RAIL_GAP = 2, RAIL_PAD = 5, RAIL_CAP_H = 19;
+		struct Rail
+		{
+			Box area;	// the whole strip (its rule is its last unit)
+			Box capL, capR;	// the rows of the L and R caps
+			std::vector<Box> cell;	// the sections shown, top down
+			Box settings;	// pinned at the foot
+		};
+		Rail rail(int sections, int h = PANEL_H);
+		// the cell under (x, y): 0..cells-1, `cells` for Settings, -1 none
+		int railAt(const Rail& r, int x, int y);
+		// L / R: the section before / after, round (n: the sections L / R step through)
+		int railStep(int at, int dir, int n);
+
+		// ---- Preview pane: the top screen with nothing playing (its own 640x480 units) ----
+		// The brand mark top left, then a text column (from 74, 44 from the sides) or, with a cover, the cover at
+		// 36, 66 (196 x 278) and the text column from 262
+		struct Pane
+		{
+			Box brandTile, brandName;	// the 22-unit tile and the name's line beside it
+			Box column;	// the text: label, title, sentence, rows, keys, top down
+			Box cover;	// w 0: the text layout
+		};
+		Pane previewPane(bool cover);
+		// the Theme row's swatches: n of 62 x 38 in rows of `perRow`, 8 apart, each with its name's line (14) under it
+		// and 9 between the rows, from (left, top). The row is 8 * 62 + 7 * 8 = 552: the text column's width
+		constexpr int SWATCH_W = 62, SWATCH_H = 38, SWATCH_GAP = 8, SWATCH_NAME = 14, SWATCH_ROW_GAP = 9;
+		std::vector<Box> swatches(int n, int left, int top, int perRow = 8);
+
+		// ---- Book bar: the bottom sheet of Book mode, drawn upright as the handheld is held (sideways) ----
+		// Upright the touch panel is 480 wide and 640 tall. The sheet's boxes are its own (0, 0 at its top left);
+		// `box` is where it sits upright, on the foot
+		constexpr int BOOK_W = 480, BOOK_H = 640;
+		struct BookBar
+		{
+			Box box;	// upright, in 480 x 640
+			Box grab, title, progress, value, slider, note;	// the slider row: the value, the track, the note on its right
+			Box keys[4];	// two rows of two
+			Box leave;	// the full-width key that leaves Book mode
+			Box hints;
+		};
+		BookBar bookBar();
+		// the panel's box (640 x 480) of an upright box: topLeft, the handheld held with the top screen on the left (its
+		// pages turned a quarter clockwise: the panel's right edge is up), else on the right
+		Box sideways(Box upright, bool topLeft);
+		// a touch at the panel's (x, y), upright
+		void uprightPoint(int x, int y, bool topLeft, int& ux, int& uy);
+		// the Book bar's piece under an upright point: 0..3 a key, 4 the leave key, 5 the slider, 6 elsewhere on the
+		// sheet, -1 off it
+		int bookBarAt(const BookBar& b, int ux, int uy);
+
+		// ---- Away-from-normal: one rule for a control whose value is not the normal one ----
+		// Normal: the setting's name; away: the value in its place, ACCENT and a 6-unit dot; danger (past a danger line:
+		// volume over 120%, offline, failed): DANGER
+		enum class AwayTone { Normal, Away, Danger };
+		struct Away
+		{
+			AwayTone tone = AwayTone::Normal;
+			std::string words;	// what the control says
+			bool dot = false;	// the 6-unit dot in its corner
+		};
+		Away away(const std::string& name, const std::string& value, const std::string& normal, bool danger = false);
+		// a level (volume, brightness...): away when it isn't `normal`, danger above `dangerAbove` (<= 0: never)
+		Away awayLevel(const std::string& name, int value, int normal, int dangerAbove = 0, const std::string& unit = "%");
+		constexpr int AWAY_DOT = 6, AWAY_INSET = 5;	// (where the state chip has always put its dot)
+		Box awayDot(Box control);	// the dot's box in a control's top right corner
+
+		// ---- Screen-off warning: the five seconds before an automatic screen off ----
+		// A 62% black veil over the panel and one notice row 52 tall, 40 above the foot, 16 from the sides
+		constexpr int WARN_VEIL = 62, WARN_ROW_H = 52, WARN_FOOT = 40, WARN_SECONDS = 5;
+		struct ScreenOffWarn
+		{
+			Box row, icon, text;	// the notice row; the moon (20); the line's room after it
+		};
+		ScreenOffWarn screenOffWarn(Box panel = {0, 0, PANEL_W, PANEL_H});
+		// "Screen off in 4 s": the seconds left, rounded up (ms: what is left), at least 1
+		std::string screenOffWords(int msLeft);
 	}
 }
