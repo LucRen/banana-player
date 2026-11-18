@@ -3012,7 +3012,7 @@ namespace bp
 		{
 			// what the top panel shows, as mpv has it now
 			std::string graph = get("lavfi-complex");
-			// (the style by its setting: twenty graphs can't be told apart by a filter's name)
+			// (the style by its setting: fifteen graphs can't be told apart by a filter's name)
 			std::string vis = visualizerLabel(visualizerReplacement(settings.visualizer));
 			row("Top screen", graph == artPassGraph() ? std::string("Album art") : graph == blankGround() ? (shownMusic() == SHOW_ART ? "Album art (none: the placeholder)" : "Title only")
 				: graph.find("[vid1]") != std::string::npos || graph.find(":s=640x480:r=1:d=1") != std::string::npos ? "Album art + " + vis

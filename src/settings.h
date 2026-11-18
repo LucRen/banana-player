@@ -35,15 +35,14 @@ namespace bp
 	// naming one reads as Peaks; VIS_SHOWN lists what's offered, in order
 	// Pocket: Peaks as an old handheld's screen, four greens on a grid of chunky dots
 	// and the styles a file each (src/viz_*.cpp, declared in src/viz_more.h): a hi-fi LED meter, Synthwave, Banana
-	// stack, Night city, a phosphor oscilloscope, Heartbeat, Campfire, Aurora, Turntable, Pixel sea, Bunny hop,
-	// Fishbowl, Disco ball, Banana dancer, Vibing cat, Popcorn machine, Jelly wobble, Tube man, Washing machine.
-	// Peaks (coral), Oscilloscope, Turntable, Disco ball, Hi-fi LED, Synthwave, Banana stack and Heartbeat are kept but
-	// not offered (the owner's pick, 0.7.12): a setting naming one reads as Peaks
-	// The six simple ones (src/viz_simple.cpp, 2026-11-19), in the theme's colours: Mirror bars, Wave, Dots, Levels,
-	// Area, Radial (Area and Radial since replaced by Horizon and Steps, in their places). They took the places of Circle, Music box, Bubble
-	// tea, Jellyfish, Sound garden and Long cat,
-	// whose code is gone: their ids stay (enum values and words), and a setting naming one reads as its replacement
-	// (visualizerReplacement)
+	// stack, Night city, a phosphor oscilloscope, Heartbeat, Aurora, Turntable, Pixel sea, Disco ball, Banana dancer,
+	// Jelly wobble, Tube man, Washing machine. Peaks (coral), Oscilloscope, Turntable, Disco ball, Hi-fi LED,
+	// Synthwave, Banana stack and Heartbeat are kept but not offered (the owner's pick, 0.7.12)
+	// The simple ones (src/viz_simple.cpp, 2026-11-19), in the theme's colours: Mirror bars, Dots, Horizon, Steps,
+	// Barcode, Rings. Circle, Bubble tea, Sound garden and Long cat made way for the first ones (as did Area and
+	// Radial, briefly offered), and a setting naming one reads as its replacement (visualizerReplacement); Music
+	// box, Jellyfish, Wave, Levels, Campfire, Bunny hop, Fishbowl, Vibing cat and Popcorn were dropped (the owner's
+	// final list): a setting naming one reads as Peaks. Their code is gone; their ids (enum values, words) stay
 	// Lite (the player-drawn one, no graph) was removed for now, after the owner saw its bars sit mostly at the top
 	// on the handheld: branch vizlite keeps it, docs/notes/2026-11-17-viz-lite.md has its story, and a setting naming
 	// it reads as Peaks
@@ -51,18 +50,19 @@ namespace bp
 		VIS_SYNTHWAVE, VIS_BANANA_STACK, VIS_CITY, VIS_SCOPE, VIS_HEART, VIS_FIRE, VIS_AURORA, VIS_GARDEN, VIS_VINYL, VIS_SEA, VIS_BUNNY, VIS_BOBA,
 		VIS_JELLY, VIS_MUSICBOX, VIS_FISHBOWL, VIS_DISCO, VIS_DANCER, VIS_CAT, VIS_POPCORN, VIS_WOBBLE, VIS_TUBEMAN,
 		VIS_LONGCAT, VIS_WASHER, VIS_MIRROR, VIS_WAVE, VIS_DOTS, VIS_LEVELS, VIS_AREA, VIS_RADIAL, VIS_HORIZON,
-		VIS_STEPS, VISUALIZERS };
-	constexpr int VIS_SHOWN[] = {VIS_PEAKS_BANANA, VIS_MIRROR, VIS_POCKET, VIS_CITY, VIS_DANCER, VIS_FIRE, VIS_AURORA, VIS_HORIZON,
-		VIS_SEA, VIS_BUNNY, VIS_DOTS, VIS_LEVELS, VIS_WAVE, VIS_FISHBOWL, VIS_CAT, VIS_POPCORN, VIS_WOBBLE, VIS_TUBEMAN, VIS_STEPS, VIS_WASHER};
+		VIS_STEPS, VIS_BARCODE, VIS_RINGS, VISUALIZERS };
+	// the owner's final list (2026-11-19), in its order
+	constexpr int VIS_SHOWN[] = {VIS_PEAKS_BANANA, VIS_MIRROR, VIS_POCKET, VIS_CITY, VIS_HORIZON, VIS_AURORA, VIS_DOTS, VIS_STEPS,
+		VIS_BARCODE, VIS_RINGS, VIS_DANCER, VIS_SEA, VIS_WOBBLE, VIS_WASHER, VIS_TUBEMAN};
 	constexpr int VIS_SHOWN_COUNT = (int)(sizeof(VIS_SHOWN) / sizeof(VIS_SHOWN[0]));
 	// a visualizer's place in VIS_SHOWN (a hidden one: the first offered, Peaks, at 0)
 	int visualizerSlot(int v);
 	// the next one offered after v (dir 1) or before it (-1), round
 	int stepVisualizer(int v, int dir);
-	// a retired style's replacement (Circle: Mirror bars, Music box: Wave, Bubble tea: Dots, Jellyfish: Levels, Sound
-	// garden and Area: Horizon, Long cat and Radial: Steps); any other as it is
+	// a retired style's replacement (Circle: Mirror bars, Bubble tea: Dots, Sound garden and Area: Horizon, Long cat and
+	// Radial: Steps; the dropped ones, whose code is gone: Peaks); any other as it is
 	int visualizerReplacement(int v);
-	// drawn on the theme's BG in the theme's colours when alone (Peaks, the six simple ones): the song's lines over it
+	// drawn on the theme's BG in the theme's colours when alone (Peaks, the simple ones): the song's lines over it
 	// are the theme's too
 	bool visualizerOnGround(int v);
 	// music only (a video never loops): all = back to the folder's first file after its last

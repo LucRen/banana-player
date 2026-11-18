@@ -1099,7 +1099,7 @@ namespace bp
 
 	// View (SELECT) on a song: Display, Equalizer, Effects and Speed in one sheet, where the Display popup and the Sound
 	// page used to be three places (docs/redesign, "music-view", "music-viz-pick", "music-eq"). Display is one page for
-	// both choices (lay::displayPage): the four Show modes in a row of choice tiles, the twenty visualizer styles in a
+	// both choices (lay::displayPage): the four Show modes in a row of choice tiles, the fifteen visualizer styles in a
 	// 5 x 4 grid under them; the cursor moves over both and changes nothing, A sets what is under it (the top screen
 	// follows at once). The equalizer is the Sound page's bands in the sheet's body, its preset options as rows. L / R
 	// step the tabs, B closes (SELECT closes too, but on Display it steps the Show mode as the popup did).
@@ -1696,7 +1696,7 @@ namespace bp
 			return b;
 		}
 
-		// Display: "Top screen shows", the four modes, the style's line, the twenty styles (docs/redesign "music-view")
+		// Display: "Top screen shows", the four modes, the style's line, the fifteen styles (docs/redesign "music-view")
 		void drawDisplay(const Player& p)
 		{
 			Kit& k = *ui.kit;

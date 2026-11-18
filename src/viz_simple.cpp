@@ -10,18 +10,18 @@
 #include <sys/stat.h>
 #include <vector>
 
-// The six simple styles (2026-11-19, docs/notes/2026-11-19-viz-simple.md): Mirror bars, Wave, Dots, Levels, Horizon
-// (Area's place) and Steps (Radial's). Plain shapes in the theme's own colours, two or three roles each (ACCENT for
-// what moves, TEXT or DIM for a second mark, BUTTON for a faint backdrop), on the theme's BG as Peaks is; rebuilt on a theme change as Peaks is
+// The simple styles (2026-11-19, docs/notes/2026-11-19-viz-simple.md): Mirror bars, Dots, Horizon, Steps, Barcode
+// and Rings. Plain shapes in the theme's own colours, two or three roles each (ACCENT for what moves, TEXT or DIM for
+// a second mark, BUTTON for a faint backdrop), on the theme's BG as Peaks is; rebuilt on a theme change as Peaks is
 // (Player::themeChanged).
 //
-// One recipe for all six, Peaks' (settings.cpp): what changes each frame is worked out at half size (320x240 alone,
-// 320x100 under the art) as a gray picture of small codes (a class, or a strength from the ground to ACCENT), by
-// lut2 against a still picture (one frame, made once in the graph: never a loop). Half size is
-// the chroma's size, so U and V are a lut each of that picture as it is; only the luma is scaled up (x2: bilinear
-// for Wave's line, nearest for the square ones). YUV straight to mpv, nothing converted per frame.
-// Over the art (the band: the theme's ground, vizPlaceArt) the art's planes are each a lut2's second input, kept
-// where the code is 0. Written at 60 frames a second (rate=60), drawn at the visualizer-fps setting (vizAtFps).
+// One recipe for all, Peaks' (settings.cpp): what changes each frame is worked out at half size (320x240 alone,
+// 320x100 under the art) as a gray picture of small codes (a class, or a strength between two inks), by lut2
+// against a still picture (one frame, made once in the graph, or Rings' tables read from a file: never a loop).
+// Half size is the chroma's size, so U and V are a lut each of that picture as it is; only the luma is scaled up
+// (x2: bilinear for the round one alone, nearest for the square ones). YUV straight to mpv, nothing converted per
+// frame. Over the art (the band: the theme's ground, vizPlaceArt) the art's planes are each a lut2's second input,
+// kept where the code is 0. Written at 60 frames a second (rate=60), drawn at the visualizer-fps setting (vizAtFps).
 
 namespace bp
 {
@@ -60,15 +60,12 @@ namespace bp
 			};
 		}
 
-		// a strength: code 0..250 the ground to `ink`; 255 the second ink `mark` (when given)
-		PlaneExpr ramp(const Yuv& ink, const Yuv* mark = nullptr)
+		// a strength: code 0 the ground, 1..251 from `from` (1) to `to` (251)
+		PlaneExpr between(const Yuv& from, const Yuv& to)
 		{
-			const Yuv m = mark ? *mark : ink;
-			const bool hasMark = mark != nullptr;
-			return [ink, m, hasMark](int p, const std::string& var, const std::string& ground) {
-				const std::string g = "(" + ground + ")";
-				std::string e = "floor(" + g + "+(" + n(plane(ink, p)) + "-" + g + ")*min(" + var + ",250)/250+0.5)";
-				return hasMark ? "if(eq(" + var + ",255)," + n(plane(m, p)) + "," + e + ")" : e;
+			return [from, to](int p, const std::string& var, const std::string& ground) {
+				return "if(" + var + ",floor(" + n(plane(from, p)) + "+" + n(plane(to, p) - plane(from, p)) + "*(min(" + var + ",251)-1)/250+0.5)," +
+					   ground + ")";
 			};
 		}
 
@@ -137,6 +134,47 @@ namespace bp
 			double ms() const { return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count(); }
 		};
 
+		// Rings' tables (remap's xmap and ymap, 16-bit) for the top left quarter of its square (the others are it
+		// mirrored, hflip and vflip: a quarter of the lookups): alone a 240 square, under the art a 100 square. Each
+		// pixel points into the rings' picture (11 x RG_T): its ring's column (0 the centre's, 9 the rim's) and its
+		// distance from the ring's middle line (row 0 on it, then out to the widest the ring grows), column 10 the
+		// centre dot; elsewhere off the picture (remap's fill: code 0). A new name whenever they change
+		const int RG_N = 10, RG_T = 8;
+		struct RingsBox { int box; double dot, first, gap; const char* xf; const char* yf; };
+		const RingsBox RG_ALONE = {240, 6, 16, 10.6, "rings1-ax.pgm", "rings1-ay.pgm"};
+		const RingsBox RG_STRIP = {100, 3, 7, 4.5, "rings1-sx.pgm", "rings1-sy.pgm"};
+
+		bool writeRings(const std::string& dir, const RingsBox& b)
+		{
+			const std::string xp = dir + "/" + b.xf, yp = dir + "/" + b.yf;
+			const int w = b.box / 2;
+			const size_t size = pgmFileSize(w, w, 65535);
+			if (pgmFileOk(xp, size) && pgmFileOk(yp, size)) return true;
+			std::vector<unsigned char> xs((size_t)w * w * 2), ys(xs.size());
+			const double c = b.box / 2.0, reach = 0.42 * b.gap, core = 0.75;
+			for (int y = 0; y < w; y++)
+				for (int x = 0; x < w; x++)
+				{
+					const double d = std::hypot(x + 0.5 - c, y + 0.5 - c);
+					int mx = 65535, my = 65535;
+					if (d <= b.dot) mx = RG_N, my = 0;
+					else
+					{
+						const int k = (int)std::lround((d - b.first) / b.gap);
+						const double o = std::fabs(d - (b.first + k * b.gap));
+						if (k >= 0 && k < RG_N && o < reach)
+						{
+							mx = k;
+							my = o < core ? 0 : std::min(RG_T - 1, 1 + (int)std::floor((o - core) / (reach - core) * (RG_T - 1)));
+						}
+					}
+					const size_t i = ((size_t)y * w + x) * 2;
+					xs[i] = (unsigned char)(mx >> 8), xs[i + 1] = (unsigned char)mx;
+					ys[i] = (unsigned char)(my >> 8), ys[i + 1] = (unsigned char)my;
+				}
+			mkdir(dir.c_str(), 0755);
+			return writePgmFile(xp, w, w, 65535, 1, xs) && writePgmFile(yp, w, w, 65535, 1, ys);
+		}
 	}
 
 	// Mirror bars: the spectrum in 40 bars, each grown up and down from a centre line by the same height. Bars ACCENT,
@@ -157,33 +195,6 @@ namespace bp
 						"[" + t + "V] [" + t + "R] bplut2=c0='if(eq(y,254),2,lt(y,253)*lte(y,x))' [" + t + "C]; ";
 		g += paint(t, overCover, false, classes({yuvOf(theme::ACCENT), yuvOf(theme::DIM)}));
 		fprintf(stderr, "visualizer: Mirror bars in %s: bars #%s, line #%s on #%s; graph built in %.1f ms\n", themeName(),
-				hex(theme::ACCENT).c_str(), hex(theme::DIM).c_str(), hex(theme::BG).c_str(), tm.ms());
-		return g;
-	}
-
-	// Wave: the sound's waveform as one thick, smooth line in ACCENT (drawn at a quarter size, soft-edged by the
-	// scale up), a faint DIM centre line under it (alone)
-	std::string waveGraph(bool overCover)
-	{
-		Timer tm;
-		const std::string t = "wv";
-		const int W = 320, H = overCover ? 100 : 240;
-		// mono, a lowpass (cymbals and hiss would turn the line to fuzz: the shape is the bass and the voices), a
-		// little under full scale. showwaves draws straight into gray (255 on the line, 1 pixel); averaged down to
-		// half this size (area: where the line passes, to a fraction of a pixel) and scaled back up (bilinear) it is
-		// ~3 pixels wide here and soft, x4 makes it solid with a soft edge. (Drawn small and scaled up, it went in
-		// steps; an afterglow, lagfun, left two or three ghost lines at 60 a second: not a simple line any more)
-		std::string g = "[aid1] asplit [ao] [a]; " + (overCover ? artIn(t) : std::string()) +
-						"[a] aformat=sample_rates=44100|48000:channel_layouts=mono,lowpass=f=1200,volume=0.85,showwaves=s=" + n(W) + "x" +
-						n(H) + ":mode=p2p:rate=60:draw=full:colors=white,format=gray,scale=" + n(W / 2) + ":" + n(H / 2) + ":flags=area,scale=" +
-						n(W) + ":" + n(H) + ":flags=bilinear,format=gray,bplut=c0='min(val*4,250)' [" + t + (overCover ? "C" : "I") + "]; ";
-		const Yuv dim = yuvOf(theme::DIM);
-		// alone, 255: the centre line where the trace is faint. Over the art the line alone, its codes (a ramp only)
-		// scaled bilinear: the centre line's code would blend into a fringe of ACCENT there
-		if (!overCover)
-			g += still(W, H, "255*eq(Y," + n(H / 2) + ")") + " [" + t + "M]; [" + t + "I] [" + t + "M] bplut2=c0='if(y*lt(x,60),255,x)' [" + t + "C]; ";
-		g += paint(t, overCover, true, overCover ? ramp(yuvOf(theme::ACCENT)) : ramp(yuvOf(theme::ACCENT), &dim));
-		fprintf(stderr, "visualizer: Wave in %s: line #%s, centre #%s on #%s; graph built in %.1f ms\n", themeName(),
 				hex(theme::ACCENT).c_str(), hex(theme::DIM).c_str(), hex(theme::BG).c_str(), tm.ms());
 		return g;
 	}
@@ -210,41 +221,6 @@ namespace bp
 		g += paint(t, overCover, false, classes({yuvOf(theme::BUTTON), yuvOf(theme::ACCENT)}));
 		fprintf(stderr, "visualizer: Dots in %s: lit #%s, unlit #%s on #%s; graph built in %.1f ms\n", themeName(),
 				hex(theme::ACCENT).c_str(), hex(theme::BUTTON).c_str(), hex(theme::BG).c_str(), tm.ms());
-		return g;
-	}
-
-	// Levels: two wide stereo meters (left above right), the level ACCENT along a faint track (BUTTON), a peak tick
-	// (TEXT) held at the highest point and falling back slowly
-	std::string levelsGraph(bool overCover)
-	{
-		Timer tm;
-		const std::string t = "lv";
-		const int W = 320, H = overCover ? 100 : 240;
-		const int BH = overCover ? 30 : 48, GAP = overCover ? 10 : 16, Y0 = (H - 2 * BH - GAP) / 2, X0 = 16, X1 = W - 16;
-		// The two channels' loudness (RMS a frame) from showvolume, drawn as two 252-pixel bars on a log scale and
-		// averaged down to a pixel each (the share lit); the scale's 2.68 steps a dB from ~0 dB at 247: -30 dB to 0
-		// dB spread over 0..252 (a mastered song's loudness, -14 to -8 dB, about the middle). In stereo: the measured copy isn't evened out to mono as the other styles' is
-		// (asplit=2: vizShapeInput leaves this graph as it is). The level eased (down over ~0.4 s), the peak (~2.5 s)
-		std::string g = "[aid1] asplit=2 [ao] [a]; " + (overCover ? artIn(t) : std::string()) +
-						// (format=gray after scale: else the lut would be given 16 bits, the conversion moved before it)
-						"[a] aformat=sample_rates=44100|48000:channel_layouts=stereo,showvolume=rate=60:w=252:h=2:b=0:t=0:v=0:f=0:ds=log:m=r:"
-						"c=0xFFFFFFFF,format=gray,scale=1:2:flags=area,format=gray,bplut=c0='clip((val-167)*252/80,0,252)',"
-						"format=gray16le,lut=c0='65535*exp((val/257-252)/24)',split [" + t + "e1] [" + t + "e2]; "
-						"[" + t + "e1] lagfun=decay=0.646,lut=c0='clip(257*(252+24*log(max(val,1)/65535)),0,257*252)',format=gray,"
-						"scale=" + n(W) + ":" + n(H) + ":flags=neighbor,setsar=1 [" + t + "V]; "
-						"[" + t + "e2] lagfun=decay=0.9316,lut=c0='clip(257*(252+24*log(max(val,1)/65535)),0,257*252)',format=gray,"
-						"scale=" + n(W) + ":" + n(H) + ":flags=neighbor,setsar=1 [" + t + "P]; " +
-						// each pixel's place along its meter (1..252), 253 off the meters (the upper half of the picture
-						// is the left channel's, the lower the right's: the bars sit one in each)
-						still(W, H, "if(between(X," + n(X0) + "," + n(X1 - 1) + ")*(between(Y," + n(Y0) + "," + n(Y0 + BH - 1) + ")+between(Y," +
-							n(Y0 + BH + GAP) + "," + n(Y0 + 2 * BH + GAP - 1) + ")),1+floor(251*(X-" + n(X0) + ")/" + n(X1 - X0 - 1) + "),253)") +
-						" [" + t + "R]; "
-						// 254: the peak's tick (3 steps up to the peak, ~4 pixels)
-						"[" + t + "P] [" + t + "R] bplut2=c0='if(lt(y,253)*gt(x,3)*gt(y,x-4)*lte(y,x),254,y)' [" + t + "Q]; "
-						"[" + t + "V] [" + t + "Q] bplut2=c0='if(eq(y,254),3,if(lt(y,253),1+lte(y,x),0))' [" + t + "C]; ";
-		g += paint(t, overCover, false, classes({yuvOf(theme::BUTTON), yuvOf(theme::ACCENT), yuvOf(theme::TEXT)}));
-		fprintf(stderr, "visualizer: Levels in %s: level #%s, track #%s, peak #%s on #%s; graph built in %.1f ms\n", themeName(),
-				hex(theme::ACCENT).c_str(), hex(theme::BUTTON).c_str(), hex(theme::TEXT).c_str(), hex(theme::BG).c_str(), tm.ms());
 		return g;
 	}
 
@@ -316,5 +292,61 @@ namespace bp
 		fprintf(stderr, "visualizer: Steps in %s: outline #%s, fill #%s, peaks #%s on #%s; graph built in %.1f ms\n", themeName(),
 				hex(theme::ACCENT).c_str(), hex(theme::BUTTON).c_str(), hex(theme::DIM).c_str(), hex(theme::BG).c_str(), tm.ms());
 		return g;
+	}
+
+	// Barcode: the spectrum as 96 full-height hairlines, each lit from faint (BUTTON) to full (ACCENT) by its band.
+	// The 96 levels stretched (nearest) along one row, a still of the lines' columns keeps one column a band (the
+	// others the ground), the row stretched down the picture (row copies); the strength painted between the two
+	std::string barcodeGraph(bool overCover)
+	{
+		Timer tm;
+		const std::string t = "bc";
+		const int N = 96, W = 320, H = overCover ? 100 : 240;
+		std::string g = "[aid1] asplit [ao] [a]; " + (overCover ? artIn(t) : std::string()) + spectrumRow(t, N) +
+						"[" + t + "L] scale=" + n(W) + ":1:flags=neighbor,setsar=1 [" + t + "V]; " +
+						still(W, 1, "255*(eq(X,0)+lt(floor((X-1)*" + n(N) + "/" + n(W) + "),floor(X*" + n(N) + "/" + n(W) + ")))") + " [" + t + "M]; "
+						"[" + t + "V] [" + t + "M] bplut2=c0='if(y,1+floor(x*250/252),0)'," + stretch(W, H, "neighbor") + " [" + t + "C]; ";
+		g += paint(t, overCover, false, between(yuvOf(theme::BUTTON), yuvOf(theme::ACCENT)));
+		fprintf(stderr, "visualizer: Barcode in %s: lines #%s to #%s on #%s; graph built in %.1f ms\n", themeName(),
+				hex(theme::BUTTON).c_str(), hex(theme::ACCENT).c_str(), hex(theme::BG).c_str(), tm.ms());
+		return g;
+	}
+
+	// Rings: ten concentric rings, the bass at the centre and the treble at the rim, each thicker as its band is
+	// louder: rings ACCENT, their middle lines (where a quiet band's ring is not lit) BUTTON, the centre dot TEXT.
+	// The 10 levels (and a column for the dot) stretched down RG_T rows and told apart by a still of each row's
+	// distance out: the rings' picture, 11 x 8, laid round by remap from two still tables (a quarter; the others its
+	// mirrors), as Radial was
+	std::string ringsGraph(bool overCover, const std::string& dir)
+	{
+		Timer tm;
+		const std::string t = "rg";
+		const RingsBox& b = overCover ? RG_STRIP : RG_ALONE;
+		const bool ok = writeRings(dir, b);
+		const int W = 320, H = overCover ? 100 : 240;
+		std::string xm, ym;
+		lavfiPath(dir + "/" + b.xf, xm);
+		lavfiPath(dir + "/" + b.yf, ym);
+		// a row lit when the level passes its share above the spectrum's bed (30)
+		std::string g = "[aid1] asplit [ao] [a]; " + (overCover ? artIn(t) : std::string()) + spectrumRow(t, RG_N) +
+						"[" + t + "L] pad=" + n(RG_N + 1) + ":1:0:0,format=gray," + stretch(RG_N + 1, RG_T, "neighbor") + " [" + t + "V]; " +
+						still(RG_N + 1, RG_T, "if(eq(X," + n(RG_N) + "),255,Y)") + " [" + t + "R]; "
+						"[" + t + "V] [" + t + "R] bplut2=c0='if(eq(y,255),3,if(gt(x,30+floor(222*y/" + n(RG_T) + ")),1,if(eq(y,0),2,0)))' [" + t + "P]; "
+						"movie=" + xm + " [" + t + "xm]; movie=" + ym + " [" + t + "ym]; "
+						"[" + t + "P] [" + t + "xm] [" + t + "ym] remap,split [" + t + "q1] [" + t + "q2]; [" + t + "q2] hflip [" + t + "q3]; "
+						"[" + t + "q1] [" + t + "q3] hstack,split [" + t + "h1] [" + t + "h2]; [" + t + "h2] vflip [" + t + "h3]; "
+						"[" + t + "h1] [" + t + "h3] vstack,pad=" + n(W) + ":" + n(H) + ":" + n((W - b.box) / 2) + ":" + n((H - b.box) / 2) +
+						":black,setsar=1 [" + t + "C]; ";
+		g += paint(t, overCover, !overCover, classes({yuvOf(theme::ACCENT), yuvOf(theme::BUTTON), yuvOf(theme::TEXT)}));
+		fprintf(stderr, "visualizer: Rings in %s: rings #%s, guides #%s, dot #%s on #%s; tables %s, graph built in %.1f ms\n", themeName(),
+				hex(theme::ACCENT).c_str(), hex(theme::BUTTON).c_str(), hex(theme::TEXT).c_str(), hex(theme::BG).c_str(),
+				ok ? "ready" : "NOT written", tm.ms());
+		return g;
+	}
+
+	bool writeRingsMaps(const std::string& dir)
+	{
+		bool ok = writeRings(dir, RG_ALONE);
+		return writeRings(dir, RG_STRIP) && ok;
 	}
 }

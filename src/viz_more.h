@@ -19,16 +19,11 @@ namespace bp
 	std::string cityGraph(bool overCover, const std::string& mapsDir);
 	std::string scopeGraph(bool overCover, const std::string& mapsDir);
 	std::string heartGraph(bool overCover, const std::string& mapsDir);
-	std::string fireGraph(bool overCover, const std::string& mapsDir);
 	std::string auroraGraph(bool overCover, const std::string& mapsDir);
 	std::string vinylGraph(bool overCover, const std::string& mapsDir);
 	std::string seaGraph(bool overCover, const std::string& mapsDir);
-	std::string bunnyGraph(bool overCover, const std::string& mapsDir);
-	std::string fishbowlGraph(bool overCover, const std::string& mapsDir);
 	std::string discoGraph(bool overCover, const std::string& mapsDir);
 	std::string dancerGraph(bool overCover, const std::string& mapsDir);
-	std::string catGraph(bool overCover, const std::string& mapsDir);
-	std::string popcornGraph(bool overCover, const std::string& mapsDir);
 	std::string wobbleGraph(bool overCover, const std::string& mapsDir);
 	std::string tubemanGraph(bool overCover, const std::string& mapsDir);
 	std::string washerGraph(bool overCover, const std::string& mapsDir);
@@ -39,26 +34,23 @@ namespace bp
 	bool writeCityMaps(const std::string& dir);
 	bool writeScopeMaps(const std::string& dir);
 	bool writeHeartMaps(const std::string& dir);
-	bool writeFireMaps(const std::string& dir);
 	bool writeAuroraMaps(const std::string& dir);
 	bool writeVinylMaps(const std::string& dir);
 	bool writeSeaMaps(const std::string& dir);
-	bool writeBunnyMaps(const std::string& dir);
-	bool writeFishbowlMaps(const std::string& dir);
 	bool writeDiscoMaps(const std::string& dir);
 	bool writeDancerMaps(const std::string& dir);
-	bool writeCatMaps(const std::string& dir);
-	bool writePopcornMaps(const std::string& dir);
 	bool writeWobbleMaps(const std::string& dir);
 	bool writeTubemanMaps(const std::string& dir);
 	bool writeWasherMaps(const std::string& dir);
-	// the six simple ones (src/viz_simple.cpp): plain shapes in the theme's colours, no stills
+	// the simple ones (src/viz_simple.cpp): plain shapes in the theme's colours
 	std::string mirrorGraph(bool overCover);
-	std::string waveGraph(bool overCover);
 	std::string dotsGraph(bool overCover);
-	std::string levelsGraph(bool overCover);
 	std::string horizonGraph(bool overCover);
 	std::string stepsGraph(bool overCover);
+	std::string barcodeGraph(bool overCover);
+	// Rings reads two tables from dir (writeRingsMaps)
+	std::string ringsGraph(bool overCover, const std::string& dir);
+	bool writeRingsMaps(const std::string& dir);
 	// The bars' contrast, between the measured levels (one row, 0..252) and their easing: showfreqs' log scale puts
 	// most bands within a few steps of each other, so each is pushed away from the mean of the bands around it (x6:
 	// a band above them a peak, one below a valley) and the levels spread around 150 (x1.8). On a busy frame

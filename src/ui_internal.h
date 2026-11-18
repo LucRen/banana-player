@@ -133,13 +133,13 @@ namespace bp
 		return stat(path.c_str(), &st) == 0 && S_ISREG(st.st_mode) ? (long long)st.st_size : -1;
 	}
 	inline const char* LOOP_SHORT[LOOPS] = {"Off", "All", "One"};		// Loop as a chip's value
-	// (the retired styles' ids: their replacements' glyphs; nothing shows them)
+	// (the retired and dropped styles' ids: their replacements' glyphs, Peaks' for the dropped; nothing shows them)
 	inline const Ui::Glyph* const VIS_GLYPHS[VISUALIZERS] = {&G_VIS_BARS, &G_VIS_WAVES, &G_VIS_SPECTRUM, &G_VIS_MIRROR, &G_VIS_PEAKS,
-		&G_VIS_PEAKS_BANANA, &G_VIS_POCKET, &G_VIS_LED, &G_VIS_SYNTHWAVE, &G_VIS_BANANA, &G_VIS_CITY, &G_VIS_SCOPE, &G_VIS_HEART, &G_VIS_FIRE,
-		&G_VIS_AURORA, &G_VIS_HORIZON, &G_VIS_VINYL, &G_VIS_SEA, &G_VIS_BUNNY, &G_VIS_DOTS, &G_VIS_LEVELS, &G_VIS_WAVE, &G_VIS_FISHBOWL,
-		&G_VIS_DISCO, &G_VIS_DANCER, &G_VIS_CAT, &G_VIS_POPCORN, &G_VIS_WOBBLE, &G_VIS_TUBEMAN, &G_VIS_STEPS, &G_VIS_WASHER, &G_VIS_MIRROR,
-		&G_VIS_WAVE, &G_VIS_DOTS, &G_VIS_LEVELS, &G_VIS_HORIZON, &G_VIS_STEPS, &G_VIS_HORIZON,
-		&G_VIS_STEPS};
+		&G_VIS_PEAKS_BANANA, &G_VIS_POCKET, &G_VIS_LED, &G_VIS_SYNTHWAVE, &G_VIS_BANANA, &G_VIS_CITY, &G_VIS_SCOPE, &G_VIS_HEART,
+		&G_VIS_PEAKS_BANANA, &G_VIS_AURORA, &G_VIS_HORIZON, &G_VIS_VINYL, &G_VIS_SEA, &G_VIS_PEAKS_BANANA, &G_VIS_DOTS, &G_VIS_PEAKS_BANANA,
+		&G_VIS_PEAKS_BANANA, &G_VIS_PEAKS_BANANA, &G_VIS_DISCO, &G_VIS_DANCER, &G_VIS_PEAKS_BANANA, &G_VIS_PEAKS_BANANA, &G_VIS_WOBBLE,
+		&G_VIS_TUBEMAN, &G_VIS_STEPS, &G_VIS_WASHER, &G_VIS_MIRROR, &G_VIS_PEAKS_BANANA, &G_VIS_DOTS, &G_VIS_PEAKS_BANANA, &G_VIS_HORIZON,
+		&G_VIS_STEPS, &G_VIS_HORIZON, &G_VIS_STEPS, &G_VIS_BARCODE, &G_VIS_RINGS};
 	// a show mode's mark: the visualizer ones take the style's
 	inline const Ui::Glyph* showGlyph(int show, int vis)
 	{

@@ -80,3 +80,20 @@ The owner's call (approved proposals). `area` reads as `horizon`, `radial` (and 
   copies); Steps three lut2 at 320x240 and three row stretches, a little over Peaks, cheaper than Radial's remap.
 - Checked: build, core-test; one render of both through the Mac's ffmpeg. The switch bug (Area → Mirror bars in Art +
   visualizer stopping the song) was not investigated (owner's call): Area is gone.
+
+## The final list (branch viz-final)
+The owner's fifteen, in this order (VIS_SHOWN; the Display page's 5 x 3 grid; Settings' row steps the same): Peaks,
+Mirror bars, Pocket console, Night city, Horizon, Aurora, Dots, Steps, Barcode, Rings, Banana dancer, Pixel sea,
+Jelly wobble, Washing machine, Tube man.
+- **Barcode** (`barcodeGraph`): 96 levels stretched (nearest) along one 320-wide row, a still keeps the first column
+  of each band (a 1-pixel line here, 2 on the panel, ~6.7 apart), the row stretched down (row copies); each line's
+  strength painted from BUTTON (quiet) to ACCENT (loud) (`between`).
+- **Rings** (`ringsGraph`): 10 levels and a column for the dot stretched down 8 rows, told apart by a still of each
+  row's distance out (row 0 the ring's middle line: BUTTON when the band is under its bed); remap from two still
+  quarter tables (`rings1-*.pgm`, 120x120 alone, 50x50 in the band), hflip/vflip for the other quarters. Rings
+  ACCENT, guides BUTTON, centre dot TEXT. Cost reasoned: a quarter remap (14k lookups) plus row copies, about Peaks.
+- Dropped, code deleted: Wave, Levels (viz_simple.cpp), Campfire, Bunny hop, Fishbowl, Vibing cat, Popcorn
+  (viz_*.cpp); their stills unlinked once by writeVisualizerMaps. A saved one, and Music box / Jellyfish (which had
+  become Wave / Levels), reads as Peaks (`visualizerReplacement`). Tube man is kept.
+- Checked: build, core-test (the order round, the 15-tile Display page, the replacements, Rings' tables, the dropped
+  stills removed); one render of Barcode and Rings through the Mac's ffmpeg.
