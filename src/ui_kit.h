@@ -178,6 +178,175 @@ namespace bp
 
 		// ---- the lock over a screen ----
 		void lock(Rect key, double held);	// held 0..1: the hold that unlocks, filling
+
+		// ==== KIT VARIANTS (ui_kit_variants.cpp; docs/notes/2026-11-18-kit-variants.md): the redesign's second set ====
+		// The sheets build on `sheet` and are drawn from a Rect set (lay::alertSheet ...) that the overlay's touches
+		// test too; none replaces a dialog yet. Every piece takes `off` (the 45% look) and `focused` (ACCENT edge).
+
+		// ---- status cluster and header badges ----
+		// a badge: 20 tall, a mark (16) and a small label in capitals, ACCENT on ACCENT at 17% (red: DANGER). Returns its width
+		struct Badge
+		{
+			const Glyph* glyph = nullptr;
+			std::string text;
+			bool danger = false;
+		};
+		int badge(int right, int cy, const Badge& b);
+		struct Status
+		{
+			std::vector<Badge> badges;	// boost, browser, incognito, Wi-Fi off, read only: left of the marks
+			bool playing = false;	// the playing bars (3 x 13)
+			int wifi = -1;	// 0..4 bars, -1: none shown
+			int battery = -1;	// percent, -1: none shown
+			bool charging = false;
+			std::string clock;
+			int tick = 0;	// the playing bars' step
+		};
+		// drawn from `right` leftwards; returns the left edge it used (so the crumb can end before it)
+		int status(int right, int cy, const Status& s);
+
+		// ---- the mini bar (the variant: a wider play mark, state pills, a progress line) ----
+		struct Mini
+		{
+			const Glyph* kind = nullptr;	// the kind icon (a note, a film)
+			std::string title, time;
+			bool paused = false, err = false, pressed = false, markPressed = false;
+			double hold = -1;	// 0..1: the mark held this far (taking playback over from a browser)
+			double progress = 0;
+			std::vector<std::pair<std::string, Pill>> pills;	// speed, look, repeat, EQ, "Playing in ..."
+			std::string key = "SELECT";	// the cap ("" none: Button hotkeys off)
+		};
+		void miniBar(const lay::MiniBar& l, const Mini& m);
+
+		// ---- filter chips used as filters (beside `segment`) ----
+		struct FilterItem
+		{
+			std::string label;
+			int count = -1;	// -1: none
+		};
+		std::vector<int> filterWidths(const std::vector<FilterItem>& items) const;
+		// the chips in `area` (56 tall: lay::filterChips); on: the chosen one; focused: the D-pad's
+		void filters(const lay::FilterChips& c, const std::vector<FilterItem>& items, int on, int focused = -1, int pressed = -1);
+
+		// ---- a form row (Add connection, Add a server) ----
+		struct FormField
+		{
+			std::string label, value, placeholder;
+			bool secret = false, focused = false, pressed = false, off = false;
+		};
+		void formRow(const lay::FormRow& l, const FormField& f);
+
+		// ---- the alert, confirm and busy sheets ----
+		struct AlertSpec
+		{
+			std::string title, text, key = "OK";
+			bool danger = false, pressed = false;
+		};
+		std::vector<std::string> sheetText(const std::string& text) const;	// the sentence wrapped to the body's width (3 lines)
+		void alertSheet(const lay::AlertSheet& l, const AlertSpec& a, const std::vector<std::string>& lines);
+		struct ConfirmSpec
+		{
+			std::string title, text, safe = "Cancel", action = "OK", foot;
+			bool danger = false;	// the action's ink red: it destroys
+			int focus = 0;	// 0 the safe key (yellow, focused, B), 1 the action
+			int pressed = -1;
+			bool footOn = false;	// the "don't ask again" line ticked
+		};
+		void confirmSheet(const lay::ConfirmSheet& l, const ConfirmSpec& c, const std::vector<std::string>& lines);
+		struct BusySpec
+		{
+			std::string title, file, left, right;	// left: "3 of 12 \xC2\xB7 25%", right: the time left (Inter 13)
+			double share = -1;	// -1: the amount isn't known (no bar)
+			const Glyph* glyph = nullptr;	// the job's icon; none: the spinner
+			int tick = 0;	// the spinner's step
+			std::string key = "Cancel", cap = "B";
+			bool pressed = false;
+		};
+		void busySheet(const lay::BusySheet& l, const BusySpec& b);
+
+		// ---- the keyboard (the variant: a special row per field, Done yellow) ----
+		struct KeyboardView
+		{
+			std::string title, value, note;
+			size_t caret = 0;
+			bool secret = false, caretOn = true;
+			std::vector<std::string> special;	// the field's pieces ("https://", ".json")
+			std::vector<std::vector<std::string>> rows;	// the letters, by row
+			std::vector<std::string> layers;	// the layer keys' labels ("abc", "123")
+			std::vector<std::string> bottomCaps;	// the buttons of: each layer key, Space, backspace, Done ("L3", "Y", "X", "START")
+			int cursor = -1;	// the focused key: the specials, then the letters row by row, then the bottom row
+			int pressed = -1;
+			int layerOn = -1;	// the layer key that is the open one
+		};
+		void keyboard(const lay::Keyboard& l, const KeyboardView& v);
+
+		// ---- the volume bar: TEXT to 100%, ACCENT to 120%, DANGER past it; a mark at 100 ----
+		static SDL_Color volumeInk(int value);
+		void volumeBar(const lay::VolumeBar& l, int value, int max, bool off = false);
+
+		// ---- a tile with a summary (Menu tile ~146 x 84 icon over name over note; a 56-tall shortcut or toggle tile) ----
+		struct Tile
+		{
+			const Glyph* glyph = nullptr;
+			std::string name, note, mark;	// note: the live summary, or (off) the reason; mark: a small pill at a corner
+			bool focused = false, pressed = false, off = false, lit = false;
+		};
+		void tile(Rect r, const Tile& t);
+
+		// ---- the Recent card and the Continue card ----
+		struct Card
+		{
+			const Glyph* kind = nullptr;	// the kind mark on the picture
+			std::string label, title, note, key;	// label: "Continue", "Now playing" (the Continue card)
+			const Glyph* keyGlyph = nullptr;
+			double progress = -1;	// -1: none
+			bool focused = false, pressed = false, keyPressed = false, off = false;
+			std::function<void(Rect)> picture;	// draws the picture's own (a cover); none: a TRACK square with the kind mark
+		};
+		void pictureOf(Rect r, const Card& c, int rad);
+		void recentCard(const lay::RecentCard& l, const Card& c);
+		void continueCard(const lay::ContinueCard& l, const Card& c);
+
+		// ---- the empty state ----
+		struct Empty
+		{
+			const Glyph* glyph = nullptr;
+			std::string title;
+			std::vector<std::string> lines;	// one or two (Inter 14 dim, at most 400 wide)
+			std::string key1, key2;	// A, Y ("" none)
+			const Glyph *glyph1 = nullptr, *glyph2 = nullptr;
+			bool pressed1 = false, pressed2 = false, hotkeys = true;
+		};
+		void emptyState(const lay::EmptyState& l, const Empty& e);
+
+		// ---- the notice row ----
+		enum class NoticeTone { Working, Ready, Failed };
+		struct NoticeRow
+		{
+			NoticeTone tone = NoticeTone::Working;
+			const Glyph* glyph = nullptr;
+			std::string text, second, key, cap;
+			double share = -1;	// -1: no bar
+			bool pressed = false;
+		};
+		void notice(const lay::Notice& l, const NoticeRow& n);
+
+		// ---- the select bar and the clip bar ----
+		struct BarKey
+		{
+			const Glyph* glyph = nullptr;
+			std::string label, key;
+			Tone tone = Tone::Normal;
+			bool pressed = false, off = false, primary = false;
+		};
+		static Key barKey(const BarKey& b);
+		void selectBar(const lay::Box keys[4], const BarKey k[4]);
+		struct Clip
+		{
+			std::string what, size;	// "3 files held" and how big
+			BarKey put, cancel;	// put: "... here" (SELECT), cancel: (X)
+		};
+		void clipBar(const lay::ClipBar& l, const Clip& c);
 	};
 
 	// ---- the More sheet's list (Ui::openMore; ui_more.cpp) ----

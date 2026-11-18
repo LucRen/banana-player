@@ -8781,6 +8781,248 @@ namespace
 }
 
 // The redesign kit's layout maths (src/kitlayout.h): rows, the transport, the bar's marks, the sheet, the player
+// the kit's variants (docs/notes/2026-11-18-kit-variants.md): one small test each, sizes and hit rects
+static bool insidePanel(const lay::Box& b) { return b.x >= 0 && b.y >= 0 && b.x + b.w <= 640 && b.y + b.h <= 480; }
+static bool overlaps(const lay::Box& a, const lay::Box& b) { return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h; }
+
+static void testKitVariantStatus()
+{
+	using namespace lay;
+	// items run right to left, 8 apart; the left edge is the last one's
+	StatusRow r = statusRow(624, {40, 24, 16});
+	CHECK_EQ(r.x[0], 584);
+	CHECK_EQ(r.x[1], 552);
+	CHECK_EQ(r.x[2], 528);
+	CHECK_EQ(r.left, 528);
+	CHECK_EQ(statusRow(624, {}).left, 624);
+	CHECK_EQ(badgeW(30, false), 40);
+	CHECK_EQ(badgeW(30, true), 60);
+}
+
+static void testKitVariantMiniBar()
+{
+	using namespace lay;
+	MiniBar m = miniBar();
+	CHECK_EQ(m.box.h, 52);
+	CHECK_EQ(m.box.x, 12);
+	CHECK_EQ(m.box.x + m.box.w, 628);
+	CHECK_EQ(m.box.y + m.box.h, 480 - 36);
+	CHECK_EQ(m.mark.w, 56);
+	CHECK_EQ(m.mark.h, 42);
+	CHECK(m.box.hit(m.mark.x, m.mark.y) && m.box.hit(m.mark.x + m.mark.w - 1, m.mark.y + m.mark.h - 1));
+	CHECK(m.textX > m.mark.x + m.mark.w);
+	CHECK_EQ(m.line.h, 3);
+	CHECK_EQ(m.line.y + m.line.h + 2, m.box.y + m.box.h);
+}
+
+static void testKitVariantFilters()
+{
+	using namespace lay;
+	FilterChips c = filterChips({16, 100, 608, CHIP_STRIP}, {60, 80, 70});
+	CHECK_EQ((int)c.chip.size(), 3);
+	CHECK_EQ(c.chip[0].h, 40);
+	CHECK_EQ(c.hit[0].h, 56);
+	CHECK_EQ(c.chip[1].x, c.chip[0].x + 60 + CHIP_GAP);
+	// no dead strip between two chips: the gap's middle belongs to one of them
+	CHECK_EQ(filterAt(c, 16 + 60 + 2, 128), 0);
+	CHECK_EQ(filterAt(c, 16 + 60 + 4, 128), 1);
+	CHECK_EQ(filterAt(c, 16 + 60, 100 + 55), 0);
+	CHECK_EQ(filterAt(c, 16 + 60, 99), -1);
+}
+
+static void testKitVariantForm()
+{
+	using namespace lay;
+	FormRow f = formRow({16, 150, 608, FORM_ROW});
+	CHECK_EQ(f.row.h, 46);
+	CHECK_EQ(f.label.w + 12, FORM_LABEL);
+	CHECK_EQ(f.value.x, f.label.x + f.label.w + 12);
+	CHECK(f.value.x + f.value.w <= 16 + 608);
+	Box k[2];
+	formKeys(k);
+	CHECK_EQ(k[0].h, 56);
+	CHECK(!overlaps(k[0], k[1]));
+	CHECK_EQ(k[1].x + k[1].w, 624);
+	CHECK(k[0].y + k[0].h <= 480 - HINTS_H);
+}
+
+static void testKitVariantAlert()
+{
+	using namespace lay;
+	for (int lines = 1; lines <= 3; lines++)
+	{
+		AlertSheet a = alertSheet(lines);
+		CHECK(a.sheet.box.h >= 226);
+		CHECK(insidePanel(a.sheet.box));
+		CHECK_EQ(a.key.h, 56);
+		CHECK_EQ(a.key.w, 640 - 2 * SHEET_PAD);
+		CHECK(a.text.y + a.text.h <= a.key.y);
+		CHECK(a.key.y + a.key.h <= a.sheet.hints.y);
+		CHECK(a.text.y >= a.sheet.bodyY);
+	}
+}
+
+static void testKitVariantConfirm()
+{
+	using namespace lay;
+	ConfirmSheet c = confirmSheet(2, false);
+	CHECK(c.sheet.box.h >= 240 && c.sheet.box.h <= 320);
+	CHECK_EQ(c.safe.h, 56);
+	CHECK(c.safe.x < c.action.x);
+	CHECK(!overlaps(c.safe, c.action));
+	CHECK_EQ(c.action.x + c.action.w, 640 - SHEET_PAD);
+	CHECK(c.text.y + c.text.h <= c.safe.y);
+	ConfirmSheet f = confirmSheet(2, true);
+	CHECK(f.foot.w > 0 && f.foot.y >= f.text.y + f.text.h);
+	CHECK(f.foot.y + f.foot.h <= f.safe.y + f.safe.h + 40);
+	CHECK(f.safe.y + f.safe.h <= f.foot.y);
+	CHECK(f.sheet.box.h >= c.sheet.box.h);
+}
+
+static void testKitVariantBusy()
+{
+	using namespace lay;
+	BusySheet b = busySheet();
+	CHECK_EQ(b.bar.h, 12);
+	CHECK_EQ(b.key.h, 56);
+	CHECK(b.sheet.box.h >= 214 && b.sheet.box.h <= 270);
+	CHECK(b.file.y + b.file.h <= b.bar.y);
+	CHECK(b.bar.y + b.bar.h <= b.amounts.y);
+	CHECK(b.amounts.y + b.amounts.h <= b.key.y);
+	CHECK(b.file.y >= b.sheet.bodyY);
+}
+
+static void testKitVariantKeyboard()
+{
+	using namespace lay;
+	Keyboard k = keyboard({100, 90}, {10, 10, 9}, 2);
+	CHECK_EQ(k.field.h, 48);
+	CHECK_EQ((int)k.rows.size(), 3);
+	CHECK_EQ(k.rows[0][0].w, 58);
+	CHECK_EQ(k.rows[0][0].h, 52);
+	CHECK_EQ(k.rows[0][1].x - (k.rows[0][0].x + k.rows[0][0].w), 5);
+	CHECK(insidePanel(k.rows[0][9]));
+	CHECK(std::abs(k.rows[0][0].x - (640 - (k.rows[0][9].x + k.rows[0][9].w))) <= 1);	// centred
+	CHECK_EQ(k.rows[2][0].x - k.rows[0][0].x > 0, true);	// a shorter row is indented
+	CHECK_EQ((int)k.bottom.size(), 5);
+	CHECK_EQ(k.bottom[0].h, 56);
+	CHECK_EQ(k.bottom.back().x + k.bottom.back().w, 624);	// Done ends on the margin
+	CHECK(k.bottom[2].w > 100);	// Space takes the rest
+	CHECK(k.special[1].x == k.special[0].x + 100 + GAP);
+	CHECK(k.note.y + k.note.h <= 480 - HINTS_H);
+	for (auto& r : k.rows[1]) CHECK(!overlaps(r, k.bottom[0]));
+}
+
+static void testKitVariantVolume()
+{
+	using namespace lay;
+	VolumeBar v = volumeBar({16, 300, 608, 24}, 150);
+	CHECK_EQ(v.bar.h, 12);
+	CHECK(v.bar.x + v.bar.w < v.number.x);
+	CHECK_EQ(volumeX(v.bar, 0, 150), v.bar.x);
+	CHECK_EQ(volumeX(v.bar, 150, 150), v.bar.x + v.bar.w);
+	CHECK_EQ(v.tickX, volumeX(v.bar, 100, 150));
+	CHECK_EQ(volumeBar({16, 300, 608, 24}, 100).tickX, -1);
+	CHECK_EQ(volumeZone(100), 0);
+	CHECK_EQ(volumeZone(101), 1);
+	CHECK_EQ(volumeZone(120), 1);
+	CHECK_EQ(volumeZone(121), 2);
+}
+
+static void testKitVariantTile()
+{
+	using namespace lay;
+	// four menu tiles across 608: 146 wide, 84 tall; a second row starts 8 under
+	Box a = tileCell({16, 8, 608, 0}, 8, 4, 84, 0), d = tileCell({16, 8, 608, 0}, 8, 4, 84, 3), e = tileCell({16, 8, 608, 0}, 8, 4, 84, 4);
+	CHECK_EQ(a.w, 146);
+	CHECK_EQ(a.h, 84);
+	CHECK_EQ(d.x + d.w, 624);
+	CHECK_EQ(e.x, a.x);
+	CHECK_EQ(e.y, a.y + 84 + 8);
+	CHECK_EQ(tileCell({16, 100, 608, 0}, 3, 3, 56, 1).h, 56);
+}
+
+static void testKitVariantCards()
+{
+	using namespace lay;
+	RecentCard r = recentCard({16, 282, RECENT_W, RECENT_H});
+	CHECK_EQ(r.pic.h, 48);
+	CHECK(r.pic.y + r.pic.h <= r.title.y);
+	CHECK(r.note.y + r.note.h <= r.line.y);
+	CHECK_EQ(r.line.h, 3);
+	CHECK(r.line.y + r.line.h <= r.box.y + r.box.h);
+	ContinueCard c = continueCard({16, 166, 608, CONTINUE_H});
+	CHECK_EQ(c.pic.w, 128);
+	CHECK_EQ(c.pic.h, 84);
+	CHECK_EQ(c.key.w, 118);
+	CHECK_EQ(c.key.h, 52);
+	CHECK(c.pic.x + c.pic.w < c.title.x);
+	CHECK(c.title.x + c.title.w <= c.key.x);
+	CHECK(c.bar.y + c.bar.h <= c.box.y + c.box.h);
+	CHECK(!overlaps(c.pic, c.key));
+}
+
+static void testKitVariantEmpty()
+{
+	using namespace lay;
+	Box page{0, 54, 640, 396};
+	EmptyState e = emptyState(page, 2, 2);
+	CHECK_EQ(e.icon.w, 54);
+	CHECK_EQ(e.key[0].w, 200);
+	CHECK_EQ(e.key[0].h, 56);
+	CHECK(!overlaps(e.key[0], e.key[1]));
+	CHECK_EQ(e.key[0].x + 200 + 12, e.key[1].x);
+	// centred: the keys' middle is the page's
+	CHECK_EQ((e.key[0].x + e.key[1].x + e.key[1].w) / 2, 320);
+	CHECK(e.title.w <= 400 && e.lines.w <= 400);
+	// the whole stack sits inside the page, centred in it
+	int top = e.icon.y - page.y, bottom = page.y + page.h - (e.key[0].y + e.key[0].h);
+	CHECK(std::abs(top - bottom) <= 1);
+	CHECK_EQ(emptyState(page, 1, 1).key[0].x, 220);
+	CHECK_EQ(emptyState(page, 1, 0).keys, 0);
+}
+
+static void testKitVariantNotice()
+{
+	using namespace lay;
+	Notice a = notice({16, 100, 608, 0}, false, false, 0);
+	CHECK_EQ(a.row.h, 52);
+	Notice b = notice({16, 100, 608, 0}, true, true, 0);
+	CHECK_EQ(b.row.h, 52);
+	CHECK_EQ(b.bar.h, 5);
+	CHECK(b.bar.y + b.bar.h <= b.row.y + b.row.h);
+	CHECK(b.text.y + b.text.h <= b.second.y);
+	CHECK(b.second.y + b.second.h <= b.bar.y);
+	Notice c = notice({16, 100, 608, 0}, true, false, 100);
+	CHECK_EQ(c.row.h, 60);
+	CHECK_EQ(c.key.h, 44);
+	CHECK(c.key.hit(c.key.x, c.key.y) && c.row.hit(c.key.x + c.key.w - 1, c.key.y + c.key.h - 1));
+	CHECK(c.text.x + c.text.w <= c.key.x);
+	CHECK_EQ(notice({16, 100, 608, 0}, false, false, 100).row.h, 52);
+}
+
+static void testKitVariantBars()
+{
+	using namespace lay;
+	Box k[4];
+	selectBar(k);
+	for (int i = 0; i < 4; i++)
+	{
+		CHECK_EQ(k[i].h, 56);
+		CHECK(insidePanel(k[i]));
+		CHECK(k[i].y + k[i].h <= 480 - HINTS_H);
+	}
+	CHECK_EQ(k[3].x + k[3].w, 624);
+	CHECK(!overlaps(k[0], k[1]));
+	ClipBar c = clipBar();
+	CHECK_EQ(c.box.h, 60);
+	CHECK_EQ(c.key[0].h, 46);
+	CHECK(!overlaps(c.key[0], c.key[1]));
+	CHECK(c.key[1].x + c.key[1].w <= c.box.x + c.box.w);
+	CHECK(c.text.x + c.text.w <= c.key[0].x);
+	CHECK(c.key[0].y >= c.box.y && c.key[0].y + c.key[0].h <= c.box.y + c.box.h);
+}
+
 static void testKitLayout()
 {
 	using namespace lay;
@@ -11601,6 +11843,20 @@ int main()
 	testStrip();
 	testLabels();
 	testKitLayout();
+	testKitVariantStatus();
+	testKitVariantMiniBar();
+	testKitVariantFilters();
+	testKitVariantForm();
+	testKitVariantAlert();
+	testKitVariantConfirm();
+	testKitVariantBusy();
+	testKitVariantKeyboard();
+	testKitVariantVolume();
+	testKitVariantTile();
+	testKitVariantCards();
+	testKitVariantEmpty();
+	testKitVariantNotice();
+	testKitVariantBars();
 	testSessionNextPlace();
 	testTrackList();
 	testSuwayomi();

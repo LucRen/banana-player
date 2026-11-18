@@ -243,7 +243,7 @@ int main(int argc, char** argv)
 				// BUTTON~MS: held MS ms, then let go
 				std::string::size_type tilde = step.find('~');
 				bool held = tilde != std::string::npos && buttonFromName(step.substr(0, tilde)) != Button::None && atoi(step.c_str() + tilde + 1) > 0;
-				bool ok = burst || held || buttonFromName(step) != Button::None || step == "info" || step == "page" || step == "update" || step == "web" || step == "F" || step == "rows" || step == "screenshot" || step == "volup" || step == "voldown" || step.rfind("prop:", 0) == 0 || step.rfind("shot:", 0) == 0 || step.rfind("level:", 0) == 0 || step.rfind("card:", 0) == 0 ||
+				bool ok = burst || held || buttonFromName(step) != Button::None || step == "info" || step == "page" || step == "update" || step == "web" || step == "F" || step == "rows" || step == "screenshot" || step == "volup" || step == "voldown" || step.rfind("prop:", 0) == 0 || step.rfind("shot:", 0) == 0 || step.rfind("level:", 0) == 0 || step.rfind("card:", 0) == 0 || step.rfind("gallery:variants", 0) == 0 ||
 					(sscanf(step.c_str(), "tap:%f:%f%n", &v[0], &v[1], &n) == 2 && n == (int)step.size()) ||
 					(sscanf(step.c_str(), "dtap:%f:%f%n", &v[0], &v[1], &n) == 2 && n == (int)step.size()) ||
 					(sscanf(step.c_str(), "hold:%f:%f%n", &v[0], &v[1], &n) == 2 && n == (int)step.size()) ||
@@ -1661,6 +1661,14 @@ int main(int argc, char** argv)
 							else if (what == "note") player.osd("Speed 1.5\xc3\x97");
 							else if (what == "like") player.showNoteCard(G_HEART_ROWS, G_HEART.h, "Added to Liked", "Big Buck Bunny");
 							else if (what == "fail") player.osd("Couldn't save Liked");
+							renderPending = true;
+						}
+						else if (step.rfind("gallery:variants", 0) == 0)
+						{
+							// gallery:variants[:PAGE] (1..8): the kit's variant components on one page, for a shot:
+							std::string::size_type colon = step.rfind(':');
+							int pg = colon > 7 ? atoi(step.c_str() + colon + 1) : 1;
+							ui.openVariantsGallery(pg > 0 ? pg : 1);
 							renderPending = true;
 						}
 						else if (step.rfind("shot:", 0) == 0)

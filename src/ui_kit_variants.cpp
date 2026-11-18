@@ -1,0 +1,801 @@
+// The kit's second set (declared in ui_kit.h's "KIT VARIANTS" block; layouts in kitlayout.h; docs/notes/
+// 2026-11-18-kit-variants.md): status cluster and badges, mini bar, filter chips, form row, alert / confirm / busy
+// sheets, keyboard, volume bar, tiles, Recent and Continue cards, empty state, notice row, select and clip bars.
+// As the rest of the kit: a Rect from kitlayout and a small struct in, pixels out, nothing kept; tokens only.
+#include "ui_kit.h"
+#include <cmath>
+
+namespace bp
+{
+	namespace
+	{
+		theme::Rgb rgbOf(SDL_Color c) { return {c.r, c.g, c.b}; }
+		const char* const BOLT[7] = {"...##", "..##.", ".##..", "#####", "..##.", ".##..", "##..."};
+	}
+
+	// ---- status cluster and badges ----
+
+	int Ui::Kit::badge(int right, int cy, const Badge& b)
+	{
+		SDL_Color ink = b.danger ? DANGER : ACCENT;
+		std::string t = lay::caps(b.text);
+		int tw = textW(t, F_I11B), w = lay::badgeW(tw, b.glyph != nullptr);
+		Rect r{right - w, cy - lay::BADGE_H / 2, w, lay::BADGE_H};
+		// the badge's ink at 17% over the ground
+		ui.fillRound(r, sdl(theme::mix(theme::BG, rgbOf(ink), 17)), theme::R_CAP);
+		int x = r.x + lay::BADGE_PAD;
+		if (b.glyph)
+		{
+			ui.drawGlyphMid(*b.glyph, x + 8, cy, ink, 1);
+			x += 16 + 4;
+		}
+		if (tw) ui.drawTextMid(t, F_I11B, ink, x, cy, tw + 1);
+		return w;
+	}
+
+	int Ui::Kit::status(int right, int cy, const Status& s)
+	{
+		// the items' widths, rightmost first: clock, battery (and its bolt), Wi-Fi, playing bars, badges
+		enum Kind { CLOCK, BATTERY, BOLTK, WIFI, BARS, BADGE };
+		struct Item { Kind kind; int w; size_t at; };
+		std::vector<Item> items;
+		if (!s.clock.empty()) items.push_back({CLOCK, textW(s.clock, F_P14), 0});
+		if (s.battery >= 0)
+		{
+			items.push_back({BATTERY, 24, 0});
+			if (s.charging) items.push_back({BOLTK, 10, 0});
+		}
+		if (s.wifi >= 0) items.push_back({WIFI, 16, 0});
+		if (s.playing) items.push_back({BARS, 13, 0});
+		for (size_t i = s.badges.size(); i-- > 0;)
+		{
+			const Badge& b = s.badges[i];
+			items.push_back({BADGE, lay::badgeW(textW(lay::caps(b.text), F_I11B), b.glyph != nullptr), i});
+		}
+		std::vector<int> widths;
+		for (auto& it : items) widths.push_back(it.w);
+		lay::StatusRow row = lay::statusRow(right, widths);
+		for (size_t i = 0; i < items.size(); i++)
+		{
+			int x = row.x[i];
+			switch (items[i].kind)
+			{
+			case CLOCK: ui.drawTextMid(s.clock, F_P14, DIM_ON, x, cy); break;
+			case BATTERY:
+			{
+				// 22 x 12 with a 2-unit outline and a nub; red when low, the fill in the charge's share
+				bool low = s.battery <= 15 && !s.charging;
+				SDL_Color ink = low ? DANGER : DIM_ON;
+				Rect body{x, cy - 6, 22, 12};
+				ui.fill(body, ink);
+				ui.fill({body.x + 2, body.y + 2, body.w - 4, body.h - 4}, BG);
+				int level = (body.w - 8) * std::clamp(s.battery, 0, 100) / 100;
+				if (level > 0) ui.fill({body.x + 4, body.y + 4, level, body.h - 8}, s.charging ? ACCENT : ink);
+				ui.fill({body.x + body.w, cy - 3, 2, 6}, ink);
+				break;
+			}
+			case BOLTK:
+				for (int r = 0; r < 7; r++)
+					for (int c = 0; c < 5; c++)
+						if (BOLT[r][c] == '#') ui.fill({x + c * 2, cy - 7 + r * 2, 2, 2}, ACCENT);
+				break;
+			case WIFI:
+				for (int i2 = 0; i2 < 4; i2++)
+				{
+					int h = 4 + i2 * 3;
+					ui.fill({x + i2 * 4, cy + 7 - h, 3, h}, i2 < s.wifi ? DIM_ON : TRACK);
+				}
+				break;
+			case BARS:
+				for (int i2 = 0; i2 < 3; i2++)
+				{
+					int h = 5 + ((s.tick * (i2 + 2) + i2 * 3) % 9);
+					ui.fill({x + i2 * 5, cy + 7 - h, 3, h}, ACCENT);
+				}
+				break;
+			case BADGE: badge(x + items[i].w, cy, s.badges[items[i].at]); break;
+			}
+		}
+		return row.left;
+	}
+
+	// ---- the mini bar ----
+
+	void Ui::Kit::miniBar(const lay::MiniBar& l, const Mini& m)
+	{
+		Rect in{l.box.x + theme::EDGE, l.box.y + theme::EDGE, l.box.w - 2 * theme::EDGE, l.box.h - 2 * theme::EDGE};
+		flat(l.box, m.pressed ? PRESSED : SURFACE, R_BUTTON, ACCENT);
+		// the progress line along the foot, inside the edge
+		int fw = (int)std::lround(in.w * std::clamp(m.progress, 0.0, 1.0));
+		if (fw > 0 && !m.err) ui.fillRoundBand(in, R_BUTTON - theme::EDGE, in.y + in.h - 3, in.y + in.h, ACCENT, in.x + fw);
+		// the play mark, a key of its own (56 x 42); held: the darker fill growing across it
+		ui.drawBox(l.mark, m.markPressed ? PRESSED : BUTTON, 8);
+		if (m.hold >= 0)
+		{
+			Rect mi{l.mark.x + theme::EDGE, l.mark.y + theme::EDGE, l.mark.w - 2 * theme::EDGE, l.mark.h - 2 * theme::EDGE};
+			int x1 = mi.x + (int)std::lround(mi.w * std::min(1.0, m.hold));
+			if (x1 > mi.x) ui.fillRoundBand(mi, 6, mi.y, mi.y + mi.h, sdl(theme::BG, (Uint8)(255 * theme::HOLD_FILL / 100)), x1);
+		}
+		ui.drawGlyphMid(m.paused ? G_PLAY : G_PAUSE, l.mark.x + l.mark.w / 2, l.mark.y + (l.mark.h - theme::LIP) / 2 + 1, m.err ? DIM : ACCENT);
+		if (m.kind) ui.drawGlyphMid(*m.kind, l.kindX, l.cy, DIM_ON);
+		// the right end, leftwards: the cap, then the pills (or the words they replace)
+		int x = l.rightX;
+		if (!m.key.empty())
+		{
+			int w = capsW(m.key);
+			caps(m.key, x - w, l.cy, ACCENT, m.pressed ? PRESSED : SURFACE);
+			x -= w + 10;
+		}
+		if (m.pills.empty())
+		{
+			int w = textW("Now playing", F_I12);
+			ui.drawTextMid("Now playing", F_I12, DIM, x, l.cy, w + 1, 1);
+			x -= w + 10;
+		}
+		else
+		{
+			for (size_t i = m.pills.size(); i-- > 0;)
+			{
+				int w = pill(x, l.cy, m.pills[i].first, m.pills[i].second);
+				if (w) x -= w + 5;
+			}
+			x -= 5;
+		}
+		// the title over the time
+		int room = std::max(40, x - l.textX);
+		ui.drawTextMid(m.title, F_P14, m.err ? DANGER : TEXT, l.textX, l.cy - 9, room);
+		ui.drawTextMid(m.time, F_I12, m.err ? DANGER : DIM, l.textX, l.cy + 9, room);
+	}
+
+	// ---- filter chips ----
+
+	std::vector<int> Ui::Kit::filterWidths(const std::vector<FilterItem>& items) const
+	{
+		std::vector<int> w;
+		for (auto& it : items)
+			w.push_back(textW(it.label, F_P14) + (it.count >= 0 ? 8 + textW(std::to_string(it.count), F_P13) : 0) + 24);
+		return w;
+	}
+
+	void Ui::Kit::filters(const lay::FilterChips& c, const std::vector<FilterItem>& items, int on, int focused, int pressed)
+	{
+		for (size_t i = 0; i < c.chip.size() && i < items.size(); i++)
+		{
+			Rect r = c.chip[i];
+			bool at = (int)i == on, focus = (int)i == focused;
+			if (focus) ui.fillRound({r.x - 1, r.y - 1, r.w + 2, r.h + 2}, ACCENT, 10);
+			SDL_Color fill = (int)i == pressed ? PRESSED : at ? ACCENT : TRACK;
+			flat(r, fill, 9, focus ? ACCENT : at ? edgeOf(ACCENT) : edgeOf(BUTTON));
+			SDL_Color ink = at ? ON_ACCENT : DIM_ON;
+			int x = r.x + 12, cy = r.y + r.h / 2;
+			ui.drawTextMid(items[i].label, F_P14, ink, x, cy, r.w - 24);
+			if (items[i].count >= 0)
+				ui.drawTextMid(std::to_string(items[i].count), F_P13, at ? ON_ACCENT : DIM, r.x + r.w - 12, cy, 0, 1);
+		}
+	}
+
+	// ---- the form row ----
+
+	void Ui::Kit::formRow(const lay::FormRow& l, const FormField& f)
+	{
+		Rect r = l.row;
+		if (f.pressed) ui.fillRound(r, PRESSED, R_BUTTON);
+		else if (f.focused) flat(r, BUTTON, R_BUTTON, ACCENT);
+		int cy = r.y + r.h / 2;
+		ui.drawTextMid(f.label, F_P16, off(f.focused ? ACCENT : DIM, f.off), l.label.x, cy, l.label.w);
+		std::string v = f.secret ? std::string(f.value.size(), '*') : f.value;
+		if (v.empty()) ui.drawTextMid(f.placeholder, F_P16, off(DIM, f.off), l.value.x, cy, l.value.w);
+		else ui.drawTextMid(f.secret ? v : ui.elideLeft(v, F_P16, l.value.w), F_P16, off(TEXT, f.off), l.value.x, cy, l.value.w);
+	}
+
+	// ---- the alert, confirm and busy sheets ----
+
+	std::vector<std::string> Ui::Kit::sheetText(const std::string& text) const
+	{
+		return ui.wrapText(text, F_I14, lay::PANEL_W - 2 * lay::SHEET_PAD - 4, 3);
+	}
+
+	void Ui::Kit::alertSheet(const lay::AlertSheet& l, const AlertSpec& a, const std::vector<std::string>& lines)
+	{
+		sheet(l.sheet, {&G_ALERT, a.title, "", a.danger});
+		for (size_t i = 0; i < lines.size(); i++) ui.drawTextMid(lines[i], F_I14, TEXT, l.text.x, l.text.y + 10 + (int)i * 20, l.text.w);
+		Key k;
+		k.label = a.key;
+		k.key = "A";
+		k.tone = Tone::Primary;
+		k.pressed = a.pressed;
+		key(l.key, k);
+		hints({{"A", a.key}, {"B", "Close"}});
+	}
+
+	void Ui::Kit::confirmSheet(const lay::ConfirmSheet& l, const ConfirmSpec& c, const std::vector<std::string>& lines)
+	{
+		sheet(l.sheet, {&G_ALERT, c.title, "", c.danger});
+		for (size_t i = 0; i < lines.size(); i++) ui.drawTextMid(lines[i], F_I14, TEXT, l.text.x, l.text.y + 10 + (int)i * 20, l.text.w);
+		// the safe key on the left: yellow, focused, B; the action on the right, red ink when it destroys
+		Key safe;
+		safe.label = c.safe;
+		safe.key = "B";
+		safe.tone = Tone::Primary;
+		safe.focused = c.focus == 0;
+		safe.pressed = c.pressed == 0;
+		key(l.safe, safe);
+		Key act;
+		act.label = c.action;
+		act.key = c.focus == 1 ? "A" : "";
+		act.tone = c.danger ? Tone::Danger : Tone::Normal;
+		act.focused = c.focus == 1;
+		act.pressed = c.pressed == 1;
+		key(l.action, act);
+		if (l.foot.w > 0)
+		{
+			int cy = l.foot.y + l.foot.h / 2;
+			ui.drawGlyphMid(c.footOn ? G_BOX_ON : G_BOX, l.foot.x + 12, cy, c.footOn ? ACCENT : DIM);
+			ui.drawTextMid(c.foot, F_I12, DIM, l.foot.x + 30, cy, l.foot.w - 40);
+		}
+		hints({{"LEFT/RIGHT", "Choose"}, {"A", c.focus == 0 ? c.safe : c.action}, {"B", c.safe}});
+	}
+
+	void Ui::Kit::busySheet(const lay::BusySheet& l, const BusySpec& b)
+	{
+		sheetBack(l.sheet.box, l.sheet.grab);
+		int cy = l.sheet.head.y + l.sheet.head.h / 2, x = l.sheet.head.x;
+		if (b.glyph) ui.drawGlyphMid(*b.glyph, x + 11, cy, ACCENT);
+		else
+		{
+			// the spinner (22): eight dots, the head and two behind it ACCENT, the rest TRACK
+			int step = b.tick % 8;
+			for (int k = 0; k < 8; k++)
+			{
+				int age = ((step - k) % 8 + 8) % 8;
+				double a = k * 3.14159265 / 4;
+				int dx = x + 11 + (int)std::lround(8 * std::sin(a)), dy = cy + (int)std::lround(-8 * std::cos(a));
+				ui.fillRound({dx - 2, dy - 2, 4, 4}, age < 3 ? ACCENT : TRACK, 2);
+			}
+		}
+		ui.drawTextMid(b.title, F_P20, ACCENT, x + 32, cy, l.sheet.head.w - 32);
+		ui.drawTextMid(b.file, F_I14, TEXT, l.file.x, l.file.y + l.file.h / 2, l.file.w);
+		if (b.share >= 0) bar(l.bar, b.share);
+		ui.drawTextMid(b.left, F_I12, DIM, l.amounts.x, l.amounts.y + l.amounts.h / 2, l.amounts.w / 2);
+		ui.drawTextMid(b.right, F_I12, DIM, l.amounts.x + l.amounts.w, l.amounts.y + l.amounts.h / 2, l.amounts.w / 2, 1);
+		Key k;
+		k.label = b.key;
+		k.key = b.cap;
+		k.pressed = b.pressed;
+		key(l.key, k);
+		hints({{b.cap, b.key}});
+	}
+
+	// ---- the keyboard ----
+
+	void Ui::Kit::keyboard(const lay::Keyboard& l, const KeyboardView& v)
+	{
+		// the field: SURFACE with an ACCENT outline, the text, the caret a bar of its own (room kept when it is off)
+		flat(l.field, SURFACE, theme::R_FIELD, ACCENT);
+		std::string shown = v.secret ? std::string(v.value.size(), '*') : v.value;
+		size_t caret = std::min(v.caret, shown.size());
+		std::string before = shown.substr(0, caret), after = shown.substr(caret);
+		int cy = l.field.y + l.field.h / 2, room = l.field.w - 28;
+		int aw = textW(after, F_SMALL);
+		before = ui.elideLeft(before, F_SMALL, std::max(20, room - aw - 6));
+		int bw = textW(before, F_SMALL), x = l.field.x + 14;
+		if (!before.empty()) ui.drawTextMid(before, F_SMALL, TEXT, x, cy, bw + 1);
+		if (v.caretOn) ui.fill({x + bw + 1, cy - 12, 2, 24}, ACCENT);
+		if (!after.empty()) ui.drawTextMid(after, F_SMALL, TEXT, x + bw + 6, cy, std::max(1, room - bw - 6));
+		if (!v.note.empty()) ui.drawTextMid(v.note, F_I12, DIM, l.note.x, l.note.y + l.note.h / 2, l.note.w);
+		int index = 0;
+		auto edgeFor = [&](int i, SDL_Color fill) { return i == v.cursor ? ACCENT : edgeOf(fill); };
+		auto fillFor = [&](int i, SDL_Color fill) { return i == v.pressed ? PRESSED : fill; };
+		// the field's own pieces, then the letters
+		for (size_t i = 0; i < l.special.size() && i < v.special.size(); i++, index++)
+		{
+			Rect r = l.special[i];
+			flat(r, fillFor(index, TRACK), 6, edgeFor(index, TRACK));
+			ui.drawTextMid(v.special[i], F_P14, index == v.cursor ? ACCENT : TEXT, r.x + r.w / 2, r.y + r.h / 2, r.w - 8, 2);
+		}
+		for (size_t row = 0; row < l.rows.size(); row++)
+			for (size_t i = 0; i < l.rows[row].size(); i++, index++)
+			{
+				Rect r = l.rows[row][i];
+				std::string label = row < v.rows.size() && i < v.rows[row].size() ? v.rows[row][i] : "";
+				ui.drawBox(r, fillFor(index, BUTTON), 6, edgeFor(index, BUTTON));
+				ui.drawTextMid(label, F_SMALL, index == v.cursor ? ACCENT : TEXT, r.x + r.w / 2, r.y + (r.h - theme::LIP) / 2 + 1, r.w - 6, 2);
+			}
+		// the bottom row: the layer keys, Space, backspace (TRACK), Done (primary), each with its button
+		size_t layers = v.layers.size();
+		for (size_t i = 0; i < l.bottom.size(); i++, index++)
+		{
+			Rect r = l.bottom[i];
+			bool done = i + 1 == l.bottom.size(), layer = i < layers;
+			std::string label = layer ? v.layers[i] : i == layers ? "Space" : done ? "Done" : "Del";
+			std::string cap = i < v.bottomCaps.size() ? v.bottomCaps[i] : "";
+			SDL_Color fill = done ? ACCENT : TRACK;
+			if (done) ui.drawBox(r, index == v.pressed ? sdl(theme::lipOf(theme::ACCENT)) : ACCENT, R_BUTTON, index == v.cursor ? ACCENT : edgeOf(ACCENT));
+			else ui.drawBox(r, fillFor(index, TRACK), R_BUTTON, edgeFor(index, TRACK));
+			SDL_Color ink = done ? ON_ACCENT : (int)i == v.layerOn || index == v.cursor ? ACCENT : TEXT;
+			int capW = cap.empty() ? 0 : capsW(cap), by = r.y + (r.h - theme::LIP) / 2 + 1;
+			int tw = std::min(r.w - 16 - (capW ? capW + 7 : 0), textW(label, F_P14));
+			int w = tw + (capW ? 7 + capW : 0), x0 = r.x + r.w / 2 - w / 2;
+			ui.drawTextMid(label, F_P14, ink, x0, by, tw + 1);
+			if (capW) caps(cap, x0 + tw + 7, by, done ? ON_ACCENT : ACCENT, index == v.pressed ? PRESSED : fill);
+		}
+	}
+
+	// ---- the volume bar ----
+
+	SDL_Color Ui::Kit::volumeInk(int value)
+	{
+		int z = lay::volumeZone(value);
+		return z == 2 ? DANGER : z == 1 ? ACCENT : TEXT;
+	}
+
+	void Ui::Kit::volumeBar(const lay::VolumeBar& l, int value, int max, bool isOff)
+	{
+		Rect b = l.bar;
+		ui.fillRound(b, off(TRACK, isOff), b.h / 2);
+		// each part's colour from the top down: the longest part first, the shorter ones over it
+		auto part = [&](int to, SDL_Color c) {
+			int x1 = lay::volumeX(b, std::min(value, to), max);
+			if (x1 > b.x) ui.fillRound({b.x, b.y, x1 - b.x, b.h}, off(c, isOff), b.h / 2, x1 >= b.x + b.w ? ROUND_ALL : ROUND_TL | ROUND_BL);
+		};
+		if (value > 120) part(max, DANGER);
+		if (value > 100) part(120, ACCENT);
+		part(100, TEXT);
+		if (l.tickX >= 0) ui.fill({l.tickX - 1, b.y - 3, 2, b.h + 6}, off(DIM_ON, isOff));
+		ui.drawTextMid(std::to_string(value) + "%", F_P16, off(volumeInk(value), isOff), l.number.x + l.number.w, l.number.y + l.number.h / 2, l.number.w, 1);
+	}
+
+	// ---- tiles ----
+
+	void Ui::Kit::tile(Rect r, const Tile& t)
+	{
+		SDL_Color fill = t.pressed ? PRESSED : SURFACE;
+		flat(r, off(fill, t.off), theme::R_TILE, t.focused && !t.off ? ACCENT : off(edgeOf(SURFACE), t.off));
+		SDL_Color ink = off(t.focused || t.lit ? ACCENT : TEXT, t.off);
+		SDL_Color noteInk = off(DIM, t.off);
+		if (r.h >= 70)
+		{
+			// a menu tile: icon over name over the note, centred
+			int cx = r.x + r.w / 2;
+			int top = r.y + (r.h - (26 + 8 + 18 + (t.note.empty() ? 0 : 16))) / 2;
+			if (t.glyph) ui.drawGlyphMid(*t.glyph, cx, top + 13, ink, 3);
+			ui.drawTextMid(t.name, F_P16, ink, cx, top + 26 + 8 + 9, r.w - 16, 2);
+			if (!t.note.empty()) ui.drawTextMid(t.note, F_I12, noteInk, cx, top + 26 + 8 + 18 + 8, r.w - 12, 2);
+			if (!t.mark.empty()) pill(r.x + r.w - 8, r.y + 14, t.mark);
+			return;
+		}
+		// a shortcut or toggle tile, 56 tall: the icon at the left, the name, and its state in words under it
+		int cy = r.y + r.h / 2, x = r.x + 14, right = r.x + r.w - 12;
+		if (t.glyph)
+		{
+			ui.drawGlyphMid(*t.glyph, x + 11, cy, ink);
+			x += 22 + 10;
+		}
+		if (!t.mark.empty()) right -= pill(right, cy, t.mark) + 8;
+		ui.drawTextMid(t.name, F_P16, ink, x, t.note.empty() ? cy : cy - 9, std::max(1, right - x));
+		if (!t.note.empty()) ui.drawTextMid(t.note, F_I12, noteInk, x, cy + 11, std::max(1, right - x));
+	}
+
+	// ---- the cards ----
+
+	// the picture's place: the caller's own drawing, or a TRACK square with the kind's mark
+	void Ui::Kit::pictureOf(Rect r, const Card& c, int rad)
+	{
+		if (c.picture) { c.picture(r); return; }
+		ui.fillRound(r, off(TRACK, c.off), rad);
+		if (c.kind) ui.drawGlyphMid(*c.kind, r.x + r.w / 2, r.y + r.h / 2, off(DIM_ON, c.off), 3);
+	}
+
+	void Ui::Kit::recentCard(const lay::RecentCard& l, const Card& c)
+	{
+		flat(l.box, off(c.pressed ? PRESSED : SURFACE, c.off), 12, c.focused && !c.off ? ACCENT : off(edgeOf(SURFACE), c.off));
+		pictureOf(l.pic, c, 8);
+		// the kind's mark over the picture: a dark chip, light ink in every theme
+		if (c.kind && c.picture)
+		{
+			Rect m{l.pic.x + 4, l.pic.y + l.pic.h - 20, 22, 16};
+			ui.fillRound(m, sdl(theme::TOP_CARD, 200), 5);
+			ui.drawGlyphMid(*c.kind, m.x + m.w / 2, m.y + m.h / 2, sdl(theme::TOP_TITLE), 1);
+		}
+		ui.drawTextMid(c.title, F_P14, off(c.focused ? ACCENT : TEXT, c.off), l.title.x, l.title.y + l.title.h / 2, l.title.w);
+		ui.drawTextMid(c.note, F_I12, off(DIM, c.off), l.note.x, l.note.y + l.note.h / 2, l.note.w);
+		if (c.progress >= 0) bar(l.line, c.progress);
+	}
+
+	void Ui::Kit::continueCard(const lay::ContinueCard& l, const Card& c)
+	{
+		flat(l.box, off(c.pressed ? PRESSED : SURFACE, c.off), theme::R_TILE, c.focused && !c.off ? ACCENT : off(edgeOf(SURFACE), c.off));
+		pictureOf(l.pic, c, 10);
+		ui.drawTextMid(lay::caps(c.label), F_I11B, off(DIM, c.off), l.label.x, l.label.y + l.label.h / 2, l.label.w);
+		ui.drawTextMid(c.title, F_NORMAL, off(TEXT, c.off), l.title.x, l.title.y + l.title.h / 2, l.title.w);
+		ui.drawTextMid(c.note, F_I12, off(DIM, c.off), l.note.x, l.note.y + l.note.h / 2, l.note.w);
+		if (c.progress >= 0) bar(l.bar, c.progress);
+		Key k;
+		k.glyph = c.keyGlyph;
+		k.label = c.key;
+		k.tone = Tone::Primary;
+		k.pressed = c.keyPressed;
+		k.off = c.off;
+		key(l.key, k);
+	}
+
+	// ---- the empty state ----
+
+	void Ui::Kit::emptyState(const lay::EmptyState& l, const Empty& e)
+	{
+		if (e.glyph)
+		{
+			int cell = std::clamp(54 / std::max(1, e.glyph->h), 2, 8);
+			ui.drawGlyphMid(*e.glyph, l.icon.x + l.icon.w / 2, l.icon.y + l.icon.h / 2, DIM, cell);
+		}
+		ui.drawTextMid(e.title, F_NORMAL, TEXT, l.title.x + l.title.w / 2, l.title.y + l.title.h / 2, l.title.w, 2);
+		for (size_t i = 0; i < e.lines.size(); i++)
+			ui.drawTextMid(e.lines[i], F_I14, DIM, l.lines.x + l.lines.w / 2, l.lines.y + 10 + (int)i * 20, l.lines.w, 2);
+		if (l.keys >= 1 && !e.key1.empty())
+		{
+			Key k;
+			k.glyph = e.glyph1;
+			k.label = e.key1;
+			k.key = e.hotkeys ? "A" : "";
+			k.tone = Tone::Primary;
+			k.pressed = e.pressed1;
+			key(l.key[0], k);
+		}
+		if (l.keys >= 2 && !e.key2.empty())
+		{
+			Key k;
+			k.glyph = e.glyph2;
+			k.label = e.key2;
+			k.key = e.hotkeys ? "Y" : "";
+			k.pressed = e.pressed2;
+			key(l.key[1], k);
+		}
+	}
+
+	// ---- the notice row ----
+
+	void Ui::Kit::notice(const lay::Notice& l, const NoticeRow& n)
+	{
+		SDL_Color edge = n.tone == NoticeTone::Ready ? ACCENT : n.tone == NoticeTone::Failed ? DANGER : edgeOf(SURFACE);
+		flat(l.row, SURFACE, 12, edge);
+		SDL_Color ink = n.tone == NoticeTone::Ready ? ACCENT : n.tone == NoticeTone::Failed ? DANGER : DIM_ON;
+		if (n.glyph) ui.drawGlyphMid(*n.glyph, l.icon.x + l.icon.w / 2, l.icon.y + l.icon.h / 2, ink);
+		ui.drawTextMid(n.text, F_P14, TEXT, l.text.x, l.text.y + l.text.h / 2, l.text.w);
+		if (l.hasSecond) ui.drawTextMid(n.second, F_I12, DIM, l.second.x, l.second.y + l.second.h / 2, l.second.w);
+		if (l.hasBar && n.share >= 0) bar(l.bar, n.share);
+		if (l.hasKey)
+		{
+			Key k;
+			k.label = n.key;
+			k.key = n.cap;
+			k.pressed = n.pressed;
+			key(l.key, k);
+		}
+	}
+
+	// ---- the select bar and the clip bar ----
+
+	Ui::Kit::Key Ui::Kit::barKey(const BarKey& b)
+	{
+		Key k;
+		k.glyph = b.glyph;
+		k.label = b.label;
+		k.key = b.key;
+		k.tone = b.primary ? Tone::Primary : b.tone;
+		k.pressed = b.pressed;
+		k.off = b.off;
+		return k;
+	}
+
+	void Ui::Kit::selectBar(const lay::Box keys[4], const BarKey k[4])
+	{
+		for (int i = 0; i < 4; i++) key(keys[i], barKey(k[i]));
+	}
+
+	void Ui::Kit::clipBar(const lay::ClipBar& l, const Clip& c)
+	{
+		flat(l.box, SURFACE, 12, ACCENT);
+		int cy = l.box.y + l.box.h / 2;
+		ui.drawTextMid(c.what, F_P14, TEXT, l.text.x, cy - 9, l.text.w);
+		ui.drawTextMid(c.size, F_I12, DIM, l.text.x, cy + 10, l.text.w);
+		key(l.key[0], barKey(c.put));
+		key(l.key[1], barKey(c.cancel));
+	}
+}
+
+namespace bp
+{
+	// ---- the gallery: every variant on a page, for a `shot:` (a test-only --press step, `gallery:variants[:PAGE]`) ----
+
+	struct Ui::VariantsGallery : Ui::Overlay
+	{
+		int page;
+		explicit VariantsGallery(Ui& u, int pg) : Overlay(u), page(pg) {}
+		const char* name() const override { return "gallery"; }
+		bool key(Button b, Player&) override
+		{
+			if (b == Button::B) close();
+			return false;
+		}
+		bool pointer(const Pointer&, int, int, Player&) override { return false; }
+		std::string signature(const Player&) const override { return std::to_string(page); }
+
+		// a few rows of a page behind a sheet, so the veil has something to darken
+		void backdrop(Kit& k)
+		{
+			ui.fill({0, 0, W, H}, BG);
+			for (int i = 0; i < 6; i++)
+			{
+				Kit::Row r;
+				r.glyph = i % 2 ? &G_FILM : &G_NOTE;
+				r.name = i % 2 ? "Big Buck Bunny.mp4" : "Test tones.flac";
+				r.note = "3:42";
+				k.row({16, 70 + i * 46, 608, 46}, r);
+			}
+		}
+
+		void page1(Kit& k)
+		{
+			ui.fill({0, 0, W, H}, BG);
+			// the status cluster and the badges
+			Kit::Status st;
+			st.playing = true;
+			st.wifi = 3;
+			st.battery = 64;
+			st.clock = "9:41";
+			st.badges = {{&G_INCOGNITO, "Incognito", false}, {&G_WEB, "Chrome", false}};
+			int left = k.status(624, 22, st);
+			ui.drawTextMid("Header status", F_I12, DIM, 16, 22, left - 24);
+			Kit::Status low;
+			low.battery = 9;
+			low.wifi = 0;
+			low.clock = "23:05";
+			low.badges = {{nullptr, "Read only", true}, {nullptr, "Boost", false}};
+			left = k.status(624, 48, low);
+			ui.drawTextMid("Low battery, red badge", F_I12, DIM, 16, 48, left - 24);
+			Kit::Status chg;
+			chg.battery = 40;
+			chg.charging = true;
+			chg.clock = "7:15";
+			left = k.status(624, 74, chg);
+			ui.drawTextMid("Charging", F_I12, DIM, 16, 74, left - 24);
+			// filter chips: the chosen one, the D-pad's, a count
+			std::vector<Kit::FilterItem> items = {{"All", 24}, {"Videos", 9}, {"Songs", 12}, {"Books", 3}};
+			lay::FilterChips fc = lay::filterChips({16, 90, 608, lay::CHIP_STRIP}, k.filterWidths(items));
+			k.filters(fc, items, 0, 2);
+			// form rows
+			Kit::FormField f1{"Name", "Home server", "", false, false, false, false};
+			Kit::FormField f2{"Address", "", "192.168.1.10", false, true, false, false};
+			Kit::FormField f3{"Password", "hunter22", "", true, false, false, false};
+			k.formRow(lay::formRow({16, 150, 608, lay::FORM_ROW}), f1);
+			k.formRow(lay::formRow({16, 196, 608, lay::FORM_ROW}), f2);
+			k.formRow(lay::formRow({16, 242, 608, lay::FORM_ROW}), f3);
+			// the volume bar at 80, 110 and 135
+			int vals[3] = {80, 110, 135};
+			for (int i = 0; i < 3; i++)
+			{
+				lay::VolumeBar vb = lay::volumeBar({16, 292 + i * 26, 608, 24}, 150);
+				k.volumeBar(vb, vals[i], 150);
+			}
+			// notice rows: ready, working with a bar, failed with a key
+			Kit::NoticeRow n1;
+			n1.tone = Kit::NoticeTone::Ready;
+			n1.glyph = &G_CHECK;
+			n1.text = "Sources are ready";
+			k.notice(lay::notice({16, 376, 300, 0}, false, false, 0), n1);
+			Kit::NoticeRow n2;
+			n2.glyph = &G_REFRESH;
+			n2.text = "Reading your library";
+			n2.second = "12 of 40 series";
+			n2.share = 0.3;
+			k.notice(lay::notice({324, 376, 300, 0}, true, true, 0), n2);
+			k.hints({{"L2/R2", "Filter"}, {"A", "Open"}, {"B", "Back"}});
+		}
+
+		void page2(Kit& k)
+		{
+			ui.fill({0, 0, W, H}, BG);
+			// tiles: menu tiles in a row of four, then a shortcut and two toggles (one off with its reason)
+			const Glyph* gl[4] = {&G_FOLDER, &G_PLAYLIST, &G_NETWORK, &G_GEAR};
+			const char* names[4] = {"Files", "Playlists", "Network", "Settings"};
+			const char* notes[4] = {"3 cards", "5 saved", "Not set up", "Yellow"};
+			for (int i = 0; i < 4; i++)
+			{
+				Kit::Tile t;
+				t.glyph = gl[i];
+				t.name = names[i];
+				t.note = notes[i];
+				t.focused = i == 1;
+				t.mark = i == 2 ? "New" : "";
+				k.tile(lay::tileCell({16, 8, 608, 0}, 4, 4, 84, i), t);
+			}
+			Kit::Tile a;
+			a.glyph = &G_MOON;
+			a.name = "Screen off";
+			a.note = "Lid or sleep: closes all";
+			a.lit = true;
+			k.tile(lay::tileCell({16, 100, 608, 0}, 3, 3, 56, 0), a);
+			Kit::Tile b;
+			b.glyph = &G_INCOGNITO;
+			b.name = "Incognito";
+			b.note = "Off in incognito";
+			b.off = true;
+			k.tile(lay::tileCell({16, 100, 608, 0}, 3, 3, 56, 1), b);
+			Kit::Tile c;
+			c.glyph = &G_SUN;
+			c.name = "Brightness";
+			c.note = "70%";
+			k.tile(lay::tileCell({16, 100, 608, 0}, 3, 3, 56, 2), c);
+			// the Continue card and four Recent cards
+			Kit::Card cc;
+			cc.kind = &G_FILM;
+			cc.label = "Continue";
+			cc.title = "Big Buck Bunny";
+			cc.note = "Video \xC2\xB7 4:12 left";
+			cc.key = "Resume";
+			cc.keyGlyph = &G_PLAY;
+			cc.progress = 0.62;
+			k.continueCard(lay::continueCard({16, 164, 608, lay::CONTINUE_H}), cc);
+			for (int i = 0; i < 4; i++)
+			{
+				Kit::Card r;
+				r.kind = i % 2 ? &G_NOTE : &G_FILM;
+				r.title = i % 2 ? "Test tones" : "Sintel";
+				r.note = i % 2 ? "Song" : "Video";
+				r.progress = i == 3 ? -1 : 0.25 * (i + 1) - 0.1;
+				r.focused = i == 1;
+				k.recentCard(lay::recentCard({16 + i * (lay::RECENT_W + 8), 278, lay::RECENT_W, lay::RECENT_H}), r);
+			}
+			// the clip bar over the select bar's place (a held file and, below, select mode's four keys)
+			Kit::Clip clip;
+			clip.what = "Holding 3 files";
+			clip.size = "148 MB";
+			clip.put = {nullptr, "Move here", "SELECT", Kit::Tone::Normal, false, false, true};
+			clip.cancel = {nullptr, "Cancel", "X", Kit::Tone::Normal, false, false, false};
+			lay::ClipBar cb = lay::clipBar();
+			k.clipBar(cb, clip);
+		}
+
+		void page3(Kit& k)
+		{
+			ui.fill({0, 0, W, H}, BG);
+			Kit::Mini mini;
+			mini.kind = &G_FILM;
+			mini.title = "Big Buck Bunny";
+			mini.time = "1:12 / 9:56";
+			mini.progress = 0.18;
+			lay::MiniBar mb = lay::miniBar();
+			// three states: plain, with pills, held (taking over from a browser)
+			auto at = [&](int dy) {
+				lay::MiniBar m = mb;
+				m.box.y -= dy;
+				m.mark.y -= dy;
+				m.line.y -= dy;
+				m.cy -= dy;
+				return m;
+			};
+			k.miniBar(at(150), mini);
+			mini.pills = {{"2x", Kit::Pill::Live}, {"Playing in Chrome", Kit::Pill::Live}, {"Loop", Kit::Pill::Fact}};
+			mini.paused = true;
+			k.miniBar(at(80), mini);
+			mini.pills.clear();
+			mini.hold = 0.5;
+			mini.markPressed = true;
+			k.miniBar(at(10), mini);
+			// the select bar
+			Kit::BarKey keys[4] = {
+				{&G_PLAYLIST, "Playlist", "", Kit::Tone::Normal, false, false, false},
+				{&G_FILE, "Copy", "", Kit::Tone::Normal, false, false, false},
+				{&G_MOVE, "Move", "", Kit::Tone::Normal, false, false, false},
+				{&G_TRASH, "Delete", "", Kit::Tone::Danger, false, false, false},
+			};
+			lay::Box sb[4];
+			lay::selectBar(sb);
+			for (auto& b : sb) b.y -= 232;
+			k.selectBar(sb, keys);
+			Kit::NoticeRow n3;
+			n3.tone = Kit::NoticeTone::Failed;
+			n3.glyph = &G_ALERT;
+			n3.text = "No Wi-Fi";
+			n3.second = "Connect to browse";
+			n3.key = "Retry";
+			n3.cap = "Y";
+			k.notice(lay::notice({16, 64, 608, 0}, true, false, 110), n3);
+			ui.drawTextMid("Notice row with a key; select bar; mini bar in three states", F_I12, DIM, 16, 40, 600);
+		}
+
+		void page4(Kit& k)
+		{
+			ui.fill({0, 0, W, H}, BG);
+			Kit::Empty e;
+			e.glyph = &G_BOOK;
+			e.title = "No books yet";
+			e.lines = {"Put CBZ, EPUB or PDF files on the card,", "then open the folder here."};
+			e.key1 = "Open Files";
+			e.key2 = "Add";
+			k.emptyState(lay::emptyState({0, 54, W, H - 54 - lay::HINTS_H}, 2, 2), e);
+			k.hints({{"A", "Open Files"}, {"Y", "Add"}, {"B", "Back"}});
+		}
+
+		void page5(Kit& k)
+		{
+			ui.fill({0, 0, W, H}, BG);
+			Kit::KeyboardView v;
+			v.value = "http://192.168.1.10";
+			v.caret = v.value.size();
+			v.note = "Any address, with or without http://";
+			v.special = {"https://", "http://", ".json", ".local"};
+			v.rows = {{"q", "w", "e", "r", "t", "y", "u", "i", "o", "p"}, {"a", "s", "d", "f", "g", "h", "j", "k", "l", "-"}, {"z", "x", "c", "v", "b", "n", "m", ".", "/", ":"}};
+			v.layers = {"abc", "123"};
+			v.layerOn = 0;
+			v.bottomCaps = {"L3", "", "Y", "X", "START"};
+			v.cursor = 13;
+			lay::Keyboard l = lay::keyboard({100, 90, 80, 90}, {10, 10, 10}, 2);
+			k.keyboard(l, v);
+			k.iconKey({16, 8, 56, 46}, G_BACK, false, 3);
+			ui.drawTextMid("Address", F_P28, TEXT, 84, 31, 400);
+			k.hints({{"A", "Type"}, {"B", "Delete"}, {"X", "Space"}, {"Y", "Shift"}, {"START", "Done"}});
+		}
+
+		void page6(Kit& k)
+		{
+			backdrop(k);
+			Kit::AlertSpec a;
+			a.title = "Couldn't save the playlist";
+			a.text = "The card is read-only. Put it back in the handheld, or free some space, and try again.";
+			a.danger = true;
+			a.key = "OK";
+			auto lines = k.sheetText(a.text);
+			k.alertSheet(lay::alertSheet((int)lines.size()), a, lines);
+		}
+
+		void page7(Kit& k)
+		{
+			backdrop(k);
+			Kit::ConfirmSpec c;
+			c.title = "Delete 3 files?";
+			c.text = "They are removed from the card. This can't be undone.";
+			c.safe = "Keep them";
+			c.action = "Delete";
+			c.danger = true;
+			c.foot = "Don't ask again";
+			c.focus = 0;
+			auto lines = k.sheetText(c.text);
+			k.confirmSheet(lay::confirmSheet((int)lines.size(), true), c, lines);
+		}
+
+		void page8(Kit& k)
+		{
+			backdrop(k);
+			Kit::BusySpec b;
+			b.title = "Copying";
+			b.file = "Big Buck Bunny.mp4";
+			b.left = "3 of 12 \xC2\xB7 25%";
+			b.right = "About 2 min left";
+			b.share = 0.25;
+			b.tick = 2;
+			k.busySheet(lay::busySheet(), b);
+		}
+
+		void draw(const Player&) override
+		{
+			Kit& k = *ui.kit;
+			switch (page)
+			{
+			case 2: page2(k); break;
+			case 3: page3(k); break;
+			case 4: page4(k); break;
+			case 5: page5(k); break;
+			case 6: page6(k); break;
+			case 7: page7(k); break;
+			case 8: page8(k); break;
+			default: page1(k); break;
+			}
+		}
+	};
+
+	void Ui::openVariantsGallery(int page)
+	{
+		pushOverlay(std::make_unique<VariantsGallery>(*this, page));
+	}
+}

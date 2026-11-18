@@ -149,5 +149,130 @@ namespace bp
 		std::string chipTrack(const Track& t, int n, const std::vector<Track>& all);
 		// ASCII capitals, for a chip's and a line's small label ("SUBTITLES")
 		std::string caps(std::string s);
+
+		// ==== the kit's variants (docs/notes/2026-11-18-kit-variants.md): status cluster, mini bar, filter chips, form row,
+		// alert / confirm / busy sheets, keyboard, volume bar, tiles, cards, empty state, notice row, select and clip bars ====
+
+		// ---- the status cluster and header badges: items right to left, `gap` apart ----
+		constexpr int BADGE_H = 20, BADGE_PAD = 5;
+		struct StatusRow
+		{
+			std::vector<int> x;	// each item's left edge (in the order given: the rightmost first)
+			int left = 0;	// the cluster's left edge
+		};
+		StatusRow statusRow(int right, const std::vector<int>& widths, int gap = 8);
+		int badgeW(int textW, bool glyph);	// a badge: padding both sides, its mark (16) and a gap before the text
+
+		// ---- the mini bar: 52 tall, 12 from the sides, 36 above the foot ----
+		constexpr int MINI_H = 52, MINI_SIDE = 12, MINI_FOOT = 36, MINI_MARK_W = 56, MINI_MARK_H = 42;
+		struct MiniBar
+		{
+			Box box, mark, line;	// the bar; the play mark (its own touch); the 3-tall progress line along its foot
+			int kindX = 0, textX = 0, rightX = 0;	// the kind icon's centre; where the title starts; the right edge of what it holds
+			int cy = 0;
+		};
+		MiniBar miniBar();
+
+		// ---- filter chips used as filters: 40 tall in a 56-tall touch strip ----
+		constexpr int CHIP_H = 40, CHIP_STRIP = 56, CHIP_GAP = 6;
+		struct FilterChips
+		{
+			std::vector<Box> chip, hit;	// the chip as drawn; the touch area (56 tall, up to the next one)
+		};
+		FilterChips filterChips(Box area, const std::vector<int>& widths);
+		int filterAt(const FilterChips& c, int x, int y);	// the chip a touch is on (-1 none)
+
+		// ---- a form row: 46 tall, the label 150 wide, then the value; two keys at the foot ----
+		constexpr int FORM_ROW = 46, FORM_LABEL = 150, FORM_KEY_H = 56;
+		struct FormRow
+		{
+			Box row, label, value;
+		};
+		FormRow formRow(Box row);
+		void formKeys(Box out[2]);	// Test (left) and Save (right)
+
+		// ---- the alert, confirm and busy sheets (each a lay::Sheet with a body) ----
+		struct AlertSheet
+		{
+			Sheet sheet;
+			Box text, key;	// the sentence's lines; the one primary key, full width
+		};
+		AlertSheet alertSheet(int textLines);
+		struct ConfirmSheet
+		{
+			Sheet sheet;
+			Box text, safe, action, foot;	// foot: the "don't ask again" line (empty without one)
+		};
+		ConfirmSheet confirmSheet(int textLines, bool foot);
+		struct BusySheet
+		{
+			Sheet sheet;
+			Box file, bar, amounts, key;	// the file name line, the 12-tall bar, "x of y" and the time left, Cancel
+		};
+		BusySheet busySheet();
+
+		// ---- the keyboard: a field, a special row, three rows of letters, the bottom row ----
+		constexpr int KB_FIELD_H = 48, KB_KEY_W = 58, KB_KEY_H = 52, KB_GAP = 5, KB_BOTTOM_H = 56, KB_SPECIAL_H = 36;
+		struct Keyboard
+		{
+			Box field, note;
+			std::vector<Box> special;	// the field's own pieces (https://, .json), as wide as their labels say
+			std::vector<std::vector<Box>> rows;	// the letters, each row centred
+			std::vector<Box> bottom;	// layer keys, Space, backspace, Done
+		};
+		// specialW: each piece's width; counts: the keys in each row of letters; layers: how many layer keys open the bottom row
+		Keyboard keyboard(const std::vector<int>& specialW, const std::vector<int>& counts, int layers);
+
+		// ---- the volume bar: the 100 mark, and where each colour ends ----
+		struct VolumeBar
+		{
+			Box bar, number;
+			int tickX = -1;	// the 100 mark (-1: the range ends at 100: nothing to mark)
+		};
+		VolumeBar volumeBar(Box area, int max);
+		int volumeX(Box bar, int value, int max);	// the x of `value` on the bar (0..max)
+		// the colour's part: 0 to 100, 1 from 100 to 120, 2 past 120
+		int volumeZone(int value);
+
+		// ---- tiles with a summary: n in `cols` columns, `h` tall, 8 apart, in `area` ----
+		Box tileCell(Box area, int n, int cols, int h, int i);
+
+		// ---- the Recent card (112 x 100) and the Continue card (108 tall) ----
+		constexpr int RECENT_W = 112, RECENT_H = 100, CONTINUE_H = 108;
+		struct RecentCard
+		{
+			Box box, pic, title, note, line;
+		};
+		RecentCard recentCard(Box box);
+		struct ContinueCard
+		{
+			Box box, pic, label, title, note, bar, key;
+		};
+		ContinueCard continueCard(Box box);
+
+		// ---- the empty state: centred in the page; keys 200 x 56 ----
+		struct EmptyState
+		{
+			Box icon, title, lines, key[2];
+			int keys = 0;
+		};
+		EmptyState emptyState(Box page, int lineCount, int keys);
+
+		// ---- the notice row: 52 tall (60 with a second line and a key), an optional 5-tall bar and key ----
+		struct Notice
+		{
+			Box row, icon, text, second, bar, key;
+			bool hasSecond = false, hasBar = false, hasKey = false;
+		};
+		Notice notice(Box area, bool second, bool bar, int keyW);	// area: x, y and width; its height is the row's
+
+		// ---- the select bar and the clip bar, at the foot of the list above the hints ----
+		constexpr int SELBAR_H = 56, CLIPBAR_H = 60, CLIP_KEY_H = 46;
+		void selectBar(Box out[4]);	// Playlist, Copy, Move, Delete
+		struct ClipBar
+		{
+			Box box, text, key[2];	// "... here" (SELECT), Cancel (X)
+		};
+		ClipBar clipBar();
 	}
 }

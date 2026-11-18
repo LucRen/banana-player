@@ -199,6 +199,7 @@ namespace bp
 		// F alone: quick settings over whatever's on the bottom panel (volume, brightness, Same for both screens, Quit);
 		// F again, B or a tap outside closes them
 		void toggleQuick(Player& p);
+		void openVariantsGallery(int page);	// test only (--press gallery:variants[:PAGE]): ui_kit_variants.cpp
 		bool quickShown() const { return findOverlay("quick") != nullptr; }
 		// a level from bananad (its keys: "volume" or "brightness", percent): the quick settings show it
 		void levelChanged(const std::string& what, int percent) { if (what == "volume") volumePct = std::min(100, percent); }	// (the handheld's own: past 100 is the player's gain)
@@ -414,6 +415,8 @@ namespace bp
 		struct MoreSpec;
 		struct MoreSheet;
 		void openMore(std::function<MoreSpec(const Player&)> build);
+		// test only: every ui_kit.h "KIT VARIANTS" piece on one page, for a `shot:` (--press gallery:variants[:PAGE], 1..8)
+		struct VariantsGallery;
 		// ---- the player screen (Page::Main: a video, a song; a photo's viewer is still here in Ui): an area,
 		// ui_player.h / ui_player.cpp ----
 		struct PlayerPage;

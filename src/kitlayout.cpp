@@ -289,5 +289,259 @@ namespace bp
 				if (c >= 'a' && c <= 'z') c = (char)(c - 'a' + 'A');
 			return s;
 		}
+
+		// ==== the kit's variants ====
+
+		StatusRow statusRow(int right, const std::vector<int>& widths, int gap)
+		{
+			StatusRow r;
+			int x = right;
+			for (int w : widths)
+			{
+				x -= w;
+				r.x.push_back(x);
+				x -= gap;
+			}
+			r.left = widths.empty() ? right : x + gap;
+			return r;
+		}
+
+		int badgeW(int textW, bool glyph) { return 2 * BADGE_PAD + (glyph ? 16 + 4 : 0) + textW; }
+
+		MiniBar miniBar()
+		{
+			MiniBar m;
+			m.box = {MINI_SIDE, PANEL_H - MINI_FOOT - MINI_H, PANEL_W - 2 * MINI_SIDE, MINI_H};
+			m.mark = {m.box.x + 5, m.box.y + (MINI_H - MINI_MARK_H) / 2, MINI_MARK_W, MINI_MARK_H};
+			m.line = {m.box.x + 2, m.box.y + MINI_H - 2 - 3, m.box.w - 4, 3};
+			m.cy = m.box.y + (MINI_H - 3) / 2;
+			m.kindX = m.mark.x + m.mark.w + 16;
+			m.textX = m.kindX + 8 + 10;
+			m.rightX = m.box.x + m.box.w - 12;
+			return m;
+		}
+
+		FilterChips filterChips(Box area, const std::vector<int>& widths)
+		{
+			FilterChips c;
+			int x = area.x, y = area.y + (area.h - CHIP_H) / 2;
+			for (int w : widths)
+			{
+				c.chip.push_back({x, y, w, CHIP_H});
+				// the touch area runs on to the next chip's start: no dead strip between two
+				c.hit.push_back({x - CHIP_GAP / 2, area.y, w + CHIP_GAP, area.h});
+				x += w + CHIP_GAP;
+			}
+			return c;
+		}
+
+		int filterAt(const FilterChips& c, int x, int y)
+		{
+			for (size_t i = 0; i < c.hit.size(); i++)
+				if (c.hit[i].hit(x, y)) return (int)i;
+			return -1;
+		}
+
+		FormRow formRow(Box row)
+		{
+			FormRow f;
+			f.row = row;
+			f.label = {row.x + 12, row.y, FORM_LABEL - 12, row.h};
+			f.value = {row.x + FORM_LABEL + 12, row.y, row.w - FORM_LABEL - 24, row.h};
+			return f;
+		}
+
+		void formKeys(Box out[2])
+		{
+			Box area{MARGIN, PANEL_H - HINTS_H - 8 - FORM_KEY_H, PANEL_W - 2 * MARGIN, FORM_KEY_H};
+			for (int i = 0; i < 2; i++) out[i] = cell(area, 2, GAP, i);
+		}
+
+		AlertSheet alertSheet(int textLines)
+		{
+			// the sentence's lines (20 each), 14 clear, the key: the sheet's body is exactly them
+			int textH = std::max(1, textLines) * 20;
+			AlertSheet a;
+			a.sheet = sheet({0, 0, 1, textH + 14 + FORM_KEY_H});
+			a.key = {SHEET_PAD, a.sheet.hints.y - 8 - FORM_KEY_H, PANEL_W - 2 * SHEET_PAD, FORM_KEY_H};
+			a.text = {SHEET_PAD + 2, a.sheet.bodyY + 4, PANEL_W - 2 * SHEET_PAD - 4, textH};
+			return a;
+		}
+
+		ConfirmSheet confirmSheet(int textLines, bool foot)
+		{
+			int textH = std::max(1, textLines) * 20, footH = foot ? 28 : 0;
+			ConfirmSheet c;
+			// (240 at least: the confirm sheet is taller than the alert's)
+			c.sheet = sheet({0, 0, 1, std::max(textH + 14 + FORM_KEY_H + footH, 240 - (11 + SHEET_HEAD + 8 + HINTS_H))});
+			int keysY = c.sheet.hints.y - 8 - FORM_KEY_H - footH;
+			Box area{SHEET_PAD, keysY, PANEL_W - 2 * SHEET_PAD, FORM_KEY_H};
+			c.safe = cell(area, 2, GAP, 0);
+			c.action = cell(area, 2, GAP, 1);
+			c.text = {SHEET_PAD + 2, c.sheet.bodyY + 4, PANEL_W - 2 * SHEET_PAD - 4, textH};
+			c.foot = foot ? Box{SHEET_PAD, c.sheet.hints.y - 8 - footH + 4, PANEL_W - 2 * SHEET_PAD, footH - 4} : Box{0, 0, 0, 0};
+			return c;
+		}
+
+		BusySheet busySheet()
+		{
+			BusySheet b;
+			// the file line (20), the bar (12) 10 under it, the amounts (18) 8 under that, 14 clear, Cancel
+			b.sheet = sheet({0, 0, 1, 20 + 10 + 12 + 8 + 18 + 14 + FORM_KEY_H});
+			int y = b.sheet.bodyY + 4;
+			b.file = {SHEET_PAD + 2, y, PANEL_W - 2 * SHEET_PAD - 4, 20};
+			b.bar = {SHEET_PAD + 2, y + 30, PANEL_W - 2 * SHEET_PAD - 4, 12};
+			b.amounts = {SHEET_PAD + 2, y + 50, PANEL_W - 2 * SHEET_PAD - 4, 18};
+			b.key = {SHEET_PAD, b.sheet.hints.y - 8 - FORM_KEY_H, PANEL_W - 2 * SHEET_PAD, FORM_KEY_H};
+			return b;
+		}
+
+		Keyboard keyboard(const std::vector<int>& specialW, const std::vector<int>& counts, int layers)
+		{
+			Keyboard k;
+			int y = 66;
+			k.field = {MARGIN, y, PANEL_W - 2 * MARGIN, KB_FIELD_H};
+			y += KB_FIELD_H + 8;
+			int x = MARGIN;
+			for (int w : specialW)
+			{
+				k.special.push_back({x, y, w, KB_SPECIAL_H});
+				x += w + GAP;
+			}
+			y += KB_SPECIAL_H + 18;
+			for (int n : counts)
+			{
+				std::vector<Box> row;
+				int w = n * KB_KEY_W + std::max(0, n - 1) * KB_GAP, x0 = (PANEL_W - w) / 2;
+				for (int i = 0; i < n; i++) row.push_back({x0 + i * (KB_KEY_W + KB_GAP), y, KB_KEY_W, KB_KEY_H});
+				k.rows.push_back(row);
+				y += KB_KEY_H + KB_GAP;
+			}
+			y += 6;
+			// layer keys 64, then Space (the rest), backspace 76, Done 120: the row ends on the margin
+			int left = MARGIN, right = PANEL_W - MARGIN;
+			int doneW = 120, backW = 76, layerW = 76;
+			int spaceW = right - left - layers * (layerW + KB_GAP) - (KB_GAP + backW) - (KB_GAP + doneW);
+			int bx = left;
+			for (int i = 0; i < layers; i++)
+			{
+				k.bottom.push_back({bx, y, layerW, KB_BOTTOM_H});
+				bx += layerW + KB_GAP;
+			}
+			k.bottom.push_back({bx, y, spaceW, KB_BOTTOM_H});
+			bx += spaceW + KB_GAP;
+			k.bottom.push_back({bx, y, backW, KB_BOTTOM_H});
+			bx += backW + KB_GAP;
+			k.bottom.push_back({bx, y, right - bx, KB_BOTTOM_H});
+			k.note = {MARGIN, y + KB_BOTTOM_H + 8, PANEL_W - 2 * MARGIN, 20};
+			return k;
+		}
+
+		VolumeBar volumeBar(Box area, int max)
+		{
+			VolumeBar v;
+			v.number = {area.x + area.w - 64, area.y, 64, area.h};
+			v.bar = {area.x, area.y + (area.h - 12) / 2, area.w - 64 - 12, 12};
+			v.tickX = max > 100 ? volumeX(v.bar, 100, max) : -1;
+			return v;
+		}
+
+		int volumeX(Box bar, int value, int max)
+		{
+			if (max <= 0) return bar.x;
+			return bar.x + (int)((long long)bar.w * std::clamp(value, 0, max) / max);
+		}
+
+		int volumeZone(int value) { return value > 120 ? 2 : value > 100 ? 1 : 0; }
+
+		Box tileCell(Box area, int n, int cols, int h, int i)
+		{
+			cols = std::max(1, std::min(cols, std::max(1, n)));
+			Box c = cell({area.x, area.y, area.w, h}, cols, GAP, i % cols);
+			c.y = area.y + i / cols * (h + GAP);
+			return c;
+		}
+
+		RecentCard recentCard(Box box)
+		{
+			RecentCard r;
+			r.box = box;
+			r.pic = {box.x + 4, box.y + 4, box.w - 8, 48};
+			r.title = {box.x + 8, box.y + 57, box.w - 16, 18};
+			r.note = {box.x + 8, box.y + 75, box.w - 16, 14};
+			r.line = {box.x + 6, box.y + box.h - 8, box.w - 12, 3};
+			return r;
+		}
+
+		ContinueCard continueCard(Box box)
+		{
+			ContinueCard c;
+			c.box = box;
+			c.pic = {box.x + 12, box.y + (box.h - 84) / 2, 128, 84};
+			c.key = {box.x + box.w - 12 - 118, box.y + (box.h - 52) / 2, 118, 52};
+			int x = c.pic.x + c.pic.w + 14, w = std::max(0, c.key.x - 12 - x);
+			c.label = {x, box.y + 14, w, 14};
+			c.title = {x, box.y + 33, w, 28};
+			c.note = {x, box.y + 63, w, 16};
+			c.bar = {x, box.y + 88, w, 6};
+			return c;
+		}
+
+		EmptyState emptyState(Box page, int lineCount, int keys)
+		{
+			EmptyState e;
+			e.keys = std::clamp(keys, 0, 2);
+			int linesH = std::max(0, lineCount) * 20;
+			int total = 54 + 12 + 28 + (linesH ? 6 + linesH : 0) + (e.keys ? 18 + FORM_KEY_H : 0);
+			int y = page.y + std::max(0, (page.h - total) / 2), cx = page.x + page.w / 2;
+			e.icon = {cx - 27, y, 54, 54};
+			y += 54 + 12;
+			e.title = {cx - 200, y, 400, 28};
+			y += 28 + 6;
+			e.lines = {cx - 200, y, 400, linesH};
+			y += linesH ? linesH + 18 : 12;
+			if (e.keys == 1) e.key[0] = {cx - 100, y, 200, FORM_KEY_H};
+			if (e.keys == 2)
+			{
+				e.key[0] = {cx - 206, y, 200, FORM_KEY_H};
+				e.key[1] = {cx + 6, y, 200, FORM_KEY_H};
+			}
+			return e;
+		}
+
+		Notice notice(Box area, bool second, bool bar, int keyW)
+		{
+			Notice n;
+			n.hasSecond = second;
+			n.hasBar = bar;
+			n.hasKey = keyW > 0;
+			int h = second && keyW > 0 ? 60 : 52;
+			n.row = {area.x, area.y, area.w, h};
+			n.icon = {area.x + 12, area.y + (h - 20) / 2, 20, 20};
+			if (keyW > 0) n.key = {area.x + area.w - 12 - keyW, area.y + (h - 44) / 2, keyW, 44};
+			int x = area.x + 44, right = keyW > 0 ? n.key.x - 12 : area.x + area.w - 12, w = std::max(0, right - x);
+			int block = 18 + (second ? 16 : 0) + (bar ? 5 + 6 : 0), top = area.y + (h - block) / 2;
+			n.text = {x, top, w, 18};
+			if (second) n.second = {x, top + 18, w, 16};
+			if (bar) n.bar = {x, top + block - 5, w, 5};
+			return n;
+		}
+
+		void selectBar(Box out[4])
+		{
+			Box area{MARGIN, PANEL_H - HINTS_H - 8 - SELBAR_H, PANEL_W - 2 * MARGIN, SELBAR_H};
+			for (int i = 0; i < 4; i++) out[i] = cell(area, 4, GAP, i);
+		}
+
+		ClipBar clipBar()
+		{
+			ClipBar c;
+			c.box = {MARGIN, PANEL_H - HINTS_H - 8 - CLIPBAR_H, PANEL_W - 2 * MARGIN, CLIPBAR_H};
+			int y = c.box.y + (CLIPBAR_H - CLIP_KEY_H) / 2;
+			c.key[1] = {c.box.x + c.box.w - 8 - 110, y, 110, CLIP_KEY_H};
+			c.key[0] = {c.key[1].x - 8 - 170, y, 170, CLIP_KEY_H};
+			c.text = {c.box.x + 14, c.box.y, c.key[0].x - 10 - (c.box.x + 14), CLIPBAR_H};
+			return c;
+		}
 	}
 }
