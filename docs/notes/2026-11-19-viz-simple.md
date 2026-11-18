@@ -97,3 +97,21 @@ Jelly wobble, Washing machine, Tube man.
   become Wave / Levels), reads as Peaks (`visualizerReplacement`). Tube man is kept.
 - Checked: build, core-test (the order round, the 15-tile Display page, the replacements, Rings' tables, the dropped
   stills removed); one render of Barcode and Rings through the Mac's ffmpeg.
+
+## Logging for the freeze
+
+A switch of the visualizer on the handheld once stopped the music (Play did nothing; Stop and a fresh start helped).
+Not seen on the Mac, so `log.txt` now carries the lines that pin it (logging only, no behaviour changed; `player.cpp`,
+`SessionHost::submit`). After it happens again:
+
+```sh
+grep -E "mpv: (set|graph|core-idle|idle-active|eof|pause)|end-file|play pressed|music: graph" log.txt
+```
+
+- `music: graph for <style> (<mode>, theme N): <len> chars, #<hash>`: before each lavfi-complex set.
+- `mpv: graph set ok (...)` / `mpv: set <name> failed: <error> (<value>)`: mpv's answer to a set of lavfi-complex, aid,
+  vid, af, pause, background-color, video-margin-ratio-*, panscan; a failed graph is then written whole.
+- `player: end-file reason=... error=... entry=... current=... after a graph change N ms ago`.
+- `mpv: <core-idle|idle-active|eof-reached|pause|paused-for-cache|ao|audio-reconfig|playback-restart> -> v (+N ms after
+  graph)`: only for 10 s after a graph change.
+- `session: play pressed: session <state>, mpv pause=.., core-idle=.., ...`: the last values seen (never read).

@@ -384,6 +384,13 @@ namespace bp
 		std::string circleMaps;	// where they are, once made
 		bool lutsWarmed = false;	// every style's lut lookups asked for (graphFor), once a run
 		std::string graphSet;	// lavfi-complex as last set (prop)
+		// the freeze's log (watchLog: the play state for 10 s after a graph change; last values seen, never read)
+		std::string setValues[11], graphLabel, graphHash, seenPause = "?", seenCoreIdle = "?", seenIdleActive = "?", seenEof = "?";
+		uint64_t graphChangeAt = 0;
+		void watchLog(const char* name, const char* value) const;
+	public:
+		void logPlayPressed(const char* sessionState) const;
+	private:
 		uint64_t graphAskedAt = 0;	// when a song's graph was last changed while it played (the log times the switch)
 		bool graphFrameLogged = true;	// the switch's first frame logged (render)
 		uint64_t displayDueAt = 0;	// the display changed: its graph applied then (checkDisplay)

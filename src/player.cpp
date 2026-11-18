@@ -36,7 +36,7 @@
 namespace bp
 {
 	enum Observed : uint64_t { TIME_POS = 1, DURATION, PAUSE, TRACK_LIST, MEDIA_TITLE, AID, SID, SPEED, METADATA, PAUSED_FOR_CACHE, SEEKING, CHAPTER_LIST, CHAPTER,
-		AUDIO_IN, AUDIO_OUT, CURRENT_AO, AF_CHAIN, LAVFI_GRAPH, EOF_REACHED };
+		AUDIO_IN, AUDIO_OUT, CURRENT_AO, AF_CHAIN, LAVFI_GRAPH, EOF_REACHED, CORE_IDLE, IDLE_ACTIVE };
 
 	// the audio diagnostics (log.txt, "audio:" lines): an mpv node as "key=value key=value" (a map) or its value
 	static std::string nodeText(const mpv_node* n)
@@ -74,6 +74,19 @@ namespace bp
 	static const uint64_t LEVEL_REPLY = (1ull << 40) + (1ull << 32);
 	// the song art's overlay-add answers, plus its serial (above the level card's, below LOAD_REPLY)
 	static const uint64_t ART_REPLY = (1ull << 40) + (1ull << 39);
+	// the answers of prop() for the properties in SET_WATCHED (a failed set is in the log), plus the name's index
+	static const uint64_t SETP_REPLY = 1ull << 43;
+	static const char* const SET_WATCHED[] = {"lavfi-complex", "aid", "vid", "af", "pause", "background-color",
+		"video-margin-ratio-top", "video-margin-ratio-bottom", "video-margin-ratio-left", "video-margin-ratio-right", "panscan"};
+	static const int SET_WATCHED_N = (int)(sizeof(SET_WATCHED) / sizeof(SET_WATCHED[0]));
+	// (log.txt, for the freeze after a visualizer switch: grep "mpv: (set|graph|core-idle|..)|end-file|play pressed|music: graph")
+	static const uint64_t WATCH_MS = 10000;
+	static std::string shortHash(const std::string& v)
+	{
+		char b[24];
+		snprintf(b, sizeof b, "%08x", (unsigned)(std::hash<std::string>()(v) & 0xffffffffu));
+		return b;
+	}
 	// the panels' shape (both are 4:3)
 	static const double PANEL_ASPECT = 4.0 / 3;
 	// the thumbnail's largest size: the pan area's on the Plus's 1024x768 panel
@@ -221,6 +234,8 @@ namespace bp
 		mpv_observe_property(mpv, CURRENT_AO, "current-ao", MPV_FORMAT_STRING);
 		mpv_observe_property(mpv, AF_CHAIN, "af", MPV_FORMAT_NODE);
 		mpv_observe_property(mpv, LAVFI_GRAPH, "lavfi-complex", MPV_FORMAT_STRING);
+		mpv_observe_property(mpv, CORE_IDLE, "core-idle", MPV_FORMAT_FLAG);
+		mpv_observe_property(mpv, IDLE_ACTIVE, "idle-active", MPV_FORMAT_FLAG);
 		if (o.net && !o.net->attach(mpv)) fprintf(stderr, "net: mpv has no stream callbacks: network files won't open\n");
 		mpv_set_wakeup_callback(mpv, wakeup, ctx);
 		setAspect(aspect);
@@ -262,7 +277,26 @@ namespace bp
 	void Player::prop(const char* name, const std::string& value)
 	{
 		const char* v = value.c_str();
-		mpv_set_property_async(mpv, 0, name, MPV_FORMAT_STRING, &v);
+		uint64_t reply = 0;
+		for (int k = 0; k < SET_WATCHED_N; k++)
+			if (!strcmp(name, SET_WATCHED[k]))
+			{
+				reply = SETP_REPLY + (uint64_t)k;
+				setValues[k] = value;
+			}
+		if (!strcmp(name, "lavfi-complex"))
+		{
+			static const char* const shows[] = {"art", "both", "visualizer", "none"};
+			char lab[160];
+			snprintf(lab, sizeof lab, "%s, %s, %d", visualizerLabel(settings.visualizer),
+				settings.musicShow >= 0 && settings.musicShow < SHOWS ? shows[settings.musicShow] : "?", settings.theme);
+			graphLabel = lab;
+			graphHash = shortHash(value);
+			graphChangeAt = ticks();
+			fprintf(stderr, "music: graph for %s (%s, theme %d): %zu chars, #%s\n", visualizerLabel(settings.visualizer),
+				shows[settings.musicShow >= 0 && settings.musicShow < SHOWS ? settings.musicShow : 0], settings.theme, value.size(), graphHash.c_str());
+		}
+		mpv_set_property_async(mpv, reply, name, MPV_FORMAT_STRING, &v);
 		if (!strcmp(name, "lavfi-complex")) graphSet = value;	// known here, not asked of mpv (a read waits)
 		else if (!strcmp(name, "af"))
 		{
@@ -876,6 +910,19 @@ namespace bp
 			case MPV_EVENT_PROPERTY_CHANGE:
 			{
 				auto* p = (mpv_event_property*)ev->data;
+				if (ev->reply_userdata == CORE_IDLE || ev->reply_userdata == IDLE_ACTIVE || ev->reply_userdata == EOF_REACHED ||
+					ev->reply_userdata == PAUSE || ev->reply_userdata == PAUSED_FOR_CACHE || ev->reply_userdata == CURRENT_AO)
+				{
+					std::string v = p->format == MPV_FORMAT_FLAG ? (*(int*)p->data ? "yes" : "no") : p->format == MPV_FORMAT_STRING ? *(char**)p->data : "-";
+					const char* nm = ev->reply_userdata == CORE_IDLE ? "core-idle" : ev->reply_userdata == IDLE_ACTIVE ? "idle-active"
+						: ev->reply_userdata == EOF_REACHED ? "eof-reached" : ev->reply_userdata == PAUSE ? "pause"
+						: ev->reply_userdata == PAUSED_FOR_CACHE ? "paused-for-cache" : "ao";
+					if (ev->reply_userdata == CORE_IDLE) seenCoreIdle = v;
+					else if (ev->reply_userdata == IDLE_ACTIVE) seenIdleActive = v;
+					else if (ev->reply_userdata == EOF_REACHED) seenEof = v;
+					else if (ev->reply_userdata == PAUSE) seenPause = v;
+					watchLog(nm, v.c_str());
+				}
 				switch (ev->reply_userdata)
 				{
 				case AUDIO_IN: case AUDIO_OUT: case CURRENT_AO: case AF_CHAIN: case LAVFI_GRAPH:
@@ -980,6 +1027,20 @@ namespace bp
 				startedEntry = ((mpv_event_start_file*)ev->data)->playlist_entry_id;
 				if (loadEntry >= 0 && startedEntry == loadEntry) tracksMine = true;
 				break;
+			case MPV_EVENT_SET_PROPERTY_REPLY:
+			{
+				int k = (int)(ev->reply_userdata - SETP_REPLY);
+				if (ev->reply_userdata < SETP_REPLY || k >= SET_WATCHED_N) break;
+				bool graph = k == 0;
+				if (ev->error < 0)
+				{
+					fprintf(stderr, "mpv: set %s failed: %s (%s)\n", SET_WATCHED[k], mpv_error_string(ev->error), setValues[k].substr(0, 200).c_str());
+					if (graph) fprintf(stderr, "mpv: the graph that failed (#%s, %s):\n%s\n", graphHash.c_str(), graphLabel.c_str(), setValues[k].c_str());
+				}
+				else if (graph)
+					fprintf(stderr, "mpv: graph set ok (%s, %zu chars, #%s)\n", graphLabel.c_str(), setValues[k].size(), shortHash(setValues[k]).c_str());
+				break;
+			}
 			case MPV_EVENT_COMMAND_REPLY:
 			{
 				if (ev->reply_userdata >= LOAD_REPLY)
@@ -1042,6 +1103,19 @@ namespace bp
 					wakeLoads--;	// wakeOutput's empty load, not a file of the person's
 					break;
 				}
+				{
+					auto* ef = (mpv_event_end_file*)ev->data;
+					const char* why = ef->reason == MPV_END_FILE_REASON_EOF ? "eof" : ef->reason == MPV_END_FILE_REASON_STOP ? "stop"
+						: ef->reason == MPV_END_FILE_REASON_QUIT ? "quit" : ef->reason == MPV_END_FILE_REASON_ERROR ? "error"
+						: ef->reason == MPV_END_FILE_REASON_REDIRECT ? "redirect" : "?";
+					uint64_t ago = graphChangeAt ? ticks() - graphChangeAt : WATCH_MS + 1;
+					char since[48];
+					if (ago <= WATCH_MS) snprintf(since, sizeof since, "a graph change %llu ms ago", (unsigned long long)ago);
+					else snprintf(since, sizeof since, "-");
+					fprintf(stderr, "player: end-file reason=%s error=%s entry=%lld current=%lld after %s\n", why,
+						ef->reason == MPV_END_FILE_REASON_ERROR ? mpv_error_string(ef->error) : "-", (long long)ef->playlist_entry_id,
+						(long long)startedEntry, since);
+				}
 				// the file before one waiting for its folder's listing, stopped (or ended): not the one to come
 				if (!netWait.dir.empty()) break;
 				auto* e = (mpv_event_end_file*)ev->data;
@@ -1074,6 +1148,7 @@ namespace bp
 			}
 			case MPV_EVENT_AUDIO_RECONFIG:
 			case MPV_EVENT_VIDEO_RECONFIG:
+				if (ev->event_id == MPV_EVENT_AUDIO_RECONFIG) watchLog("audio-reconfig", "");
 				if (graphAskedAt)
 				{
 					bool video = ev->event_id == MPV_EVENT_VIDEO_RECONFIG;
@@ -1083,6 +1158,7 @@ namespace bp
 				}
 				break;
 			case MPV_EVENT_PLAYBACK_RESTART:
+				watchLog("playback-restart", "");
 				// this file's (it comes after its FILE_LOADED): one left over from the last file's seek isn't
 				if (loaded && !started && netWait.dir.empty())
 				{
@@ -1495,6 +1571,20 @@ namespace bp
 	void Player::pause()
 	{
 		prop("pause", "yes");
+	}
+
+	void Player::watchLog(const char* name, const char* value) const
+	{
+		if (!graphChangeAt) return;
+		uint64_t ago = ticks() - graphChangeAt;
+		if (ago > WATCH_MS) return;
+		fprintf(stderr, "mpv: %s -> %s (+%llu ms after graph)\n", name, *value ? value : "event", (unsigned long long)ago);
+	}
+
+	void Player::logPlayPressed(const char* sessionState) const
+	{
+		fprintf(stderr, "session: play pressed: session %s, mpv pause=%s, core-idle=%s, idle-active=%s, eof-reached=%s, graph #%s\n", sessionState,
+			seenPause.c_str(), seenCoreIdle.c_str(), seenIdleActive.c_str(), seenEof.c_str(), graphHash.empty() ? "-" : graphHash.c_str());
 	}
 
 	void Player::togglePause()
