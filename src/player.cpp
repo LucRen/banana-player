@@ -2415,7 +2415,11 @@ namespace bp
 		// own, with every other style's the first time (so a change of style is quick from then on, this run and the
 		// next); files no style reads any more removed
 		// (and the measured copy of the sound evened out: src/vizcache.h)
-		std::string g = vizShapeInput(vizAtFps(visualizerGraphMarked(vis, overCover, circleMaps), settings.vizFps));
+		// the simple styles (Mirror bars, Dots, Steps, Barcode, Rings, Horizon) at 30 frames a second whatever the setting,
+		// as Peaks: on the handheld they stalled mpv at 45 (sound and picture stopped, Play did nothing) and never at 30
+		// (owner's test, 2026-11-19; docs/notes/2026-11-19-viz-simple.md, The stall)
+		bool simple = vis == VIS_MIRROR || vis == VIS_DOTS || vis == VIS_STEPS || vis == VIS_BARCODE || vis == VIS_RINGS || vis == VIS_HORIZON;
+		std::string g = vizShapeInput(vizAtFps(visualizerGraphMarked(vis, overCover, circleMaps), simple ? 30 : settings.vizFps));
 		if (circleMaps.empty()) return vizPlainLuts(g);
 		std::vector<std::string> missing;
 		g = vizCacheLuts(g, circleMaps, &missing);

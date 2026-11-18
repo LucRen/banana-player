@@ -136,3 +136,14 @@ a fresh `--state-dir`, `A,info,A,info,Right,info,Right,info`) shows t advancing 
 Horizon and Steps. The Mac did not stall before this change either (the freeze is the handheld's mpv), so the options
 make the graph's contract explicit rather than change a frame; if it still stalls, the next suspect is mpv's graph
 flush on seek dropping the repeated still.
+
+## The stall, settled by test (2026-11-19)
+
+On the handheld the simple styles stalled mpv (every thread idle in `run_playloop` / `ao_thread` / `vo_wait_default`:
+mpv waiting on a filter graph that stopped giving frames; not a lock) only with Visualizer frame rate 45. The owner
+switched Mirror bars and Steps many times at 30 and it never froze; Peaks, which builds at a fixed `rate=30`, never
+did. The cause inside libavfilter is not pinned (likely the rate rewrite to 45 with 48 kHz sound: 1066.7 samples a
+frame). The simple styles are therefore built at 30 whatever the setting (`Player::graphFor`). The test steps
+`set:KEY=VALUE` and `flip:KEY=A|B:COUNT:MS` (main.cpp) drive such switches without the pages; a frozen player can be
+read with `gdbserver --attach` (a Debian arm64 gdbserver runs on BananaOS) and gdb with the bundle prefix's libmpv
+as build-id debug info.

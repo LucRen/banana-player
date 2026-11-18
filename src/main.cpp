@@ -200,6 +200,10 @@ static void holdIdleSleep()
 }
 #endif
 
+static std::string flipKey, flipVals[2];
+static int flipLeft = 0;
+static Uint32 flipAt = 0, flipMs = 300;
+
 int main(int argc, char** argv)
 {
 #ifdef __GLIBC__
@@ -248,7 +252,7 @@ int main(int argc, char** argv)
 				// BUTTON~MS: held MS ms, then let go
 				std::string::size_type tilde = step.find('~');
 				bool held = tilde != std::string::npos && buttonFromName(step.substr(0, tilde)) != Button::None && atoi(step.c_str() + tilde + 1) > 0;
-				bool ok = burst || held || buttonFromName(step) != Button::None || step == "info" || step == "page" || step == "update" || step == "web" || step == "F" || step == "rows" || step == "screenshot" || step == "volup" || step == "voldown" || step.rfind("prop:", 0) == 0 || step.rfind("shot:", 0) == 0 || step.rfind("level:", 0) == 0 || step.rfind("card:", 0) == 0 || step.rfind("gallery:", 0) == 0 ||
+				bool ok = burst || held || buttonFromName(step) != Button::None || step == "info" || step == "page" || step == "update" || step == "web" || step == "F" || step == "rows" || step == "screenshot" || step == "volup" || step == "voldown" || step.rfind("prop:", 0) == 0 || step.rfind("shot:", 0) == 0 || step.rfind("level:", 0) == 0 || step.rfind("set:", 0) == 0 || step.rfind("flip:", 0) == 0 || step.rfind("card:", 0) == 0 || step.rfind("gallery:", 0) == 0 ||
 					(sscanf(step.c_str(), "tap:%f:%f%n", &v[0], &v[1], &n) == 2 && n == (int)step.size()) ||
 					(sscanf(step.c_str(), "dtap:%f:%f%n", &v[0], &v[1], &n) == 2 && n == (int)step.size()) ||
 					(sscanf(step.c_str(), "hold:%f:%f%n", &v[0], &v[1], &n) == 2 && n == (int)step.size()) ||
@@ -1413,6 +1417,17 @@ int main(int argc, char** argv)
 				if (ui.repeats(held, shown()) && ui.press(held, shown())) leave();
 			}
 
+			// flip: (a test step) a setting alternated on a timer, each change applied at once (no debounce)
+			if (flipLeft > 0 && SDL_GetTicks() >= flipAt)
+			{
+				std::string v = flipVals[flipLeft % 2];
+				Settings s = parseSettings(serializeSettings(player.settings) + flipKey + " = " + v + "\n");
+				player.setSettings(s);
+				player.displayNow();
+				fprintf(stderr, "press: flip %s = %s (%d left)\n", flipKey.c_str(), v.c_str(), flipLeft - 1);
+				flipLeft--;
+				flipAt = SDL_GetTicks() + flipMs;
+			}
 			player.pollEvents();
 			player.checkAudio();
 			player.checkSongArt();
@@ -1645,6 +1660,35 @@ int main(int argc, char** argv)
 							ev.key.keysym.scancode = step == "volup" ? SDL_SCANCODE_VOLUMEUP : SDL_SCANCODE_VOLUMEDOWN;
 							ev.key.keysym.sym = step == "volup" ? SDLK_VOLUMEUP : SDLK_VOLUMEDOWN;
 							SDL_PushEvent(&ev);
+						}
+						else if (step.rfind("flip:", 0) == 0)
+						{
+							// flip:KEY=A|B:COUNT:MS: KEY set to A and B in turn COUNT times, MS apart, each applied at once
+							std::string r = step.substr(5);
+							size_t eq = r.find('='), bar = r.find('|'), c1 = r.find(':', bar), c2 = r.find(':', c1 + 1);
+							if (eq != std::string::npos && bar != std::string::npos && c1 != std::string::npos && c2 != std::string::npos)
+							{
+								flipKey = r.substr(0, eq);
+								flipVals[1] = r.substr(eq + 1, bar - eq - 1);
+								flipVals[0] = r.substr(bar + 1, c1 - bar - 1);
+								flipLeft = atoi(r.c_str() + c1 + 1);
+								flipMs = (Uint32)atoi(r.c_str() + c2 + 1);
+								flipAt = SDL_GetTicks();
+							}
+						}
+						else if (step.rfind("set:", 0) == 0)
+						{
+							// set:KEY=VALUE: one setting changed as Settings would (a test's way to flip, e.g. the
+							// visualizer, without driving the pages)
+							std::string kv = step.substr(4);
+							size_t eq = kv.find('=');
+							if (eq != std::string::npos)
+							{
+								Settings s = parseSettings(serializeSettings(player.settings) + kv.substr(0, eq) + " = " + kv.substr(eq + 1) + "\n");
+								player.setSettings(s);
+								fprintf(stderr, "press: set %s\n", kv.c_str());
+							}
+							renderPending = true;
 						}
 						else if (step.rfind("level:", 0) == 0)
 						{

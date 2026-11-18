@@ -157,6 +157,7 @@ namespace bp
 		void setSettings(const Settings& s, bool persist = true);
 		// called each turn of the loop: the music display's graph, once its changes have settled
 		void checkDisplay();
+		void displayNow() { if (displayDueAt) displayDueAt = 1; }	// (tests: the debounced display change at once)
 		// called each turn of the loop (and with all=true at shutdown): the saves that waited out their second
 		void flushWrites(bool all = false);
 		// called each turn of the loop: with BP_CPU_LOG=1, the player's CPU use in the log every 30 s while playing
