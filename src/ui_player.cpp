@@ -131,7 +131,7 @@ namespace bp
 			// two chips, one per choice (the preset and the effect were one value before): what changes the sound is
 			// yellow, so an EQ or effect left on can't go unnoticed
 			std::string preset = st.eqPreset.empty() ? CUSTOM_NAME : st.eqPreset;
-			add(C_SOUND, &G_EQ, "Sound", st.eqOn ? preset : "Off", st.eqOn);
+			add(C_SOUND, &G_EQ, "Equalizer", st.eqOn ? preset : "Off", st.eqOn);
 			add(C_FX, &G_SPEAKER, "Sound FX", FX_SHORT[std::clamp((int)st.soundFx, 0, SOUNDFX_COUNT - 1)],
 				st.soundFx != SoundFx::None);
 			// the Show mode in its short forms on the chip only (the style is named on View › Display and in

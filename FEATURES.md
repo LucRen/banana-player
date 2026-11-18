@@ -255,7 +255,7 @@ Like a song or a video to keep it in **Liked**, a playlist of its own. Photos an
   equalizer and effects); the hint bar says **SELECT View**.
 - **The chips** under them say how it is set, and a tap changes or opens each (they are touch only: the D-pad never
   lands on one). Five on both. A video: **Subtitles**, **Audio** and **Picture** (each opens its tab of View), **Speed**
-  (View's Speed tab) and **Repeat**. A song: **Sound** (the equalizer's preset, opening View's Equalizer tab), **Sound
+  (View's Speed tab) and **Repeat**. A song: **Equalizer** (the equalizer's preset, opening View's Equalizer tab), **Sound
   FX** (the effect, opening Effects), **Display** (opening Display; its value is the Show mode in its short form, **Art**,
   **Art + viz**, **Visualizer** or **None**, never the style), **Speed** (View's Speed tab) and **Shuffle**.
   A chip whose value isn't the normal one is yellow with a dot (a speed that isn't 1x, Repeat all or one, Shuffle, Fill
