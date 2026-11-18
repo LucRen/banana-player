@@ -65,6 +65,7 @@ if [ "${1:-}" != "--inside" ]; then
 		printf '%s\n' "$BUILDER" | docker build --platform linux/arm64 -q -t "$TAG" - >/dev/null
 	fi
 	exec docker run --rm --platform linux/arm64 \
+		-e BP_COMMIT="$(git -C "$HERE" describe --always --dirty --exclude='*' 2>/dev/null)" \
 		-v "$HERE":/src -v "$SHARED":/cache -v "$HERE/.cache/bp-build":/bpb \
 		"$TAG" bash /src/packaging/build-bundle.sh --inside "$@"
 fi

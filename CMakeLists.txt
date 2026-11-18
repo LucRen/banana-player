@@ -167,8 +167,13 @@ else()
 	target_sources(banana-player PRIVATE src/net_none.cpp src/mangafetch_none.cpp src/mangaworker_none.cpp)
 endif()
 # the commit in crash.log's records (empty without git, as in a source tarball)
-execute_process(COMMAND git -c safe.directory=* describe --always --dirty --exclude=*
-	WORKING_DIRECTORY ${CMAKE_SOURCE_DIR} OUTPUT_VARIABLE BP_COMMIT OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+# (the bundle's container passes it in BP_COMMIT: a worktree's .git points outside what the container can see)
+if(DEFINED ENV{BP_COMMIT})
+	set(BP_COMMIT "$ENV{BP_COMMIT}")
+else()
+	execute_process(COMMAND git -c safe.directory=* describe --always --dirty --exclude=*
+		WORKING_DIRECTORY ${CMAKE_SOURCE_DIR} OUTPUT_VARIABLE BP_COMMIT OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+endif()
 # (in a generated file, not a compile definition: as a definition every commit, or a dirty tree, changed every
 # source's flags and rebuilt the whole player; configure_file rewrites it only when the text changes)
 configure_file(src/buildinfo.cpp.in ${CMAKE_BINARY_DIR}/buildinfo.cpp @ONLY)
