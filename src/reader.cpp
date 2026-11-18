@@ -1,4 +1,5 @@
 #include "reader.h"
+#include "framewatch.h"
 #include "manga_names.h"
 #include "readerfetchplan.h"
 #include "imagesize.h"
@@ -203,8 +204,11 @@ namespace bp
 		strip.setZoom(1, 0, 0);	// the models outlive a chapter: the last one's zoom goes
 		// a chapter's pages already on the card (read before, or downloaded): their real heights from the start
 		if (remote())
+		{
+			onCard.clear();
 			for (int i = 0; i < (int)files.size(); i++)
-				if (fileThere(files[i])) sizeFromFile(i);
+				if (fileThere(files[i])) { onCard.insert(i); sizeFromFile(i); }
+		}
 		// a PDF says every page's shape from its page tree: each place right from the start (a long document's
 		// scroll bar and jumps are then exact before a page is drawn)
 		std::vector<std::pair<int, int>> shapes;
@@ -282,6 +286,7 @@ namespace bp
 		wantKeep.clear();
 		fetching.clear();
 		failed.clear();
+		onCard.clear();
 		errPage = -1;
 		opened = fingerDown = false;
 	}
@@ -328,7 +333,7 @@ namespace bp
 		if (failed.count(planTarget) > 0) return true;
 		// fetched and decoded: the preload's fetches start only then (or after the grace), not while the page
 		// asked for is still coming in or still being decoded
-		return fileThere(files[planTarget]) && pageIn(planTarget);
+		return onCard.count(planTarget) > 0 && pageIn(planTarget);
 	}
 
 	const char* MangaReader::modeName() const
@@ -446,7 +451,7 @@ namespace bp
 			// a page of a URL chapter that isn't fetched yet waits: its decode is queued when pageArrived says so
 			if (i < 0 || i >= (int)files.size()) continue;
 			if (!keep.count(i)) continue;	// over the budget: fetched to the card, not decoded
-			if (remote() && !fileThere(files[i])) continue;
+			if (remote() && !onCard.count(i)) continue;
 			auto bl = bands.find(i);
 			if (bl == bands.end())
 			{
@@ -492,7 +497,7 @@ namespace bp
 		// max is how many may be started now: the plan's cap counts what is already out, so the two add up
 		st.max = (int)fetching.size() + max;
 		for (int i : st.wanted)
-			if (i >= 0 && i < (int)files.size() && fileThere(files[i])) st.done.insert(i);
+			if (i >= 0 && i < (int)files.size() && onCard.count(i)) st.done.insert(i);
 		st.target = planTarget;
 		st.targetAt = planAt;
 		st.now = (int64_t)SDL_GetTicks();
@@ -508,6 +513,7 @@ namespace bp
 		if (!opened || index < 0 || index >= (int)files.size()) return;
 		fetching.erase(index);
 		failed.erase(index);
+		onCard.insert(index);	// its file is there: want() and the fetch plan stop statting for it
 		if (index == errPage) { err.clear(); errPage = -1; }
 		sizeFromFile(index);	// its place its real height now, before it's decoded
 		want();	// its decode goes in now: the file is there
@@ -950,6 +956,7 @@ namespace bp
 		tick(now);
 		bool any = false;
 		{
+			FrameWatchScope fw("decode take");
 			std::lock_guard<std::mutex> l(m);
 			while (!done.empty())
 			{
@@ -1037,7 +1044,11 @@ namespace bp
 			zoomAt = 0;
 			want();
 		}
-		if (any || moving) want();
+		if (any || moving)
+		{
+			FrameWatchScope fw("want");
+			want();
+		}
 		bool need = any || moving || uploads || forceFrames > 0;
 		// the level card: up (its texture going up), fading (a frame each pass) or just down (one frame more,
 		// without it, and its texture let go)

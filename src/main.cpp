@@ -5,6 +5,7 @@
 #include "crashlog.h"
 #include <csignal>
 #include "format.h"
+#include "framewatch.h"
 #include "input.h"
 #include "player.h"
 #include "playlist.h"
@@ -963,6 +964,9 @@ int main(int argc, char** argv)
 			auto lidShoulderUp = [&](int i) { lidShoulderAt[i] = 0; lidShoulderDone[i] = lidShoulderStuck[i] = false; };
 			SDL_Event e;
 			bool got = SDL_WaitEventTimeout(&e, (reader.isOpen() && reader.busy()) || (textReader.isOpen() && textReader.busy()) ? 1 : reader.isOpen() && reader.seekPending() ? 16 : reader.spinning() ? MangaReader::SPIN_MS / 2 : ui.animating() ? 16 : ui.typing() ? 50 : held != Button::None || player.loading() ? 20 : SDL_GetTicks() < freshUntil || levelUntil ? 50 : ui.markMoving() ? 80 : 250);
+			// the pass starts after the wait (the wait isn't a frame's work) and ends after both panels are drawn
+			FrameWatch::begin(SDL_GetTicks());
+			Uint32 eventsAt = SDL_GetTicks();
 			while (got)
 			{
 				// a button, a touch or the stick moved (past drift): the idle sleep's clock starts again
@@ -1358,6 +1362,7 @@ int main(int argc, char** argv)
 				}
 				got = SDL_PollEvent(&e);
 			}
+			FrameWatch::add("events", SDL_GetTicks() - eventsAt);
 			// the shoulder keys' hold: one step at 0.6 s; a key down 5 s is stuck and ignored until let go; not lit
 			// anymore (the lid opened, Stop) releases them all
 			if (!lidKeysNow())
@@ -1414,7 +1419,11 @@ int main(int argc, char** argv)
 				photos.settings = player.settings;
 				photoSettingsSeen = ps;
 			}
-			if (haveUi) ui.tick(shown());
+			if (haveUi)
+			{
+				FrameWatchScope fw("ui tick");
+				ui.tick(shown());
+			}
 			if (player.quit || ui.quitRequested || ui.restartRequested) running = false;
 			// the player's own Stop: the session's (everywhere: a page playing it too); what the session doesn't have (a
 			// photo) stops here alone. The web's Stop of a photo, or of a file deleted under it, likewise
@@ -1815,6 +1824,7 @@ int main(int argc, char** argv)
 			if (now - idleHoldAt >= 5000)
 			{
 				idleHoldAt = now;
+				FrameWatchScope fw("idle hold");
 				holdIdleSleep();
 			}
 #endif
@@ -1825,6 +1835,7 @@ int main(int argc, char** argv)
 				if (now - idleTickAt >= 1000)
 				{
 					idleTickAt = now;
+					FrameWatchScope fw("idle tick");
 					if (!powerAt || now - powerAt >= 10000)
 					{
 						powerAt = now;
@@ -1876,6 +1887,7 @@ int main(int argc, char** argv)
 				if (now - lidTickAt >= 250)
 				{
 					lidTickAt = now;
+					FrameWatchScope fw("lid guard");
 					keepOnLid = player.settings.lidKeepPlaying;
 					// loaded counts, paused too: with the lid shut a pause by the power key must not let it sleep,
 					// or Power could never play again; only nothing loaded (Stop) gives the lid back to BananaOS
@@ -1900,9 +1912,11 @@ int main(int argc, char** argv)
 				static ino_t routeIno = 0;
 				static std::string routeText;
 				static bool routeMoved = false;
-				if (now - routeAt >= 500)
+				// only worth a look while something is loaded: a new file opens its sound on the route of the moment
+				if (player.loaded && now - routeAt >= 500)
 				{
 					routeAt = now;
+					FrameWatchScope fw("route check");
 					struct stat rs;
 					ino_t ino = stat("/run/banana/asound.conf", &rs) == 0 ? rs.st_ino : 0;
 					if (ino != routeIno)
@@ -1986,13 +2000,21 @@ int main(int argc, char** argv)
 			}
 #endif
 			// the manga reader: a chapter asked for, the bottom panel's commands, what it shows told back
-			if (haveUi) ts.syncReaders(ui, player, mangaNet, opts.stateDir, now, woke, haveUi, showLevelCard, renderPending);
+			if (haveUi)
+			{
+				FrameWatchScope fw("reader sync");
+				ts.syncReaders(ui, player, mangaNet, opts.stateDir, now, woke, haveUi, showLevelCard, renderPending);
+			}
 			// with nothing playing the top panel is drawn on a change only, and mpv may not have the level card yet
 			// when it's asked to show: drawn again and again while the card is up
 			drainUnder();
-			ts.draw(player, photos, shown(), ui, now, refresh, levelUntil, renderPending);
+			{
+				FrameWatchScope fw("top draw");
+				ts.draw(player, photos, shown(), ui, now, refresh, levelUntil, renderPending);
+			}
 			if (haveUi)
 			{
+				FrameWatchScope fw("bottom draw");
 				// a slow bottom panel, in the log: what a press waits for on the handheld (the folder it was in)
 				Uint32 t0 = SDL_GetTicks();
 				ui.draw(shown(), refresh);
@@ -2001,6 +2023,7 @@ int main(int argc, char** argv)
 					fprintf(stderr, "timing: bottom panel drawn in %u ms (%s)\n", (unsigned)took,
 						isNetPath(ui.browseFolder()) ? "network folder" : ui.browseFolder().empty() ? "player" : "browser");
 			}
+			FrameWatch::end(SDL_GetTicks());
 		}
 		if (!player.error.empty()) rc = 1;
 		// "Restart now": launch.sh starts again, the update put in place
@@ -2031,6 +2054,8 @@ int main(int argc, char** argv)
 		bottomTouch.stop();
 		// a playlist's last edits (they wait a second to be written)
 		if (haveUi) ui.flushPlaylist(player);
+		// the manga reader's place now (its saves are debounced while a chapter is read)
+		if (haveUi) ui.manga->mangaFlush();
 		player.saveResume();
 		SDL_GL_MakeCurrent(top, gl);
 		photos.shutdown();

@@ -169,8 +169,12 @@ namespace bp
 		uint64_t mangaScanGen = 0, mangaLocalSerial = 0;
 		Uint32 mangaScanAt = 0;
 		std::unordered_map<std::string, Uint32> mangaFillAsked;
-		bool mangaDirty = false;	// the store changed and wasn't written yet (mangaTick writes it once a second)
+		bool mangaDirty = false;	// the store changed and wasn't written yet (mangaTick writes it every MANGA_SAVE_MS)
 		Uint32 mangaSavedAt = 0;
+		// A page's progress is recorded as the reader moves, but written to the card every few seconds only: an fsync
+		// on the SD card can take tens of ms, and while a chapter is flicked through that was a hitch every second.
+		// Leaving the chapter or the app flushes it (mangaFlush)
+		static constexpr Uint32 MANGA_SAVE_MS = 5000;
 		std::vector<std::string> mangaNotes;	// toasts made where no Player was at hand (mangaNotesTick shows them)
 		// the Library and History lists made again when the store changes: the library, its unread counts, the
 		// History's series rows
@@ -335,8 +339,9 @@ namespace bp
 		std::string mangaReadingLine() const;	// "Reading your library… N series" while the card is read
 		void mangaLocalSort();
 		void mangaCache() const;
-		void mangaSave();				// the store written now (the reader's: once a second, and on closing)
-		void mangaTick();				// the reader's page recorded, the store written when a second has passed
+		void mangaSave();				// the store written now (the reader's: every few seconds, and on closing/leaving)
+		void mangaTick();				// the reader's page recorded, the store written when MANGA_SAVE_MS has passed
+		void mangaFlush();				// the place now and the store written, at once (leaving the chapter, quitting)
 		void mangaRecordProgress();		// the reader's place into the store
 		void mangaCloseReader();		// B: Close pushed, progress saved, the series page
 		void openMangaSeries(const std::string& id, int from, Player& p);

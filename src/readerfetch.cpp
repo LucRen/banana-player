@@ -1,5 +1,6 @@
 #include "readerfetch.h"
 #include "challenge.h"
+#include "framewatch.h"
 #include "manganet.h"
 #include "readerfetchplan.h"
 #include <cerrno>
@@ -81,6 +82,7 @@ namespace bp
 	void ReaderFetch::pass()
 	{
 		if (!net || !cache || !reader || !reader->isOpen() || !reader->remote()) return;
+		FrameWatchScope fw("fetch");
 		// every pass, not only when a slot frees: the view may have moved away from what is out (and a cancelled
 		// answer that still arrives is then thrown away by own())
 		reorder();

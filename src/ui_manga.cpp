@@ -1,4 +1,5 @@
 #include "ui.h"
+#include "framewatch.h"
 #include "textreader.h"
 #include "manganet.h"
 #include "ui_internal.h"
@@ -451,9 +452,18 @@ namespace bp
 
 	void Ui::Manga::mangaSave()
 	{
+		FrameWatchScope fw("progress save");	// (its fsync is the hitch this watch is for)
 		if (mangaStore) mangaStore->save();
 		mangaDirty = false;
 		mangaSavedAt = SDL_GetTicks();
+	}
+
+	void Ui::Manga::mangaFlush()
+	{
+		// leaving the chapter or the app: record where the reader is now, then write it once (the reader's saves are
+		// debounced, so the last few pages would otherwise be a few seconds behind)
+		if (ui.pageReader && ui.pageReader->readerStatus.open) mangaRecordProgress();
+		if (mangaDirty) mangaSave();
 	}
 
 	void Ui::Manga::mangaCache() const
@@ -586,7 +596,7 @@ namespace bp
 		else if (ui.pageReader->readerStatus.pages > 0 && std::fabs(ui.pageReader->readerStatus.within - mangaProgWithin) > 0.02f &&
 			SDL_GetTicks() - mangaProgAt >= 2000)
 			mangaRecordProgress();
-		if (mangaDirty && SDL_GetTicks() - mangaSavedAt >= 1000) mangaSave();
+		if (mangaDirty && SDL_GetTicks() - mangaSavedAt >= MANGA_SAVE_MS) mangaSave();
 	}
 
 	void Ui::Manga::mangaCloseReader()

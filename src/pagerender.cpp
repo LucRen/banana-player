@@ -1,4 +1,5 @@
 #include "pagerender.h"
+#include "framewatch.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -363,9 +364,13 @@ namespace bp
 			gl->DeleteTextures((int)dead.size(), dead.data());
 			dead.clear();
 		}
-		uploadOne();
-		if (uploadAll)
-			for (int k = 0; k < 256 && uploadOne(); k++) {}
+		// (one tile a frame is on purpose: a whole page at once held a frame for 150 ms; the watch names it if one does)
+		{
+			FrameWatchScope fw("upload");
+			uploadOne();
+			if (uploadAll)
+				for (int k = 0; k < 256 && uploadOne(); k++) {}
+		}
 		// a sharper page all up: it takes the old one's place now, in one frame
 		for (auto it = pages.begin(); it != pages.end();)
 		{
