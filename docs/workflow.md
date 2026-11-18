@@ -28,7 +28,8 @@ Moved out of CLAUDE.md word for word (CLAUDE.md keeps the commands and a line on
   `BP_WEB_IP` (`none` = no Wi-Fi), `BP_WEB_FAIL`, `BP_WEB_KEEPALIVE`. Crash log: `<state>/crash.log` (DEVELOPMENT.md).
 - **Linux-only code** (evdev touch, lid, inotify, backlight, the volume keys' grab) compiles only on Linux: after touching `touch.*`,
   `sleepwatch.*`, `volumekey.*`, `levelwatch.*`, `panel.*` (or Ui's includes) run the arm64 Docker check in DEVELOPMENT.md ("Linux check").
-- **Bundle:** `build-bundle.sh` caches source builds in `.cache/bundle` and outputs `dist/ports/` and
+- **Bundle:** `build-bundle.sh` caches the libraries and ccache's store in the main checkout's `.cache/bundle` (shared by
+  every worktree), builds the player in each checkout's `.cache/bp-build` (a commit alone rebuilds one file: ~4 s), and outputs `dist/ports/` and
   `dist/BananaPlayer-<version>-aarch64.zip` (`BananaPlayer/`, `Banana Player.sh`, `media/box/Banana Player.png`). The card
   is `/Volumes/BANANA`; copy into `roms/ports/` with `COPYFILE_DISABLE=1 cp -X` and `dot_clean` (a stray
   `._Banana Player.sh` shows up as a broken port).
