@@ -527,9 +527,7 @@ Songs show their title, artist and album on the top screen. While a song plays:
   **Art + visualizer** (the visualizer over the bottom of the art), **Visualizer only**, or **None** (just the title:
   the lightest on the battery). A fifth row, **Visualizer style**, names the style in use and opens View's
   **Visualizer** tab; with Album art only or None it reads "<style> · not shown" and can still be changed. The
-  **Visualizer** tab is the style grid, twenty-one of them: **Lite** (the cheapest: one glowing
-  pulse on the beat and twelve bars, drawn by the player itself, with no video frames from mpv at all; it is meant for
-  long listening on the battery, not accuracy, and works with any file, mono or multichannel), **Peaks** (default: 64
+  **Visualizer** tab is the style grid, twenty of them: **Peaks** (default: 64
   yellow bars, bass on
   the left, each with a cream cap that stays at the bar's highest point and slowly falls back, over a faint grid),
   **Circle** (bars round a glowing ring, cyan to pink; with Art + visualizer, the album art sits inside the ring),
@@ -551,7 +549,8 @@ Songs show their title, artist and album on the top screen. While a song plays:
   moves it about as much as a loud one, the treble side is lively too, and silence stays still. With Art + visualizer, every style but Circle is
   laid over the bottom of the art, which shows through around it. Coral Peaks, Hi-fi LED, Synthwave, Banana stack,
   Heartbeat, Oscilloscope, Turntable and Disco ball (earlier styles), and Bars, Waves and Spectrum, are retired: a
-  saved choice of one of them becomes Peaks. The top screen
+  saved choice of one of them becomes Peaks. The Lite style (drawn by the player itself, no graph) is removed for now:
+  a saved choice of it becomes Peaks too. The top screen
   changes as you choose. On Display, **SELECT** steps the Show mode (Album art only → Art + visualizer → Visualizer
   only → None), **A** sets the row, **B** closes. On Visualizer, the **D-pad** moves over the grid and the style under
   it is on the top screen at once, **A** keeps it, **Y** shows it when the mode has no visualizer, **B** closes. A song

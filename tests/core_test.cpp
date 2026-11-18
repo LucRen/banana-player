@@ -27,7 +27,6 @@ extern "C"
 #include <libavutil/log.h>
 }
 #include "eq.h"
-#include "vizlite.h"
 #include "format.h"
 #include "ftplist.h"
 #include "history.h"
@@ -6097,8 +6096,7 @@ static void testSettings()
 	CHECK_EQ(visualizerGraph(VIS_PEAKS_BANANA, false) != visualizerGraph(VIS_PEAKS, false), true);
 	CHECK_EQ(visualizerGraph(VIS_PEAKS_BANANA, true) != visualizerGraph(VIS_PEAKS, true), true);
 	CHECK_EQ(visualizerGraph(VIS_PEAKS_BANANA, false).find("lagfun=decay=") != std::string::npos, true);
-	// the cycle: the offered ones (VIS_SHOWN), Lite first; from one not offered as from Lite
-	CHECK_EQ(stepVisualizer(VIS_LITE, 1), (int)VIS_PEAKS_BANANA);
+	// the cycle: the offered ones (VIS_SHOWN), Peaks first; from one not offered as from Peaks
 	CHECK_EQ(stepVisualizer(VIS_PEAKS_BANANA, 1), (int)VIS_CIRCLE);
 	CHECK_EQ(stepVisualizer(VIS_CIRCLE, 1), (int)VIS_POCKET);
 	CHECK_EQ(stepVisualizer(VIS_POCKET, 1), (int)VIS_CITY);
@@ -6106,22 +6104,18 @@ static void testSettings()
 	CHECK_EQ(stepVisualizer(VIS_DANCER, 1), (int)VIS_FIRE);
 	CHECK_EQ(stepVisualizer(VIS_SEA, 1), (int)VIS_BUNNY);
 	CHECK_EQ(stepVisualizer(VIS_CAT, 1), (int)VIS_POPCORN);
-	CHECK_EQ(stepVisualizer(VIS_WASHER, 1), (int)VIS_LITE);
-	CHECK_EQ(stepVisualizer(VIS_PEAKS_BANANA, -1), (int)VIS_LITE);
-	CHECK_EQ(stepVisualizer(VIS_LITE, -1), (int)VIS_WASHER);
-	CHECK_EQ(stepVisualizer(VIS_SPECTRUM, 1), (int)VIS_PEAKS_BANANA);
-	CHECK_EQ(stepVisualizer(VIS_PEAKS, 1), (int)VIS_PEAKS_BANANA);
-	// Lite draws no graph at all (the player measures the sound and draws it); it needs no stills
-	CHECK_EQ(visualizerGraph(VIS_LITE, false), std::string(""));
-	CHECK_EQ(visualizerGraph(VIS_LITE, true), std::string(""));
-	CHECK_EQ(visualizerNeedsMaps(VIS_LITE), false);
-	CHECK_EQ(parseSettings("visualizer = lite\n").visualizer, (int)VIS_LITE);
+	CHECK_EQ(stepVisualizer(VIS_WASHER, 1), (int)VIS_PEAKS_BANANA);
+	CHECK_EQ(stepVisualizer(VIS_PEAKS_BANANA, -1), (int)VIS_WASHER);
+	CHECK_EQ(stepVisualizer(VIS_SPECTRUM, 1), (int)VIS_CIRCLE);
+	CHECK_EQ(stepVisualizer(VIS_PEAKS, 1), (int)VIS_CIRCLE);
+	// Lite (the player-drawn style) was removed for now: a saved choice of it reads as Peaks
+	CHECK_EQ(parseSettings("visualizer = lite\n").visualizer, (int)VIS_PEAKS_BANANA);
 	{
 		int seen = 0;
 		for (int i = 0, v = VIS_PEAKS_BANANA; i < VIS_SHOWN_COUNT; i++, v = stepVisualizer(v, 1)) seen |= 1 << v;
 		int want = 0;
 		for (int v : VIS_SHOWN) want |= 1 << v;
-		CHECK_EQ(VIS_SHOWN_COUNT, 21);
+		CHECK_EQ(VIS_SHOWN_COUNT, 20);
 		CHECK_EQ(seen, want);
 	}
 	// Pocket console: kept by its id, named, its own graph (Peaks' caps, YUV only), alone and over the art
@@ -7232,89 +7226,6 @@ static void testEq()
 	CHECK_EQ(parseSettings(serializeSettings(es)).eqPreset, std::string("a=b # c"));
 	CHECK_EQ(parseSettings("eq-gains = 1,2,3\n").eqGains == EqGains{}, true);	// a bad curve: flat
 	CHECK_EQ(parseSettings("eq = maybe\n").eqOn, false);
-}
-
-// Lite, the pure parts: the automatic gain (a quiet and a loud song both fill the meter, no 1 s edge), the beat on a
-// synthetic envelope with a kick every 500 ms (one beat each, none missing), and the queue the picture is drawn from
-static void testLiteMeter()
-{
-	// the tap: one passthrough, stereo from any channel count (aresample, a mono file's one channel included),
-	// 512-sample frames, the bass beside the sound for astats, then dropped. RMS only, never Peak_level
-	CHECK_EQ(liteTapFilter(), std::string("@bplite:lavfi=[aresample=ochl=stereo,asetnsamples=n=512:p=0,asplit=2[lmain][llow];"
-		"[llow]lowpass=f=150[lbase];[lmain][lbase]join=inputs=2:channel_layout=4.0:map=0.0-FL|0.1-FR|1.0-FC|1.1-BC,"
-		"astats=metadata=1:reset=1:measure_perchannel=RMS_level:measure_overall=RMS_level,"
-		"pan=stereo|c0=c0|c1=c1]"));
-
-	// the gain: a steady tone sits mid-span at once; a new peak lifts the ceiling at once; a quiet and a loud song both
-	// read the whole meter; no reading is a NaN or outside 0..1
-	{
-		LiteGain g;
-		g.reset();
-		CHECK(std::fabs(g.map(-45, 0) - 0.5) < 1e-9);
-		for (int i = 0; i < 180; i++) CHECK_EQ(std::isfinite(g.map(-45, 1.0 / 60)), true);	// 3 s
-		CHECK_EQ(std::fabs(g.map(-45, 1.0 / 60) - 0.5) < 1e-9, true);	// (a steady level has no 1 s edge to fall at)
-		double up = g.map(-33, 1.0 / 60);	// +12 dB: the ceiling jumps now, not over a window
-		CHECK_EQ(up > 0.95, true);
-		LiteGain quiet, loud;
-		quiet.reset();
-		loud.reset();
-		for (int i = 0; i < 180; i++)
-		{
-			quiet.map(-50, 1.0 / 60);
-			loud.map(0, 1.0 / 60);
-		}
-		CHECK_EQ(std::fabs(quiet.map(-50, 1.0 / 60) - 0.5) < 1e-9, true);
-		CHECK_EQ(std::fabs(loud.map(0, 1.0 / 60) - 0.5) < 1e-9, true);
-		LiteGain bad;
-		bad.reset();
-		CHECK_EQ(std::isfinite(bad.map(-INFINITY, 0)), true);
-		double nanv = bad.map(NAN, 1.0 / 60);
-		CHECK_EQ(std::isfinite(nanv) && nanv >= 0 && nanv <= 1, true);
-	}
-
-	// a steady tone: no beats, and the display level does not dip at a window's edge
-	{
-		LiteMeter m;
-		m.reset();
-		for (int i = 0; i < 300; i++) m.sample(-24, (uint64_t)i * 1000 / 60);	// 5 s at 60 readings a second
-		CHECK_EQ(m.beats, 0u);
-		CHECK_EQ(std::fabs(m.level - 0.5) < 1e-9, true);
-		CHECK_EQ(m.silent, false);
-	}
-
-	// kicks every 500 ms over a steady body: one beat each, and none missing (the old 1 s box average made the
-	// trigger's sensitivity move with the window, which is the periodic drop the owner saw)
-	{
-		LiteMeter bass;
-		bass.reset();
-		uint64_t atSec[8] = {};
-		for (int i = 0; i < 60 * 8; i++)	// 8 s at 60 readings a second
-		{
-			double phase = std::fmod(i / 60.0, 0.5);
-			double db = -28 + 23 * std::exp(-phase / 0.04);	// a 60 Hz burst that decays in 40 ms
-			bass.sample(db, (uint64_t)i * 1000 / 60);
-			if (i % 60 == 0) atSec[i / 60] = bass.beats;
-		}
-		CHECK_EQ(bass.level > 0.0, true);
-		CHECK_EQ(bass.beats, 15u);	// the first reading starts the average: the kicks from 0.5 s (15 of them)
-		for (int s = 0; s < 7; s++)	// every second has its two kicks: no second is skipped or doubled
-			CHECK_EQ(atSec[s + 1] - atSec[s], 2u);
-	}
-
-	// the queue: a reading at a time is interpolated between the two around it, so a 45 or 60 fps picture moves even
-	// when mpv reports 18 times a second; the beat count is the one at that audible time, not at arrival
-	{
-		LiteMeter m;
-		m.reset();
-		m.sample(-40, 1000);
-		m.sample(-20, 1100);
-		m.sample(-10, 1200);
-		CHECK_EQ(m.at(900), 0.0);	// before the history
-		CHECK_EQ(m.at(1200) >= m.at(1100), true);
-		CHECK_EQ(m.at(1150) >= m.at(1100) && m.at(1150) <= m.at(1200), true);
-		CHECK_EQ(m.beatsAt(1099), 0u);
-		CHECK_EQ(m.beatsAt(1100), 1u);	// (the -20 reading is a beat; the -10 one comes 100 ms later, inside the gap)
-	}
 }
 
 static double wavRms(const std::string& w, size_t from, size_t to)
@@ -9011,8 +8922,8 @@ static void testKitLayout()
 		CHECK(b.code.h > 960 * 3 / 5);
 	}
 
-	// the Visualizer tab's style grid: 21 styles, five a row, inside its area, in rows that meet its edges
-	Box grid{16, 300, 608, 5 * 46 + 4 * 6};
+	// the Visualizer tab's style grid: 20 styles, five a row, inside its area, in rows that meet its edges
+	Box grid{16, 300, 608, 4 * 46 + 3 * 6};
 	auto cells = gridCells(grid, VIS_SHOWN_COUNT, 5, 6);
 	CHECK_EQ((int)cells.size(), VIS_SHOWN_COUNT);
 	CHECK_EQ(cells[0].x, 16);
@@ -11431,7 +11342,6 @@ int main()
 	testSettings();
 	testSettingsTable();
 	testEq();
-	testLiteMeter();
 	testSoundFx();
 	testResume();
 	testPlaylist();

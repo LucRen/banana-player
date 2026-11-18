@@ -40,16 +40,17 @@ namespace bp
 	// Tube man, Long cat and Washing machine. Peaks (coral), Oscilloscope, Turntable, Disco ball, Hi-fi LED,
 	// Synthwave, Banana stack and Heartbeat are kept but not offered (the owner's pick, 0.7.12): Peaks Banana is the
 	// default (offered as "Peaks"), and a setting naming one not offered reads as it
-	// Lite: the cheap one, drawn by the player itself on the top panel (no video frames from mpv): a glow that
-	// pulses on the beat and a dozen bars, from one astats tap in the af chain (src/vizlite.h)
+	// Lite (the player-drawn one, no graph) was removed for now, after the owner saw its bars sit mostly at the top
+	// on the handheld: branch vizlite keeps it, docs/notes/2026-11-17-viz-lite.md has its story, and a setting naming
+	// it reads as Peaks
 	enum Visualizer { VIS_BARS, VIS_WAVES, VIS_SPECTRUM, VIS_CIRCLE, VIS_PEAKS, VIS_PEAKS_BANANA, VIS_POCKET, VIS_LED,
 		VIS_SYNTHWAVE, VIS_BANANA_STACK, VIS_CITY, VIS_SCOPE, VIS_HEART, VIS_FIRE, VIS_AURORA, VIS_GARDEN, VIS_VINYL, VIS_SEA, VIS_BUNNY, VIS_BOBA,
 		VIS_JELLY, VIS_MUSICBOX, VIS_FISHBOWL, VIS_DISCO, VIS_DANCER, VIS_CAT, VIS_POPCORN, VIS_WOBBLE, VIS_TUBEMAN,
-		VIS_LONGCAT, VIS_WASHER, VIS_LITE, VISUALIZERS };
-	constexpr int VIS_SHOWN[] = {VIS_LITE, VIS_PEAKS_BANANA, VIS_CIRCLE, VIS_POCKET, VIS_CITY, VIS_DANCER, VIS_FIRE, VIS_AURORA, VIS_GARDEN,
+		VIS_LONGCAT, VIS_WASHER, VISUALIZERS };
+	constexpr int VIS_SHOWN[] = {VIS_PEAKS_BANANA, VIS_CIRCLE, VIS_POCKET, VIS_CITY, VIS_DANCER, VIS_FIRE, VIS_AURORA, VIS_GARDEN,
 		VIS_SEA, VIS_BUNNY, VIS_BOBA, VIS_JELLY, VIS_MUSICBOX, VIS_FISHBOWL, VIS_CAT, VIS_POPCORN, VIS_WOBBLE, VIS_TUBEMAN, VIS_LONGCAT, VIS_WASHER};
 	constexpr int VIS_SHOWN_COUNT = (int)(sizeof(VIS_SHOWN) / sizeof(VIS_SHOWN[0]));
-	// a visualizer's place in VIS_SHOWN (a hidden one: the first offered, Lite, at 0)
+	// a visualizer's place in VIS_SHOWN (a hidden one: the first offered, Peaks, at 0)
 	int visualizerSlot(int v);
 	// the next one offered after v (dir 1) or before it (-1), round
 	int stepVisualizer(int v, int dir);

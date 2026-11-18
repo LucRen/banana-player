@@ -1169,7 +1169,9 @@ namespace bp
 			return lay::listSheet(shown(p));
 		}
 		// the Visualizer tab: the style grid alone, and the notice over it while the mode shows no visualizer
-		int vizBodyH(const Player& p) const { return (showHidesVisualizer(p) ? 56 + 8 : 0) + 5 * 46 + 4 * 6; }
+		static constexpr int VIZ_COLS = 5;
+		static constexpr int VIZ_ROWS = (VIS_SHOWN_COUNT + VIZ_COLS - 1) / VIZ_COLS;
+		int vizBodyH(const Player& p) const { return (showHidesVisualizer(p) ? 56 + 8 : 0) + VIZ_ROWS * 46 + (VIZ_ROWS - 1) * 6; }
 		lay::Sheet vizLayout(const Player& p) const { return lay::sheet({0, 0, 0, vizBodyH(p)}); }
 		struct VizLayout
 		{
@@ -1186,7 +1188,7 @@ namespace bp
 				v.showIt = {v.notice.x + v.notice.w - 16 - 132, top + 6, 132, 44};
 				top += 56 + 8;
 			}
-			auto cells = lay::gridCells({16, top, 608, 5 * 46 + 4 * 6}, VIS_SHOWN_COUNT, 5, 6);
+			auto cells = lay::gridCells({16, top, 608, VIZ_ROWS * 46 + (VIZ_ROWS - 1) * 6}, VIS_SHOWN_COUNT, VIZ_COLS, 6);
 			for (int i = 0; i < VIS_SHOWN_COUNT; i++) v.style[i] = cells[i];
 			return v;
 		}

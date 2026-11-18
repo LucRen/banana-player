@@ -159,24 +159,6 @@ namespace bp
 
 	std::string afInputFilter() { return "@bpin:lavfi=[aformat=sample_rates=44100|48000]"; }
 
-	std::string liteTapFilter()
-	{
-		// 512 samples: ~94 readings a second at 48 kHz if mpv reports every frame, and a kick is in the reading that
-		// holds it rather than spread over 21 ms. (The laptop's mpv reports about 18 a second whatever the frame
-		// size: it coalesces af-metadata into its audio-chain tick. The player's queue interpolates between readings.)
-		// The sound is brought to stereo by aresample, not aformat: a mono file (one channel, and its layout not
-		// always stated) used to reach join with a single channel and fail its map, which ended the song; aresample
-		// converts from any channel count (mono duplicated, 5.1 downmixed). A lowpass copy (the bass, 150 Hz) is
-		// joined beside it as a 4.0 picture's front centre and back centre only long enough for astats to measure
-		// each channel (the bass on channels 3 and 4), then pan drops it: what goes on to the EQ and the effect is the
-		// sound as it came, sample for sample. Per-channel figures are just those four; the overall one is the whole
-		// sound. RMS only: Peak_level sits near full scale on most music (that is what made Lite look weak)
-		return "@bplite:lavfi=[aresample=ochl=stereo,asetnsamples=n=512:p=0,asplit=2[lmain][llow];"
-			   "[llow]lowpass=f=150[lbase];[lmain][lbase]join=inputs=2:channel_layout=4.0:map=0.0-FL|0.1-FR|1.0-FC|1.1-BC,"
-			   "astats=metadata=1:reset=1:measure_perchannel=RMS_level:measure_overall=RMS_level,"
-			   "pan=stereo|c0=c0|c1=c1]";
-	}
-
 	std::string eqFilterString(const EqGains& g)
 	{
 		if (eqFlat(g)) return "";

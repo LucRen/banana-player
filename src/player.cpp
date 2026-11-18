@@ -32,7 +32,7 @@
 namespace bp
 {
 	enum Observed : uint64_t { TIME_POS = 1, DURATION, PAUSE, TRACK_LIST, MEDIA_TITLE, AID, SID, SPEED, METADATA, PAUSED_FOR_CACHE, SEEKING, CHAPTER_LIST, CHAPTER,
-		AUDIO_IN, AUDIO_OUT, CURRENT_AO, AF_CHAIN, LAVFI_GRAPH, EOF_REACHED, LITE_META };
+		AUDIO_IN, AUDIO_OUT, CURRENT_AO, AF_CHAIN, LAVFI_GRAPH, EOF_REACHED };
 
 	// the audio diagnostics (log.txt, "audio:" lines): an mpv node as "key=value key=value" (a map) or its value
 	static std::string nodeText(const mpv_node* n)
@@ -215,17 +215,6 @@ namespace bp
 		mpv_observe_property(mpv, CURRENT_AO, "current-ao", MPV_FORMAT_STRING);
 		mpv_observe_property(mpv, AF_CHAIN, "af", MPV_FORMAT_NODE);
 		mpv_observe_property(mpv, LAVFI_GRAPH, "lavfi-complex", MPV_FORMAT_STRING);
-		// Lite's meter: the astats entry's figures, as its frames come (never read: a read waits for mpv)
-		mpv_observe_property(mpv, LITE_META, "af-metadata/bplite", MPV_FORMAT_NODE);
-		// how far ahead of the speakers Lite's tap hears: mpv filters the sound into the output's buffer, and that
-		// buffer is the lead the picture has to take off (an option, so a plain read is enough; 0.2 s is mpv's)
-		{
-			double buf = 0;
-			if (mpv_get_property(mpv, "options/audio-buffer", MPV_FORMAT_DOUBLE, &buf) < 0 || !(buf > 0.02) || buf > 1)
-				buf = 0.2;
-			liteBuffer = (uint64_t)std::lround(buf * 1000);
-			liteLead = liteBuffer + 20;	// + the af-metadata tick: a reading is at most one tick old as it arrives
-		}
 		if (o.net && !o.net->attach(mpv)) fprintf(stderr, "net: mpv has no stream callbacks: network files won't open\n");
 		mpv_set_wakeup_callback(mpv, wakeup, ctx);
 		setAspect(aspect);
@@ -529,16 +518,11 @@ namespace bp
 		displayDueAt = 0;	// the graph below is the display's as it is now
 
 		showIdle(false);
-		lite.reset();
-		liteBass.reset();
 		// A song's picture is chosen before it opens, as far as it can be known: a filter graph changed (or taken off
 		// and put back) between songs closes and opens the sound output again, which takes the handheld a second or
 		// more. The art's graph ([vid1]) only where the art is sure (a cover file: a song without the track it names
 		// doesn't open at all); else the visualizer alone, or (Album art) a guess from the folder's last song, put right
 		// at FILE_LOADED (applyAudioDisplay)
-		// Lite has no graph at all: mpv shows the album art by itself (Art + visualizer) or no picture (Visualizer),
-		// and the player draws over it
-		bool lite = settings.visualizer == VIS_LITE;
 		std::string graph;
 		if (isAudio)
 		{
@@ -546,9 +530,9 @@ namespace bp
 			std::string dir = slash == std::string::npos ? "." : path.substr(0, slash);
 			bool cover = isNet ? !coverFileFor(namesIn(netParent(path))).empty() : folderHasCover(path), guessArt = cover || (dir == lastArtDir && lastArt);
 			if (vizResting() && (settings.musicShow == SHOW_VIS || settings.musicShow == SHOW_BOTH)) graph = blankGraph();
-			else if (settings.musicShow == SHOW_VIS) graph = lite ? "" : graphFor(settings.visualizer, false);
+			else if (settings.musicShow == SHOW_VIS) graph = graphFor(settings.visualizer, false);
 			else if (settings.musicShow == SHOW_NONE) graph = blankGraph();
-			else if (settings.musicShow == SHOW_BOTH) graph = lite ? "" : graphFor(settings.visualizer, cover);
+			else if (settings.musicShow == SHOW_BOTH) graph = graphFor(settings.visualizer, cover);
 			else graph = guessArt ? "" : blankGraph();
 		}
 		// the same graph as the last song's: kept. Else the last file's off first: under a graph mpv's tracks can't
@@ -577,8 +561,6 @@ namespace bp
 		// a video's picture: always on (one under a photo decodes on, unseen: hideVideo); the file's own option, so a
 		// vid set as a property by an older build never reaches the next file
 		if (!isAudio && !isPhoto) fileOpts += ",vid=auto";
-		// Lite's Visualizer alone: no album art under it (mpv would show the art by itself with no graph)
-		else if (isAudio && lite && settings.musicShow == SHOW_VIS) fileOpts += ",vid=no";
 		else if (isAudio && vidOff)
 		{
 			// a song after a video hidden under a photo: its art or graph needs the picture back (the video still
@@ -963,65 +945,6 @@ namespace bp
 							else if (k == "album") tagAlbum = n->u.list->values[i].u.string;
 						}
 					if (isAudio && loaded) updateOverlay();
-					break;
-				}
-				case LITE_META:
-				{
-					// Lite's astats figures (src/vizlite.h works out the gain and the beat from them). RMS is the
-					// level, never Peak_level: most music's peak sits near full scale, which is what made Lite look
-					// weak. Channels 3 and 4 are the lowpass copy (the bass); 1 and 2 the sound as it plays. Only
-					// while the tap is in the chain: a stale map after a style change is left alone
-					auto* n = p->format == MPV_FORMAT_NODE ? (mpv_node*)p->data : nullptr;
-					if (!n || n->format != MPV_FORMAT_NODE_MAP)
-					{
-						// the property has no value until the tap's chain is built (mpv's first events say so): once in
-						// the log, so "no value ever" is told apart from "values that never come"
-						if (!liteMetaEmptyLogged)
-						{
-							liteMetaEmptyLogged = true;
-							fprintf(stderr, "lite: af-metadata/bplite has no value yet (format %d)\n", (int)p->format);
-						}
-						break;
-					}
-					liteMetaUpdates++;
-					// (in the log: the first value the tap gives, whatever it is. On the handheld it says whether the
-					// bundled mpv sends af-metadata at all, and what the keys are called; then only the 10 s counts)
-					if (!liteMetaLogged)
-					{
-						liteMetaLogged = true;
-						std::string keys;
-						for (int i = 0; i < n->u.list->num && keys.size() < 200; i++)
-							keys += (i ? " " : "") + std::string(n->u.list->keys[i]);
-						fprintf(stderr, "lite: first af-metadata/bplite: %d keys: %s\n", n->u.list->num, keys.c_str());
-					}
-					if (settings.visualizer != VIS_LITE) break;
-					double rms = NAN, brms[2] = {NAN, NAN};
-					for (int i = 0; i < n->u.list->num; i++)
-					{
-						const char* k = n->u.list->keys[i];
-						const mpv_node& v = n->u.list->values[i];
-						double d = NAN;
-						if (v.format == MPV_FORMAT_STRING) d = strtod(v.u.string, nullptr);
-						else if (v.format == MPV_FORMAT_DOUBLE) d = v.u.double_;
-						else continue;
-						if (!strcmp(k, "lavfi.astats.Overall.RMS_level")) rms = d;
-						else if (!strcmp(k, "lavfi.astats.3.RMS_level")) brms[0] = d;
-						else if (!strcmp(k, "lavfi.astats.4.RMS_level")) brms[1] = d;
-					}
-					auto mean = [](double a, double b) {
-						if (std::isfinite(a) && std::isfinite(b)) return (a + b) / 2;
-						return std::isfinite(a) ? a : b;
-					};
-					double bass = mean(brms[0], brms[1]);
-					double total = rms;
-					if (!std::isfinite(total)) total = bass;
-					if (!std::isfinite(bass)) bass = total;
-					// a silent frame is -inf: still a reading (its silence is what stops the redraw later)
-					if (!std::isfinite(total)) total = -100;
-					if (!std::isfinite(bass)) bass = total;
-					uint64_t nowMs = ticks();
-					lite.sample(total, nowMs);
-					liteBass.sample(bass, nowMs);
 					break;
 				}
 				}
@@ -2329,8 +2252,6 @@ namespace bp
 		ghost = -1;
 		src = PlaySource();
 		skipNote.clear();
-		lite.reset();
-		liteBass.reset();
 		checkLoading();	// the spinner down
 		applyPhotoView();
 		updateOverlay();	// the title off the top panel
@@ -2414,19 +2335,6 @@ namespace bp
 		return show;
 	}
 
-	bool Player::liteShown() const
-	{
-		// the style chosen, a song loaded, a visualizer the person asked for, and nothing (a reader's pages) over it
-		if (settings.visualizer != VIS_LITE || !isAudio || !loaded || vizResting()) return false;
-		int show = shownMusic();
-		return show == SHOW_VIS || show == SHOW_BOTH;
-	}
-
-	bool Player::liteOverArt() const
-	{
-		return liteShown() && shownMusic() == SHOW_BOTH && hasCover(tracks);
-	}
-
 	void Player::setTopCovered(bool on)
 	{
 		if (on == topCovered) return;
@@ -2473,7 +2381,6 @@ namespace bp
 			lutsWarmed = true;
 			for (int v : VIS_SHOWN)
 			{
-				if (v == VIS_LITE) continue;	// no graph, nothing to look up
 				for (int art = 0; art < 2; art++)
 				{
 					graphs.push_back(visualizerGraphMarked(v, art == 1, circleMaps));
@@ -2506,11 +2413,7 @@ namespace bp
 		lastArtDir = slash == std::string::npos ? "." : currentPath().substr(0, slash);
 		lastArt = hasCover(tracks);
 		int show = shownMusic();
-		bool lite = settings.visualizer == VIS_LITE;
-		// Lite's tap comes and goes with the style: af as a whole once, in the same pass as the graph's change
-		bool tapWanted = isAudio && lite, tapThere = afSet.find("@bplite:") != std::string::npos;
-		if (tapWanted != tapThere) syncEq(true);
-		std::string graph = show == SHOW_ART ? "" : show == SHOW_NONE ? blankGraph() : lite ? "" : graphFor(settings.visualizer, show == SHOW_BOTH);
+		std::string graph = show == SHOW_ART ? "" : show == SHOW_NONE ? blankGraph() : graphFor(settings.visualizer, show == SHOW_BOTH);
 		if (graphSet != graph)
 		{
 			// (in the log: a graph changed as a song starts, by the art its track list says it has)
@@ -2523,7 +2426,7 @@ namespace bp
 		}
 		if (graph.empty())
 		{
-			// the song's sound (the graph taken off leaves the track unselected; Lite's tap is in the af, not a graph)
+			// the song's sound (the graph taken off leaves the track unselected)
 			prop("aid", songAid(seenAid));
 			if (show == SHOW_ART || show == SHOW_BOTH)
 			{
@@ -2534,8 +2437,6 @@ namespace bp
 				prop("vid", art ? std::to_string(art) : "auto");
 			}
 		}
-		// Lite's Visualizer alone draws on black: the art stays off (also when a graph was just taken off above)
-		if (lite && show == SHOW_VIS) prop("vid", "no");
 	}
 
 	// ASS text: braces and backslashes would be its codes

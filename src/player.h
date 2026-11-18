@@ -6,7 +6,6 @@
 #include "resume.h"
 #include "settings.h"
 #include "tracks.h"
-#include "vizlite.h"
 #include <mpv/client.h>
 #include <mpv/render_gl.h>
 #include <map>
@@ -225,35 +224,6 @@ namespace bp
 		// back to no file (the browser): the place kept first
 		void stop();
 		bool playing() const { return !playlist.empty(); }
-		// A song's Lite style (VIS_LITE): the player itself draws it on the top panel, from one astats tap in the af
-		// chain (no lavfi-complex graph, no video frames). liteShown says the top panel is to draw it now (the song is
-		// loaded, the display shows a visualizer, and no reader covers the panel); the rest is what it draws.
-		bool liteShown() const;
-		bool liteOverArt() const;
-		// what is heard now: the tap filters ahead of the speakers, so the reading shown is the one from liteLeadMs ago
-		// (LiteMeter::at interpolates between readings; the picture then moves at the panel's rate, not the tap's)
-		double liteLevel() const { return lite.at(ticks() - liteLead); }
-		double liteLevelAge(int ms) const { return lite.at(ticks() - liteLead - (uint64_t)std::max(0, ms)); }
-		double liteBassLevel() const { return liteBass.at(ticks() - liteLead); }
-		double liteBassAge(int ms) const { return liteBass.at(ticks() - liteLead - (uint64_t)std::max(0, ms)); }
-		// the bass's kicks at that audible time: the beat the glow follows
-		uint64_t liteBeats() const { return liteBass.beatsAt(ticks() - liteLead); }
-		uint64_t liteBeatsTotal() const { return liteBass.beats; }	// (for the log: every kick the tap reported)
-		bool liteSilent() const { return lite.silent; }
-		double liteFloorDb() const { return lite.gainFloorDb(); }
-		double liteCeilDb() const { return lite.gainCeilDb(); }
-		uint64_t liteLeadMs() const { return liteLead; }
-		uint64_t liteBufferMs() const { return liteBuffer; }
-		LiteMeter lite, liteBass;	// the tap's readings (src/vizlite.h): the whole sound, and its bass
-		// how far ahead of the speakers the tap filters (mpv's audio-buffer, read once at init, plus the af-metadata
-		// tick); the log says it once, and the drawing reads readings that old
-		uint64_t liteLead = 220, liteBuffer = 200;
-		// the tap as it comes in: how many af-metadata/bplite values mpv sent (a top panel with no bars: zero says the
-		// tap is never heard, the count climbing says it is and the drawing is what's wrong). The 10 s line is the
-		// top panel's (topscreen.cpp)
-		uint64_t liteMetaUpdates = 0;
-		bool liteMetaLogged = false;	// the first value, once a run (what the bundled mpv actually sends)
-		bool liteMetaEmptyLogged = false;	// the first "no value yet" (the chain not built), once a run
 		std::string currentPath() const { return playlist.empty() ? "" : playlist[current]; }
 		// the files it plays from, in their order (index(): the one playing)
 		const std::vector<std::string>& paths() const { return playlist; }
@@ -415,12 +385,10 @@ namespace bp
 		std::string eqPart() const;	// the EQ's entry for this file ("" off, flat, or not a song)
 		std::string fxPart();		// the effect's, its impulse response written first ("" none)
 		std::string afWant() { return joinAf(eqPart(), fxPart()); }
-		// a song's af: its input entry (@bpin, bpcore's afInputFilter), then Lite's meter while that style is chosen,
-		// then the EQ's and the effect's; a video's none
+		// a song's af: its input entry (@bpin, bpcore's afInputFilter), then the EQ's and the effect's; a video's none
 		std::string joinAf(const std::string& eq, const std::string& fx) const
 		{
 			std::string s = isAudio ? afInputFilter() : "";
-			if (isAudio && settings.visualizer == VIS_LITE) s += "," + liteTapFilter();
 			for (const std::string* p : {&eq, &fx})
 				if (!p->empty()) s += (s.empty() ? "" : ",") + *p;
 			return s;
