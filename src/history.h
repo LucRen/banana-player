@@ -10,7 +10,7 @@ namespace bp
 	class PlayHistory
 	{
 	public:
-		static constexpr size_t MAX = 30;	// of each kind
+		static constexpr size_t MAX = 100;	// of each kind
 		// a path's kind: 0 a video (or anything else), 1 a song, 2 a book, a document or a comic
 		static int kindOf(const std::string& path);
 

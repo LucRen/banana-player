@@ -42,7 +42,7 @@ Open Banana Player and the bottom screen shows **Home**:
   left off), **Y** opens its menu: **Resume from…** (or **Play**), **Play from the start**, **Show in folder** (opens
   Files or Network on that file), **Add to playlist…**, **Remove from Recent**. The last card, **All recent**, opens
   the whole list, with tabs beside its title: **All**, **Videos**, **Music**, **Books** (books, PDFs, comics and text
-  files), each with how many: **L** / **R** step through them, or tap one. Recent keeps the last 30 of each kind, so
+  files), each with how many: **L** / **R** step through them, or tap one. Recent keeps the last 100 of each kind, so
   reading doesn't push your videos out, nor music your books. While Home or All recent shows, its order stays put (the
   next song starting doesn't move the cards); what you played comes to the front the next time you open it. On the touch screen tap a card to play it, swipe the strip, or hold a card for its menu. With nothing
   played yet the strip is a single line and the tiles grow.
@@ -938,7 +938,7 @@ pick up. It is the handheld's Home Recent strip, in the browser.
   this browser plays right in the card (a tap opens the player); the small player and the player bar keep only its
   picture then, and have the video again on every other page.
 - A tap on an item in Home plays it in that card and stays on Home (a video too).
-- **Recent**, below: everything older, newest first (up to 30), and while something plays, all of it (what plays
+- **Recent**, below: everything older, newest first (up to 100 of each kind), and while something plays, all of it (what plays
   marked **Playing**). The order stays as it was when Home was opened: playing from it, or the next song starting,
   doesn't move the rows (a removed one goes); what was played comes to the front the next time Home is opened. The
   handheld's Home strip and All recent do the same. **All**, **Videos** and **Music** choose

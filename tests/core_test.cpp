@@ -4997,21 +4997,21 @@ static void testMangaWithin()
 
 static void testHistoryPerKind()
 {
-	// Recent keeps 30 of each kind: books read don't push the films out, nor songs the books
+	// Recent keeps 100 of each kind: books read don't push the films out, nor songs the books
 	PlayHistory h;
-	for (int i = 0; i < 35; i++) h.add("/m/v" + std::to_string(i) + ".mkv");
-	for (int i = 0; i < 35; i++) h.add("/m/b" + std::to_string(i) + ".epub");
+	for (int i = 0; i < 105; i++) h.add("/m/v" + std::to_string(i) + ".mkv");
+	for (int i = 0; i < 105; i++) h.add("/m/b" + std::to_string(i) + ".epub");
 	for (int i = 0; i < 5; i++) h.add("/m/s" + std::to_string(i) + ".mp3");
 	size_t v = 0, b = 0, s = 0;
 	for (auto& p : h.items()) { int k = PlayHistory::kindOf(p); (k == 0 ? v : k == 1 ? s : b)++; }
-	CHECK_EQ(v, (size_t)30);
-	CHECK_EQ(b, (size_t)30);
+	CHECK_EQ(v, (size_t)100);
+	CHECK_EQ(b, (size_t)100);
 	CHECK_EQ(s, (size_t)5);
 	CHECK_EQ(h.items().front(), std::string("/m/s4.mp3"));	// still newest first, across kinds
 	CHECK_EQ(std::find(h.items().begin(), h.items().end(), "/m/v4.mkv") == h.items().end(), true);	// the oldest videos went
 	PlayHistory again;
 	again.parse(h.serialize());
-	CHECK_EQ(again.items().size(), (size_t)65);
+	CHECK_EQ(again.items().size(), (size_t)205);
 }
 
 static void testPathMoved()
@@ -6539,9 +6539,9 @@ static void testHistory()
 	h.add("/v/a.mkv");	// again: first, once
 	CHECK_EQ(h.items().size(), (size_t)2);
 	CHECK_EQ(h.items()[0], std::string("/v/a.mkv"));
-	for (int i = 0; i < 40; i++) h.add("/v/" + std::to_string(i));
-	CHECK_EQ(h.items().size(), PlayHistory::MAX);	// 30 at most: the oldest go
-	CHECK_EQ(h.items()[0], std::string("/v/39"));
+	for (int i = 0; i < 110; i++) h.add("/v/" + std::to_string(i));
+	CHECK_EQ(h.items().size(), PlayHistory::MAX);	// 100 at most: the oldest go
+	CHECK_EQ(h.items()[0], std::string("/v/109"));
 	CHECK_EQ(h.items().back(), std::string("/v/10"));
 
 	{
@@ -6559,11 +6559,11 @@ static void testHistory()
 	back.parse(h.serialize() + "/v/39\n");	// a repeat in the file is read once
 	CHECK_EQ(back.items() == h.items(), true);
 	// Remove from Recent: that one, the rest in their order
-	CHECK_EQ(back.remove("/v/38"), true);
-	CHECK_EQ(back.remove("/v/38"), false);
+	CHECK_EQ(back.remove("/v/108"), true);
+	CHECK_EQ(back.remove("/v/108"), false);
 	CHECK_EQ(back.items().size(), PlayHistory::MAX - 1);
-	CHECK_EQ(back.items()[0], std::string("/v/39"));
-	CHECK_EQ(back.items()[1], std::string("/v/37"));
+	CHECK_EQ(back.items()[0], std::string("/v/109"));
+	CHECK_EQ(back.items()[1], std::string("/v/107"));
 	back.clear();
 	CHECK_EQ(back.items().empty(), true);
 }

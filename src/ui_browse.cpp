@@ -365,7 +365,7 @@ namespace bp
 			homeView->listRecent(p);
 			if (homeView->recentKeepOrder) homeView->recentInOrder(before);
 			homeView->recentKeepOrder = false;
-			// the tabs: how many of each, and only the chosen kind listed (PlayHistory keeps 30 of each)
+			// the tabs: how many of each, and only the chosen kind listed (PlayHistory keeps 100 of each)
 			for (int& c : homeView->recentCounts) c = 0;
 			for (auto& it : homeView->recent)
 			{
