@@ -26,7 +26,7 @@ namespace bp
 		std::string signature(const Player& p) const override;
 
 		// ---- for the rest of Ui and Manga's settings page ----
-		// B in START's menu on this page: out of the subtitle style back to its list, or out of a group to the tiles.
+		// B in START's Settings on this page: out of the subtitle style back to its list, or out of a group to the tiles.
 		// True: the key was taken (before the menu's own B closes it)
 		bool menuBack(Player& p);
 		std::vector<int> settingRows() const;	// the open group's rows, by id

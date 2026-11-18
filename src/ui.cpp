@@ -202,7 +202,7 @@ namespace bp
 		// there by touch still take them
 		if (page == Page::Main && !p.settings.buttonHotkeys) return false;
 		// L2/R2: the chapter before or after, over what plays and its two pages (the Chapters page's mark follows).
-		// Not in START's menu, not over a photo (its keys are its own), and nothing with Button hotkeys off: they
+		// Not in START's Settings, not over a photo (its keys are its own), and nothing with Button hotkeys off: they
 		// have no touch button to stand for. On Settings a group page takes them: the group before or after
 		// (the manga pages have their own: the reader's chapter before or after, the series page's Download)
 		if (b == Button::L2 || b == Button::R2)
@@ -226,13 +226,9 @@ namespace bp
 		}
 		if (inMenu)
 		{
-			// START is the Menu of places from any page of the menu too; on the Menu itself it closes, as B does
-			if (b == Button::Start && page != Page::Menu)
-			{
-				page = Page::Menu;
-				menuCursor = 0;
-				return false;
-			}
+			// START again closes Settings back to where the user was, as the Menu did (the Menu of places is
+			// unreached now, so there is no top page to go back to first)
+			if (b == Button::Start) { closeMenu(p); return false; }
 			// B in the subtitle style opened from the Subtitles list, or in a settings group: back (SettingsPage)
 			if (b == Button::B && page == Page::Settings)
 			{
@@ -462,7 +458,7 @@ namespace bp
 	{
 		// "<" over a photo closes it at once (the player's own "<" is its area's: PlayerPage::act)
 		if (id == BACK_ICON && page == Page::Main && p.playing()) return true;
-		// elsewhere (a page over what plays, START's menu): B, back a step
+		// elsewhere (a page over what plays, Settings): B, back a step
 		if (id == BACK_ICON && (inMenu || (page != Page::Browse && page != Page::Main))) return pressAnyway(Button::B, p);
 		// a photo's Close
 		if (id == QUIT_BTN) return p.playingPhoto();

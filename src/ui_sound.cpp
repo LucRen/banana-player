@@ -26,7 +26,7 @@ namespace bp
 
 	void Ui::Sound::open(Player& p, bool fromSettings)
 	{
-		// from Settings (START's menu or not): B goes back there; the page has tabs of its own, so the menu's are put away
+		// from Settings (START's or not): B goes back there; the page has tabs of its own, so the menu's are put away
 		soundFromSettings = fromSettings;
 		soundFromMenu = fromSettings && ui.inMenu;
 		ui.inMenu = false;

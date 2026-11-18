@@ -303,7 +303,7 @@ namespace bp
 			{"Rotate", "L3", false},
 			{v.fill ? "Fill" : "Fit", "SELECT", false},
 			{"Info", "", false},
-			{"Menu", "START", false},
+			{"Settings", "START", false},
 		};
 		for (int i = 0; i < PHOTO_BTNS; i++)
 		{

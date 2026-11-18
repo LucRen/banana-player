@@ -5,7 +5,7 @@ Everything Banana Player does, button by button. For installing it, see the [REA
 - [What it plays](#what-it-plays)
 - [Finding something to play](#finding-something-to-play)
 - [Playlists](#playlists)
-- [Controls](#controls): [while playing](#while-playing), [photos](#looking-at-a-photo), [the file list](#in-the-file-list), [the menu](#the-menu-start)
+- [Controls](#controls): [while playing](#while-playing), [photos](#looking-at-a-photo), [the file list](#in-the-file-list), [START's settings](#settings-from-start)
 - [Photos](#photos)
 - [Picture size](#picture-size)
 - [Music](#music)
@@ -54,7 +54,7 @@ Move with the D-pad: **UP/DOWN** between the strip and the tiles (back to the ca
 **LEFT/RIGHT** along them. **X** on Home: **Clear Recent** (press twice), **Show hidden folders**, **Settings**. **B**
 asks to quit: **Quit Banana Player?** with **Quit** and **Cancel**, **Cancel** first; **B** or a tap outside cancels.
 While something plays it asks too, and says **What's playing stops** (**SELECT** still goes to what plays).
-**START** opens the menu.
+**START** opens Settings.
 
 Inside a section the header reads its name with four markers beside it, the open one lit: **L/R** go to the section
 before or after, or tap a marker. Each section opens where you left it (its top if that folder or playlist is gone),
@@ -90,7 +90,7 @@ with a note when you pick it; reached by **Next**, **Previous** or the end of th
 Leaving the player doesn't stop what plays. **B** (or **Back**, or **<**) on the playing screen takes you to the list,
 and the song or video goes on: a video keeps playing full size on the top screen, a song keeps its visualizer or art.
 Paused stays paused. You land back **where you were before you opened the player**: the same page, folder, cursor
-and scroll (Home, a folder, All recent, START's menu…); from a playlist's page, the list of playlists, the cursor on
+and scroll (Home, a folder, All recent, Settings…); from a playlist's page, the list of playlists, the cursor on
 that playlist. Started with a file, or after **Show in folder**,
 you land in the folder (or playlist) it plays from, the cursor on it. The same goes for **Stop**, and for the end of a
 video's list while the playing screen was up; a song's list ending keeps the song up instead.
@@ -103,14 +103,14 @@ video's list while the playing screen was up; a song's list ending keeps the son
   Tap the bar to go back to the playing screen; tap the mark on its left to play or pause and stay where you are; hold
   the bar for its menu: **Now playing**, **Play** / **Pause**, **Like**, **Add to playlist…**, **Show in folder**,
   **Stop**. It's hidden while you select files, type, fill in a connection, with a popup menu or a sheet over the
-  page, and on the player's own screens (the playing screen, Up next, Info) and START's menu (its Now playing line is
-  there instead); Settings and its groups, Sound and the web dashboard have it.
+  page, and on the player's own screens (the playing screen, Up next, Info); Settings and its groups, Sound and the web
+  dashboard have it.
 - **The header** shows three small yellow bars left of the clock while something plays behind the list (dim and still
   when it's paused).
 - **The playing file's row** carries a chip: **Playing**, **Paused** or **In browser** (the web dashboard plays it). Its card on Home says **Now** with its time and bar running. **A** on that row or card goes back to it,
   never from its start.
-- **Back to the playing screen:** **SELECT** on any page with the bar (or on Home), a tap on the mini bar, **START** ›
-  **Now playing** on the menu's line, **A** on its row or card, or **B** on Home. From a book or a comic, a video takes the top screen
+- **Back to the playing screen:** **SELECT** on any page with the bar (or on Home), a tap on the mini bar, **A** on its
+  row or card, or **B** on Home. From a book or a comic, a video takes the top screen
   back while its player shows; **B** returns to the page you were reading.
 - **L3** (press the stick) likes or unlikes what plays, from the lists too.
 - **Stop** ends it: **Stop** at the bottom right of the playing screen, **X · More** › **Stop**, or the mini
@@ -230,7 +230,7 @@ Like a song or a video to keep it in **Liked**, a playlist of its own. Photos an
 | **X** | **More**: a sheet with **Lock touch**, **Screen off**, **Info** and **Stop** (in red) as its first four keys, then **Like**, **Add to playlist…**, **Show in folder** and, while a dashboard page that can play is open, **Play on…**. The D-pad moves, **A** chooses, **X** or **B** closes |
 | **Y** | **List** (the **List** key): one sheet with **Up next** (the folder or playlist that plays, in its own order, the one playing marked **Now**) and **Chapters** (every chapter with its start; a file without chapters has only Up next), with **Shuffle**'s switch and **Repeat** (Off / All / One) in its header. **L / R** step the tabs, **UP / DOWN** move, **LEFT / RIGHT** page, **A** plays from the row, **L2 / R2** jump a chapter with the sheet open, **Y** or **B** closes |
 | **SELECT** | **View**, a sheet over the controls. A video: **Subtitles** (Off, the file's tracks, and **Subtitle style…**), **Audio**, **Picture** (Fit, Fill, Stretch) and **Speed** (0.5x to 2.5x). A song: **Display** (the four Show modes and a **Visualizer style** row), **Visualizer** (the twenty-one styles as a grid), **Equalizer**, **Effects** and **Speed**. **L / R** switch tabs, **UP / DOWN** move, **LEFT / RIGHT** page a long list, **A** chooses, **SELECT** or **B** closes (on a song's Display, **SELECT** steps the Show mode); it opens on the tab you used last |
-| **START** | **Menu**: the places (Home, Files, Playlists, Manga, Network, Settings, About), Quick settings and Quit |
+| **START** | **Settings**: the ten group tiles; **B** or **START** closes it back to where you were |
 | **L3** (press the stick, RG DS Plus) | Like / Unlike what plays |
 | **B** (or **Back**) | Back to the list: it keeps playing (see [Playing while you browse](#playing-while-you-browse)) |
 | **F + L2** | Screenshot of both screens (saved in the card's `screenshots` folder) |
@@ -272,8 +272,8 @@ Like a song or a video to keep it in **Liked**, a playlist of its own. Photos an
   (and in **More**, **⋯** or **X**, in red): it stops it, where **<** and **B** only leave the player.
 - **Lock touch**, **Screen off** and **Info** are in **More** too. Locked, the controls go dark under one large lock:
   hold it for a second to unlock (the buttons still work, and **X** → **Unlock touch** unlocks as well).
-- **<** is at the top left of every page and does what **B** does: in the file list it goes up a folder, on a page or
-  in the menu it goes back. Home has none: **B** there asks to quit.
+- **<** is at the top left of every page and does what **B** does: in the file list it goes up a folder, on a page it
+  goes back (in Settings, a group goes back to the tiles and the tiles close it). Home has none: **B** there asks to quit.
 
 **List** (**Y**) on a playlist's song opens that playlist's own page (its order, its edits), the cursor on the song,
 what plays going on behind; the first time a playlist's song opens, the List key glows a soft yellow twice to say so.
@@ -307,7 +307,7 @@ you hold it). A song's fourth chip is **Shuffle**; a video's fifth is **Repeat**
 | **A** | Zoom to 200%, or back to the whole photo |
 | **L3** (press the stick) | Rotate a quarter turn |
 | **SELECT** | Fit (the whole photo) or Fill (the screen filled) |
-| **START** | Menu |
+| **START** | Settings |
 | **B** (or **Back**) | Close the photo (**Close** at the bottom right too) |
 
 See [Photos](#photos) for the touch screen.
@@ -327,7 +327,7 @@ See [Photos](#photos) for the touch screen.
 | **Y** | On a file or folder of the cards: **Info** (its name, kind, size (a folder's with everything in it), length, where it is, when it was changed, its full path), **Copy…**, **Move…**, **Rename…**, **Delete** (press twice: it's gone for good) ([below](#copy-move-rename-delete)). On a folder: **Add to playlist…** (first). On a network connection: **Edit connection**, **Test connection**, **Delete connection** (press twice) (or hold it on the touch screen). On a playlist or its item: see [Playlists](#playlists) |
 | **SELECT** | Back to what plays (the playing screen); in select mode, Select all |
 | **L3** (press the stick) | Like / Unlike what plays |
-| **START** | **Menu**: the places, Quick settings and Quit |
+| **START** | **Settings**: its ten group tiles; **F** is Quick settings |
 | **Mini bar** (touch screen) | On every page but the player: tap it for the playing screen · its play mark: play / pause · hold: its menu |
 
 ### Copy, move, rename, delete
@@ -341,21 +341,21 @@ nothing half-copied is left (a move removes the original only once the copy is w
 room, and that a FAT card isn't asked to hold a file of 4 GB or more. **Rename…** types the new name on the keyboard.
 What's playing can't be moved, renamed or deleted.
 
-### The menu (START)
+### Settings from START
 
-One page of places, from any screen: **Home**, **Files**, **Playlists**, **Manga**, **Network**, **Settings** and
-**About**, under the kit's header. **A** or a tap goes to one. The four lists open the browser on their section;
-**Settings** and **About** keep the menu under them (About is Settings' last group), so **B** there goes back to the
-places. While something plays and the menu was opened off the player, a **Now playing** line on top says what and where
-it plays; **SELECT** (or a tap on it) goes back to it. **Quick settings** (**F**) and **Quit Banana Player** are the two
-keys under the places. **B** or **START** closes the menu (on the player: back to it).
+From any screen, **START** opens **Settings** directly, on its ten group tiles (Playback, Subtitles, Music & sound,
+Photos, Reading, Files & history, Power & screens, Web dashboard, Updates, About), under the kit's header. **A** or a
+tap opens one; in a group, **B** goes back to the tiles. **B** or **START** at the tiles closes Settings back to where
+you were (on the player: back to it). The hint bar there names **F Quick settings**, so Quit stays in reach.
 
-The **Playing** tab and its rows are gone; nothing is lost. Like, Add to playlist…, Show in folder, Play on, Info and
-Stop are on the player's **X · More** sheet (Stop is also a key on the player), and Now playing is the mini bar,
-**SELECT** from a list, or the menu's line. See [Like and Add to playlist](#like-and-add-to-playlist) and
-[Play on](#play-on-from-the-handheld).
+The Menu of places (Home, Files, Playlists, Manga, Network, Settings, About, Quick settings and Quit) is not shown for
+now, on the owner's decision: the full redesign brings it back. Nothing is lost meanwhile. Everything plays on: like,
+playlists, **SELECT** and the mini bar are as they were, and the places are reached from Home, the browser's sections
+and the player's **X · More** sheet. Like, Add to playlist…, Show in folder, Play on, Info and Stop are on that sheet
+(Stop is also a key on the player), and Now playing is the mini bar or **SELECT** from a list. See
+[Like and Add to playlist](#like-and-add-to-playlist) and [Play on](#play-on-from-the-handheld).
 
-To quit, use **Quit Banana Player** in the menu or in quick settings (**F**), or **F + START** from anywhere.
+To quit, use **Quit Banana Player** in quick settings (**F**), or **F + START** from anywhere.
 
 ## Network folders
 
@@ -636,8 +636,9 @@ All three are remembered.
 
 ## Settings
 
-Settings opens on ten tiles (Playback, Subtitles, Music & sound, Photos, Reading, Files & history, Power & screens, Web dashboard, Updates and About), two to a row: move with the D-pad (**UP/DOWN** a row, **LEFT/RIGHT** a tile),
-open one with **A** or a tap, and **B** goes back to them. Settings and its groups have the kit's header: the back key at
+**START** opens Settings on ten tiles (Playback, Subtitles, Music & sound, Photos, Reading, Files & history, Power & screens, Web dashboard, Updates and About), two to a row: move with the D-pad (**UP/DOWN** a row, **LEFT/RIGHT** a tile),
+open one with **A** or a tap, and **B** goes back to them; **B** or **START** at the tiles closes Settings, back to
+where you were. Settings and its groups have the kit's header: the back key at
 the left, then the page's title with its crumb (**Settings · 3 of 10**) under it on the same line, and a group's
 neighbours named either side of **L2** / **R2** at the right (those keys step the groups). Seven rows fit under that
 line. In a group, **UP/DOWN** chooses a row, **LEFT/RIGHT** changes it in place, and the

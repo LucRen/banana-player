@@ -448,7 +448,9 @@ namespace bp
 				t.pressed = ui.pressedBtn == 400 + g;
 				k.settingTile(groupRect(g), t);
 			}
-			k.hints({{"D-PAD", "Move"}, {"A", "Open"}, {"B", "Back"}});
+			// B closes Settings back to where START was pressed; Quit lives in Quick settings (F), which the hint
+			// keeps in sight now that the Menu's keys are gone
+			k.hints({{"D-PAD", "Move"}, {"A", "Open"}, {"F", "Quick settings"}, {"B", "Close"}});
 			return;
 		}
 		// the group's rows: the layout starts under the header's strip (the title is in it, beside the back key)
@@ -596,7 +598,7 @@ namespace bp
 		TTF_CloseFont(f);
 	}
 
-	// B in START's menu on this page, taken before the menu's own B (which closes it)
+	// B in START's Settings on this page, taken before the menu's own B (which closes it)
 	bool Ui::SettingsPage::menuBack(Player& p)
 	{
 		// B in the subtitle style opened from View › Subtitles: back to that sheet, on Subtitles (the old Tracks page
@@ -661,12 +663,14 @@ namespace bp
 		case Button::Select: if (ui.nowPlayable(ui.barPlayer(p))) ui.goNowPlaying(p); break;
 		case Button::B:
 			if (ui.setGroup >= 0) { ui.cursor = ui.setGroup; ui.setGroup = -1; }
-			else if (ui.inMenu) ui.page = Page::Menu;
+			// START opened Settings directly: B at the tiles closes it back to where the user was
+			else if (ui.inMenu) ui.closeMenu(p);
 			else ui.page = ui.home(p);
 			break;
 		case Button::Start:
-			// (from START's menu: back to the places; opened on its own: the menu over it)
-			if (ui.inMenu) ui.page = Page::Menu;
+			// (Settings is START's page now: pressed again it closes, as B does; opened on its own, as over the
+			// browser, ui.inMenu is false and this opens it)
+			if (ui.inMenu) ui.closeMenu(p);
 			else ui.openMainMenu(p);
 			break;
 		default: break;

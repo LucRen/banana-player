@@ -648,7 +648,7 @@ namespace bp
 		else if (homeZone == HOME_STRIP && has) h = {{"A", "Open"}, {"X", "Options"}};
 		else h = {{"D-PAD", "Move"}, {"A", "Open"}, {"X", "Options"}};
 		h.push_back({"B", "Quit"});
-		h.push_back({"START", "Menu"});
+		h.push_back({"START", "Settings"});
 		ui.drawHints(h);
 		if (quitOpen) drawQuitDialog(ui.nowPlayable(p));
 	}
@@ -722,7 +722,7 @@ namespace bp
 	{
 		// the owner's rule: on every page but the player's own (the song or video player page, its tracks and chapters,
 		// its queue, its Info); the comic reader and the photo viewer are pages of their own, not the player, so it
-		// shows there too. Still not while typing, selecting, or in START's menu: Settings is a page with room for it
+		// shows there too. Still not while typing or selecting: Settings is a page with room for it
 		const Player& bp = barPlayer(p);
 		if (!bp.playing() || bp.playingPhoto()) return false;
 		if (kbOpen || browse->playlists->selMode != SEL_NONE) return false;
