@@ -1056,12 +1056,14 @@ namespace bp
 	{
 		if (page == Page::About)
 		{
-			// the About group's own header (the kit's, as every settings page): back, its title, where it is
+			// the About group's own header (the kit's, as every settings page): back, its title and where it is, both
+			// beside the back key
 			lay::PlayerLayout pl = lay::playerLayout(0);
 			Kit::Header h;
 			h.title = "About";
 			h.crumb = "Settings \xC2\xB7 " + std::to_string((int)GROUP_ABOUT + 1) + " of " + std::to_string(GROUPS);
 			h.more = false;
+			h.inlineTitle = true;
 			h.backPressed = pressedBtn == BACK_ICON;
 			h.right = [&](int right, int cy) {
 				drawBattery(right, cy - 8, p, pl.back.x + pl.back.w + 130);

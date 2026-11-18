@@ -637,9 +637,10 @@ All three are remembered.
 ## Settings
 
 Settings opens on ten tiles (Playback, Subtitles, Music & sound, Photos, Reading, Files & history, Power & screens, Web dashboard, Updates and About), two to a row: move with the D-pad (**UP/DOWN** a row, **LEFT/RIGHT** a tile),
-open one with **A** or a tap, and **B** goes back to them. A group has the kit's header: the back key, its title, a
-crumb (**Settings · 3 of 10**) and its neighbours named either side of **L2** / **R2** at the right (those keys step the
-groups). In a group, **UP/DOWN** chooses a row, **LEFT/RIGHT** changes it in place, and the
+open one with **A** or a tap, and **B** goes back to them. Settings and its groups have the kit's header: the back key at
+the left, then the page's title with its crumb (**Settings · 3 of 10**) under it on the same line, and a group's
+neighbours named either side of **L2** / **R2** at the right (those keys step the groups). Seven rows fit under that
+line. In a group, **UP/DOWN** chooses a row, **LEFT/RIGHT** changes it in place, and the
 line above the bottom says what the setting under the cursor does. **Subtitle style...** at the end of View's Subtitles tab
 opens the Subtitles group; **B** there goes back to that sheet, on Subtitles.
 

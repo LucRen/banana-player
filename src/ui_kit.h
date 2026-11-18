@@ -52,13 +52,16 @@ namespace bp
 		// ---- the header (every redesigned page has one) ----
 		// The strip a player layout gives the back key, the More key and the crumb, then the title under it (and the
 		// state on its right). `right` draws the badge and status cluster from `right` (its x) leftwards and returns
-		// the left edge it used, so the crumb can end before it. See docs/redesign/components.md "Header".
+		// the left edge it used, so the crumb can end before it. `inlineTitle` puts the title beside the back key with
+		// the crumb under it, as the redesign's own header does (.hd .tt): the Settings pages and About, which have no
+		// state and so no title row of their own. See docs/redesign/components.md "Header".
 		struct Header
 		{
 			std::string title, crumb;	// title in F_P28 (the title's own line); crumb in F_I12 (the strip)
 			const Glyph* mark = nullptr;	// a small mark before the crumb (a heart, a folder)
 			bool back = true, backPressed = false, more = true, morePressed = false;
 			bool crumbEnd = false;	// keep the crumb's end (a folder's path), else cut its start (a playlist's name)
+			bool inlineTitle = false;	// the title beside the back key, the crumb under it (no title row)
 			// the title's right: "Playing", "Paused in Chrome" (a mark before it too)
 			std::string state;
 			const Glyph* stateMark = nullptr;

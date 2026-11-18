@@ -103,6 +103,17 @@ namespace bp
 		int right = h.more ? l.more.x - 10 : l.title.x + l.title.w - 8;
 		if (h.right) right = h.right(right, cy);
 		int x = l.back.x + l.back.w + 10;
+		if (h.inlineTitle)
+		{
+			// beside the back key: the title's line, the crumb's under it (the mock-up's 25px h1 and 12px p in the
+			// same 54-tall strip). There is no title row under the strip, so the page below starts higher
+			int tx = x;
+			if (h.mark) { ui.drawGlyphMid(*h.mark, tx + 10, cy - 8, DIM); tx += 26; }
+			if (right > tx && !h.title.empty()) ui.drawTextMid(h.title, F_P28, TEXT, tx, cy - 8, right - tx);
+			if (right > tx && !h.crumb.empty())
+				ui.drawTextMid(h.crumbEnd ? h.crumb : ui.elideLeft(h.crumb, F_I12, right - tx), F_I12, DIM, tx, cy + 12, right - tx);
+			return;
+		}
 		if (h.mark) { ui.drawGlyphMid(*h.mark, x + 10, cy, DIM); x += 26; }
 		// (a folder's path keeps its end, a playlist's name its start)
 		if (right > x && !h.crumb.empty())

@@ -705,9 +705,10 @@ namespace bp
 		void setInfoLines(const std::vector<Player::InfoRow>& rows);	// wrapped to the page
 		void openAbout(const Player& p);
 		static constexpr int INFO_Y = 70, INFO_H = 26, INFO_SHOWN = 14, INFO_VALUE_X = 190;
-		// About is a settings group, under the kit's header: rows from 100, the foot kept clear for the support block
-		static constexpr int ABOUT_Y = 100, ABOUT_SHOWN = 9;
-		void drawAboutSupport();	// the line, the QR (packaging/support/kofi-qr.png) and the address: nothing pressable
+		// About is a settings group, under the kit's header: its rows start under the header's strip (the title is in
+		// it, beside the back key), the foot kept clear for the support block
+		static constexpr int ABOUT_Y = 64, ABOUT_SHOWN = 10;
+		void drawAboutSupport();	// the line, the QR (packaging/support/kofi-qr.png) and the address
 		SDL_Texture* supportTex = nullptr;	// (decoded once at the size drawn)
 		int supportPx = 0;
 
@@ -879,8 +880,8 @@ namespace bp
 		Rect quickBar(int i) const { Rect r = quickRowRect(i); return {r.x + 296, r.y + r.h / 2 - 10, 164, 20}; }
 		Rect quickPlus(int i) const { Rect r = quickRowRect(i); return {r.x + 472, r.y + (r.h - 48) / 2, 48, 48}; }
 		void setBrightness(Backlight::Panel panel, int permille, Player& p);
-		// (6 rows end at 368: the help's two lines at 400 stay clear of them; a longer group scrolls)
-		static constexpr int SET_Y = 92, SET_H = 46, SET_SHOWN = 6, HELP_Y = 400;
+		// (7 rows end at 386: the help's two lines at 400 stay clear of them; a longer group scrolls)
+		static constexpr int SET_Y = 92, SET_H = 46, SET_SHOWN = lay::SET_ROWS, HELP_Y = 400;
 		static constexpr int64_t STYLE_ROW = -2;	// the subtitle menu's last row: the settings page
 		static constexpr int QUIT_BTN = 10, INFO_BTN = 13,	// (a photo's Close and Info)
 			BACK_ICON = 16,	// "<" at the top left of every page: B

@@ -8913,8 +8913,12 @@ static void testKitLayout()
 	CHECK_EQ(sheetMove(list, 1, Dir::Right), 1);
 	CHECK_EQ(sheetMove({0, 0, 1, 0}, 3, Dir::Down), 0);
 
-	// the Settings page: ten tiles, two a row, all inside; a group's six rows 46 tall, clear of the help and hints
+	// the Settings page: ten tiles, two a row, all inside; a group's seven rows 46 tall, clear of the help and hints
 	Box tiles{16, SET_TILE_TOP, 608, 5 * SET_TILE_H + 4 * SET_TILE_GAP};
+	// the header's strip is 54 tall and holds the title beside its back key: there is no title row, so the page starts
+	// under the strip, and the tiles end above the hint bar's rule
+	CHECK(SET_TILE_TOP > 54 && SET_ROW_TOP > 54);
+	CHECK(tiles.y + tiles.h < PANEL_H - HINTS_H);
 	for (int i = 0; i < 10; i++)
 	{
 		Box t = settingsTile(tiles, 10, 2, i);

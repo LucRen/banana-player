@@ -101,10 +101,10 @@ namespace bp
 
 		// ---- the Settings page (docs/redesign: settings, settings-group) ----
 		// its groups' tiles, two to a row (58 tall, 8 apart), and a group's rows (46 tall, the focused row's help at the
-		// foot): the kit's header (a player layout's back, title and crumb strip) is drawn above them, so the area
-		// starts under the title at 100
-		constexpr int SET_TILE_H = 58, SET_TILE_GAP = GAP, SET_TILE_TOP = 100;
-		constexpr int SET_ROW_H = 46, SET_ROWS = 6, SET_ROW_TOP = 100, SET_HELP_Y = 400;
+		// foot): the kit's header draws the title and the crumb beside its back key, so the area starts under that strip
+		// (54) at 64, and seven rows fit above the help
+		constexpr int SET_TILE_H = 58, SET_TILE_GAP = GAP, SET_TILE_TOP = 64;
+		constexpr int SET_ROW_H = 46, SET_ROWS = 7, SET_ROW_TOP = 64, SET_HELP_Y = 400;
 		// the i-th tile of n, in `cols` columns; the rows share `area`'s height evenly
 		Box settingsTile(Box area, int n, int cols, int i);
 		struct SettingsRows

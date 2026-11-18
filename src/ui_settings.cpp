@@ -396,6 +396,7 @@ namespace bp
 		lay::PlayerLayout pl = lay::playerLayout(0);
 		Kit::Header head;
 		head.more = false;
+		head.inlineTitle = true;	// the title beside the back key, its crumb under it: no title row, so the tiles start at 64
 		head.backPressed = ui.pressedBtn == BACK_ICON;
 		bool groupPage = ui.setGroup >= 0;
 		int prevGroup = groupPage ? (ui.setGroup + GROUPS - 1) % GROUPS : -1;
@@ -450,7 +451,7 @@ namespace bp
 			k.hints({{"D-PAD", "Move"}, {"A", "Open"}, {"B", "Back"}});
 			return;
 		}
-		// the group's rows: the layout starts under the header's title
+		// the group's rows: the layout starts under the header's strip (the title is in it, beside the back key)
 		lay::SettingsRows l = lay::settingsRows();
 		auto rows = settingRows();
 		for (int i = ui.scroll; i < (int)rows.size() && i < ui.scroll + SET_SHOWN; i++)
