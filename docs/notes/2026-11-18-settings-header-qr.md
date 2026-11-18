@@ -6,7 +6,7 @@ readable. Two commits:
 | Commit | What |
 |---|---|
 | `972590b` | Settings and every group page: the title beside the back key, its crumb under it; the page starts at 64 |
-| (item 2) | About's support QR, large on the top panel (Y or a tap), and its address; the hint bar says Y QR |
+| `8a9eafe` | About's support QR, large on the top panel (Y or a tap), and its address; the hint bar says Y QR |
 
 ## 1. The title in the header's own row
 
@@ -62,7 +62,7 @@ handheld). It stays exactly as it was; what was added is a view the top panel ca
   across the panel, 20 units of margin at 480 (proportional to the height), the address's line under it; the code is
   76% of the box, so the white ring is about four modules of the 29-module code a phone needs. The file is decoded at
   its own 492 px and each code pixel is one source pixel (`(2x+1)*src/(2*dst)`), so no edge is smeared; at 640×480 the
-  code is 310 units, at the Mac's 1280×960 it is 620. The address is Inter, sized with the line's height (26 at 480,
+  code is 310 units, at the Mac's 1280×960 it is 620. The address is Inter, sized with the line's height (24 at 480,
   as levelcard.cpp measures one), cream under the white box.
 - **The keys:** Y on About puts it up (`Ui::aboutQr`, gated on `page == Page::About`); B or Y puts it down, a finger's
   down anywhere puts it down, and leaving About closes it (the flag is cleared when the page leaves, and `openAbout`
@@ -84,10 +84,13 @@ small code, and the top panel back to its idle icon after B. Shots (not committe
 `group-bottom.png`, `power-bottom.png`, `about-bottom.png`, `qr-top.png`, `qr-bottom.png` (B Close · Y Close),
 `qr-tap-top.png`, `about-closed-top.png`.
 
+The arm64 bundle: `packaging/build-bundle.sh --quick` was run once at the end (`dist/ports/BananaPlayer`, 57 MB): it
+compiles the arm64 player (with `supportqr.cpp`) and copies `packaging/support/kofi-qr.png` into its `share/`.
+
 ## Not verified
 
 - **Scanning it with a phone:** the picture is the same `ko-fi.com/tonysong` code the file holds, nearest-scaled with a
   white ring; no camera read it here.
-- The handheld's own panel at one pixel a unit: 480 px square (the code about 310) and the 26-px address line under
+- The handheld's own panel at one pixel a unit: 480 px square (the code about 310) and the 24-px address line under
   it. On this Mac the panel is 960 tall and the code 620.
 - A real finger on the 84-unit code (the tap drove it in the script, at 60,380).
