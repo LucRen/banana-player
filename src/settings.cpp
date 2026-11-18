@@ -297,13 +297,81 @@ namespace bp
 	// top third mid green; the caps and the floor mid green; the screen the lightest. YUV only, nothing converted.
 	// Over the art: the art's top as it is, and under it the console's 25 dots high with no screen of their own: the art
 	// shows through everywhere but the lit dots
+	double colourContrast(theme::Rgb a, theme::Rgb b)
+	{
+		auto lum = [](theme::Rgb c) {
+			auto ch = [](int v) { double x = v / 255.0; return x <= 0.03928 ? x / 12.92 : std::pow((x + 0.055) / 1.055, 2.4); };
+			return 0.2126 * ch(c.r) + 0.7152 * ch(c.g) + 0.0722 * ch(c.b);
+		};
+		double la = lum(a), lb = lum(b);
+		return (std::max(la, lb) + 0.05) / (std::min(la, lb) + 0.05);
+	}
+
+	theme::Rgb inkOn(theme::Rgb c, theme::Rgb on, theme::Rgb to, double ratio)
+	{
+		// 10% steps towards `to`, then on to black or white (whichever is further from `on`)
+		for (int k = 0; k <= 100; k += 10)
+		{
+			theme::Rgb t = theme::mix(c, to, k);
+			if (colourContrast(t, on) >= ratio) return t;
+		}
+		theme::Rgb far = colourContrast(theme::Rgb{0, 0, 0}, on) > colourContrast(theme::Rgb{255, 255, 255}, on) ? theme::Rgb{0, 0, 0}
+			: theme::Rgb{255, 255, 255};
+		for (int k = 10; k <= 100; k += 10)
+		{
+			theme::Rgb t = theme::mix(to, far, k);
+			if (colourContrast(t, on) >= ratio) return t;
+		}
+		return far;
+	}
+
+	PocketInks pocketInks()
+	{
+		using theme::Rgb;
+		using theme::mix;
+		// Yellow: the old handheld's four greens, and the lime pair over the art
+		if (theme::currentTheme() == 0)
+			return {{0x0F, 0x38, 0x0F}, {0x30, 0x62, 0x30}, {0x9B, 0xBC, 0x0F}, {0x93, 0xB2, 0x0E}, {0x8B, 0xAC, 0x0F}, {0xD4, 0xF7, 0x5A}};
+		// a little LCD in the theme: the screen the ground tinted with the accent, the ink the accent (a dark theme: a
+		// lit screen) or the accent darkened towards the text (a light one), at 3:1 on the screen at least; mid between
+		// them; the grid a hair off the screen. Over the art (the band on BG): the ink at 3:1 on BG, and the accent
+		const Rgb bg = theme::BG, ac = theme::ACCENT, tx = theme::TEXT;
+		const bool dark = colourContrast(bg, Rgb{0, 0, 0}) < colourContrast(bg, Rgb{255, 255, 255});
+		PocketInks p{};
+		p.screen = mix(bg, ac, dark ? 25 : 18);
+		p.ink = inkOn(dark ? ac : mix(ac, tx, 35), p.screen, tx, 3.0);
+		p.mid = mix(p.screen, p.ink, 55);
+		p.grid = mix(p.screen, dark ? bg : p.ink, dark ? 30 : 8);
+		p.light = inkOn(dark ? ac : mix(ac, tx, 35), bg, tx, 3.0);
+		p.bright = colourContrast(ac, bg) >= 3.0 && ac != p.light ? ac : mix(p.light, tx, 45);
+		return p;
+	}
+
 	static std::string pocketGraph(bool overCover)
 	{
-		// the greens in BT.601 limited YUV: dark #0F380F, mid #306230, screen #9BBC0F; the grid #93B20E (luma only)
-		const int DY = 50, DU = 116, DV = 113, MY = 82, MU = 113, MV = 110, SY = 152, SU = 57, SV = 126, GY = 145;
-		// over the art the dots are the bright ones, so they pop on any cover: bars light #8BAC0F, their top, the caps
-		// and the floor a vivid lime #D4F75A
-		const int LY = 140, LU = 64, LV = 125, BY = 204, BU = 64, BV = 124;
+		// the colours in BT.601 limited YUV. Yellow's greens: dark #0F380F, mid #306230, screen #9BBC0F; the grid
+		// #93B20E (luma only); over the art the dots are the bright ones, so they pop on any cover: bars light #8BAC0F,
+		// their top, the caps and the floor a vivid lime #D4F75A. Another theme: pocketInks' (the numbers worked out
+		// here; three lumas told apart, as the chroma's luts read them)
+		int DY = 50, DU = 116, DV = 113, MY = 82, MU = 113, MV = 110, SY = 152, SU = 57, SV = 126, GY = 145;
+		int LY = 140, LU = 64, LV = 125, BY = 204, BU = 64, BV = 124;
+		if (theme::currentTheme() != 0)
+		{
+			PocketInks p = pocketInks();
+			int gu, gv;
+			yuv601(p.ink, DY, DU, DV);
+			yuv601(p.mid, MY, MU, MV);
+			yuv601(p.screen, SY, SU, SV);
+			yuv601(p.grid, GY, gu, gv);
+			yuv601(p.light, LY, LU, LV);
+			yuv601(p.bright, BY, BU, BV);
+			auto apart = [](int& y, int from) { if (y == from) y += y < 235 ? 1 : -1; };
+			apart(MY, DY); apart(SY, DY); apart(SY, MY); apart(BY, LY);
+			auto hex = [](theme::Rgb c) { char b[8]; snprintf(b, sizeof b, "%02X%02X%02X", c.r, c.g, c.b); return std::string(b); };
+			fprintf(stderr, "visualizer: Pocket console in %s: ink #%s, mid #%s, screen #%s, grid #%s; over the art #%s, #%s\n",
+				theme::themeId(theme::currentTheme()), hex(p.ink).c_str(), hex(p.mid).c_str(), hex(p.screen).c_str(),
+				hex(p.grid).c_str(), hex(p.light).c_str(), hex(p.bright).c_str());
+		}
 		// 15 bars of 4 dots and a 1-dot gap, inset 2 dots from each side as the floor is (80 dots across)
 		const int N = 15, BW = 5, W = 80, L = 2;
 		const int ROWS = overCover ? 25 : 60;	// dots high: 200 or 480 pixels

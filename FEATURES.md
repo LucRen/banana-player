@@ -534,11 +534,13 @@ Songs show their title, artist and album on the top screen. While a song plays:
   (default: 64 bars in the theme's accent, bass on
   the left, each with a cap in the theme's text colour that stays at the bar's highest point and slowly falls back, over a faint grid),
   **Circle** (bars round a glowing ring, cyan to pink; with Art + visualizer, the album art sits inside the ring),
-  **Pocket console** (Peaks on an old handheld's screen: 15 bars of chunky dots in four greens, with falling caps;
-  alone, the title is in the same dark green pixel type), **Night city** (a skyline whose windows light up with the
-  music), **Banana dancer** (a pixel banana dancing on a disco floor whose colours keep running round the rainbow: bass bounces it,
+  **Pocket console** (Peaks on an old handheld's screen: 15 bars of chunky dots in four shades, with falling caps;
+  alone, the title is in the same ink in pixel type. In Yellow the old handheld's greens; in another theme four shades
+  of its accent on a screen tinted with it), **Night city** (a skyline whose windows light up with the
+  music; in a theme but Yellow its sky, buildings, windows and moon take the theme's colours), **Banana dancer** (a pixel banana dancing on a disco floor whose colours keep running round the rainbow: bass bounces it,
   the mids wave its arms),
-  **Campfire** (each flame leaps with its part of the sound, sparks fly on the treble), **Aurora** (northern lights
+  **Campfire** (each flame leaps with its part of the sound, sparks fly on the treble; with Art + visualizer the fire
+  spans the whole width), **Aurora** (northern lights
   over a snowy ridge), **Sound garden** (pixel flowers that grow with the music and bloom at the peaks), **Pixel sea**
   (moonlit waves and a little sailboat), **Bunny hop** (five bunnies, each hopping to its part of the music),
   **Bubble tea** (pearls bouncing on the bass, fizz up the straw), **Jellyfish** (glowing jellyfish pulsing on the

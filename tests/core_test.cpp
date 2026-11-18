@@ -5827,6 +5827,55 @@ static void testSubtitleCodePages()
 // the themes (theme.h): Yellow is today's values, the table's rules give the spec's worked-out colours
 // (docs/redesign/components.md, Themes: from themes.py), the setting reads and writes each by its id, Match theme
 // picks the reader's page by the theme, and a swap changes what the names read
+// the styles in the theme (docs/notes/2026-11-19-viz-theme.md): Yellow's Pocket console and Night city graphs are
+// today's, text for text; another theme's take its colours, Pocket's ink 3:1 at least on its screen; Campfire's band
+// spans the width over the art
+static uint64_t fnv64(const std::string& s)
+{
+	uint64_t h = 0xcbf29ce484222325ull;
+	for (unsigned char c : s) { h ^= c; h *= 0x100000001b3ull; }
+	return h;
+}
+
+static void testVizTheme()
+{
+	char tmpl[] = "/tmp/bp-vizthemeXXXXXX";
+	char* made = mkdtemp(tmpl);
+	if (!made) { failures++; return; }
+	const std::string dir = made;
+	const int was = theme::currentTheme();
+	auto graph = [&](int v, bool art) {
+		std::string g = visualizerGraphMarked(v, art, dir);
+		for (size_t at = g.find(dir); at != std::string::npos; at = g.find(dir, at)) g.replace(at, dir.size(), "/tmp/x");
+		return g;
+	};
+	theme::setTheme(0);
+	CHECK_EQ(fnv64(graph(VIS_POCKET, false)), 0xe2c2c5731dc4357full);
+	CHECK_EQ(fnv64(graph(VIS_POCKET, true)), 0x5e9b96d7f1a0cc3eull);
+	CHECK_EQ(fnv64(graph(VIS_CITY, false)), 0xa242fd54394c13a4ull);
+	CHECK_EQ(fnv64(graph(VIS_CITY, true)), 0x801aa2d70b020947ull);
+	CHECK_EQ(pocketInks().ink == (theme::Rgb{0x0F, 0x38, 0x0F}), true);
+	// Campfire over the art: 5 columns a band from column 0, the whole width
+	CHECK_EQ(graph(VIS_FIRE, true).find("[fil] scale=80:1:flags=neighbor,pad=80:1:0:0:black") != std::string::npos, true);
+	const std::string yPocket = graph(VIS_POCKET, false), yCity = graph(VIS_CITY, false);
+	for (int i = 1; i < theme::themeCount(); i++)
+	{
+		theme::setTheme(i);
+		PocketInks p = pocketInks();
+		CHECK_EQ(colourContrast(p.ink, p.screen) >= 3.0, true);
+		CHECK_EQ(colourContrast(p.light, theme::BG) >= 3.0, true);
+		if (std::string(theme::themeId(i)) == "sakura")
+		{
+			CHECK_EQ(graph(VIS_POCKET, false) != yPocket, true);
+			std::string c = graph(VIS_CITY, false);
+			CHECK_EQ(c != yCity && c.find("city4-sakura-yt.pgm") != std::string::npos, true);
+		}
+	}
+	theme::setTheme(was);
+	std::string rm = "rm -rf '" + dir + "'";
+	CHECK_EQ(system(rm.c_str()), 0);
+}
+
 static void testThemes()
 {
 	using namespace theme;
@@ -12008,6 +12057,7 @@ int main()
 {
 	testSlider();
 	testSongLayout();
+	testVizTheme();
 	testKitDisplayPage();
 	testFileSave();
 	testWriteQueue();

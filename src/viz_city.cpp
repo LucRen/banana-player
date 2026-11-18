@@ -12,9 +12,12 @@
 // Over the art the same skyline, shorter, stands in the 640x200 strip under the art's top, the art its sky.
 #include "viz_more.h"
 #include "settings.h"
+#include "theme.h"
 #include "vizcache.h"
 
+#include <chrono>
 #include <cmath>
+#include <cstdio>
 #include <cstdint>
 #include <fstream>
 #include <sys/stat.h>
@@ -45,8 +48,27 @@ namespace bp
 				(int)std::lround(128 - 37.797 * r - 74.203 * g + 112.0 * b),
 				(int)std::lround(128 + 112.0 * r - 93.786 * g - 18.214 * b)};
 	}
-	static const int SKY_TOP = 0x060b24, SKY_LOW = 0x1b2a5c, WALL = 0x0b0f22, BACK_WALL = 0x131b3e, UNLIT = 0x1a2142,
-					 LIT = 0xffd23f, LIT_HOT = 0xffb347, MOON = 0xf3eecb, ROOF_LIGHT = 0xd9434a;
+	// the scene's colours (0xRRGGBB). Yellow's are the night's own, as before themes; another theme's (cityPal): the sky
+	// from BG at the top to SURFACE tinted with the accent at the horizon, the buildings BUTTON (behind) and PRESSED (in
+	// front), the unlit windows PRESSED towards BG, the lit ones ACCENT (the hottest ACCENT towards DANGER), the moon
+	// and the stars TEXT, a roof's light DANGER. The same in Art + visualizer and Visualizer only
+	struct CityPal { int skyTop, skyLow, wall, backWall, unlit, lit, litHot, moon, roofLight, star; };
+	static int rgbOf(theme::Rgb c) { return (c.r << 16) | (c.g << 8) | c.b; }
+	static CityPal cityPal()
+	{
+		if (theme::currentTheme() == 0)
+			return {0x060b24, 0x1b2a5c, 0x0b0f22, 0x131b3e, 0x1a2142, 0xffd23f, 0xffb347, 0xf3eecb, 0xd9434a, 0xffffff};
+		using theme::mix;
+		return {rgbOf(theme::BG), rgbOf(mix(theme::SURFACE, theme::ACCENT, 22)), rgbOf(theme::PRESSED), rgbOf(theme::BUTTON),
+			rgbOf(mix(theme::PRESSED, theme::BG, 45)), rgbOf(theme::ACCENT), rgbOf(mix(theme::ACCENT, theme::DANGER, 40)),
+			rgbOf(theme::TEXT), rgbOf(theme::DANGER), rgbOf(theme::TEXT)};
+	}
+	// the stills' names: Yellow's as before, another theme's with its id (its scene drawn in its colours)
+	static std::string cityFile(int k)
+	{
+		if (theme::currentTheme() == 0) return CITY_FILES[k];
+		return std::string("city4-") + theme::themeId(theme::currentTheme()) + "-" + (CITY_FILES[k] + 6);
+	}
 
 	// a small, fixed random sequence: the same city every time
 	struct Rng
@@ -127,7 +149,7 @@ namespace bp
 	bool writeCityMaps(const std::string& dir)
 	{
 		std::string p[8];
-		for (int k = 0; k < 8; k++) p[k] = dir + "/" + CITY_FILES[k];
+		for (int k = 0; k < 8; k++) p[k] = dir + "/" + cityFile(k);
 		const size_t sizes[8] = {pgmSize(W, SPLIT * 2, 1), pgmSize(HW, HH, 1), pgmSize(HW, HH, 1), pgmSize(HW, HH, 1),
 								 pgmSize(HW, SH, 1), pgmSize(HW, 1, 2), pgmSize(HW, 1, 2), pgmSize(HW, HH - SPLIT, 1)};
 		bool ready = true;
@@ -137,6 +159,9 @@ namespace bp
 		}
 		if (ready) return true;
 		mkdir(dir.c_str(), 0755);
+		const CityPal P = cityPal();
+		const int SKY_TOP = P.skyTop, SKY_LOW = P.skyLow, WALL = P.wall, BACK_WALL = P.backWall, UNLIT = P.unlit, MOON = P.moon,
+				  ROOF_LIGHT = P.roofLight;
 
 		// the scene in RGB at full size (made once), then turned to Y and to U/V averaged over each 2x2
 		std::vector<int> rgb((size_t)W * H);
@@ -162,7 +187,7 @@ namespace bp
 		{
 			int x = r.range(0, W - 1), y = r.range(0, 250);
 			if (std::hypot(x - 560, y - 72) < 44) continue;	// not on the moon
-			int c = lerp(SKY_LOW, 0xffffff, 0.35 + r.range(0, 60) / 100.0);
+			int c = lerp(SKY_LOW, P.star, 0.35 + r.range(0, 60) / 100.0);
 			// under the still top the scene is in 2x2 blocks: a star there is one, dimmer (nearer the city's glow)
 			if (y >= SPLIT * 2) { fill(x & ~1, y & ~1, 2, 2, lerp(SKY_LOW, c, 0.6)); continue; }
 			fill(x, y, 1, 1, c);
@@ -263,10 +288,20 @@ namespace bp
 	std::string cityGraph(bool overCover, const std::string& dir)
 	{
 		auto n = [](int v) { return std::to_string(v); };
-		auto q = [&](int k) { std::string s; lavfiPath(dir + "/" + CITY_FILES[k], s); return s; };
+		auto q = [&](int k) { std::string s; lavfiPath(dir + "/" + cityFile(k), s); return s; };
+		// the theme's scene: drawn into its stills the first time it's wanted (a few ms, once a theme), then cached
+		// (Yellow's too: the maps may have been written first under another theme)
+		const CityPal P = cityPal();
+		{
+			auto t0 = std::chrono::steady_clock::now();
+			bool ok = writeCityMaps(dir);
+			fprintf(stderr, "visualizer: Night city in %s: sky #%06X to #%06X, walls #%06X / #%06X, windows #%06X (lit #%06X, #%06X), moon #%06X; stills %s in %.0f ms\n",
+				theme::themeId(theme::currentTheme()), P.skyTop, P.skyLow, P.backWall, P.wall, P.unlit, P.lit, P.litHot, P.moon,
+				ok ? "ready" : "NOT written", std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count());
+		}
 		const int TOP = 8;	// as Peaks: the highest bands (16-24 kHz) measured and cut off
 		const int rows = overCover ? SH : HH, mid = rows / 2 - 1;
-		const Yuv lit = yuv(LIT), hot = yuv(LIT_HOT), wall = yuv(WALL), back = yuv(BACK_WALL), unlit = yuv(UNLIT);
+		const Yuv lit = yuv(P.lit), hot = yuv(P.litHot), wall = yuv(P.wall), back = yuv(P.backWall), unlit = yuv(P.unlit);
 		std::string g = "[aid1] asplit [ao] [a]; ";
 		if (overCover)
 			g += "[vid1] scale=640:480:force_original_aspect_ratio=decrease,pad=640:480:-1:-1:black,setsar=1,format=yuv420p,"
