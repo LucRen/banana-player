@@ -1,0 +1,293 @@
+// The Preview pane, composed in software at the top panel's pixels (previewpane.h). Its places are lay::previewPane
+// and lay::swatches (kitlayout.h, tested); its primitives are the cards' (cardcanvas.h). The main tokens throughout:
+// it is app UI, not a card over a picture, so its ground is the theme's BG. Only the small "Cards stay dark" card on
+// the Theme row's pane is drawn in the TOP_ tokens, as every card over a picture is.
+#include "previewpane.h"
+#include "cardcanvas.h"
+#include "kitlayout.h"
+#include "theme.h"
+#include "ui.h"
+#include "ui_glyphs.h"
+#include <algorithm>
+#include <cmath>
+
+namespace bp
+{
+	namespace
+	{
+		using namespace card;
+		using theme::Rgb;
+
+		CardGlyph cg(const Ui::Glyph& g) { return {g.rows, g.h}; }
+
+		// The pane's own drawing: the canvas plus where the panel's 640 x 480 units start (a panel wider than 4:3 has
+		// the pane centred)
+		struct PaneDraw
+		{
+			Canvas& c;
+			float ox;
+			float X(float u) const { return ox + u * c.k; }
+			float Y(float u) const { return u * c.k; }
+			float S(float u) const { return u * c.k; }
+			int lineH(Face f, float u) const { return c.lineH(f, u); }
+
+			// text at units (x, y) as the line box's top left; returns its width in units
+			float text(Face f, float size, const std::string& s, float x, float y, Rgb ink)
+			{
+				c.text(f, size, s, (int)std::lround(X(x)), (int)std::lround(Y(y)), ink);
+				return c.textW(f, size, s) / c.k;
+			}
+			// small capitals with the mock-up's letter spacing (.12em), a character at a time
+			float spaced(Face f, float size, const std::string& s, float x, float y, Rgb ink, float em = 0.12f)
+			{
+				float x0 = x;
+				for (size_t i = 0; i < s.size();)
+				{
+					size_t n = card::u8len(s, i);
+					std::string ch = s.substr(i, n);
+					x += text(f, size, ch, x, y, ink) + size * em;
+					i += n;
+				}
+				return x - x0;
+			}
+			float textW(Face f, float size, const std::string& s) const { return c.textW(f, size, s) / c.k; }
+			// the words in lines no wider than w units (at most `most`, the last cut with "…")
+			std::vector<std::string> wrap(Face f, float size, const std::string& s, float w, int most)
+			{
+				std::vector<std::string> lines;
+				std::string line;
+				size_t i = 0;
+				while (i < s.size())
+				{
+					size_t sp = s.find(' ', i);
+					std::string word = s.substr(i, sp == std::string::npos ? std::string::npos : sp - i);
+					i = sp == std::string::npos ? s.size() : sp + 1;
+					std::string next = line.empty() ? word : line + " " + word;
+					if (!line.empty() && textW(f, size, next) > w)
+					{
+						lines.push_back(line);
+						line = word;
+					}
+					else line = next;
+				}
+				if (!line.empty()) lines.push_back(line);
+				if ((int)lines.size() > most)
+				{
+					std::string last = lines[most - 1];
+					for (int k = most; k < (int)lines.size(); k++) last += " " + lines[k];
+					lines.resize(most);
+					lines.back() = c.fit(f, size, last, (int)S(w));
+				}
+				return lines;
+			}
+			void box(float x, float y, float w, float h, float r, Rgb fill, int alpha = 255)
+			{
+				c.box(X(x), Y(y), S(w), S(h), S(r), fill, alpha);
+			}
+			// a box with an edge (2 units) and no lip: a surface, a focused row
+			void flat(float x, float y, float w, float h, float r, Rgb fill, Rgb edge)
+			{
+				c.ring(X(x), Y(y), S(w), S(h), S(r), S(theme::EDGE), edge, fill);
+			}
+			// a key: its edge, its fill, the darker band above its foot (theme.h's LIP)
+			void key(float x, float y, float w, float h, Rgb fill)
+			{
+				box(x, y, w, h, theme::R_BUTTON, theme::edgeOf(fill));
+				float e = theme::EDGE;
+				box(x + e, y + e, w - 2 * e, h - 2 * e, theme::R_BUTTON - e, theme::lipOf(fill));
+				box(x + e, y + e, w - 2 * e, h - 2 * e - theme::LIP, theme::R_BUTTON - e, fill);
+			}
+			// a key cap (the button's name in an outline), its height 19; returns its width
+			float cap(const std::string& k, float x, float cy, Rgb ink, Rgb ground)
+			{
+				float w = std::max(19.f, textW(PIXEL, 12, k) + 10);
+				flat(x, cy - 9.5f, w, 19, theme::R_CAP, ground, ink);
+				text(PIXEL, 12, k, x + (w - textW(PIXEL, 12, k)) / 2, cy - lineH(PIXEL, 12) / c.k / 2, ink);
+				return w;
+			}
+			// a pill (a row's mark): its right edge at `right`; returns its width
+			float pill(const std::string& t, float right, float cy, Rgb fill, Rgb ink)
+			{
+				float w = textW(INTER_BOLD, 11, t) + 12;
+				box(right - w, cy - 8.5f, w, 17, theme::R_CAP, fill);
+				text(INTER_BOLD, 11, t, right - w + 6, cy - lineH(INTER_BOLD, 11) / c.k / 2, ink);
+				return w;
+			}
+			void glyph(const Ui::Glyph& g, float size, float x, float y, Rgb ink) { c.glyph(cg(g), S(size), X(x), Y(y), ink); }
+		};
+
+		// one theme's swatch: its BG, a SURFACE box with its edge, an ACCENT box, a TEXT line and an ACCENT line (the
+		// mock-up's thSwatch: a picture of that theme, whatever theme is drawn now)
+		void swatch(PaneDraw& d, lay::Box b, const theme::Palette& t, bool chosen)
+		{
+			using namespace theme;
+			// the edge: the current theme's surface edge; the chosen one ACCENT, a unit wider all round
+			if (chosen) d.box(b.x - 1, b.y - 1, b.w + 2, b.h + 2, 10, ACCENT);
+			d.box(b.x, b.y, b.w, b.h, 9, chosen ? ACCENT : edgeOf(SURFACE));
+			d.box(b.x + EDGE, b.y + EDGE, b.w - 2 * EDGE, b.h - 2 * EDGE, 9 - EDGE, t.BG);
+			float ix = b.x + EDGE, iy = b.y + EDGE, iw = b.w - 2 * EDGE, ih = b.h - 2 * EDGE;
+			d.box(ix + 6, iy + 5, 26, 14, 4, edgeOf(t.SURFACE, t.TEXT, t.EDGE_MIX));
+			d.box(ix + 7, iy + 6, 24, 12, 3, t.SURFACE);
+			d.box(ix + iw - 6 - 16, iy + 5, 16, 14, 4, t.ACCENT);
+			d.box(ix + 6, iy + ih - 6 - 4, 30, 4, 2, t.TEXT);
+			d.box(ix + iw - 6 - 10, iy + ih - 6 - 4, 10, 4, 2, t.ACCENT);
+		}
+
+		// the Theme row's block: the fifteen swatches, then "As it looks" and the pieces drawn in the theme now
+		float themesBlock(PaneDraw& d, const PaneSpec& s, float x, float y, float w)
+		{
+			using namespace theme;
+			const int n = themeCount();
+			auto boxes = lay::swatches(n, (int)x, (int)y);
+			for (int i = 0; i < n; i++)
+			{
+				const lay::Box& b = boxes[i];
+				swatch(d, b, palette(i), i == s.chosen);
+				std::string name = palette(i).name;
+				float nw = d.textW(INTER, 10, name);
+				d.text(INTER, 10, name, b.x + (b.w - nw) / 2, b.y + b.h + 3, i == s.chosen ? ACCENT : DIM_ON);
+			}
+			int rows = (n + 7) / 8;
+			y += rows * (lay::SWATCH_H + lay::SWATCH_NAME) + (rows - 1) * lay::SWATCH_ROW_GAP + 13;
+			d.spaced(INTER_BOLD, 11, "AS IT LOOKS", x, y, DIM, 0.09f);
+			y += d.lineH(INTER_BOLD, 11) / d.c.k + 7;
+			const float h = 44, cy = y + h / 2 - 1.5f;	// (the text's middle above the lip)
+			// a primary key: Play, with its cap
+			{
+				float kx = x, kw = 96;
+				d.key(kx, y, kw, h, ACCENT);
+				float cw = 19, inner = 13 + 6 + d.textW(PIXEL, 15, "Play") + 7 + cw, at = kx + (kw - inner) / 2;
+				d.glyph(G_PLAY, 13, at, cy - 6.5f, ON_ACCENT);
+				at += 13 + 6;
+				at += d.text(PIXEL, 15, "Play", at, cy - d.lineH(PIXEL, 15) / d.c.k / 2, ON_ACCENT) + 7;
+				d.cap("A", at, cy, ON_ACCENT, ACCENT);
+			}
+			// a key: Back, its cap in ACCENT
+			{
+				float kx = x + 96 + 10, kw = 84;
+				d.key(kx, y, kw, h, BUTTON);
+				float inner = d.textW(PIXEL, 15, "Back") + 7 + 19, at = kx + (kw - inner) / 2;
+				at += d.text(PIXEL, 15, "Back", at, cy - d.lineH(PIXEL, 15) / d.c.k / 2, TEXT) + 7;
+				d.cap("B", at, cy, ACCENT, BUTTON);
+			}
+			// a focused row: BUTTON, an ACCENT edge, its name in ACCENT, a pill at its end
+			{
+				float rx = x + 96 + 10 + 84 + 10, rw = 214, my = y + h / 2;
+				d.flat(rx, y, rw, h, R_BUTTON, BUTTON, ACCENT);
+				d.glyph(G_NOTE, 18, rx + 12, my - 9, TEXT);
+				float pw = d.textW(INTER_BOLD, 11, "Playing") + 12;
+				std::string name = d.c.fit(PIXEL, 15, "Sunny Peel", (int)d.S(rw - 12 - 18 - 11 - pw - 20));
+				d.text(PIXEL, 15, name, rx + 12 + 18 + 11, my - d.lineH(PIXEL, 15) / d.c.k / 2, ACCENT);
+				d.pill("Playing", rx + rw - 12, my, ACCENT, ON_ACCENT);
+			}
+			// two pills (a fact, a failure) over a bar
+			{
+				float cx = x + 96 + 10 + 84 + 10 + 214 + 10, cw = x + w - cx;
+				float py = y + 9;
+				float right = cx + d.textW(INTER_BOLD, 11, "On card") + 12;
+				d.pill("On card", right, py, TRACK, TEXT);
+				d.pill("Gone", right + 6 + d.textW(INTER_BOLD, 11, "Gone") + 12, py, mix(BG, DANGER, TINT), DANGER);
+				float by = py + 8.5f + 7;
+				d.box(cx, by, cw, 6, 3, TRACK);
+				d.box(cx, by, std::max(6.f, cw * 0.62f), 6, 3, ACCENT);
+			}
+			return y + h;
+		}
+	}
+
+	PaneImage composePane(const std::string& fontsDir, int w, int h, const PaneSpec& s)
+	{
+		using namespace theme;
+		PaneImage out;
+		if (w <= 0 || h <= 0) return out;
+		Canvas c(fontsDir, h);
+		c.size(w, h);
+		PaneDraw d{c, std::max(0.f, (w - 640 * c.k) / 2)};
+		// the ground, opaque (the pane is the panel): set, not blended, it's every pixel
+		for (size_t i = 0; i < (size_t)w * h; i++)
+		{
+			uint8_t* px = &c.v[i * 4];
+			px[0] = BG.r;
+			px[1] = BG.g;
+			px[2] = BG.b;
+			px[3] = 255;
+		}
+		lay::Pane l = lay::previewPane(s.cover);
+		// the brand mark: the play tile and the name
+		d.box(l.brandTile.x, l.brandTile.y, l.brandTile.w, l.brandTile.h, 6, ACCENT);
+		d.glyph(G_PLAY, 12, l.brandTile.x + 5, l.brandTile.y + 5, ON_ACCENT);
+		d.text(PIXEL, 15, "Banana Player", l.brandName.x, l.brandName.y + (l.brandName.h - d.lineH(PIXEL, 15) / c.k) / 2, ACCENT);
+		if (s.cover)
+		{
+			// no picture here yet: the cover's place
+			d.flat(l.cover.x, l.cover.y, l.cover.w, l.cover.h, R_TILE, SURFACE, edgeOf(SURFACE));
+			d.glyph(G_PICTURE, 44, l.cover.x + (l.cover.w - 44) / 2.f, l.cover.y + (l.cover.h - 44) / 2.f, DIM);
+		}
+		// the column: label, title, sentence, then the block, the rows, the keys
+		float x = l.column.x, cw = l.column.w, y = s.extra == PaneSpec::THEMES ? l.column.y - 8 : l.column.y;
+		if (!s.label.empty())
+		{
+			d.spaced(INTER_BOLD, 11, lay::caps(s.label), x, y, s.labelDanger ? DANGER : ACCENT);
+			y += d.lineH(INTER_BOLD, 11) / c.k + 8;
+		}
+		if (!s.title.empty())
+		{
+			auto lines = d.wrap(PIXEL, 28, s.title, cw, 2);
+			for (auto& t : lines)
+			{
+				d.text(PIXEL, 28, t, x, y, TEXT);
+				y += 28 * 1.15f;
+			}
+			y += 8;
+		}
+		if (!s.text.empty())
+		{
+			auto lines = d.wrap(INTER, 14.5f, s.text, cw, s.extra == PaneSpec::THEMES ? 3 : 5);
+			for (auto& t : lines)
+			{
+				d.text(INTER, 14.5f, t, x, y, DIM_ON);
+				y += 14.5f * 1.5f;
+			}
+		}
+		if (s.extra == PaneSpec::THEMES) y = themesBlock(d, s, x, y + 12, cw);
+		if (!s.rows.empty())
+		{
+			y += 18;
+			float dt = 0;
+			for (auto& r : s.rows) dt = std::max(dt, d.textW(INTER, 13.5f, r.first));
+			dt = std::min(dt, cw / 2);
+			for (auto& r : s.rows)
+			{
+				d.text(INTER, 13.5f, c.fit(INTER, 13.5f, r.first, (int)d.S(dt)), x, y, DIM);
+				d.text(INTER, 13.5f, c.fit(INTER, 13.5f, r.second, (int)d.S(cw - dt - 16)), x + dt + 16, y, TEXT);
+				y += 13.5f * 1.2f + 7;
+			}
+		}
+		if (!s.keys.empty())
+		{
+			y += 18;
+			float at = x, cy = y + 10;
+			for (auto& k : s.keys)
+			{
+				if (!k.first.empty()) at += d.cap(k.first, at, cy, ACCENT, BG) + 5;
+				at += d.text(INTER, 12.5f, k.second, at, cy - d.lineH(INTER, 12.5f) / c.k / 2, DIM_ON) + 15;
+			}
+		}
+		if (s.extra == PaneSpec::THEMES)
+		{
+			// over a picture the cards stay dark: a small one in the TOP_ tokens, top right
+			const std::string a = "Over a video", b = "Cards stay dark";
+			float bw = std::max(d.textW(INTER, 11.5f, a), d.textW(PIXEL, 16, b)) + 28 + 4;
+			float ah = d.lineH(INTER, 11.5f) / c.k, bh = d.lineH(PIXEL, 16) / c.k, bhh = 9 + ah + 3 + bh + 9 + 4;
+			float bx = 640 - 20 - bw, by = 14;
+			d.box(bx, by, bw, bhh, R_TOP_CARD, TOP_EDGE);
+			d.box(bx + 2, by + 2, bw - 4, bhh - 4, R_TOP_CARD - 2, TOP_CARD);
+			d.text(INTER, 11.5f, a, bx + 16, by + 11, TOP_SUB);
+			d.text(PIXEL, 16, b, bx + 16, by + 11 + ah + 3, TOP_TITLE);
+		}
+		out.w = w;
+		out.h = h;
+		out.rgba = std::move(c.v);
+		return out;
+	}
+}

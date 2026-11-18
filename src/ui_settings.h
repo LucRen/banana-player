@@ -42,6 +42,8 @@ namespace bp
 		// a settings group's tile (Settings opens on them: two to a row, lay::settingsTile)
 		Rect groupRect(int g) const { return lay::settingsTile(groupArea(), GROUPS, 2, g); }
 		bool styleFromSubs = false;	// the subtitle style opened from the Subtitles list: B goes back to it
+		// the top panel's Preview pane for the focused row (Ui::topPane): the Theme row's swatches; false: none
+		bool topPane(PaneSpec& out) const;
 
 	private:
 		static Rect groupArea() { return {16, lay::SET_TILE_TOP, 608, 5 * lay::SET_TILE_H + 4 * lay::SET_TILE_GAP}; }

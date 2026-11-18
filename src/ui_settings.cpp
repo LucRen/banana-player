@@ -4,6 +4,7 @@
 #include "netpath.h"
 #include "manganet.h"
 #include "theme.h"
+#include "previewpane.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -105,6 +106,25 @@ namespace bp
 		}
 		default: return {};
 		}
+	}
+
+	bool Ui::SettingsPage::topPane(PaneSpec& out) const
+	{
+		// Power & screens › Theme focused: every theme's swatch and the pieces as they look now (the spec's set-theme
+		// top). It follows LEFT / RIGHT: the theme is in the key, so the pane is composed again on each step
+		if (ui.page != Page::Settings || ui.setGroup != GROUP_SCREEN) return false;
+		std::vector<int> rows = settingRows();
+		if (ui.cursor < 0 || ui.cursor >= (int)rows.size()) return false;
+		const SettingDef* d = rowDef(rows[ui.cursor]);
+		if (!d || strcmp(d->key, "theme") != 0) return false;
+		int t = theme::currentTheme();
+		out.key = "theme-row";	// (topscreen.cpp adds the theme to every pane's key)
+		out.label = "Settings \xE2\x80\xBA Power & screens";
+		out.title = std::string("Theme \xC2\xB7 ") + theme::palette(t).name;
+		out.text = d->help;
+		out.extra = PaneSpec::THEMES;
+		out.chosen = t;
+		return true;
 	}
 
 	std::string Ui::SettingsPage::settingHelp(int row) const

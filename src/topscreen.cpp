@@ -7,6 +7,7 @@
 #include "levelcard.h"
 #include "manganet.h"
 #include "player.h"
+#include "previewpane.h"
 #include "supportqr.h"
 #include "textsource.h"
 #include "theme.h"
@@ -84,6 +85,7 @@ namespace bp
 		auto readPixels = (ReadPixels)SDL_GL_GetProcAddress("glReadPixels");
 		if (!readPixels) return nullptr;
 		if (qr && drawQr(w, h)) {}	// About's support QR, large
+		else if (paneUp && paneReady) paneRender.draw({{0, 0, 0, (float)w, (float)h}}, w, h);	// the Preview pane
 		else if (reader.isOpen() && readerOnTop) reader.draw(w, h);	// a manga chapter's pages
 		else if (textReader.isOpen() && readerOnTop) textReader.draw(w, h);	// a document's text
 		else shown.render(w, h);	// a video, a photo, or the icon with nothing playing
@@ -122,6 +124,38 @@ namespace bp
 			qrUp = true;
 		}
 		qrRender.draw({{0, 0, 0, (float)w, (float)h}}, w, h);
+		return true;
+	}
+
+	bool TopScreen::drawPane(const PaneSpec& spec, const std::string& key, int w, int h)
+	{
+		SDL_GL_MakeCurrent(top, gl);
+		if (!paneReady)
+		{
+#ifdef BP_GLES
+			paneReady = paneRender.init([](const char* n) { return SDL_GL_GetProcAddress(n); }, true);
+#else
+			paneReady = paneRender.init([](const char* n) { return SDL_GL_GetProcAddress(n); }, false);
+#endif
+			paneRender.setUploadAll(true);	// (all its tiles up in the frame that shows it)
+		}
+		if (!paneReady) return false;
+		if (!paneUp || key != paneKey || paneW != w || paneH != h)
+		{
+			Uint32 t0 = SDL_GetTicks();
+			PaneImage img = composePane(fontsDir, w, h, spec);
+			// (a failure isn't tried again every pass: the key is taken; the 2 s refresh or a change asks again)
+			bool first = !paneUp;
+			paneKey = key;
+			paneW = w;
+			paneH = h;
+			if (!img.ok()) return false;
+			paneRender.addPage(0, img.w, img.h, std::make_shared<const std::vector<uint8_t>>(std::move(img.rgba)));
+			paneUp = true;
+			// in the log: the pane up and each change (a top panel stuck on it would show here)
+			fprintf(stderr, "top: preview pane %s %s %dx%d in %u ms\n", first ? "up" : "now", key.c_str(), w, h, SDL_GetTicks() - t0);
+		}
+		paneRender.draw({{0, 0, 0, (float)w, (float)h}}, w, h);
 		return true;
 	}
 
@@ -397,6 +431,20 @@ namespace bp
 			qrRender.keepOnly({});
 			qrRender.flushDead();
 		}
+		// the Preview pane: only while nothing plays (a video, a song, a photo: the top screen is the picture) and no
+		// reader has the panel; down again, mpv's idle picture is drawn once more
+		PaneSpec pane;
+		bool paneNow = !qrNow && !player.playing() && !photos.playing() && !reader.isOpen() && !textReader.isOpen() && ui.topPane(pane);
+		if (!paneNow && paneUp)
+		{
+			paneUp = false;
+			paneKey.clear();
+			SDL_GL_MakeCurrent(top, gl);
+			paneRender.keepOnly({});
+			paneRender.flushDead();
+			topDark = false;
+			fprintf(stderr, "top: preview pane dropped\n");
+		}
 		if (qrNow)
 		{
 			// About's support QR, large: the panel's own picture, 1:1 (a still: drawn again when it changes, and
@@ -405,6 +453,15 @@ namespace bp
 			int w, h;
 			SDL_GL_GetDrawableSize(top, &w, &h);
 			if ((qrW != w || qrH != h || refresh) && drawQr(w, h)) SDL_GL_SwapWindow(top);
+		}
+		else if (paneNow)
+		{
+			// a still, as the QR: drawn when its key (the theme in it) or the size changes, and with the 2 s refresh
+			renderPending = false;
+			int w, h;
+			SDL_GL_GetDrawableSize(top, &w, &h);
+			std::string key = pane.key + "|" + theme::themeId(theme::currentTheme());
+			if ((key != paneKey || paneW != w || paneH != h || refresh) && drawPane(pane, key, w, h)) SDL_GL_SwapWindow(top);
 		}
 		else if (reader.isOpen() && onTop(ui))
 		{

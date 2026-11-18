@@ -507,6 +507,7 @@ namespace bp
 		showHidden = p.settings.showHiddenFolders;
 		SDL_SetRenderDrawColor(ren, BG.r, BG.g, BG.b, 255);
 		SDL_RenderClear(ren);
+		if (galleryNew) { drawGalleryNew(); return; }	// (test only: --press gallery:new)
 		webInd = {0, 0, 0, 0};	// (drawBattery puts it back where it draws it)
 		// what plays behind the browser: its bar along the bottom, its row's chip, the header's mark (drawBattery says
 		// whether it moved)
