@@ -146,7 +146,7 @@ namespace bp
 		// (not saved) the file named no lid-close: the choice is asked once at start (Ui::askLid), then kept
 		bool lidAsk = false;
 		// the app's colours, both panels and the dashboard (Settings › Power & screens › Theme): theme.h's table, by index
-		int theme = 0;
+		int theme = 1;	// Dark (theme.cpp's order: Yellow, the look before themes, is 0)
 		// the time left of the battery (Settings › Power & screens): 24-hour, 12-hour or none
 		int clock = CLOCK_24;
 		// the bottom panel off by itself (Settings › Power & screens) while a song or video plays and nothing is touched

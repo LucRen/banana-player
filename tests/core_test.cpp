@@ -5852,7 +5852,8 @@ static void testThemes()
 		const Palette& p = palette(i);
 		CHECK_EQ(p.TOP_CARD.r + p.TOP_CARD.g + p.TOP_CARD.b < 3 * 64, true);
 	}
-	CHECK_EQ(parseSettings("theme = no-such\n").theme, 0);
+	CHECK_EQ(parseSettings("theme = no-such\n").theme, Settings().theme);
+	CHECK_EQ(std::string(theme::themeIds()[Settings().theme]), std::string("dark"));	// the default
 	// seventeen, in the stepper's order (docs/redesign/themes.py ORDER)
 	{
 		std::string order;

@@ -1,7 +1,7 @@
 /* Banana Player web dashboard: the handheld's look (src/theme.h, docs/redesign/components.md, Themes), made for a pointer
    and a thumb. One box, edged and lipped as on the handheld (fill, an edge EDGE_MIX towards the text, a lip the fill x .7
    just above the bottom edge); a press moves it down. Pixel type for labels and display, Inter for what people read.
-   Colours only through the variables below: :root holds Yellow (the default; its values as before themes), and the
+   Colours only through the variables below: :root holds Yellow (its values as before themes; the default theme is Dark, set by data-theme), and the
    other themes' blocks (:root[data-theme=ID]) are /theme.css, written by the handheld from src/theme.cpp's table
    (theme.h: themeCss), never copied here by hand; the page sets data-theme from the state's "theme" (js/events.js).
    The names say Yellow's colours (--yellow is ACCENT, --red DANGER, --cream TEXT). Pictures (video, art, posters, the
