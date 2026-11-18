@@ -60,3 +60,23 @@ slots in testSettings). Each graph also ran through the Mac's ffmpeg once (alone
 ## What may differ on the handheld
 `showvolume` in the bundled FFmpeg 7.1.1 (checked on the Mac's); remap with gray8 and `movie=` 16-bit PGMs as Circle
 used; the cost above.
+
+## Later the same day: Area became Horizon, Radial became Steps (branch viz-horizon)
+The owner's call (approved proposals). `area` reads as `horizon`, `radial` (and `long-cat`) as `steps`
+(`visualizerReplacement`), each in the slot it replaces.
+- **Horizon** (`horizonGraph`): the 20 levels' row hflipped and hstacked (bass in the middle), stretched to the sky
+  (160 rows alone, 64 in the band), told apart by lut2 against a still of each row's step and a low sun's disc;
+  the reflection is the sky's codes vflipped, squashed (nearest) and masked by a still of stripes and the horizon
+  line; vstack, then the palette. Skyline ACCENT, sun BUTTON, line and reflection DIM. The proposal's showfreqs bars
+  at half width are the measured row here (mirrored as a row: 40 values, not a picture).
+- **Steps** (`stepsGraph`): 20 bands of 16 columns; the outline (the step's top, and a band's rise or fall at its
+  first two columns, known from a second row of the levels shifted one band) by two lut2 against a still of each
+  pixel's step; a third with the held peaks (lagfun 0.95, ~3.4 s) gives the DIM peak line. Outline ACCENT, fill
+  BUTTON. The proposal's mask minus its shifted copy (blend=difference) is done by these lookups instead: no
+  full-size shifted copy or blend a frame.
+- Radial's remap, its tables and code are gone; its tables (radial1-3) are unlinked from the state folder once, with
+  the other retired stills. No simple style reads stills any more.
+- Expected cost (reasoned): Horizon about Peaks plus a flip and a nearest squash of 320x80 and a vstack (row
+  copies); Steps three lut2 at 320x240 and three row stretches, a little over Peaks, cheaper than Radial's remap.
+- Checked: build, core-test; one render of both through the Mac's ffmpeg. The switch bug (Area → Mirror bars in Art +
+  visualizer stopping the song) was not investigated (owner's call): Area is gone.

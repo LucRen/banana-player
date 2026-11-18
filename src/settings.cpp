@@ -30,12 +30,12 @@ namespace bp
 		"synthwave", "banana-stack", "night-city", "oscilloscope", "heartbeat", "campfire", "aurora", "sound-garden", "turntable", "pixel-sea",
 		"bunny-hop", "bubble-tea", "jellyfish", "music-box", "fishbowl", "disco-ball", "banana-dancer", "vibing-cat",
 		"popcorn-machine", "jelly-wobble", "tube-man", "long-cat", "washing-machine", "mirror-bars", "wave", "dots", "levels", "area",
-		"radial"};
+		"radial", "horizon", "steps"};
 	static const char* VIS_LABELS[VISUALIZERS] = {"Bars", "Waves", "Spectrum", "Circle", "Peaks", "Peaks", "Pocket console",
 		"Hi-fi LED", "Synthwave", "Banana stack", "Night city", "Oscilloscope", "Heartbeat", "Campfire", "Aurora",
 		"Sound garden", "Turntable", "Pixel sea", "Bunny hop",
 		"Bubble tea", "Jellyfish", "Music box", "Fishbowl", "Disco ball", "Banana dancer", "Vibing cat",
-		"Popcorn", "Jelly wobble", "Tube man", "Long cat", "Washing machine", "Mirror bars", "Wave", "Dots", "Levels", "Area", "Radial"};
+		"Popcorn", "Jelly wobble", "Tube man", "Long cat", "Washing machine", "Mirror bars", "Wave", "Dots", "Levels", "Area", "Radial", "Horizon", "Steps"};
 	static const char* LOOP_IDS[LOOPS] = {"off", "all", "one"};
 	static const char* MANGA_MODE_IDS[MANGA_MODES] = {"rtl", "ltr", "strip"};
 	static const char* MANGA_FIT_IDS[MANGA_FITS] = {"page", "width", "fill"};
@@ -104,15 +104,18 @@ namespace bp
 		case VIS_MUSICBOX: return VIS_WAVE;
 		case VIS_BOBA: return VIS_DOTS;
 		case VIS_JELLY: return VIS_LEVELS;
-		case VIS_GARDEN: return VIS_AREA;
-		case VIS_LONGCAT: return VIS_RADIAL;
+		case VIS_GARDEN: return VIS_HORIZON;
+		case VIS_AREA: return VIS_HORIZON;
+		case VIS_LONGCAT: return VIS_STEPS;
+		case VIS_RADIAL: return VIS_STEPS;
 		default: return v;
 		}
 	}
 
 	bool visualizerOnGround(int v)
 	{
-		return v == VIS_PEAKS_BANANA || (v >= VIS_MIRROR && v <= VIS_RADIAL);
+		return v == VIS_PEAKS_BANANA || v == VIS_MIRROR || v == VIS_WAVE || v == VIS_DOTS || v == VIS_LEVELS || v == VIS_HORIZON ||
+			   v == VIS_STEPS;
 	}
 	const char* loopLabel(int v) { return LOOP_LABELS[v >= 0 && v < LOOPS ? v : 0]; }
 
@@ -385,25 +388,26 @@ namespace bp
 	bool visualizerNeedsMaps(int vis)
 	{
 		vis = visualizerReplacement(vis);
-		return vis >= VIS_LED && !(vis >= VIS_MIRROR && vis < VIS_RADIAL);
+		return vis >= VIS_LED && vis < VIS_MIRROR;
 	}
 
 	bool writeVisualizerMaps(const std::string& dir)
 	{
-		// the retired styles' stills (Circle's tables, Sound garden's, Bubble tea's, Jellyfish's, Music box's and Long
-		// cat's pictures): nothing reads them any more
+		// the retired styles' stills (Circle's and Radial's tables, Sound garden's, Bubble tea's, Jellyfish's, Music
+		// box's and Long cat's pictures): nothing reads them any more
 		static const char* RETIRED[] = {"circle3-x.pgm", "circle3-y.pgm", "garden1-alone.pgm", "garden1-strip.pgm", "garden1-bees.pgm",
 			"musicbox1-comb.pgm", "musicbox1-combs.pgm", "musicbox1-atlas.pgm", "musicbox1-y.pgm", "musicbox1-u.pgm", "musicbox1-v.pgm",
 			"lcat9-head-a.pgm", "lcat9-trow-a.pgm", "lcat9-tcol-a.pgm", "lcat9-hue-a.pgm", "lcat9-dist-a.pgm", "lcat9-head-s.pgm",
 			"lcat9-trow-s.pgm", "lcat9-tcol-s.pgm", "lcat9-hue-s.pgm", "lcat9-dist-s.pgm", "lcat9-row.pgm", "lcat9-col.pgm",
 			"boba1-alone.pgm", "boba2-strip.pgm", "boba1-wave.pgm", "boba1-fizz.pgm", "jelly2-s0.pgm", "jelly2-s1.pgm", "jelly2-s2.pgm",
 			"jelly2-s3.pgm", "jelly2-o0.pgm", "jelly2-o1.pgm", "jelly2-o2.pgm", "jelly2-o3.pgm", "jelly2-halo.pgm", "jelly2-ohalo.pgm",
-			"jelly2-speck.pgm", "jelly2-row.pgm"};
+			"jelly2-speck.pgm", "jelly2-row.pgm", "radial1-ax.pgm", "radial1-ay.pgm", "radial1-sx.pgm", "radial1-sy.pgm",
+			"radial2-ax.pgm", "radial2-ay.pgm", "radial2-sx.pgm", "radial2-sy.pgm", "radial3-ax.pgm", "radial3-ay.pgm", "radial3-sx.pgm",
+			"radial3-sy.pgm"};
 		int removed = 0;
 		for (const char* f : RETIRED) removed += unlink((dir + "/" + f).c_str()) == 0;
 		if (removed) fprintf(stderr, "visualizer: %d stills of the retired styles removed from %s\n", removed, dir.c_str());
-		bool ok = writeRadialMaps(dir);
-		ok = writeLedMaps(dir) && ok;
+		bool ok = writeLedMaps(dir);
 		ok = writeSynthwaveMaps(dir) && ok;
 		ok = writeBananaMaps(dir) && ok;
 		ok = writeCityMaps(dir) && ok;
@@ -434,14 +438,15 @@ namespace bp
 	{
 		vis = visualizerReplacement(vis);
 		if (vis == VIS_POCKET) return pocketGraph(overCover);
-		// the simple ones (src/viz_simple.cpp); Radial with its tables, else as Peaks (below)
+		// the simple ones (src/viz_simple.cpp)
 		switch (vis)
 		{
 		case VIS_MIRROR: return mirrorGraph(overCover);
 		case VIS_WAVE: return waveGraph(overCover);
 		case VIS_DOTS: return dotsGraph(overCover);
 		case VIS_LEVELS: return levelsGraph(overCover);
-		case VIS_AREA: return areaGraph(overCover);
+		case VIS_HORIZON: return horizonGraph(overCover);
+		case VIS_STEPS: return stepsGraph(overCover);
 		default: break;
 		}
 		// the newer ones (a file each, src/viz_*.cpp); with no stills yet, as Peaks
@@ -469,7 +474,6 @@ namespace bp
 			case VIS_POPCORN: return popcornGraph(overCover, mapsDir);
 			case VIS_WOBBLE: return wobbleGraph(overCover, mapsDir);
 			case VIS_TUBEMAN: return tubemanGraph(overCover, mapsDir);
-			case VIS_RADIAL: return radialGraph(overCover, mapsDir);
 			default: return washerGraph(overCover, mapsDir);
 			}
 		}
@@ -584,7 +588,7 @@ namespace bp
 	// is read as VIS_PEAKS_BANANA ("Peaks") (the default), and so is Timeline (0.5.x, briefly: it became Peaks)
 	static void readVisualizer(Settings& s, const std::string& value)
 	{
-		// a retired style (2026-11-19): its replacement, in its place (Circle: Mirror bars, Long cat: Radial...)
+		// a retired style (2026-11-19): its replacement, in its place (Circle: Mirror bars, Long cat and Radial: Steps...)
 		s.visualizer = visualizerReplacement(s.visualizer);
 		if (value == "timeline") s.visualizer = VIS_PEAKS_BANANA;
 		// Lite isn't a choice any more: its values stay on branch vizlite

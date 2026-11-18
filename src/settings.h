@@ -40,7 +40,8 @@ namespace bp
 	// Peaks (coral), Oscilloscope, Turntable, Disco ball, Hi-fi LED, Synthwave, Banana stack and Heartbeat are kept but
 	// not offered (the owner's pick, 0.7.12): a setting naming one reads as Peaks
 	// The six simple ones (src/viz_simple.cpp, 2026-11-19), in the theme's colours: Mirror bars, Wave, Dots, Levels,
-	// Area, Radial. They took the places of Circle, Music box, Bubble tea, Jellyfish, Sound garden and Long cat,
+	// Area, Radial (Area and Radial since replaced by Horizon and Steps, in their places). They took the places of Circle, Music box, Bubble
+	// tea, Jellyfish, Sound garden and Long cat,
 	// whose code is gone: their ids stay (enum values and words), and a setting naming one reads as its replacement
 	// (visualizerReplacement)
 	// Lite (the player-drawn one, no graph) was removed for now, after the owner saw its bars sit mostly at the top
@@ -49,16 +50,17 @@ namespace bp
 	enum Visualizer { VIS_BARS, VIS_WAVES, VIS_SPECTRUM, VIS_CIRCLE, VIS_PEAKS, VIS_PEAKS_BANANA, VIS_POCKET, VIS_LED,
 		VIS_SYNTHWAVE, VIS_BANANA_STACK, VIS_CITY, VIS_SCOPE, VIS_HEART, VIS_FIRE, VIS_AURORA, VIS_GARDEN, VIS_VINYL, VIS_SEA, VIS_BUNNY, VIS_BOBA,
 		VIS_JELLY, VIS_MUSICBOX, VIS_FISHBOWL, VIS_DISCO, VIS_DANCER, VIS_CAT, VIS_POPCORN, VIS_WOBBLE, VIS_TUBEMAN,
-		VIS_LONGCAT, VIS_WASHER, VIS_MIRROR, VIS_WAVE, VIS_DOTS, VIS_LEVELS, VIS_AREA, VIS_RADIAL, VISUALIZERS };
-	constexpr int VIS_SHOWN[] = {VIS_PEAKS_BANANA, VIS_MIRROR, VIS_POCKET, VIS_CITY, VIS_DANCER, VIS_FIRE, VIS_AURORA, VIS_AREA,
-		VIS_SEA, VIS_BUNNY, VIS_DOTS, VIS_LEVELS, VIS_WAVE, VIS_FISHBOWL, VIS_CAT, VIS_POPCORN, VIS_WOBBLE, VIS_TUBEMAN, VIS_RADIAL, VIS_WASHER};
+		VIS_LONGCAT, VIS_WASHER, VIS_MIRROR, VIS_WAVE, VIS_DOTS, VIS_LEVELS, VIS_AREA, VIS_RADIAL, VIS_HORIZON,
+		VIS_STEPS, VISUALIZERS };
+	constexpr int VIS_SHOWN[] = {VIS_PEAKS_BANANA, VIS_MIRROR, VIS_POCKET, VIS_CITY, VIS_DANCER, VIS_FIRE, VIS_AURORA, VIS_HORIZON,
+		VIS_SEA, VIS_BUNNY, VIS_DOTS, VIS_LEVELS, VIS_WAVE, VIS_FISHBOWL, VIS_CAT, VIS_POPCORN, VIS_WOBBLE, VIS_TUBEMAN, VIS_STEPS, VIS_WASHER};
 	constexpr int VIS_SHOWN_COUNT = (int)(sizeof(VIS_SHOWN) / sizeof(VIS_SHOWN[0]));
 	// a visualizer's place in VIS_SHOWN (a hidden one: the first offered, Peaks, at 0)
 	int visualizerSlot(int v);
 	// the next one offered after v (dir 1) or before it (-1), round
 	int stepVisualizer(int v, int dir);
 	// a retired style's replacement (Circle: Mirror bars, Music box: Wave, Bubble tea: Dots, Jellyfish: Levels, Sound
-	// garden: Area, Long cat: Radial); any other as it is
+	// garden and Area: Horizon, Long cat and Radial: Steps); any other as it is
 	int visualizerReplacement(int v);
 	// drawn on the theme's BG in the theme's colours when alone (Peaks, the six simple ones): the song's lines over it
 	// are the theme's too
@@ -100,7 +102,7 @@ namespace bp
 	// a theme colour helper the styles share: WCAG contrast, and `c` moved towards `to` till it reaches `ratio` on `on`
 	double colourContrast(theme::Rgb a, theme::Rgb b);
 	theme::Rgb inkOn(theme::Rgb c, theme::Rgb on, theme::Rgb to, double ratio);
-	// every style's stills into dir (src/viz_*.cpp: Radial's tables, the scenes' pictures): true when all are there.
+	// every style's stills into dir (src/viz_*.cpp: the scenes' pictures): true when all are there.
 	// The retired styles' stills, if any are left there, removed
 	bool writeVisualizerMaps(const std::string& dir);
 	// a style that reads stills from the maps folder (drawn as Peaks while there's none)

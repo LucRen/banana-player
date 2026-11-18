@@ -5876,7 +5876,7 @@ static void testVizTheme()
 	CHECK_EQ(system(rm.c_str()), 0);
 }
 
-// The six simple styles (src/viz_simple.cpp): the graph rules, the theme's colours in them, Radial's tables
+// The six simple styles (src/viz_simple.cpp): the graph rules, the theme's colours in them
 static void testVizSimple()
 {
 	char tmpl[] = "/tmp/bp-vizsimpleXXXXXX";
@@ -5884,7 +5884,7 @@ static void testVizSimple()
 	if (!made) { failures++; return; }
 	const std::string dir = made;
 	const int was = theme::currentTheme();
-	const int styles[] = {VIS_MIRROR, VIS_WAVE, VIS_DOTS, VIS_LEVELS, VIS_AREA, VIS_RADIAL};
+	const int styles[] = {VIS_MIRROR, VIS_WAVE, VIS_DOTS, VIS_LEVELS, VIS_HORIZON, VIS_STEPS};
 	theme::setTheme(0);
 	std::vector<std::string> yellow;
 	for (int v : styles)
@@ -5905,16 +5905,20 @@ static void testVizSimple()
 	// Levels measures in stereo (left and right), so its copy of the sound isn't made mono: vizShapeInput leaves it
 	CHECK_EQ(vizShapeInput(visualizerGraph(VIS_LEVELS, false)) == visualizerGraph(VIS_LEVELS, false), true);
 	CHECK_EQ(visualizerGraph(VIS_LEVELS, false).find("channel_layouts=stereo,showvolume") != std::string::npos, true);
-	// Radial: its tables written, read by movie=; without a folder it is drawn as Peaks
-	std::string r = visualizerGraph(VIS_RADIAL, false, dir);
-	CHECK_EQ(r.find("movie='" + dir + "/radial3-ax.pgm'") != std::string::npos && r.find("remap") != std::string::npos, true);
-	CHECK_EQ(pgmFileOk(dir + "/radial3-sx.pgm", pgmFileSize(50, 50, 65535)), true);
-	CHECK_EQ(visualizerGraph(VIS_RADIAL, false) == visualizerGraph(VIS_PEAKS_BANANA, false), true);
+	// none reads stills: the same graph with a folder or without
+	for (int v : styles) CHECK_EQ(visualizerGraph(v, true, dir) == visualizerGraph(v, true), true);
+	// Horizon: the row mirrored (bass in the middle), the reflection flipped; Area's and Radial's ids read as the new ones
+	CHECK_EQ(visualizerGraph(VIS_HORIZON, false).find("hflip") != std::string::npos && visualizerGraph(VIS_HORIZON, false).find("vflip") != std::string::npos, true);
+	CHECK_EQ(visualizerGraph(VIS_AREA, false) == visualizerGraph(VIS_HORIZON, false), true);
+	CHECK_EQ(visualizerGraph(VIS_RADIAL, true) == visualizerGraph(VIS_STEPS, true), true);
+	CHECK_EQ(visualizerGraph(VIS_STEPS, false).find("remap"), std::string::npos);
 	// the retired styles' stills, left in the folder by an older build, removed
 	{
 		std::ofstream(dir + "/circle3-x.pgm") << "x";
+		std::ofstream(dir + "/radial3-ax.pgm") << "x";
 		CHECK_EQ(writeVisualizerMaps(dir), true);
 		CHECK_EQ(access((dir + "/circle3-x.pgm").c_str(), F_OK) != 0, true);
+		CHECK_EQ(access((dir + "/radial3-ax.pgm").c_str(), F_OK) != 0, true);
 	}
 	// another theme: other colours in every graph
 	for (int i = 1; i < theme::themeCount(); i++)
@@ -6195,10 +6199,10 @@ static void testSettings()
 	CHECK_EQ(d.loop, (int)LOOP_OFF);
 	Settings m;
 	m.musicShow = SHOW_BOTH;
-	m.visualizer = VIS_RADIAL;
+	m.visualizer = VIS_STEPS;
 	m.loop = LOOP_ONE;
 	Settings mb = parseSettings(serializeSettings(m));
-	CHECK_EQ(mb.musicShow == SHOW_BOTH && mb.visualizer == VIS_RADIAL && mb.loop == LOOP_ONE, true);
+	CHECK_EQ(mb.musicShow == SHOW_BOTH && mb.visualizer == VIS_STEPS && mb.loop == LOOP_ONE, true);
 	CHECK_EQ(visualizerGraph(VIS_WAVES, false).rfind("[aid1] asplit [ao] [v]; [v] aformat=sample_rates=44100|48000,showwaves", 0), (size_t)0);
 	CHECK_EQ(visualizerGraph(VIS_SPECTRUM, true).find("[vid1]") != std::string::npos, true);
 	CHECK_EQ(visualizerGraph(VIS_SPECTRUM, true).find("showspectrum=s=640x200") != std::string::npos, true);
@@ -6228,8 +6232,8 @@ static void testSettings()
 	// the six retired for the simple ones (2026-11-19): a saved one reads as its replacement, written back as it
 	{
 		const std::pair<const char*, int> retired[] = {{"circle", VIS_MIRROR}, {"music-box", VIS_WAVE}, {"bubble-tea", VIS_DOTS},
-			{"jellyfish", VIS_LEVELS}, {"sound-garden", VIS_AREA}, {"long-cat", VIS_RADIAL}};
-		const char* ids[] = {"mirror-bars", "wave", "dots", "levels", "area", "radial"};
+			{"jellyfish", VIS_LEVELS}, {"sound-garden", VIS_HORIZON}, {"long-cat", VIS_STEPS}};
+		const char* ids[] = {"mirror-bars", "wave", "dots", "levels", "horizon", "steps"};
 		for (int i = 0; i < 6; i++)
 		{
 			Settings r = parseSettings(std::string("visualizer = ") + retired[i].first + "\n");
@@ -6243,7 +6247,11 @@ static void testSettings()
 			CHECK_EQ(visualizerOnGround(retired[i].second), true);
 		}
 		CHECK_EQ(std::string(visualizerLabel(VIS_MIRROR)) + "," + visualizerLabel(VIS_WAVE) + "," + visualizerLabel(VIS_DOTS) + "," +
-			visualizerLabel(VIS_LEVELS) + "," + visualizerLabel(VIS_AREA) + "," + visualizerLabel(VIS_RADIAL), std::string("Mirror bars,Wave,Dots,Levels,Area,Radial"));
+			visualizerLabel(VIS_LEVELS) + "," + visualizerLabel(VIS_HORIZON) + "," + visualizerLabel(VIS_STEPS), std::string("Mirror bars,Wave,Dots,Levels,Horizon,Steps"));
+		// Area and Radial (2026-11-19, briefly) made way too: a saved one reads as Horizon or Steps
+		CHECK_EQ(parseSettings("visualizer = area\n").visualizer, (int)VIS_HORIZON);
+		CHECK_EQ(parseSettings("visualizer = radial\n").visualizer, (int)VIS_STEPS);
+		CHECK_EQ(serializeSettings(parseSettings("visualizer = area\n")).find("visualizer = horizon\n") != std::string::npos, true);
 	}
 	// Peaks: read and written back by its id; Timeline (its first form) reads as Peaks
 	CHECK_EQ(parseSettings("visualizer = peaks\n").visualizer, (int)VIS_PEAKS_BANANA);
@@ -6300,13 +6308,13 @@ static void testSettings()
 	// the cycle: the offered ones (VIS_SHOWN), Peaks first; from one not offered as from Peaks
 	CHECK_EQ(stepVisualizer(VIS_PEAKS_BANANA, 1), (int)VIS_MIRROR);
 	CHECK_EQ(stepVisualizer(VIS_MIRROR, 1), (int)VIS_POCKET);
-	CHECK_EQ(stepVisualizer(VIS_AURORA, 1), (int)VIS_AREA);
+	CHECK_EQ(stepVisualizer(VIS_AURORA, 1), (int)VIS_HORIZON);
 	CHECK_EQ(stepVisualizer(VIS_BUNNY, 1), (int)VIS_DOTS);
 	CHECK_EQ(stepVisualizer(VIS_DOTS, 1), (int)VIS_LEVELS);
 	CHECK_EQ(stepVisualizer(VIS_LEVELS, 1), (int)VIS_WAVE);
 	CHECK_EQ(stepVisualizer(VIS_WAVE, 1), (int)VIS_FISHBOWL);
-	CHECK_EQ(stepVisualizer(VIS_TUBEMAN, 1), (int)VIS_RADIAL);
-	CHECK_EQ(stepVisualizer(VIS_RADIAL, 1), (int)VIS_WASHER);
+	CHECK_EQ(stepVisualizer(VIS_TUBEMAN, 1), (int)VIS_STEPS);
+	CHECK_EQ(stepVisualizer(VIS_STEPS, 1), (int)VIS_WASHER);
 	CHECK_EQ(stepVisualizer(VIS_POCKET, 1), (int)VIS_CITY);
 	CHECK_EQ(stepVisualizer(VIS_CITY, 1), (int)VIS_DANCER);
 	CHECK_EQ(stepVisualizer(VIS_DANCER, 1), (int)VIS_FIRE);
@@ -6935,7 +6943,6 @@ static void testPhoto()
 	CHECK_EQ(lavfiSafePath("/data/home/.config/banana-player"), true);
 	CHECK_EQ(lavfiSafePath("/a/co:lon"), false);
 	CHECK_EQ(lavfiSafePath("/a/eq=x"), false);
-	CHECK_EQ(visualizerGraph(VIS_RADIAL, false, "/a/co:lon").find("remap"), std::string::npos);	// as Peaks
 	CHECK_EQ(exifRotation(8), 270);
 }
 

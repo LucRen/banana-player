@@ -541,16 +541,16 @@ Songs show their title, artist and album on the top screen. While a song plays:
   the mids wave its arms),
   **Campfire** (each flame leaps with its part of the sound, sparks fly on the treble; with Art + visualizer the fire
   spans the whole width), **Aurora** (northern lights
-  over a snowy ridge), **Area** (the spectrum as one filled, smooth shape, its edge in the accent, fading
-  to the ground towards the bottom), **Pixel sea**
+  over a snowy ridge), **Horizon** (the spectrum as a mirrored skyline, the bass in the
+  middle, on a horizon line with a low sun behind and a striped reflection below), **Pixel sea**
   (moonlit waves and a little sailboat), **Bunny hop** (five bunnies, each hopping to its part of the music),
   **Dots** (a dot-matrix spectrum: columns of round dots lit from the bottom over a faint grid of unlit ones),
   **Levels** (two wide stereo meters, left and right, with a peak tick that holds and falls back), **Wave** (the
   sound's waveform as one thick, smooth line over a faint centre line), **Fishbowl** (three goldfish
   swimming up with their bands), **Vibing cat** (a cat in headphones nodding along, a coffee steaming beside it),
   **Popcorn machine** (kernels popping on the beat), **Jelly wobble** (a worried jelly squashing on the bass), **Tube
-  man** (an inflatable tube man dancing faster with the music), **Radial** (bars round a ring in four
-  mirrored quarters, their tips in the text colour) or **Washing machine** (shaking and walking on the bass,
+  man** (an inflatable tube man dancing faster with the music), **Steps** (the spectrum as a 20-step staircase
+  outline, faintly filled beneath, with a slow line holding each step's peak) or **Washing machine** (shaking and walking on the bass,
   socks and a duck tumbling). The bar styles' bars stand out from their neighbours, so the spectrum has peaks and
   valleys. Every style measures the music evened out (only for the picture: the sound is untouched), so a quiet song
   moves it about as much as a loud one, the treble side is lively too, and silence stays still. With Art + visualizer, every style is
@@ -558,8 +558,9 @@ Songs show their title, artist and album on the top screen. While a song plays:
   Heartbeat, Oscilloscope, Turntable and Disco ball (earlier styles), and Bars, Waves and Spectrum, are retired: a
   saved choice of one of them becomes Peaks. The Lite style (drawn by the player itself, no graph) is removed for now:
   a saved choice of it becomes Peaks too. Circle, Sound garden, Bubble tea, Jellyfish, Music box and Long cat made way
-  for the six simple styles (2026-11-19): a saved choice of one becomes the style in its place (Mirror bars, Area,
-  Dots, Levels, Wave, Radial). The six simple ones and Peaks are drawn in the theme's colours (accent, text, dim and
+  for the six simple styles (2026-11-19): a saved choice of one becomes the style in its place (Mirror bars, Horizon,
+  Dots, Levels, Wave, Steps); Area and Radial, two of those simple ones for a day, became Horizon and Steps, and a saved
+  choice of either reads as its successor. The six simple ones and Peaks are drawn in the theme's colours (accent, text, dim and
   button) on its ground, and the song's lines over them alone are in the theme's colours too. The **D-pad** moves over both groups (DOWN from a mode to the style under
   it, UP back), and moving changes nothing: **A** (or a tap) sets the mode or the style, and the top screen follows at
   once. **SELECT** steps the mode (Album art only → Art + visualizer → Visualizer only → None), **L** / **R** the tabs,

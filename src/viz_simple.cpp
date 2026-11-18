@@ -10,16 +10,16 @@
 #include <sys/stat.h>
 #include <vector>
 
-// The six simple styles (2026-11-19, docs/notes/2026-11-19-viz-simple.md): Mirror bars, Wave, Dots, Levels, Area and
-// Radial. Plain shapes in the theme's own colours, two or three roles each (ACCENT for what moves, TEXT or DIM for a
-// second mark, BUTTON for a faint backdrop), on the theme's BG as Peaks is; rebuilt on a theme change as Peaks is
+// The six simple styles (2026-11-19, docs/notes/2026-11-19-viz-simple.md): Mirror bars, Wave, Dots, Levels, Horizon
+// (Area's place) and Steps (Radial's). Plain shapes in the theme's own colours, two or three roles each (ACCENT for
+// what moves, TEXT or DIM for a second mark, BUTTON for a faint backdrop), on the theme's BG as Peaks is; rebuilt on a theme change as Peaks is
 // (Player::themeChanged).
 //
 // One recipe for all six, Peaks' (settings.cpp): what changes each frame is worked out at half size (320x240 alone,
 // 320x100 under the art) as a gray picture of small codes (a class, or a strength from the ground to ACCENT), by
-// lut2 against a still picture (one frame, made once in the graph or read from a file: never a loop). Half size is
+// lut2 against a still picture (one frame, made once in the graph: never a loop). Half size is
 // the chroma's size, so U and V are a lut each of that picture as it is; only the luma is scaled up (x2: bilinear
-// for the round and smooth ones, nearest for the square ones). YUV straight to mpv, nothing converted per frame.
+// for Wave's line, nearest for the square ones). YUV straight to mpv, nothing converted per frame.
 // Over the art (the band: the theme's ground, vizPlaceArt) the art's planes are each a lut2's second input, kept
 // where the code is 0. Written at 60 frames a second (rate=60), drawn at the visualizer-fps setting (vizAtFps).
 
@@ -137,43 +137,6 @@ namespace bp
 			double ms() const { return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count(); }
 		};
 
-		// Radial's tables (remap's xmap and ymap, 16-bit) for the top left quarter of its square (the others are it
-		// mirrored, hflip and vflip: a lookup a pixel, so a quarter of the pixels a quarter of remap's cost; the
-		// flips are row copies): alone a 240 square (half of the panel's 480), under the art a 100 square. A new name
-		// whenever they change (cached by size)
-		const int RD_N = 24, RD_M = 48;	// the bands a quarter (96 bars round), the bars' rows in the polar picture
-		struct RadialBox { int box; double ring, from, to; const char* xf; const char* yf; };
-		const RadialBox RD_ALONE = {240, 43, 48, 114, "radial3-ax.pgm", "radial3-ay.pgm"};
-		const RadialBox RD_STRIP = {100, 17, 20, 48, "radial3-sx.pgm", "radial3-sy.pgm"};
-
-		bool writeRadial(const std::string& dir, const RadialBox& b)
-		{
-			const std::string xp = dir + "/" + b.xf, yp = dir + "/" + b.yf;
-			const int w = b.box / 2;
-			const size_t size = pgmFileSize(w, w, 65535);
-			if (pgmFileOk(xp, size) && pgmFileOk(yp, size)) return true;
-			std::vector<unsigned char> xs((size_t)w * w * 2), ys(xs.size());
-			const double c = b.box / 2.0;
-			for (int y = 0; y < w; y++)
-				for (int x = 0; x < w; x++)
-				{
-					const double dx = x + 0.5 - c, dy = y + 0.5 - c, r = std::hypot(dx, dy);
-					// 0 at the top, RD_N at the side (the low notes at the top and the bottom, the high at the sides)
-					const double seg = std::atan2(-dx, -dy) / (M_PI / 2) * RD_N;
-					int mx = 65535, my = 65535;	// outside the polar picture: remap's fill, black (code 0)
-					if (std::fabs(r - b.ring) < 1.0) mx = 0, my = RD_M - 1;	// the ring's row
-					else if (r >= b.from && r <= b.to && seg - std::floor(seg) < 0.62)
-					{
-						mx = std::min(RD_N - 1, (int)std::floor(seg));
-						my = (int)std::lround((RD_M - 2) * (1 - (r - b.from) / (b.to - b.from)));
-					}
-					const size_t i = ((size_t)y * w + x) * 2;
-					xs[i] = (unsigned char)(mx >> 8), xs[i + 1] = (unsigned char)mx;
-					ys[i] = (unsigned char)(my >> 8), ys[i + 1] = (unsigned char)my;
-				}
-			mkdir(dir.c_str(), 0755);
-			return writePgmFile(xp, w, w, 65535, 1, xs) && writePgmFile(yp, w, w, 65535, 1, ys);
-		}
 	}
 
 	// Mirror bars: the spectrum in 40 bars, each grown up and down from a centre line by the same height. Bars ACCENT,
@@ -285,61 +248,73 @@ namespace bp
 		return g;
 	}
 
-	// Area: the spectrum as one filled shape, its outline smoothed (48 levels, stretched bilinear), its top edge
-	// ACCENT and the fill ACCENT fading to the ground towards the bottom (by a still of each row's height)
-	std::string areaGraph(bool overCover)
+	// Horizon (in Area's place, 2026-11-19): the spectrum as a mirrored skyline (20 bands a side, the bass in the
+	// middle falling away to the sides) on a horizon line, a low sun behind it, and under the line the skyline's
+	// reflection, flipped, squashed and striped. Skyline ACCENT, sun BUTTON, the line and the reflection DIM.
+	// The levels' row (showfreqs' bars measured as the others') is mirrored as a row (hflip + hstack: 40 values),
+	// stretched to the sky and told apart by lut2 against a still of each row's height and the sun's disc; the
+	// reflection is that picture vflipped, squashed (nearest) and masked by a still of stripes and the line; the two
+	// stacked (vstack) are the codes the palette paints, as the other styles
+	std::string horizonGraph(bool overCover)
 	{
 		Timer tm;
-		const std::string t = "ar";
-		const int N = 48, W = 320, H = overCover ? 100 : 240, T = overCover ? 6 : 20;
-		const int E = overCover ? 6 : 3;	// the edge: ~2 rows here, in the height's steps
+		const std::string t = "hz";
+		const int N = 20, W = 320, H = overCover ? 100 : 240, SKY = overCover ? 64 : 160, REF = H - SKY;
+		// the sun: low, its middle under the line's height, part of it showing above
+		const int SX = W / 2, SY = SKY * 4 / 5, SR = SKY / 2;
+		// each sky pixel's height step (1..126, 3 levels a step: the tallest building two thirds of the sky, the sun
+		// over it), +128 inside the sun
+		const std::string h = "1+floor(125*(" + n(SKY - 1) + "-Y)/" + n(SKY - 1) + ")";
 		std::string g = "[aid1] asplit [ao] [a]; " + (overCover ? artIn(t) : std::string()) + spectrumRow(t, N) +
-						"[" + t + "L] " + stretch(W, H, "bilinear") + " [" + t + "V]; " +
-						still(W, H, "if(lt(Y," + n(T) + "),253,1+floor(250*(" + n(H - 1) + "-Y)/" + n(H - 1 - T) + "))") + " [" + t + "R]; "
-						// inside: the edge 250 (ACCENT), below it 6..156 (6% to 62% of the way to ACCENT) by height
-						"[" + t + "V] [" + t + "R] bplut2=c0='if(lt(y,253)*lte(y,x),if(gt(y,x-" + n(E) + "),250,floor(6+150*y/251)),0)' [" + t + "C]; ";
-		g += paint(t, overCover, true, ramp(yuvOf(theme::ACCENT)));
-		fprintf(stderr, "visualizer: Area in %s: #%s fading to #%s; graph built in %.1f ms\n", themeName(), hex(theme::ACCENT).c_str(),
-				hex(theme::BG).c_str(), tm.ms());
+						"[" + t + "L] split [" + t + "l1] [" + t + "l2]; [" + t + "l1] hflip [" + t + "lf]; "
+						"[" + t + "lf] [" + t + "l2] hstack,format=gray," + stretch(W, SKY, "neighbor") + " [" + t + "V]; " +
+						still(W, SKY, h + "+128*lte(pow(X-" + n(SX) + ",2)+pow(Y-" + n(SY) + ",2)," + n(SR * SR) + ")") + " [" + t + "R]; "
+						// 1 the skyline, 2 the sun, 0 the sky
+						"[" + t + "V] [" + t + "R] bplut2=c0='if(lte(3*mod(y,128),x),1,if(gte(y,128),2,0))',split [" + t + "s1] [" + t + "s2]; "
+						// the reflection: its first two rows the line (2 in the still), then every other row (1)
+						"[" + t + "s2] vflip,scale=" + n(W) + ":" + n(REF) + ":flags=neighbor,setsar=1 [" + t + "F]; " +
+						still(W, REF, "if(lt(Y,2),2,mod(Y,2))") + " [" + t + "M]; "
+						"[" + t + "F] [" + t + "M] bplut2=c0='if(eq(y,2),3,if(y*eq(x,1),3,0))' [" + t + "r]; "
+						"[" + t + "s1] [" + t + "r] vstack [" + t + "C]; ";
+		g += paint(t, overCover, false, classes({yuvOf(theme::ACCENT), yuvOf(theme::BUTTON), yuvOf(theme::DIM)}));
+		fprintf(stderr, "visualizer: Horizon in %s: skyline #%s, sun #%s, line and reflection #%s on #%s; graph built in %.1f ms\n",
+				themeName(), hex(theme::ACCENT).c_str(), hex(theme::BUTTON).c_str(), hex(theme::DIM).c_str(), hex(theme::BG).c_str(), tm.ms());
 		return g;
 	}
 
-	// Radial: the spectrum as bars round a ring, in four mirrored quarters (the low notes at the top and the bottom,
-	// the high at the sides). Drawn as Peaks would, in a small polar picture (24 bands across, 47 rows out, and a row
-	// for the ring), then laid round by remap from two still tables (the top left quarter; the others its mirrors):
-	// bars ACCENT, their tips TEXT, the ring DIM
-	std::string radialGraph(bool overCover, const std::string& dir)
+	// Steps (in Radial's place, 2026-11-19): the spectrum as a 20-band staircase drawn as one outline (ACCENT), faintly
+	// filled beneath (BUTTON), and a slow second line holding each band's peak (DIM). Each band 16 columns here, by
+	// nearest stretching of the levels' row; the outline is where the fill's edge is: its top (the step under the
+	// level) and, at a band's first two columns, the rise or fall from the band on its left (a second row, the
+	// levels shifted one band, says where that one stood). Two lut2 against a still of each pixel's step (1..84, 3
+	// levels a step; +85 at a band's first columns, +170 there when under the left band's level), a third with the
+	// held peaks: the codes the palette paints, as the other styles. (The proposal's mask minus itself shifted,
+	// blend=difference, done by the same lookups: no full-size blend or shifted copy a frame)
+	std::string stepsGraph(bool overCover)
 	{
 		Timer tm;
-		const std::string t = "rd";
-		const RadialBox& b = overCover ? RD_STRIP : RD_ALONE;
-		const bool ok = writeRadial(dir, b);
-		const int W = 320, H = overCover ? 100 : 240, M = RD_M;
-		std::string xm, ym;
-		lavfiPath(dir + "/" + b.xf, xm);
-		lavfiPath(dir + "/" + b.yf, ym);
-		const int TIP = 16;	// the tip, in the height's steps (~3 of the 47 rows)
-		std::string g = "[aid1] asplit [ao] [a]; " + (overCover ? artIn(t) : std::string()) + spectrumRow(t, RD_N) +
-						"[" + t + "L] " + stretch(RD_N, M, "neighbor") + " [" + t + "V]; " +
-						// each row's height (1..251, the outermost row the tallest), 254 the ring's row
-						still(RD_N, M, "if(eq(Y," + n(M - 1) + "),254,1+floor(250*(" + n(M - 2) + "-Y)/" + n(M - 2) + "))") + " [" + t + "R]; "
-						"[" + t + "V] [" + t + "R] bplut2=c0='if(eq(y,254),3,if(lte(y,x),if(gt(y,x-" + n(TIP) + ")*gt(x," + n(TIP) + "),2,1),0))' [" +
-						t + "P]; "
-						"movie=" + xm + " [" + t + "xm]; movie=" + ym + " [" + t + "ym]; "
-						"[" + t + "P] [" + t + "xm] [" + t + "ym] remap,split [" + t + "q1] [" + t + "q2]; [" + t + "q2] hflip [" + t + "q3]; "
-						"[" + t + "q1] [" + t + "q3] hstack,split [" + t + "h1] [" + t + "h2]; [" + t + "h2] vflip [" + t + "h3]; "
-						"[" + t + "h1] [" + t + "h3] vstack,pad=" + n(W) + ":" + n(H) + ":" + n((W - b.box) / 2) + ":" +
-						n((H - b.box) / 2) + ":black,setsar=1 [" + t + "C]; ";
-		g += paint(t, overCover, !overCover, classes({yuvOf(theme::ACCENT), yuvOf(theme::TEXT), yuvOf(theme::DIM)}));
-		fprintf(stderr, "visualizer: Radial in %s: bars #%s, tips #%s, ring #%s on #%s; tables %s, graph built in %.1f ms\n", themeName(),
-				hex(theme::ACCENT).c_str(), hex(theme::TEXT).c_str(), hex(theme::DIM).c_str(), hex(theme::BG).c_str(),
-				ok ? "ready" : "NOT written", tm.ms());
+		const std::string t = "sp";
+		const int N = 20, BW = 16, W = 320, H = overCover ? 100 : 240;
+		const int E = overCover ? 2 : 1;	// the outline's top, in steps (~2.4 and ~2.9 rows)
+		const std::string r = "1+floor(83*(" + n(H - 1) + "-Y)/" + n(H - 1) + ")";
+		std::string g = "[aid1] asplit [ao] [a]; " + (overCover ? artIn(t) : std::string()) + spectrumRow(t, N) +
+						"[" + t + "L] split=3 [" + t + "l1] [" + t + "l2] [" + t + "l3]; "
+						"[" + t + "l1] " + stretch(W, H, "neighbor") + " [" + t + "V]; "
+						// the band on the left's level (the first band's: nothing)
+						"[" + t + "l2] pad=" + n(N + 1) + ":1:1:0:black,crop=" + n(N) + ":1:0:0,format=gray," + stretch(W, H, "neighbor") + " [" + t + "Vl]; "
+						// the held peaks: down over ~3.4 s for the whole height
+						"[" + t + "l3] format=gray16le,lut=c0='65535*exp((val/257-252)/24)',lagfun=decay=0.95,"
+						"lut=c0='clip(257*(252+24*log(max(val,1)/65535)),0,257*252)',format=gray," + stretch(W, H, "neighbor") + " [" + t + "P]; " +
+						still(W, H, r + "+85*gte(X," + n(BW) + ")*lt(mod(X," + n(BW) + "),2)") + " [" + t + "R]; "
+						"[" + t + "Vl] [" + t + "R] bplut2=c0='if(gte(y,85),85+mod(y,85)+85*lte(3*mod(y,85),x),y)' [" + t + "Q]; "
+						// 1 the outline, 2 the fill, else the step (as class*85 + step: the peak's lut2 needs the step)
+						"[" + t + "V] [" + t + "Q] bplut2=c0='85*if(gt(3*mod(y,85),x-" + n(3 * E) + ")*lte(3*mod(y,85),x)+gte(y,85)*"
+						"(1-eq(lte(3*mod(y,85),x),gte(y,170))),1,if(lte(3*mod(y,85),x),2,0))+mod(y,85)' [" + t + "S]; "
+						// the peak's step: 3 (DIM) where not the outline
+						"[" + t + "P] [" + t + "S] bplut2=c0='if(eq(floor(y/85),1),1,if(gt(x,3)*eq(mod(y,85),floor(x/3)),3,floor(y/85)))' [" + t + "C]; ";
+		g += paint(t, overCover, false, classes({yuvOf(theme::ACCENT), yuvOf(theme::BUTTON), yuvOf(theme::DIM)}));
+		fprintf(stderr, "visualizer: Steps in %s: outline #%s, fill #%s, peaks #%s on #%s; graph built in %.1f ms\n", themeName(),
+				hex(theme::ACCENT).c_str(), hex(theme::BUTTON).c_str(), hex(theme::DIM).c_str(), hex(theme::BG).c_str(), tm.ms());
 		return g;
-	}
-
-	bool writeRadialMaps(const std::string& dir)
-	{
-		bool ok = writeRadial(dir, RD_ALONE);
-		return writeRadial(dir, RD_STRIP) && ok;
 	}
 }

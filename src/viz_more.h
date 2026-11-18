@@ -52,14 +52,13 @@ namespace bp
 	bool writeWobbleMaps(const std::string& dir);
 	bool writeTubemanMaps(const std::string& dir);
 	bool writeWasherMaps(const std::string& dir);
-	// the six simple ones (src/viz_simple.cpp): plain shapes in the theme's colours; Radial reads two tables from dir
+	// the six simple ones (src/viz_simple.cpp): plain shapes in the theme's colours, no stills
 	std::string mirrorGraph(bool overCover);
 	std::string waveGraph(bool overCover);
 	std::string dotsGraph(bool overCover);
 	std::string levelsGraph(bool overCover);
-	std::string areaGraph(bool overCover);
-	std::string radialGraph(bool overCover, const std::string& dir);
-	bool writeRadialMaps(const std::string& dir);
+	std::string horizonGraph(bool overCover);
+	std::string stepsGraph(bool overCover);
 	// The bars' contrast, between the measured levels (one row, 0..252) and their easing: showfreqs' log scale puts
 	// most bands within a few steps of each other, so each is pushed away from the mean of the bands around it (x6:
 	// a band above them a peak, one below a valley) and the levels spread around 150 (x1.8). On a busy frame

@@ -2310,7 +2310,7 @@ namespace bp
 
 	std::string Player::graphFor(int vis, bool overCover)
 	{
-		// the styles' stills (src/viz_more.h: Radial's tables, the scenes' pictures): made the first time one is
+		// the styles' stills (src/viz_more.h: the scenes' pictures): made the first time one is
 		// wanted, beside the settings, else (none kept, or a folder a filter graph can't name) in /tmp. Tried again at
 		// the next song when they couldn't be written (a full card) (and the folder for the lut tables of a style with
 		// no stills, Peaks or Pocket console)
