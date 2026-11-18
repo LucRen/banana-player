@@ -133,6 +133,17 @@ namespace bp
 		};
 		PlayerLayout playerLayout(int chips);
 
+		// ---- About's support QR, large, on the top panel ----
+		// The picture About's Y (or a tap on its small code) puts up, in the panel's own pixels (the top drawable's
+		// size, so the code lands on whole pixels): a white quiet zone, the code inside it and the address's line under
+		// it. As large as fits with a margin: the quiet zone takes what the height leaves once the margin, the gap and
+		// the line are out.
+		struct QrPanel
+		{
+			Box quiet, code, line;	// the white box; the code in it (a pad all round); the address under it
+		};
+		QrPanel qrPanel(int w, int h);
+
 		// a chip's value for a track: its language ("English"), or "Track 2" when the file names none. Two tracks of
 		// the list in that language: what tells this one apart comes after it ("English · Commentary")
 		std::string chipTrack(const Track& t, int n, const std::vector<Track>& all);

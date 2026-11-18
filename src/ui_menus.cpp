@@ -1013,6 +1013,7 @@ namespace bp
 		});
 		page = Page::About;
 		scroll = 0;
+		aboutQr = false;
 	}
 
 	void Ui::setInfoLines(const std::vector<Player::InfoRow>& rows)
@@ -1089,7 +1090,10 @@ namespace bp
 		if (page == Page::About)
 		{
 			drawAboutSupport();
-			kit->hints({{"UP/DOWN", "Scroll"}, {"L2/R2", "Group"}, {"B", "Back"}});
+			// Y puts the code up large on the top panel (a tap on the small one does too); while it is up, B and Y
+			// put it down
+			if (aboutQrUp()) kit->hints({{"B", "Close"}, {"Y", "Close"}});
+			else kit->hints({{"UP/DOWN", "Scroll"}, {"Y", "QR"}, {"L2/R2", "Group"}, {"B", "Back"}});
 			return;
 		}
 		if (inMenu) drawHints({{"UP/DOWN", "Scroll"}, {"B", "Close"}, {"L/R", "Tabs"}});
@@ -1102,7 +1106,7 @@ namespace bp
 	{
 		int y = 340;
 		fill({24, y, 592, 1}, RULE);
-		Rect qr{24, y + 12, 84, 84};
+		Rect qr = aboutQrRect();	// (the same box a tap takes for Y's large view)
 		SDL_Rect d = devRect(qr);
 		int s = std::min(d.w, d.h);
 		if (s != supportPx)

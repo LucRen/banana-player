@@ -828,7 +828,7 @@ int main(int argc, char** argv)
 		auto drainUnder = [&] { ts.drainUnder(player, photos, readerOnTop()); };
 
 		// the top panel's pixels (RGBA, top row first), the frame drawn again for it: screenshots
-		auto captureTop = [&]() -> SDL_Surface* { return ts.capture(shown(), readerOnTop()); };
+		auto captureTop = [&]() -> SDL_Surface* { return ts.capture(shown(), readerOnTop(), ui.aboutQrUp()); };
 		// F + L2 (as in BananaOS's emulators) or, on a computer, F12: both panels, the top over the bottom, as a PNG
 		// in the card's screenshots folder
 		auto screenshot = [&] {

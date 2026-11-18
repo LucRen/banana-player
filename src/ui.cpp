@@ -131,6 +131,14 @@ namespace bp
 	{
 		// a key while a finger holds a slider: the slider is let go where it is (the key may close what it's on)
 		slideEnd(p);
+		// About's support QR, large on the top panel: B or Y puts it down (a tap does too, in pointer)
+		if (page == Page::About && aboutQr && (b == Button::B || b == Button::Y))
+		{
+			aboutQr = false;
+			return false;
+		}
+		// leaving About closes it too (openAbout clears it as well: coming back finds it down)
+		if (page != Page::About) aboutQr = false;
 		// an overlay (the readers' Brightness sheet, a message's dialog, the quick settings, Files' Info card) takes the
 		// keys while it shows
 		if (topOverlay()) return overlayKey(b, p);
@@ -205,6 +213,7 @@ namespace bp
 			{
 				setGroup = GROUP_ABOUT;
 				settingsPage->stepGroup(b == Button::R2 ? 1 : -1, &p);
+				aboutQr = false;
 				return false;
 			}
 			if (page != Page::Manga && page != Page::MangaSeries && page != Page::MangaRead &&
@@ -239,6 +248,7 @@ namespace bp
 				setGroup = -1;
 				cursor = GROUP_ABOUT;
 				scroll = 0;
+				aboutQr = false;
 				return false;
 			}
 			if (b == Button::Start || b == Button::B) { closeMenu(p); return false; }
@@ -260,11 +270,15 @@ namespace bp
 			case Button::Right: scroll = std::min(maxScroll, scroll + (page == Page::About ? ABOUT_SHOWN : INFO_SHOWN)); break;
 			case Button::B: case Button::A:
 				// About is a settings group: back to the groups' tiles
-				if (page == Page::About) { page = Page::Settings; setGroup = -1; cursor = GROUP_ABOUT; scroll = 0; }
+				if (page == Page::About) { page = Page::Settings; setGroup = -1; cursor = GROUP_ABOUT; scroll = 0; aboutQr = false; }
 				else page = home(p);
 				break;
 			case Button::Start:
 				if (page == Page::About && inMenu) { page = Page::Menu; cursor = 0; scroll = 0; }
+				break;
+			case Button::Y:
+				// About's support QR, large on the top panel (a tap on the small code does it too)
+				if (page == Page::About) aboutQr = !aboutQrUp();
 				break;
 			default: break;
 			}
@@ -582,6 +596,12 @@ namespace bp
 		if (Area* a = area(); a && a->pointerFirst()) return a->pointer(pt, x, y, p);
 		// locked, over a video or a song: a hold on the lock (draw() times it) releases it; nothing else answers a finger
 		if (page == Page::Main && playerPage->locked(p)) return playerPage->lockPointer(pt, x, y, p);
+		// About's support QR, up on the top panel: a tap anywhere puts it down (B and Y do too)
+		if (pt.kind == Pointer::Down && page == Page::About && aboutQr)
+		{
+			aboutQr = false;
+			return false;
+		}
 
 		if (popupShown(p))
 		{
@@ -645,7 +665,13 @@ namespace bp
 			{
 				listTouch = false;
 				holdAt = 0;
-				if (listScrolled || info) return false;	// the info page only scrolls
+				if (listScrolled) return false;
+				// the info page only scrolls; About's small support QR takes a tap (its large view, as Y does)
+				if (info)
+				{
+					if (page == Page::About && aboutQrRect().hit(x, y)) aboutQr = true;
+					return false;
+				}
 				// a setting: the left of its value (its arrow) steps back, the rest of the row on
 				int dir = touchX >= SET_ARROW_X - 12 && touchX < 490 ? -1 : 1;
 				if (groups) settingsPage->openGroup(cursor, &p);
@@ -788,6 +814,8 @@ namespace bp
 				(p.netWaiting() ? "w" : "") + src.title + "|" + src.id;
 		}
 		photo += webSig(p);
+		// About's support QR up: its hint bar says how to close it
+		photo += aboutQrUp() ? "|qr" : "";
 		// where it plays (the player's Play on sheet and the status line)
 		{
 			SessionHost& sh = SessionHost::get();

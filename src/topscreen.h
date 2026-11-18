@@ -22,14 +22,15 @@ namespace bp
 	{
 		TopScreen(SDL_Window* win, SDL_GLContext ctx, std::string fonts);
 
-		// a reader open, its pages on the top panel; not while the player's own pages show (they show what plays)
+		// a reader open, or About's support QR up: the Ui's own picture on the top panel; not while the player's own
+		// pages show (they show what plays)
 		bool onTop(const Ui& ui) const;
 		// What plays under a photo or a reader's pages: a song's graph makes frames still (it carries the sound), and
 		// mpv waits for each to be taken. They're taken here into a tiny target with rendering skipped (nothing drawn,
 		// no GL time), so the photo or the comic isn't drawn again 30 times a second and the bottom panel keeps the GPU
 		void drainUnder(Player& player, Player& photos, bool readerOnTop);
 		// the top panel's pixels (RGBA, top row first), the frame drawn again for it: screenshots
-		SDL_Surface* capture(Player& shown, bool readerOnTop);
+		SDL_Surface* capture(Player& shown, bool readerOnTop, bool qr);
 		// the level card (levelcard.h: one picture, the same on every screen) over a reader's pages, mpv's own being
 		// under them; barTop: the bar's whole (levelTop), 0 for the label alone (the reader's zoom)
 		void cardOnReader(const std::string& label, int percent, bool bar, int barTop, int ms);
@@ -75,8 +76,15 @@ namespace bp
 		bool liteOnPanel = false;
 		uint64_t liteFrames = 0, liteFramesShown = 0, liteMetaShown = 0, liteReadingsShown = 0;
 		Uint32 liteLogAt = 0;
+		// About's support QR, large (Ui::aboutQrUp): the panel's own picture while it is up, composed at its pixels
+		// (supportqr.h) and drawn 1:1 through its own renderer, so the code's edges stay the file's
+		PageRenderer qrRender;
+		bool qrReady = false, qrUp = false;
+		int qrW = 0, qrH = 0;
 
 	private:
+		// the QR drawn 1:1 into the top window (the context made current here); false when it couldn't be composed
+		bool drawQr(int w, int h);
 		// the text viewer's look (Settings: the Text viewer's rows)
 		TextReader::Style textStyle(const Settings& s) const;
 		Uint32 slowLogged = 0;	// when a take under the pages was last logged (once per 5 s)

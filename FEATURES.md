@@ -679,7 +679,7 @@ opens the Subtitles group; **B** there goes back to that sheet, on Subtitles.
 | | Check for updates | | Looks now, and shows what it found |
 | | Update to … | | Downloads the new version (shown when there's one), then **Restart now** |
 | **Web dashboard** | Turn on or off, New PIN | Off | Control the player and manage files and playlists from a phone or computer on your Wi-Fi. See [Web dashboard](#web-dashboard). While incognito is on the tile says **Off in incognito** and the page offers **Leave incognito** instead |
-| **About** | Version, licence, warranty, the manga-sources note, the libraries, and the support line | | The last group (a tile; there is no About tab): at its foot, under a rule, **Banana Player is free. If you’d like to support it:** with a static QR (nothing is fetched or opened by the handheld) and **ko-fi.com/tonysong** written out. Nothing there is a key |
+| **About** | Version, licence, warranty, the manga-sources note, the libraries, and the support line | | The last group (a tile; there is no About tab): at its foot, under a rule, **Banana Player is free. If you’d like to support it:** with a static QR (nothing is fetched or opened by the handheld) and **ko-fi.com/tonysong** written out. **Y** or a tap on the code shows it large on the top screen, as big as fits with a white margin, the address under it; **B**, **Y** again or a tap closes it, and leaving About does too |
 
 ## Web dashboard
 

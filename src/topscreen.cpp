@@ -6,6 +6,7 @@
 #include "levelcard.h"
 #include "manganet.h"
 #include "player.h"
+#include "supportqr.h"
 #include "textsource.h"
 #include "theme.h"
 #include "ui.h"
@@ -29,7 +30,7 @@ namespace bp
 
 	bool TopScreen::onTop(const Ui& ui) const
 	{
-		return (reader.isOpen() || textReader.isOpen()) && !ui.topShowsPlayer();
+		return (reader.isOpen() || textReader.isOpen() || ui.aboutQrUp()) && !ui.topShowsPlayer();
 	}
 
 	void TopScreen::drainUnder(Player& player, Player& photos, bool readerOnTop)
@@ -72,7 +73,7 @@ namespace bp
 		}
 	}
 
-	SDL_Surface* TopScreen::capture(Player& shown, bool readerOnTop)
+	SDL_Surface* TopScreen::capture(Player& shown, bool readerOnTop, bool qr)
 	{
 		SDL_GL_MakeCurrent(top, gl);
 		int w, h;
@@ -80,7 +81,8 @@ namespace bp
 		using ReadPixels = void (*)(int, int, int, int, unsigned, unsigned, void*);
 		auto readPixels = (ReadPixels)SDL_GL_GetProcAddress("glReadPixels");
 		if (!readPixels) return nullptr;
-		if (reader.isOpen() && readerOnTop) reader.draw(w, h);	// a manga chapter's pages
+		if (qr && drawQr(w, h)) {}	// About's support QR, large
+		else if (reader.isOpen() && readerOnTop) reader.draw(w, h);	// a manga chapter's pages
 		else if (textReader.isOpen() && readerOnTop) textReader.draw(w, h);	// a document's text
 		else if (shown.liteShown()) drawLiteFrame(shown, SDL_GetTicks(), true);	// Lite's own glow and bars
 		else shown.render(w, h);	// a video, a photo, or the icon with nothing playing
@@ -93,6 +95,33 @@ namespace bp
 		SDL_GL_SwapWindow(top);
 		shown.reportSwap();
 		return s;
+	}
+
+	bool TopScreen::drawQr(int w, int h)
+	{
+		SDL_GL_MakeCurrent(top, gl);
+		if (!qrReady)
+		{
+#ifdef BP_GLES
+			qrReady = qrRender.init([](const char* n) { return SDL_GL_GetProcAddress(n); }, true);
+#else
+			qrReady = qrRender.init([](const char* n) { return SDL_GL_GetProcAddress(n); }, false);
+#endif
+			qrRender.setUploadAll(true);	// (two tiles: up in the frame that shows it)
+		}
+		if (!qrReady) return false;
+		if (!qrUp || qrW != w || qrH != h)
+		{
+			// a new panel size (or the first time): the picture at its pixels, so the code lands on whole ones
+			SupportQrImage img = composeSupportQr(fontsDir, w, h);
+			qrW = w;
+			qrH = h;	// (a failure is not retried every pass: refresh asks again)
+			if (!img.ok()) return false;
+			qrRender.addPage(0, img.w, img.h, std::make_shared<const std::vector<uint8_t>>(std::move(img.rgba)));
+			qrUp = true;
+		}
+		qrRender.draw({{0, 0, 0, (float)w, (float)h}}, w, h);
+		return true;
 	}
 
 	void TopScreen::cardOnReader(const std::string& label, int percent, bool bar, int barTop, int ms)
@@ -695,9 +724,19 @@ namespace bp
 	void TopScreen::draw(Player& player, Player& photos, Player& shown, const Ui& ui, Uint32 now, bool refresh, Uint32 levelUntil,
 		std::atomic<bool>& renderPending)
 	{
+		// About's support QR up: the panel is that picture (down again: its texture goes, in this context)
+		bool qrNow = ui.aboutQrUp();
+		if (!qrNow && qrUp)
+		{
+			qrUp = false;
+			qrW = qrH = 0;	// (shown again: composed again)
+			SDL_GL_MakeCurrent(top, gl);
+			qrRender.keepOnly({});
+			qrRender.flushDead();
+		}
 		// Lite on the top panel or off it: one line each way, saying which path draws the panel (a black or frozen top
 		// panel is told by these: the player's own GL glow and bars, or mpv's frame, and for what file)
-		bool liteNow = player.liteShown() && !photos.playing() && !(reader.isOpen() && onTop(ui)) && !(textReader.isOpen() && onTop(ui));
+		bool liteNow = player.liteShown() && !photos.playing() && !qrNow && !(reader.isOpen() && onTop(ui)) && !(textReader.isOpen() && onTop(ui));
 		if (liteNow != liteOnPanel)
 		{
 			liteOnPanel = liteNow;
@@ -714,6 +753,7 @@ namespace bp
 			else
 			{
 				const char* why = photos.playing() ? "a photo is shown"
+					: qrNow ? "About's QR is over it"
 					: (reader.isOpen() || textReader.isOpen()) && onTop(ui) ? "a reader is over it"
 					: !player.playing() ? "nothing plays" : "another style, or its display shows no visualizer";
 				fprintf(stderr, "lite: off the top panel after %llu frames (%llu metadata updates): %s, style %s\n",
@@ -721,7 +761,16 @@ namespace bp
 					visualizerLabel(player.settings.visualizer));
 			}
 		}
-		if (reader.isOpen() && onTop(ui))
+		if (qrNow)
+		{
+			// About's support QR, large: the panel's own picture, 1:1 (a still: drawn again when it changes, and
+			// with the 2 s refresh, so a failed compose gets another try)
+			renderPending = false;
+			int w, h;
+			SDL_GL_GetDrawableSize(top, &w, &h);
+			if ((qrW != w || qrH != h || refresh) && drawQr(w, h)) SDL_GL_SwapWindow(top);
+		}
+		else if (reader.isOpen() && onTop(ui))
 		{
 			// the pages, not mpv's picture (what plays goes on under them: drainUnder)
 			renderPending = false;

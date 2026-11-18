@@ -101,6 +101,10 @@ namespace bp
 		{
 			return page == Page::Main || page == Page::Info;
 		}
+		// About's support QR, large on the top panel: Y on About, or a tap on the small code there, puts it up (the
+		// top panel's own picture, as a reader's pages are); B, Y or a tap takes it down, and leaving About closes it
+		bool aboutQrUp() const { return aboutQr && page == Page::About; }
+		static lay::Box aboutQrRect() { return {24, 352, 84, 84}; }	// the small code at About's foot (drawAboutSupport)
 		// the player's own Stop (X's More sheet, START › Playing › Stop, the mini bar's menu), once: main stops what plays
 		bool takeStopPressed() { bool r = stopPressed; stopPressed = false; return r; }
 		// the mini bar's tap over a photo: the photo closes and the player of what plays takes the screen (once; main
@@ -711,6 +715,8 @@ namespace bp
 		void drawAboutSupport();	// the line, the QR (packaging/support/kofi-qr.png) and the address
 		SDL_Texture* supportTex = nullptr;	// (decoded once at the size drawn)
 		int supportPx = 0;
+		// the support QR, large: the flag (see aboutQrUp); the small code's box is aboutQrRect
+		bool aboutQr = false;
 
 		SDL_Texture* text(const std::string& s, int size, SDL_Color c);
 		void drawText(const std::string& s, int size, SDL_Color c, int x, int y, int maxW = 0, int align = 0);

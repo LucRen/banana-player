@@ -256,6 +256,20 @@ namespace bp
 			return l;
 		}
 
+		QrPanel qrPanel(int w, int h)
+		{
+			QrPanel q;
+			int margin = std::max(8, h / 24), gap = std::max(4, h / 60), lineH = std::max(12, h / 20);
+			int side = std::max(0, std::min(w - 2 * margin, h - 2 * margin - gap - lineH));
+			// the code is 76% of the white box: the ring round a 29-module code is nearly the four modules a phone's
+			// camera wants to see the edges against (a code of 25 or 33 modules gets a little more or less)
+			int pad = std::max(6, side * 3 / 25);
+			q.quiet = {(w - side) / 2, margin, side, side};
+			q.code = {q.quiet.x + pad, q.quiet.y + pad, std::max(0, side - 2 * pad), std::max(0, side - 2 * pad)};
+			q.line = {0, q.quiet.y + side + gap, w, lineH};
+			return q;
+		}
+
 		std::string chipTrack(const Track& t, int n, const std::vector<Track>& all)
 		{
 			std::string lang = languageName(t.lang);

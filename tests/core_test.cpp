@@ -8940,6 +8940,27 @@ static void testKitLayout()
 	CHECK_EQ(sr.row(0).x, MARGIN);
 	CHECK_EQ(sr.row(0).w, PANEL_W - 2 * MARGIN);
 
+	// About's support QR, large on the top panel: a square quiet zone centred across it, the code inside with a pad
+	// all round, the address's line under it, all inside the panel and as large as the height allows
+	{
+		QrPanel q = qrPanel(640, 480);
+		CHECK_EQ(q.quiet.w, q.quiet.h);
+		CHECK_EQ(q.quiet.x, (640 - q.quiet.w) / 2);
+		CHECK(q.quiet.y >= 8 && q.quiet.y + q.quiet.h < q.line.y);
+		CHECK(q.line.y + q.line.h <= 480 - 8);
+		CHECK_EQ(q.code.w, q.code.h);
+		CHECK(q.code.x > q.quiet.x && q.code.x + q.code.w < q.quiet.x + q.quiet.w);
+		CHECK(q.code.y > q.quiet.y && q.code.y + q.code.h < q.quiet.y + q.quiet.h);
+		// (the code is the larger part of the white box and most of the panel's height)
+		CHECK(q.code.w > q.quiet.w * 3 / 4);
+		CHECK(q.code.h > 480 * 3 / 5);
+		// a second size (a HiDPI panel): the same layout, twice as many pixels, nothing off its edge
+		QrPanel b = qrPanel(1280, 960);
+		CHECK(b.quiet.y >= 16 && b.line.y + b.line.h <= 960 - 16);
+		CHECK_EQ(b.quiet.w, b.quiet.h);
+		CHECK(b.code.h > 960 * 3 / 5);
+	}
+
 	// the Visualizer tab's style grid: 21 styles, five a row, inside its area, in rows that meet its edges
 	Box grid{16, 300, 608, 5 * 46 + 4 * 6};
 	auto cells = gridCells(grid, VIS_SHOWN_COUNT, 5, 6);
