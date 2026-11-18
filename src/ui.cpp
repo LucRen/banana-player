@@ -141,10 +141,12 @@ namespace bp
 		if (page != Page::About) aboutQr = false;
 		// an overlay (the readers' Brightness sheet, a message's dialog, the quick settings, Files' Info card) takes the
 		// keys while it shows
+		// any key restarts Screen off's count, an overlay's too (Settings, a sheet): before, the B that closed Settings
+		// after a while in it left the count where it was, and the bottom panel went dark at once
+		webInputAt = SDL_GetTicks();
 		if (topOverlay()) return overlayKey(b, p);
 		sameBrightness = p.settings.sameBrightness;
 		mangaOn = p.settings.mangaOn;
-		webInputAt = SDL_GetTicks();
 		// dark (Screen off, or off by itself): over what plays, the playback keys work blind and leave it dark (play
 		// and pause, seek, next and previous, chapters, like: issue #3, watching with the bottom screen off; not UP /
 		// DOWN, which do nothing on the player now);
