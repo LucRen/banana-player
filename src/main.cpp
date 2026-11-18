@@ -23,6 +23,7 @@
 #include "manganet.h"
 #include "ui.h"
 #include "ui_glyphs.h"
+#include "ui_docs.h"
 #include "ui_manga.h"
 #include "session_host.h"
 #include "updater.h"
@@ -522,6 +523,11 @@ int main(int argc, char** argv)
 			SDL_PushEvent(&ev);
 		});
 		ui.manga->coverWorker = coverWorker;
+		// the manga store's durable writes (a progress save's fsync on the card); never destroyed, its thread may be
+		// inside an fsync at exit
+		ui.manga->writer = new DurableWriter();
+		// a document's place, written the same way: its tick saves every two seconds while a document is read
+		ui.docs->writer = new DurableWriter();
 		// the Manga app's card library, listed and its chapter files read off this thread (evMangaLib); never destroyed,
 		// its thread may be inside pdfium at exit
 		MangaLibWorker* mangaLibWorker = new MangaLibWorker([] {
@@ -2054,8 +2060,13 @@ int main(int argc, char** argv)
 		bottomTouch.stop();
 		// a playlist's last edits (they wait a second to be written)
 		if (haveUi) ui.flushPlaylist(player);
-		// the manga reader's place now (its saves are debounced while a chapter is read)
+		// the manga reader's place now (its saves are debounced while a chapter is read); the writer is waited for, at
+		// most a second, so the last place isn't lost with the process
 		if (haveUi) ui.manga->mangaFlush();
+		if (haveUi && ui.manga->writer) ui.manga->writer->stop();
+		// the document reader's place, the same way
+		if (haveUi) ui.docs->docFlush();
+		if (haveUi && ui.docs->writer) ui.docs->writer->stop();
 		player.saveResume();
 		SDL_GL_MakeCurrent(top, gl);
 		photos.shutdown();

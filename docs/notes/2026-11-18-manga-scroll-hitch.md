@@ -67,3 +67,45 @@ was heavy.
 
 The new line is not in the older `handheld-log2.txt`: the next log from the handheld will pin the next hitch (or show
 that the debounced save and the cached card lookups removed it).
+
+## Follow-up: the durable write moved off the main thread
+
+The 5 s save still ran `writeFileDurable` (file fsync, rename, folder fsync: tens of ms on the SD card) on the main
+thread, so a flick could still hitch once every five seconds. It is now only copied there.
+
+- `src/writequeue.h` / `writequeue.cpp`: `WriteSlot` is the pure one-slot queue (a push replaces whatever wasn't taken
+  yet); `DurableWriter` owns one detached thread, started on the first write and never destroyed (like `DurationWorker`:
+  no join in a destructor on main's path). The main thread copies the texts into the slot and returns; the thread takes
+  the newest bundle after any write in flight and puts each file down with the same `writeFileDurable`. It never touches
+  Player or Ui. `tests/core_test.cpp`'s `testWriteQueue` pins the replace-latest rule.
+- `MangaStore::filesToSave()` serializes the two texts on the caller's thread (`save()` is still the synchronous form for
+  a caller that wants it). Both `library.tsv` and `progress.tsv` are carried every time: a chapter's place moves its
+  series' `lastRead`, so the library text changes with the progress as well, and a failed write is retried rather than
+  remembered as done.
+- main creates one writer (`Ui::Manga::writer`) beside the other workers and never destroys it. `mangaSave()` copies
+  (`FrameWatchScope "progress save"` now measures only that copy); `mangaFlush()` records the place, queues it and waits
+  at most a second on quit. `mangaCloseReader`'s save is queued the same way. The dashboard's two store edits
+  (`api_manga.cpp`) go through `mangaStoreChanged()`, so they never race the writer on the same `.tmp`.
+- The same 2 s throttled durable save ran while a document was read (`Ui::Docs::docPlacesSave`). It is on a reading hot
+  path too, so it uses its own writer (`Ui::Docs::writer`); `docFlush()` records the place and waits at most a second on
+  quit. `doc-bookmarks.conf` stays synchronous: it is written only when the user adds, renames or removes a bookmark.
+
+### The other durable and fsync writes, and whether they were a risk
+
+| Write | Where / when | Risk while reading or playing |
+|---|---|---|
+| `settings.conf`, `eq-presets.tsv` | `Player::writeFile`, at most one sync a second per file | Only when a setting or EQ preset is changed (a deliberate action, not a loop). Not moved. |
+| `resume.tsv` (positions) | `Player::saveResume`: on open/stop/end/wake, and every 60 s while playing | One fsync a minute is not a hot path, but it is the next candidate if the log ever shows it. Not moved. |
+| `history.tsv` (recent list) | On file open, end, clear/remove, a move | Not per frame; coalesced by `writeFile`. Not moved. |
+| `playlists/*.m3u` | Edits debounced 1 s, flushed on leaving and quit | While a playlist is edited, not while reading or playing without an edit. Not moved. |
+| `doc-places.conf` | Docs' tick, every 2 s while a document is read | **Hot**: moved to `DurableWriter` (above). |
+| `doc-bookmarks.conf` | A bookmark added, renamed or removed | User action only. Not moved. |
+| `durations.tsv` | `DurationCache`: append uses `fflush`, the rare whole rewrite fsyncs | Runs on `DurationWorker` and the web probe's thread, not main. No risk. |
+| page cache index, covers, series cache, viz cache, subtitle cache, photo wav | `writeFileAtomic` (no sync) or a cache's own write | No fsync; a lost one is rebuilt. No risk. |
+| sources/repos/servers/keys/lid notes | Install, remove, edit, a lid transition | Rare, deliberate actions. Not moved. |
+| `cbzwrite`, `treecopy`, `xfer`, the web upload | Download, copy/move and upload jobs (worker threads) | Not main, and not reading or playback. No risk. |
+
+Checked: `cmake --build build -j`, `./build/core-test` (`core: all passed`, including `testWriteQueue`) and
+`cmake --build build --target manga-check` (`manga: all passed`). The next handheld log should show `progress save` near
+zero; a remaining frame there is the two texts' serialization, not the card.
+

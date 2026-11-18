@@ -343,7 +343,7 @@ namespace bp
 				if (!mangaReady(p, u)) return error("Manga is off");
 				if (!u.manga->mangaStorePublic()) { WebCall::setStatus(503); return error("Manga store isn't ready"); }
 				u.manga->mangaStorePublic()->removeSeries(id);
-				u.manga->mangaStorePublic()->save();
+				u.manga->mangaStoreChanged();
 				mangaNotify(*w, u);
 				return std::string("{\"ok\":true}");
 			}, 2000, status);
@@ -368,7 +368,7 @@ namespace bp
 				if (!mangaReady(p, u)) return error("Manga is off");
 				if (!u.manga->mangaStorePublic()) { WebCall::setStatus(503); return error("Manga store isn't ready"); }
 				u.manga->mangaStorePublic()->markRead(sid, chapters, read);
-				u.manga->mangaStorePublic()->save();
+				u.manga->mangaStoreChanged();
 				mangaNotify(*w, u);
 				return std::string("{\"ok\":true}");
 			}, 2000, status);

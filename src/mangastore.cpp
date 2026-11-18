@@ -233,21 +233,25 @@ namespace bp
 	bool MangaStore::save() const
 	{
 		if (dir_.empty()) return false;
+		bool ok = true;
+		for (const auto& f : filesToSave())
+			ok = writeFileDurable(f.path, f.text, f.mode) && ok;
+		return ok;
+	}
+
+	std::vector<FileWrite> MangaStore::filesToSave() const
+	{
+		std::vector<FileWrite> files;
+		if (dir_.empty()) return files;
 		std::string dir = dir_ + "/manga";
 		mkdir(dir_.c_str(), 0755);
 		mkdir(dir.c_str(), 0755);
-		// the series (names, covers, the Library) on the card for good when they change: a reset mid-chapter kept the
-		// progress but not the series it belonged to, whose name came back as its key. Written only when it changed,
-		// so the sync isn't paid at every page's progress
-		bool ok = true;
-		std::string lib = serializeLibrary();
-		if (lib != savedLibrary_)
-		{
-			ok = writeFileDurable(dir + "/library.tsv", lib);
-			if (ok) savedLibrary_ = lib;
-		}
-		ok = writeFileDurable(dir + "/progress.tsv", serializeProgress()) && ok;
-		return ok;
+		// The series (names, covers, the Library) and the chapter places. Both are carried every time: a chapter's
+		// place moves its series' lastRead, so the library text changes with the progress anyway, and a write that
+		// failed is tried again with the next one. (The fsync is the caller's: off the main thread, or save() above.)
+		files.push_back({dir + "/library.tsv", serializeLibrary(), 0644});
+		files.push_back({dir + "/progress.tsv", serializeProgress(), 0644});
+		return files;
 	}
 
 	std::string MangaStore::serializeLibrary() const

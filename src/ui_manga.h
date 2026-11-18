@@ -18,6 +18,7 @@
 #include "mangarepos.h"
 #include "mangasource.h"
 #include "mangastore.h"
+#include "writequeue.h"	// DurableWriter: the store's saves off the main thread
 #include "mangaworker.h"
 #include "mangafetch.h"
 #include "pagecache.h"
@@ -86,6 +87,8 @@ namespace bp
 		class MangaNet* mangaNet = nullptr;
 		// the manga reader's library and progress store (public for the web dashboard's manga routes)
 		class MangaStore* mangaStorePublic() const { return mangaStore.get(); }
+		// the dashboard changed the store: written as the reader's own saves are, off the main thread
+		void mangaStoreChanged() { mangaSave(); }
 		// main's URL chapters put their pages in this same cache (the Manga settings' Clear cache empties it), not in
 		// a second PageCache over the same folder
 		PageCache& mangaPageCacheRef() { return mangaPageCache; }
@@ -99,6 +102,9 @@ namespace bp
 		// before); main forwards its event, and the answers go into mangaLocal here, on the main thread
 		MangaLibWorker* libWorker = nullptr;
 		void mangaLibReady(std::vector<MangaLibWorker::Result> results);
+		// the store's durable writes (a progress save's fsync is tens of ms); main creates it once and never
+		// destroys it, its thread may be inside an fsync at exit
+		DurableWriter* writer = nullptr;
 
 		// ---- the pages ----
 		// A source's filter sheet (ui_manga_filters.cpp): the definitions filters() gave, the values Apply sends,
@@ -339,7 +345,7 @@ namespace bp
 		std::string mangaReadingLine() const;	// "Reading your library… N series" while the card is read
 		void mangaLocalSort();
 		void mangaCache() const;
-		void mangaSave();				// the store written now (the reader's: every few seconds, and on closing/leaving)
+		void mangaSave();				// the store copied into the writer's slot (the reader's: every few seconds, and on closing/leaving)
 		void mangaTick();				// the reader's page recorded, the store written when MANGA_SAVE_MS has passed
 		void mangaFlush();				// the place now and the store written, at once (leaving the chapter, quitting)
 		void mangaRecordProgress();		// the reader's place into the store

@@ -2,6 +2,7 @@
 #include "kitlayout.h"
 #include "slider.h"
 #include "filesave.h"
+#include "writequeue.h"	// the durable writer's one-slot queue
 #include "aspect.h"
 #include "battery.h"
 #include "idlesleep.h"
@@ -11168,6 +11169,32 @@ static void testFileSave()
 	if (system(cmd.c_str())) {}
 }
 
+// the durable writer's slot: pure, one slot, the newest push replaces what wasn't taken yet
+static void testWriteQueue()
+{
+	WriteSlot q;
+	std::vector<FileWrite> out;
+	CHECK_EQ(q.take(out), false);
+	CHECK_EQ(q.full(), false);
+	q.push({{"/a.conf", "one"}});
+	CHECK_EQ(q.full(), true);
+	CHECK_EQ(q.take(out), true);
+	CHECK_EQ(out.size(), size_t(1));
+	CHECK_EQ(out[0].path, std::string("/a.conf"));
+	CHECK_EQ(out[0].text, std::string("one"));
+	CHECK_EQ(out[0].mode, unsigned(0644));
+	CHECK_EQ(q.full(), false);
+	CHECK_EQ(q.take(out), false);
+	// a burst: the first push's files are replaced whole, never mixed with the newer ones
+	q.push({{"/a.conf", "old"}, {"/b.conf", "old"}});
+	q.push({{"/a.conf", "new"}});
+	CHECK_EQ(q.take(out), true);
+	CHECK_EQ(out.size(), size_t(1));
+	CHECK_EQ(out[0].path, std::string("/a.conf"));
+	CHECK_EQ(out[0].text, std::string("new"));
+	CHECK_EQ(q.full(), false);
+}
+
 static void testImageSize()
 {
 	for (const char* ext : {"jpg", "png", "gif"})
@@ -11324,6 +11351,7 @@ int main()
 {
 	testSlider();
 	testFileSave();
+	testWriteQueue();
 	testImageSize();
 	testPgmFileOk();
 	testVizCache();

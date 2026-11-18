@@ -452,8 +452,11 @@ namespace bp
 
 	void Ui::Manga::mangaSave()
 	{
-		FrameWatchScope fw("progress save");	// (its fsync is the hitch this watch is for)
-		if (mangaStore) mangaStore->save();
+		FrameWatchScope fw("progress save");	// (only the copy goes here now: the fsync is on the writer's thread)
+		// the main thread copies the store's texts into the one slot the writer takes; a write in flight finishes,
+		// the newest wins, and main never waits for the card
+		if (mangaStore && writer) writer->write(mangaStore->filesToSave());
+		else if (mangaStore) mangaStore->save();	// (before main made the writer: the same files, here)
 		mangaDirty = false;
 		mangaSavedAt = SDL_GetTicks();
 	}
@@ -461,9 +464,11 @@ namespace bp
 	void Ui::Manga::mangaFlush()
 	{
 		// leaving the chapter or the app: record where the reader is now, then write it once (the reader's saves are
-		// debounced, so the last few pages would otherwise be a few seconds behind)
+		// debounced, so the last few pages would otherwise be a few seconds behind). At quit the write is waited for,
+		// at most a second, so the last place isn't lost with the process.
 		if (ui.pageReader && ui.pageReader->readerStatus.open) mangaRecordProgress();
 		if (mangaDirty) mangaSave();
+		if (writer) writer->flush(1000);
 	}
 
 	void Ui::Manga::mangaCache() const

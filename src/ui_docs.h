@@ -4,6 +4,7 @@
 // files of Ui that ask the readers something (a place forgotten, a file moved, Find's keyboard).
 #pragma once
 #include "ui.h"
+#include "writequeue.h"	// DurableWriter: a document's place off the main thread
 
 namespace bp
 {
@@ -36,6 +37,10 @@ namespace bp
 		void pathMoved(const std::string& from, const std::string& to);
 		// the keyboard's Done on Find's field: searched on from the place
 		void findTyped(const std::string& query);
+		// the place now, queued, and the writer waited for (quit: at most a second)
+		void docFlush();
+		// main creates it once and never destroys it (its thread may be inside an fsync at exit)
+		DurableWriter* writer = nullptr;
 
 		// ---- for main: the top panel's readers ----
 		// A text: Docs asks (takeTextRead), main opens it on its TextReader, takes textCmds each pass and tells

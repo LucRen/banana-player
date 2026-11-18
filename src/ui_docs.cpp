@@ -183,10 +183,20 @@ namespace bp
 	{
 		if (!docPlaces || !docPlacesDirty || ui.stateDirPath.empty()) return;
 		if (!now && SDL_GetTicks() - docSavedAt < 2000) return;
-		// durable (a cut mid-write once left font bytes in the bookmarks file); throttled above to one per 2 s
-		writeFileDurable(ui.stateDirPath + "/doc-places.conf", docPlaces->serialize());
+		// durable (a cut mid-write once left font bytes in the bookmarks file); throttled above to one per 2 s, and
+		// the fsync itself is the writer's thread (this tick runs while a document is read, so it can't wait on the card)
+		std::string path = ui.stateDirPath + "/doc-places.conf", text = docPlaces->serialize();
+		if (writer) writer->write({{path, text}});
+		else writeFileDurable(path, text);
 		docPlacesDirty = false;
 		docSavedAt = SDL_GetTicks();
+	}
+
+	void Ui::Docs::docFlush()
+	{
+		docRemember();
+		docPlacesSave(true);
+		if (writer) writer->flush(1000);
 	}
 
 	void Ui::Docs::docRemember()

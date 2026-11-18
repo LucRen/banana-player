@@ -2,6 +2,7 @@
 // The manga reader's library and reading progress: what the reader must remember across restarts
 // (docs/design/manga.md, section 6). Two TSV files in <state>/manga: library.tsv and progress.tsv. Plain data, no
 // window, no threads and no clock of its own: the reader's pages read it and the shell saves it.
+#include "writequeue.h"	// FileWrite: the texts save() writes, for a caller that writes them off the main thread
 #include <cstdint>
 #include <string>
 #include <unordered_map>
@@ -44,6 +45,9 @@ namespace bp
 		// Both files, each written beside and renamed over, so a crash never leaves half a file. False when they
 		// can't be written.
 		bool save() const;
+		// The same two files as save(), serialized on the calling thread for a writer thread to put on the card:
+		// the reader's loop copies the texts into its queue instead of paying the fsync.
+		std::vector<FileWrite> filesToSave() const;
 
 		// The library, as the Library page lists it: the ones read most recently first, then by title.
 		std::vector<MangaSeries> library() const;
@@ -104,7 +108,6 @@ namespace bp
 		std::string dir_;	// the state folder; the files are in <dir>/manga
 		std::vector<MangaSeries> series_;
 		std::vector<ChapterProgress> progress_;
-		mutable std::string savedLibrary_;	// library.tsv as last written (save() skips it when unchanged)
 		// chapterId -> its place in progress_, rebuilt after any add or removal (the vector's order changes then)
 		mutable std::unordered_map<std::string, size_t> progIdx_;
 		mutable bool progIdxDirty_ = true;
