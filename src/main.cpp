@@ -1403,6 +1403,7 @@ int main(int argc, char** argv)
 
 			player.pollEvents();
 			player.checkAudio();
+			player.checkSongArt();
 			player.checkSongEnd();
 			player.checkDisplay();
 			player.flushWrites();
