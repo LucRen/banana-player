@@ -5,6 +5,7 @@
 #include "aspect.h"
 #include "battery.h"
 #include "idlesleep.h"
+#include "lidtrigger.h"
 #include "lidsleep.h"
 #include "comicinfo.h"
 #include "cbz.h"
@@ -6457,6 +6458,23 @@ static void testIdleSleep()
 	CHECK_EQ(f, false);
 }
 
+// Lid or sleep in incognito: only a real open -> closed transition with incognito on at that moment is a trigger
+static void testIncognitoLid()
+{
+	// not a lid close (a wake, a duplicate, a follow-up after the lid reopened): nothing at all, whatever the rest says
+	CHECK_EQ((int)incognitoLidAction(false, true, LID_INCOGNITO_CLOSE_ALL), (int)IncognitoLidAction::NotInCharge);
+	CHECK_EQ((int)incognitoLidAction(false, true, LID_INCOGNITO_QUIT), (int)IncognitoLidAction::NotInCharge);
+	// incognito off: the setting is not consulted, nothing closes
+	CHECK_EQ((int)incognitoLidAction(true, false, LID_INCOGNITO_CLOSE_ALL), (int)IncognitoLidAction::NotInCharge);
+	CHECK_EQ((int)incognitoLidAction(true, false, LID_INCOGNITO_QUIT), (int)IncognitoLidAction::NotInCharge);
+	// on, and the row's three choices
+	CHECK_EQ((int)incognitoLidAction(true, true, LID_INCOGNITO_NOTHING), (int)IncognitoLidAction::NotInCharge);
+	CHECK_EQ((int)incognitoLidAction(true, true, LID_INCOGNITO_CLOSE_ALL), (int)IncognitoLidAction::CloseAll);
+	CHECK_EQ((int)incognitoLidAction(true, true, LID_INCOGNITO_QUIT), (int)IncognitoLidAction::Quit);
+	// a value from nowhere is not a trigger
+	CHECK_EQ((int)incognitoLidAction(true, true, 99), (int)IncognitoLidAction::NotInCharge);
+}
+
 // When the lid closes: Keep playing. bananad's reading of the conf, the rewrite and its undo (lidsleep.h)
 static void testLidSleepConf()
 {
@@ -11353,6 +11371,7 @@ int main()
 	testClock();
 	testBattery();
 	testIdleSleep();
+	testIncognitoLid();
 	testLidSleepConf();
 	testAspect();
 	testTime();

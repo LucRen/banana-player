@@ -485,6 +485,9 @@ namespace bp
 		// Close all: Stop everywhere, a book / PDF / comic / the Manga reader and sheets close, Home shows, and
 		// incognito ends. Places and read marks are kept as Stop keeps them; copies and downloads go on. main closes
 		// its photo viewer (another player) before this.
+		// The last gate: every trigger (lid, sleep, power hold) checks incognito on the main thread first and logs
+		// an ignored one; this makes a stale copy harmless
+		if (!incognito) return;
 		fprintf(stderr, "incognito: close all: stop, close, Home, incognito off\n");
 		stopPressed = true;
 		homeAfterCloseAll = true;	// Stop's back-to-where-it-came-from must not undo Home
