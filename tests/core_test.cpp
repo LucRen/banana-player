@@ -1,5 +1,6 @@
 // The parts without a window: aspect modes, track labels, mpv's track-list, times.
 #include "kitlayout.h"
+#include "songlayout.h"
 #include "slider.h"
 #include "filesave.h"
 #include "writequeue.h"	// the durable writer's one-slot queue
@@ -11403,9 +11404,41 @@ static void testCodePages()
 	CHECK(knownCodePage("cp852") && knownCodePage("IBM852") && knownCodePage("koi8-u"));
 }
 
+// the top panel's song layout (docs/redesign/components.md, Song layout): the drawings' numbers
+static void testSongLayout()
+{
+	// Album art only, info off: 260 centred
+	SongLayout a = songLayout(true, false, 0);
+	CHECK_EQ(a.artS, 260); CHECK_EQ(a.artX, 190); CHECK_EQ(a.artY, 110); CHECK_EQ(a.text, false);
+	// info on, a long title: art 240 at the 40 margin, the text column to 600
+	SongLayout b = songLayout(true, true, 9999);
+	CHECK_EQ(b.artS, 240); CHECK_EQ(b.artX, 40); CHECK_EQ(b.textX, 308); CHECK_EQ(b.textX + b.textW, 600); CHECK_EQ(b.midY, 240);
+	// a short title: the group centred on its real width (equal margins)
+	SongLayout c = songLayout(true, true, 100);
+	CHECK_EQ(c.artX, 640 - (c.textX + c.textW)); CHECK_EQ(c.textX - c.artX - c.artS, 28);
+	// Art + visualizer: above the band, never into it
+	SongLayout d = songLayout(false, false, 0), e = songLayout(false, true, 50);
+	CHECK_EQ(d.artS, 240); CHECK_EQ(d.artX, 200); CHECK_EQ(d.artY + d.artS <= SONG_BAND_TOP, true);
+	CHECK_EQ(e.artS, 224); CHECK_EQ(e.artY + e.artS <= SONG_BAND_TOP, true); CHECK_EQ(e.midY, 140);
+	// a cut line fits its width and ends in the ellipsis; a short one is left alone
+	std::string t = songFitText("The Long Way Round the Banana Grove (Live at the Peel)", 28, 280);
+	CHECK_EQ(t.size() > 3 && t.compare(t.size() - 3, 3, "\xe2\x80\xa6") == 0, true);
+	CHECK_EQ(songTextWidth(t, 28) <= 280 + 16, true);
+	CHECK_EQ(songFitText("Sunny Peel", 28, 280), std::string("Sunny Peel"));
+	// the art input swapped: a black still (laid over by the player), or the art placed once
+	std::string g = visualizerGraphMarked(VIS_PEAKS, true, "");
+	std::string black = vizPlaceArt(g, 0, 0, 0), placed = vizPlaceArt(g, 200, 20, 240);
+	CHECK_EQ(black.find("[vid1]"), std::string::npos);
+	CHECK_EQ(black.find("color=black:s=640x480:r=1:d=1,setsar=1") != std::string::npos, true);
+	CHECK_EQ(placed.find("[vid1] scale=240:240:force_original_aspect_ratio=increase,crop=240:240,pad=640:480:200:20:black,setsar=1") != std::string::npos, true);
+	std::string spec = vizPlaceArt(visualizerGraphMarked(VIS_SPECTRUM, true, ""), 0, 0, 0);
+	CHECK_EQ(spec.find("[vid1]"), std::string::npos);
+}
+
 int main()
 {
 	testSlider();
+	testSongLayout();
 	testFileSave();
 	testWriteQueue();
 	testImageSize();

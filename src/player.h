@@ -9,6 +9,7 @@
 #include <mpv/client.h>
 #include <mpv/render_gl.h>
 #include <map>
+#include <mutex>
 #include <memory>
 #include <string>
 #include <vector>
@@ -100,6 +101,8 @@ namespace bp
 		void pollEvents();
 		// called now and then: sound that didn't open is opened again
 		void checkAudio();
+		// called each pass: the song's art, decoded on a thread of its own for Art + visualizer, laid over once it's in
+		void checkSongArt();
 		// called now and then: a song with a visualizer (or None's picture) at its end. The filter graph's picture
 		// never ends, so mpv never ends the file: the clock runs on past the song. Ended here instead (or, Loop one,
 		// started again)
@@ -403,12 +406,41 @@ namespace bp
 		void writeEqPresets();
 		uint64_t cpuAt = 0;
 		double cpuSeconds = 0;
-		std::string tagArtist, tagAlbum;	// the file's tags, as mpv sent them
+		std::string tagArtist, tagAlbum, tagYear;	// the file's tags, as mpv sent them (the year: the date's first four)
 		// whether the last song (in lastArtDir) had art: the next one's guess
 		bool lastArt = false;
 		std::string lastArtDir;
-		int shownMusic() const;	// MusicShow as it comes out for this file (its art or none)
+		int shownMusic() const;	// MusicShow as it comes out now (None while the visualizer rests)
+		// the graph for a Show mode, by whether the song has art (Album art only with art: none, mpv shows the art)
+		std::string songGraph(int show, bool hasArt);
 		void updateOverlay();
+		// The song's art on the top panel (src/songlayout.h). Album art only: mpv's own video, put in the art's box
+		// by its video margins. Art + visualizer: the graph's top is black and the art is an image overlay, decoded
+		// here once (a thread of its own) at the panel's pixels, its corners rounded: so the art's place can follow
+		// the title's width without a new graph (a graph changed reopens the sound). A network song's art comes
+		// from mpv instead, placed by the graph at the spot a long title gives
+		struct SongArtJob
+		{
+			std::mutex m;
+			bool done = false, found = false;
+			std::vector<uint8_t> bgra;	// premultiplied, px x px
+			int px = 0;
+			double ms = 0;
+		};
+		static constexpr int ART_OVERLAY = 4;	// (overlay-add's id: the idle icon 0, the level card 1)
+		std::shared_ptr<SongArtJob> artJob;	// the one decoding or decoded for this song
+		std::string artKey;	// its file and size
+		enum class ArtState { Unknown, Shown, None };
+		ArtState artState = ArtState::Unknown;	// the overlay's art (Art + visualizer, a local song)
+		bool artOverlayUp = false;
+		int artOverlayX = -1, artOverlayY = -1;
+		std::map<uint64_t, std::shared_ptr<std::vector<uint8_t>>> artPixels;	// as levelPixels: kept till answered
+		uint64_t artSerial = 0, artShownSerial = 0;
+		void artReplied(uint64_t serial);
+		void dropSongArt();	// the overlay off and the job forgotten (another file, another mode)
+		std::string marginsSet;	// the video margins as last set ("" none)
+		void setSongMargins(const std::string& lrtb);
+		std::string layoutLogged;	// the last layout's log line, so each change is logged once
 		bool isAudio = false, isPhoto = false;
 		bool topCovered = false;	// setTopCovered
 		bool engineLoading = false;	// setEngineLoading

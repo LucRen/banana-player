@@ -526,7 +526,7 @@ On a video, **SELECT** › **View** › **Picture**: **A** chooses, the one in u
 Songs show their title, artist and album on the top screen. While a song plays:
 
 - **SELECT: View › Display.** Four rows, one always chosen: **Album art only** (default),
-  **Art + visualizer** (the visualizer over the bottom of the art), **Visualizer only**, or **None** (just the title:
+  **Art + visualizer** (the art above a band of the visualizer along the foot), **Visualizer only**, or **None** (just the title:
   the lightest on the battery). A fifth row, **Visualizer style**, names the style in use and opens View's
   **Visualizer** tab; with Album art only or None it reads "<style> · not shown" and can still be changed. The
   **Visualizer** tab is the style grid, twenty of them: **Peaks** (default: 64
@@ -549,15 +549,17 @@ Songs show their title, artist and album on the top screen. While a song plays:
   socks and a duck tumbling). The bar styles' bars stand out from their neighbours, so the spectrum has peaks and
   valleys. Every style measures the music evened out (only for the picture: the sound is untouched), so a quiet song
   moves it about as much as a loud one, the treble side is lively too, and silence stays still. With Art + visualizer, every style but Circle is
-  laid over the bottom of the art, which shows through around it. Coral Peaks, Hi-fi LED, Synthwave, Banana stack,
+  drawn in a band along the bottom of the screen, under the art, which it never covers. Coral Peaks, Hi-fi LED, Synthwave, Banana stack,
   Heartbeat, Oscilloscope, Turntable and Disco ball (earlier styles), and Bars, Waves and Spectrum, are retired: a
   saved choice of one of them becomes Peaks. The Lite style (drawn by the player itself, no graph) is removed for now:
   a saved choice of it becomes Peaks too. The top screen
   changes as you choose. On Display, **SELECT** steps the Show mode (Album art only → Art + visualizer → Visualizer
   only → None), **A** sets the row, **B** closes. On Visualizer, the **D-pad** moves over the grid and the style under
-  it is on the top screen at once, **A** keeps it, **Y** shows it when the mode has no visualizer, **B** closes. A song
-  without art shows its title alone on Album art only, and the visualizer on Art + visualizer. Album art
-  can be inside the song file or a `cover.jpg` in the same folder.
+  it is on the top screen at once, **A** keeps it, **Y** shows it when the mode has no visualizer, **B** closes. The art
+  is a square with rounded corners and a thin dark edge: 260 units, centred, on Album art only; 240 above the band on
+  Art + visualizer. A song without art shows a placeholder in the art's place (a colour wheel with a note on it), in
+  the same layout: the mode you chose is the mode you see. Album art can be inside the song file or a `cover.jpg` in
+  the same folder.
 - **Y: List**, as on a video: **Up next**, and **Chapters** when the song or audiobook has them (**L2** / **R2** jump
   from either tab); a tap on the chapter line above the progress bar opens its **Chapters** tab. **Shuffle**'s switch
   and **Repeat** Off / All / One are in the sheet's header, and the song's fourth chip is a **Shuffle** switch of its own.
@@ -572,8 +574,13 @@ Songs show their title, artist and album on the top screen. While a song plays:
   List sheet (a video's **Repeat** chip opens it; a song's **Shuffle** chip turns Shuffle on or off).
 
 Settings › Music has the same two choices as **Music display** and **Visualizer style**, and **Song info on top** (off by
-default): the song's title, artist and album over the top screen's picture, each line cut with "…" if it's too long.
-With it off the picture shows alone; **None** still shows the title, since that's all it shows. **Visualizer frame
+default): the song's title, artist and album (with its year) on the top screen, each line cut with "…" if it's too
+long. With the art (Album art only, Art + visualizer) the art moves left (240 units; 224 above the band) and the three
+lines sit to its right, centred on the art's middle; the art and the lines are centred together on their real width, so
+a short title doesn't leave them hugging the left, and nothing is ever written over the art. Over Visualizer only the
+lines are at the top left, with a shadow (Pocket console: in its own green pixel type). An audiobook's or a song's
+chapter is a yellow line under the title. With it off the picture shows alone; **None** still shows the title in the
+middle (then "artist · album"), since that's all it shows. **Visualizer frame
 rate** (30, 45 or 60 fps; 45 by default) is how often the styles drawn at 60 (Pocket console and the pixel-art scenes)
 draw: everything moves at the same speed at any rate, only less smoothly at 30, which leaves the handheld more time
 for the sound. Peaks and Circle draw 30 a second at any setting. A style comes up quicker from the second time it's

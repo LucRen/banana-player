@@ -10,10 +10,13 @@
 #include "netstore.h"
 #include "netstream.h"
 #include "sidecar.h"
+#include "songlayout.h"
 #include "soundfx.h"
 #include "playlist.h"
 #include "theme.h"
+#include "ui_glyphs.h"
 #include "vizcache.h"
+#include "web/probe.h"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -68,6 +71,8 @@ namespace bp
 	static const uint64_t LOAD_REPLY = 1ull << 41;
 	// the level card's overlay-add and overlay-remove answers, plus its serial (between EQ_REPLY and LOAD_REPLY)
 	static const uint64_t LEVEL_REPLY = (1ull << 40) + (1ull << 32);
+	// the song art's overlay-add answers, plus its serial (above the level card's, below LOAD_REPLY)
+	static const uint64_t ART_REPLY = (1ull << 40) + (1ull << 39);
 	// the panels' shape (both are 4:3)
 	static const double PANEL_ASPECT = 4.0 / 3;
 	// the thumbnail's largest size: the pan area's on the Plus's 1024x768 panel
@@ -518,6 +523,8 @@ namespace bp
 		displayDueAt = 0;	// the graph below is the display's as it is now
 
 		showIdle(false);
+		dropSongArt();
+		if (!isAudio) setSongMargins("");
 		// A song's picture is chosen before it opens, as far as it can be known: a filter graph changed (or taken off
 		// and put back) between songs closes and opens the sound output again, which takes the handheld a second or
 		// more. The art's graph ([vid1]) only where the art is sure (a cover file: a song without the track it names
@@ -532,7 +539,7 @@ namespace bp
 			if (vizResting() && (settings.musicShow == SHOW_VIS || settings.musicShow == SHOW_BOTH)) graph = blankGraph();
 			else if (settings.musicShow == SHOW_VIS) graph = graphFor(settings.visualizer, false);
 			else if (settings.musicShow == SHOW_NONE) graph = blankGraph();
-			else if (settings.musicShow == SHOW_BOTH) graph = graphFor(settings.visualizer, cover);
+			else if (settings.musicShow == SHOW_BOTH) graph = songGraph(SHOW_BOTH, cover);
 			else graph = guessArt ? "" : blankGraph();
 		}
 		// the same graph as the last song's: kept. Else the last file's off first: under a graph mpv's tracks can't
@@ -934,6 +941,7 @@ namespace bp
 					// the song's artist and album, for its title over the top panel (any case: ID3's are lower)
 					tagArtist.clear();
 					tagAlbum.clear();
+					tagYear.clear();
 					auto* n = p->format == MPV_FORMAT_NODE ? (mpv_node*)p->data : nullptr;
 					if (n && n->format == MPV_FORMAT_NODE_MAP)
 						for (int i = 0; i < n->u.list->num; i++)
@@ -943,6 +951,7 @@ namespace bp
 							if (n->u.list->values[i].format != MPV_FORMAT_STRING) continue;
 							if (k == "artist") tagArtist = n->u.list->values[i].u.string;
 							else if (k == "album") tagAlbum = n->u.list->values[i].u.string;
+							else if ((k == "date" || k == "year") && tagYear.empty()) tagYear = std::string(n->u.list->values[i].u.string).substr(0, 4);
 						}
 					if (isAudio && loaded) updateOverlay();
 					break;
@@ -985,6 +994,11 @@ namespace bp
 								loadEntry = r->u.list->values[i].u.int64;
 					// (it starts after the answer, but as a safeguard)
 					if (loadEntry >= 0 && startedEntry == loadEntry) tracksMine = true;
+					break;
+				}
+				if (ev->reply_userdata > ART_REPLY)
+				{
+					artReplied(ev->reply_userdata - ART_REPLY);
 					break;
 				}
 				if (ev->reply_userdata > LEVEL_REPLY)
@@ -1618,6 +1632,8 @@ namespace bp
 		bool soundChanged = s.eqOn != settings.eqOn || s.eqGains != settings.eqGains || s.soundFx != settings.soundFx;
 		settings = s;
 		if (infoChanged && !displayChanged && isAudio && loaded) updateOverlay();
+		// a network song's art is placed by the graph, where the info puts it
+		if (infoChanged && isAudio && loaded && isNet && settings.musicShow == SHOW_BOTH) displayDueAt = ticks() + 500;
 		if (displayChanged && isAudio && loaded)
 		{
 			// the title's place at once; the graph once the presses stop (each change of it reopens the sound output,
@@ -2056,27 +2072,6 @@ namespace bp
 	}
 
 	// a card's text: libass has no way to say a brace or a backslash literally, so they become look-alikes
-	// a line of the top panel's song text cut to fit its width at font size fs, "…" when cut: the overlay is 960x720
-	// units (4:3), about 860 usable, an average letter about 0.52 x fs wide, a wide (CJK) one about 0.95 x fs. Long
-	// titles wrapped onto two or three lines and pushed the rest down (the owner asked for "..." instead)
-	static std::string fitLine(const std::string& s, int fs)
-	{
-		const double budget = 860.0, narrow = 0.52 * fs, wide = 0.95 * fs, dots = 0.52 * fs;
-		double w = 0;
-		size_t cut = std::string::npos;
-		for (size_t i = 0; i < s.size();)
-		{
-			unsigned char c = (unsigned char)s[i];
-			size_t len = c < 0x80 ? 1 : c >= 0xF0 ? 4 : c >= 0xE0 ? 3 : c >= 0xC0 ? 2 : 1;
-			double cw = len >= 3 ? wide : narrow;
-			if (cut == std::string::npos && w + cw > budget - dots) cut = i;	// where "…" would go, if it comes to that
-			w += cw;
-			if (w > budget) return s.substr(0, cut) + "\xe2\x80\xa6";
-			i += len;
-		}
-		return s;
-	}
-
 	static std::string cardText(const std::string& s, size_t maxChars)
 	{
 		std::string out;
@@ -2354,10 +2349,9 @@ namespace bp
 
 	int Player::shownMusic() const
 	{
-		// the art's choices need art: a song with none shows its title alone (Album art: no visualizer the person
-		// didn't pick) or the visualizer (Art + visualizer); None is none either way
-		int show = settings.musicShow == SHOW_NONE || hasCover(tracks) ? settings.musicShow
-			: settings.musicShow == SHOW_ART ? SHOW_NONE : SHOW_VIS;
+		// the mode chosen is the mode shown: a song with no art has a placeholder in the art's box (songGraph,
+		// updateOverlay), the same layout as with art
+		int show = settings.musicShow;
 		// the manga reader over the top panel: a visualizer nobody sees would still make its 30 frames a second
 		// (mpv's sound waits on the graph) on the cores the reader decodes on; the bare graph meanwhile
 		// (and while the manga engine starts: setEngineLoading)
@@ -2436,6 +2430,27 @@ namespace bp
 		return g;
 	}
 
+	std::string Player::songGraph(int show, bool hasArt)
+	{
+		if (show == SHOW_VIS) return graphFor(settings.visualizer, false);
+		if (show == SHOW_NONE) return blankGraph();
+		// Album art only: mpv shows the art itself (no graph); without art, a black picture under the placeholder
+		if (show == SHOW_ART) return hasArt ? "" : blankGraph();
+		// Art + visualizer: the band under a black top, the art laid over it (updateOverlay): the same graph with art
+		// or without, so an album that mixes them never reopens the sound. A style that uses the art its own way
+		// (Circle's ring, Turntable's label) keeps it, and without art is drawn alone
+		std::string g = graphFor(settings.visualizer, true), black = vizPlaceArt(g, 0, 0, 0);
+		if (black.find("[vid1]") != std::string::npos) return hasArt ? g : graphFor(settings.visualizer, false);
+		// a network song's art from mpv (the overlay's decode reads local files only), placed once by the graph
+		// where a long title puts it: the title's own width can't move it without a new graph
+		if (isNet && hasArt)
+		{
+			SongLayout l = songLayout(false, settings.songInfo, 9999);
+			return vizPlaceArt(g, l.artX, l.artY, l.artS);
+		}
+		return black;
+	}
+
 	void Player::applyAudioDisplay()
 	{
 		// for the next song's guess (load): an album's songs mostly all have art, or none
@@ -2443,7 +2458,7 @@ namespace bp
 		lastArtDir = slash == std::string::npos ? "." : currentPath().substr(0, slash);
 		lastArt = hasCover(tracks);
 		int show = shownMusic();
-		std::string graph = show == SHOW_ART ? "" : show == SHOW_NONE ? blankGraph() : graphFor(settings.visualizer, show == SHOW_BOTH);
+		std::string graph = songGraph(show, hasCover(tracks));
 		if (graphSet != graph)
 		{
 			// (in the log: a graph changed as a song starts, by the art its track list says it has)
@@ -2458,7 +2473,7 @@ namespace bp
 		{
 			// the song's sound (the graph taken off leaves the track unselected)
 			prop("aid", songAid(seenAid));
-			if (show == SHOW_ART || show == SHOW_BOTH)
+			if (show == SHOW_ART)
 			{
 				// by its id: "auto" while playing doesn't pick the art again
 				int64_t art = 0;
@@ -2481,55 +2496,387 @@ namespace bp
 		return s;
 	}
 
+	// an ASS drawing of a rounded box at (x, y), w x h, radius r, one contour; reverse: drawn the other way round
+	// (inside another contour: a hole, by either fill rule)
+	static std::string roundPath(int x, int y, int w, int h, int r, bool reverse)
+	{
+		int c = (int)std::lround(r * 0.4477);
+		char d[512];
+		if (!reverse)
+			snprintf(d, sizeof d, "m %d %d l %d %d b %d %d %d %d %d %d l %d %d b %d %d %d %d %d %d l %d %d b %d %d %d %d %d %d l %d %d b %d %d %d %d %d %d ",
+				x + r, y, x + w - r, y, x + w - c, y, x + w, y + c, x + w, y + r, x + w, y + h - r, x + w, y + h - c, x + w - c, y + h,
+				x + w - r, y + h, x + r, y + h, x + c, y + h, x, y + h - c, x, y + h - r, x, y + r, x, y + c, x + c, y, x + r, y);
+		else
+			snprintf(d, sizeof d, "m %d %d b %d %d %d %d %d %d l %d %d b %d %d %d %d %d %d l %d %d b %d %d %d %d %d %d l %d %d b %d %d %d %d %d %d ",
+				x + r, y, x + c, y, x, y + c, x, y + r, x, y + h - r, x, y + h - c, x + c, y + h, x + r, y + h, x + w - r, y + h,
+				x + w - c, y + h, x + w, y + h - c, x + w, y + h - r, x + w, y + r, x + w, y + c, x + w - c, y, x + w - r, y);
+		return d;
+	}
+
+	void Player::setSongMargins(const std::string& lrtb)
+	{
+		if (lrtb == marginsSet) return;
+		marginsSet = lrtb;
+		double m[4] = {0, 0, 0, 0};
+		if (!lrtb.empty()) sscanf(lrtb.c_str(), "%lf %lf %lf %lf", &m[0], &m[1], &m[2], &m[3]);
+		const char* names[4] = {"video-margin-ratio-left", "video-margin-ratio-right", "video-margin-ratio-top", "video-margin-ratio-bottom"};
+		for (int i = 0; i < 4; i++) mpv_set_property_async(mpv, 0, names[i], MPV_FORMAT_DOUBLE, &m[i]);
+	}
+
+	void Player::dropSongArt()
+	{
+		if (artOverlayUp)
+		{
+			const std::string id = std::to_string(ART_OVERLAY);
+			const char* rm[] = {"overlay-remove", id.c_str(), nullptr};
+			mpv_command_async(mpv, ART_REPLY + ++artSerial, rm);
+		}
+		artOverlayUp = false;
+		artShownSerial = 0;
+		artOverlayX = artOverlayY = -1;
+		artJob.reset();
+		artKey.clear();
+		artState = ArtState::Unknown;
+	}
+
+	void Player::artReplied(uint64_t serial)
+	{
+		// as the level card's: the core has run every command up to this one
+		for (auto it = artPixels.begin(); it != artPixels.end() && it->first <= serial;)
+			it = it->first == artShownSerial ? std::next(it) : artPixels.erase(it);
+	}
+
+	void Player::checkSongArt()
+	{
+		if (!artJob || artState != ArtState::Unknown) return;
+		{
+			std::lock_guard<std::mutex> g(artJob->m);
+			if (!artJob->done) return;
+			artState = artJob->found ? ArtState::Shown : ArtState::None;
+			fprintf(stderr, "music: %s: art for the overlay %s in %.0f ms (%d px)\n", baseName(currentPath()).c_str(),
+				artJob->found ? "decoded" : "none in the file or beside it", artJob->ms, artJob->px);
+		}
+		updateOverlay();
+	}
+
+	// the art decoded for the overlay: the picture inside the file or beside it (cover.jpg), cut to a px square from
+	// its middle, its corners rounded (radius r px, smoothed), premultiplied BGRA. On a thread of its own: nothing here
+	// touches the player
+	static bool songArtPixels(const std::string& path, int px, int r, std::vector<uint8_t>& out)
+	{
+		std::string bytes, mime;
+		if (!probeCover(path, bytes, mime)) return false;
+		PageImage img = decodePage((const uint8_t*)bytes.data(), bytes.size(), px);
+		if (!img.ok()) return false;
+		// a wide picture: decoded wider, so its height fills the square
+		if (img.h < px && img.srcH > 0)
+		{
+			PageImage wide = decodePage((const uint8_t*)bytes.data(), bytes.size(), (px * img.srcW + img.srcH - 1) / img.srcH);
+			if (wide.ok() && wide.h >= px) img = std::move(wide);
+		}
+		if (img.w < px || img.h < px) return false;
+		const int ox = (img.w - px) / 2, oy = (img.h - px) / 2;
+		out.assign((size_t)px * px * 4, 0);
+		for (int y = 0; y < px; y++)
+			for (int x = 0; x < px; x++)
+			{
+				const uint8_t* c = &img.rgba[((size_t)(y + oy) * img.w + x + ox) * 4];
+				// the corner's cover: 1 inside the quarter circle, 0 outside, smoothed over a pixel
+				double cover = 1;
+				int cx = x < r ? r : x >= px - r ? px - r : -1, cy = y < r ? r : y >= px - r ? px - r : -1;
+				if (cx >= 0 && cy >= 0)
+				{
+					double dx = x + 0.5 - cx, dy = y + 0.5 - cy;
+					cover = std::clamp(r - std::sqrt(dx * dx + dy * dy) + 0.5, 0.0, 1.0);
+				}
+				int a = (int)std::lround(c[3] * cover);
+				uint8_t* o = &out[((size_t)y * px + x) * 4];
+				o[0] = (uint8_t)(c[2] * a / 255);
+				o[1] = (uint8_t)(c[1] * a / 255);
+				o[2] = (uint8_t)(c[0] * a / 255);
+				o[3] = (uint8_t)a;
+			}
+		return true;
+	}
+
 	void Player::updateOverlay()
 	{
 		if (!isAudio)
 		{
 			const char* cmd[] = {"osd-overlay", "1", "none", "", nullptr};
 			mpv_command_async(mpv, 0, cmd);
+			setSongMargins("");
+			dropSongArt();
 			return;
 		}
-		std::string title = this->title, artist = tagArtist, album = tagAlbum;
-		// over the art alone: at the bottom; with a visualizer (along the bottom): at the top; alone: in the middle, bigger
+		// the song's lines (docs/redesign/components.md, Song layout); the ASS canvas is 960x720, 1.5x the units
+		const double K = 1.5;
+		auto u = [&](double v) { return (int)std::lround(v * K); };
+		auto num = [](int v) { return std::to_string(v); };
+		const std::string WHITE = "&HFFFFFF&", CREAM = "&HD3E2E8&", GREY = "&H97A5AB&", EDGE = "&H2E2426&";
 		int show = shownMusic();
-		const char* at = show == SHOW_ART ? "{\\an2}" : show == SHOW_NONE ? "{\\an5}" : "{\\an8}";
-		int big = show == SHOW_NONE ? 56 : 40;
-		// Pocket console alone: the screen's own ink, dark green in the pixel font, no outline (the rest of the text
-		// takes it on; the album line its mid green)
-		bool pocket = show == SHOW_VIS && settings.visualizer == VIS_POCKET;
-		// the song's info is a setting (off by default: the picture alone); None shows the title whatever it says
-		bool info = settings.songInfo || show == SHOW_NONE;
-		std::string text = std::string(at) + (pocket ? "{\\fnPixelify Sans}{\\bord0}{\\shad0}{\\1c&H0F380F&}" : "{\\bord3}") +
-			"{\\fs" + std::to_string(big) + "}{\\b1}" + assText(fitLine(title, big * 11 / 10)) + "{\\b0}";
+		bool infoOn = settings.songInfo;
+		std::string title = this->title, artist = tagArtist;
+		std::string album = tagAlbum + (tagYear.empty() ? "" : (tagAlbum.empty() ? "" : " \xC2\xB7 ") + tagYear);
 		// an audiobook's (or a song's) chapter, under the title in yellow: where in the book this is
+		std::string chapter;
 		int c = currentChapter();
 		if (c >= 0 && c < (int)chapters.size())
+			chapter = chapterUntitled(chapters[c].title) ? "Chapter " + std::to_string(c + 1) + " of " + std::to_string(chapters.size())
+				: chapters[c].title;
+		bool ownsArt = show == SHOW_BOTH && (settings.visualizer == VIS_CIRCLE || settings.visualizer == VIS_VINYL);
+		bool group = (show == SHOW_ART || show == SHOW_BOTH) && !ownsArt;
+		std::string ev;
+		std::string why;	// for the log: what the art box holds
+
+		// the art shown as mpv's own video (Album art only, no graph): put in the art's box by the video's margins,
+		// in the layout of the mode it is shown in (a mode just changed: the graph comes half a second later)
+		bool videoArt = graphSet.empty() && hasCover(tracks);
+		SongLayout artOnly = songLayout(true, infoOn, 0);
+		int widest = 0;
+		if (infoOn)
 		{
-			std::string label = chapterUntitled(chapters[c].title)
-				? "Chapter " + std::to_string(c + 1) + " of " + std::to_string(chapters.size()) : cardText(chapters[c].title, 36);
-			// (no \q2: libass takes an event's last wrap style for all of it, and the title would stop wrapping; the
-			// label's cut keeps it to one line)
-			text += "\\N{\\b0}{\\fs" + std::to_string(big * 3 / 4) + "}{\\c" + (pocket ? std::string("&H306230&") : ass(TOP_TITLE)) + "}" +
-				assText(label) + (pocket ? "{\\c&H0F380F&}" : "{\\c&HFFFFFF&}");
+			widest = std::max({songTextWidth(title, SONG_TITLE_FS, true), songTextWidth(chapter, SONG_ARTIST_FS),
+							   songTextWidth(artist, SONG_ARTIST_FS), songTextWidth(album, SONG_ALBUM_FS)});
+			artOnly = songLayout(true, true, widest);
 		}
-		if (!artist.empty()) text += "\\N{\\fs" + std::to_string(big * 3 / 4) + "}" + assText(fitLine(artist, big * 3 / 4));
-		if (!album.empty()) text += "\\N{\\fs" + std::to_string(big * 2 / 3) + "}{\\c" + (pocket ? "&H306230&" : "&HB4B4B4&") + "}" + assText(fitLine(album, big * 2 / 3));
-		// the info off: nothing over the picture (only the engine's note, when there is one)
-		if (!info)
+		if (videoArt)
 		{
-			if (!engineLoading)
+			char m[96];
+			snprintf(m, sizeof m, "%.5f %.5f %.5f %.5f", artOnly.artX / 640.0, (640 - artOnly.artX - artOnly.artS) / 640.0,
+					 artOnly.artY / 480.0, (480 - artOnly.artY - artOnly.artS) / 480.0);
+			setSongMargins(m);
+		}
+		else setSongMargins("");
+
+		if (group)
+		{
+			// a network song's art placed by the graph: the layout of a long title, as the graph was made with
+			bool graphArt = show == SHOW_BOTH && isNet && graphSet.find("[vid1]") != std::string::npos;
+			SongLayout l = show == SHOW_ART ? artOnly : songLayout(false, infoOn, graphArt ? 9999 : widest);
+			// the art: mpv's (Album art only), the graph's (a network song), or the overlay's (decoded here)
+			enum { NOTHING, ART, OVERLAY, PLACEHOLDER } box = NOTHING;
+			if (show == SHOW_ART) box = tracks.empty() ? NOTHING : videoArt ? ART : PLACEHOLDER;
+			else if (isNet) box = tracks.empty() ? NOTHING : graphArt ? ART : PLACEHOLDER;
+			else
 			{
-				const char* none[] = {"osd-overlay", "1", "none", "", nullptr};
-				mpv_command_async(mpv, 0, none);
-				return;
+				const int pw = topW > 0 ? topW : 960, ph = topH > 0 ? topH : 720;
+				int px = (int)std::lround(l.artS * ph / 480.0);
+				std::string key = currentPath() + "@" + std::to_string(px);
+				if (key != artKey)
+				{
+					dropSongArt();
+					artKey = key;
+					auto job = std::make_shared<SongArtJob>();
+					job->px = px;
+					artJob = job;
+					std::string path = currentPath();
+					int r = (int)std::lround(SONG_ART_RADIUS * ph / 480.0);
+					std::thread([job, path, px, r] {
+#ifdef __linux__
+						setpriority(PRIO_PROCESS, 0, 10);	// (this thread alone): the song's decoding first
+#endif
+						auto t0 = std::chrono::steady_clock::now();
+						auto px2 = std::make_shared<std::vector<uint8_t>>();
+						bool found = songArtPixels(path, px, r, *px2);
+						std::lock_guard<std::mutex> g(job->m);
+						job->found = found;
+						job->bgra = std::move(*px2);
+						job->ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+						job->done = true;
+					}).detach();
+				}
+				box = artState == ArtState::Shown ? OVERLAY : artState == ArtState::None ? PLACEHOLDER : NOTHING;
+				if (box == OVERLAY)
+				{
+					int x = (int)std::lround(l.artX * pw / 640.0), y = (int)std::lround(l.artY * ph / 480.0);
+					if (!artOverlayUp || x != artOverlayX || y != artOverlayY)
+					{
+						std::shared_ptr<std::vector<uint8_t>> pixels;
+						{
+							std::lock_guard<std::mutex> g(artJob->m);
+							pixels = std::make_shared<std::vector<uint8_t>>(artJob->bgra);
+						}
+						uint64_t serial = ++artSerial;
+						artPixels[serial] = pixels;
+						artShownSerial = serial;
+						std::string id = std::to_string(ART_OVERLAY), xs = std::to_string(x), ys = std::to_string(y),
+							src = "&" + std::to_string((uintptr_t)pixels->data()), ws = std::to_string(px), st = std::to_string(px * 4);
+						const char* add[] = {"overlay-add", id.c_str(), xs.c_str(), ys.c_str(), src.c_str(), "0", "bgra", ws.c_str(), ws.c_str(),
+							st.c_str(), nullptr};
+						mpv_command_async(mpv, ART_REPLY + serial, add);
+						artOverlayUp = true;
+						artOverlayX = x;
+						artOverlayY = y;
+					}
+				}
 			}
-			text = std::string(at) + "{\\bord3}";
+			if (box != OVERLAY && artOverlayUp)
+			{
+				const std::string id = std::to_string(ART_OVERLAY);
+				const char* rm[] = {"overlay-remove", id.c_str(), nullptr};
+				mpv_command_async(mpv, ART_REPLY + ++artSerial, rm);
+				artOverlayUp = false;
+				artShownSerial = 0;
+				artOverlayX = artOverlayY = -1;
+			}
+			const int X = u(l.artX), Y = u(l.artY), S = u(l.artS), R = u(SONG_ART_RADIUS), E = u(SONG_ART_EDGE);
+			if (box == ART || box == OVERLAY)
+			{
+				// mpv's art has square corners: rounded by the background's black laid over them (the overlay's are its
+				// own). Each reaches out under the edge too: mpv's scaled picture can bleed a pixel past its box
+				if (box == ART)
+				{
+					int cc = (int)std::lround(R * 0.4477);
+					std::string d;
+					const int corners[4][4] = {{X, Y, 1, 1}, {X + S, Y, -1, 1}, {X + S, Y + S, -1, -1}, {X, Y + S, 1, -1}};
+					for (auto& k : corners)
+					{
+						const int cx = k[0], cy = k[1], sx = k[2], sy = k[3];
+						char p[256];
+						snprintf(p, sizeof p, "m %d %d l %d %d l %d %d b %d %d %d %d %d %d l %d %d ", cx - sx * E, cy - sy * E,
+							cx + sx * R, cy - sy * E, cx + sx * R, cy, cx + sx * cc, cy, cx, cy + sy * cc, cx, cy + sy * R, cx - sx * E, cy + sy * R);
+						d += p;
+					}
+					ev += "{\\an7\\pos(0,0)\\bord0\\shad0\\1c&H000000&\\p1}" + d + "{\\p0}\n";
+				}
+				// the edge, 2 units round the box (a ring: nothing drawn over the art)
+				ev += "{\\an7\\pos(0,0)\\bord0\\shad0\\1c" + EDGE + "\\p1}" + roundPath(X - E, Y - E, S + 2 * E, S + 2 * E, R + E, false) +
+					  roundPath(X, Y, S, S, R, true) + "{\\p0}\n";
+			}
+			else if (box == PLACEHOLDER)
+			{
+				// no art: the colour wheel (wedges round a point a little below the middle, clipped to the box), a dark
+				// rounded square on it at 38%, and the note
+				static const int WHEEL[][3] = {{0xff, 0xd2, 0x3f}, {0xff, 0x9f, 0x43}, {0xf0, 0x64, 0x5a}, {0x7a, 0x3b, 0x8f},
+											   {0x2f, 0x6f, 0xb0}, {0x2f, 0x8f, 0x6a}, {0xff, 0xd2, 0x3f}};
+				const int N = 72;
+				const double cx = X + S * 0.5, cy = Y + S * 0.55, far = S * 1.5;
+				std::string clip = "\\clip(" + roundPath(X, Y, S, S, R, false) + ")";
+				ev += "{\\an7\\pos(0,0)\\bord0\\shad0\\1c" + EDGE + "\\p1}" + roundPath(X - E, Y - E, S + 2 * E, S + 2 * E, R + E, false) + "{\\p0}\n";
+				for (int i = 0; i < N; i++)
+				{
+					double t = (i + 0.5) / N * 6;
+					int k = std::min(5, (int)t);
+					double f = t - k;
+					int rgb[3];
+					for (int j = 0; j < 3; j++) rgb[j] = (int)std::lround(WHEEL[k][j] + (WHEEL[k + 1][j] - WHEEL[k][j]) * f);
+					// from 210 degrees, clockwise (CSS's conic-gradient: 0 is up)
+					double a0 = (210 + 360.0 * i / N) * M_PI / 180, a1 = (210 + 360.0 * (i + 1.05) / N) * M_PI / 180;
+					char w[256], col[16];
+					snprintf(w, sizeof w, "m %d %d l %d %d %d %d", (int)cx, (int)cy, (int)std::lround(cx + far * std::sin(a0)),
+						(int)std::lround(cy - far * std::cos(a0)), (int)std::lround(cx + far * std::sin(a1)), (int)std::lround(cy - far * std::cos(a1)));
+					snprintf(col, sizeof col, "&H%02X%02X%02X&", rgb[2], rgb[1], rgb[0]);
+					ev += "{\\an7\\pos(0,0)\\bord0\\shad0" + clip + "\\1c" + col + "\\p1}" + w + "{\\p0}\n";
+				}
+				const int in = (int)std::lround(S * 0.38), ix = X + (S - in) / 2, iy = Y + (S - in) / 2;
+				ev += "{\\an7\\pos(0,0)\\bord0\\shad0\\1c&H000000&\\1a&H61&\\p1}" + roundPath(ix, iy, in, in, (int)std::lround(S * 0.08), false) + "{\\p0}\n";
+				// the note (G_NOTE's cells) at 22% of the box
+				const Ui::Glyph& g = G_NOTE;
+				int gw = 0;
+				for (int y = 0; y < g.h; y++) gw = std::max(gw, (int)strlen(g.rows[y]));
+				const double cell = S * 0.22 / std::max(gw, g.h);
+				const double gx = X + S / 2.0 - gw * cell / 2, gy = Y + S / 2.0 - g.h * cell / 2;
+				std::string path;
+				for (int y = 0; y < g.h; y++)
+					for (int x = 0; g.rows[y][x];)
+					{
+						if (g.rows[y][x] != '#') { x++; continue; }
+						int e = x;
+						while (g.rows[y][e] == '#') e++;
+						char r[128];
+						int x0 = (int)std::lround(gx + x * cell), x1 = (int)std::lround(gx + e * cell), y0 = (int)std::lround(gy + y * cell),
+							y1 = (int)std::lround(gy + (y + 1) * cell);
+						snprintf(r, sizeof r, "m %d %d l %d %d %d %d %d %d ", x0, y0, x1, y0, x1, y1, x0, y1);
+						path += r;
+						x = e;
+					}
+				ev += "{\\an7\\pos(0,0)\\bord0\\shad0\\1c&HFFFFFF&\\p1}" + path + "{\\p0}\n";
+			}
+			why = box == ART ? (show == SHOW_ART ? "mpv's art in the margins" : "the graph's art") : box == OVERLAY ? "the decoded art"
+				: box == PLACEHOLDER ? "the placeholder" : "nothing yet";
+			char lg[160];
+			snprintf(lg, sizeof lg, "art %d at %d,%d, text %d wide at %d", l.artS, l.artX, l.artY, l.textW, l.textX);
+			why += std::string(", ") + lg;
+
+			// the lines to the art's right, their block centred on the art's middle, each cut to the column
+			if (l.text)
+			{
+				struct Line { std::string text; int fs; std::string colour; bool bold; int gap; };
+				std::vector<Line> lines;
+				lines.push_back({title, SONG_TITLE_FS, WHITE, true, 0});
+				if (!chapter.empty()) lines.push_back({chapter, SONG_ARTIST_FS, ass(TOP_TITLE), false, 6});
+				if (!artist.empty()) lines.push_back({artist, SONG_ARTIST_FS, CREAM, false, 8});
+				if (!album.empty()) lines.push_back({album, SONG_ALBUM_FS, GREY, false, lines.size() > 1 ? 5 : 8});
+				double h = 0;
+				for (auto& ln : lines) h += ln.gap + ln.fs * 1.2;
+				double y = l.midY - h / 2;
+				for (auto& ln : lines)
+				{
+					y += ln.gap;
+					double mid = y + ln.fs * 0.6;
+					ev += "{\\an4\\pos(" + num(u(l.textX)) + "," + num(u(mid)) + ")\\bord0\\shad0\\q2\\fs" + num(u(ln.fs)) +
+						  (ln.bold ? "\\b1" : "\\b0") + "\\1c" + ln.colour + "}" + assText(songFitText(ln.text, ln.fs, l.textW, ln.bold)) + "\n";
+					y += ln.fs * 1.2;
+				}
+			}
 		}
-		// why the visualizer has stopped for now, in the accent's yellow
-		// (a small blank line first: right under the album line it read as part of the song's text)
-		if (engineLoading)
-			text += "\\N{\\fs" + std::to_string(big / 2) + "}\\h\\N{\\c" + ass(ACCENT) + "}" + assText("Loading manga engine\xE2\x80\xA6");
-		const char* cmd[] = {"osd-overlay", "1", "ass-events", text.c_str(), "0", "720", "0", "no", "no", nullptr};
+		else
+		{
+			if (artOverlayUp || artJob) dropSongArt();
+			why = show == SHOW_NONE ? "the title alone" : "the visualizer";
+		}
+
+		if (show == SHOW_NONE)
+		{
+			// the title alone, in the middle: 30 semibold, then "artist · album" 17
+			std::string sub = artist + (artist.empty() || tagAlbum.empty() ? "" : " \xC2\xB7 ") + tagAlbum;
+			std::string t = "{\\an5\\pos(480,360)\\bord0\\shad0\\q2\\fs" + num(u(30)) + "\\b1\\1c" + WHITE + "}" + assText(songFitText(title, 30, 560, true));
+			if (!chapter.empty()) t += "\\N{\\b0\\fs" + num(u(17)) + "\\1c" + ass(TOP_TITLE) + "}" + assText(songFitText(chapter, 17, 560));
+			if (!sub.empty()) t += "\\N{\\b0\\fs" + num(u(8)) + "}\\h\\N{\\fs" + num(u(17)) + "\\1c" + GREY + "}" + assText(songFitText(sub, 17, 560));
+			// why the visualizer has stopped for now, in the accent's yellow (a blank line first: right under the
+			// song's lines it read as part of them)
+			if (engineLoading)
+				t += "\\N{\\fs" + num(u(14)) + "}\\h\\N{\\c" + ass(ACCENT) + "}" + assText("Loading manga engine\xE2\x80\xA6");
+			ev += t + "\n";
+		}
+		else if (!group && infoOn)
+		{
+			// over a visualizer: top left, with a shadow. Pocket console alone: the screen's own ink, dark green in the
+			// pixel font, no shadow (the album line its mid green)
+			bool pocket = show == SHOW_VIS && settings.visualizer == VIS_POCKET;
+			std::string look = pocket ? "\\q2\\fnPixelify Sans\\bord0\\shad0" : "\\q2\\bord2\\blur4\\3c&H000000&\\shad3\\4c&H000000&";
+			// a line each, from the top (22, 18): title 26, then 5 down the artist 17, 3 down the album 14
+			double y = 18;
+			auto line = [&](const std::string& s, int fs, bool bold, const std::string& colour, int gap) {
+				y += gap;
+				ev += "{\\an7\\pos(" + num(u(22)) + "," + num(u(y)) + ")" + look + "\\fs" + num(u(fs)) + (bold ? "\\b1" : "\\b0") + "\\1c" + colour + "}" +
+					  assText(songFitText(s, fs, 596, bold)) + "\n";
+				y += fs * 1.2;
+			};
+			line(title, 26, true, pocket ? "&H0F380F&" : WHITE, 0);
+			if (!chapter.empty()) line(chapter, 17, false, pocket ? std::string("&H306230&") : ass(TOP_TITLE), 4);
+			if (!artist.empty()) line(artist, 17, false, pocket ? "&H0F380F&" : CREAM, 5);
+			if (!album.empty()) line(album, 14, false, pocket ? "&H306230&" : GREY, 3);
+		}
+		// the manga engine starting over Album art only (the visualizers rest as None): its note at the foot
+		if (engineLoading && show != SHOW_NONE)
+			ev += "{\\an2\\pos(480,696)\\bord0\\shad0\\fs" + num(u(14)) + "\\1c" + ass(ACCENT) + "}" + assText("Loading manga engine\xE2\x80\xA6") + "\n";
+
+		std::string logLine = std::string(show == SHOW_ART ? "Album art only" : show == SHOW_BOTH ? "Art + visualizer" : show == SHOW_VIS ? "Visualizer only" : "None") +
+							  ", info " + (infoOn ? "on" : "off") + ": " + why;
+		if (logLine != layoutLogged)
+		{
+			layoutLogged = logLine;
+			fprintf(stderr, "music: %s: top panel %s\n", baseName(currentPath()).c_str(), logLine.c_str());
+		}
+		if (ev.empty())
+		{
+			const char* none[] = {"osd-overlay", "1", "none", "", nullptr};
+			mpv_command_async(mpv, 0, none);
+			return;
+		}
+		const char* cmd[] = {"osd-overlay", "1", "ass-events", ev.c_str(), "960", "720", "0", "no", "no", nullptr};
 		mpv_command_async(mpv, 0, cmd);
 	}
 
@@ -2639,8 +2986,8 @@ namespace bp
 							  : graph.find("showspectrum") != std::string::npos ? "Spectrum"
 							  : graph.find("] remap [") != std::string::npos ? "Circle"
 							  : graph.find("lagfun") != std::string::npos ? "Peaks" : "Bars";	// the colours aren't told apart
-			row("Top screen", graph == blankGraph() ? "Title only"
-				: graph.find("[vid1]") != std::string::npos ? "Album art + " + vis
+			row("Top screen", graph == blankGraph() ? (shownMusic() == SHOW_ART ? "Album art (none: the placeholder)" : "Title only")
+				: graph.find("[vid1]") != std::string::npos || graph.find("color=black:s=640x480:r=1:d=1") != std::string::npos ? "Album art + " + vis
 				: !graph.empty() ? "Visualizer: " + vis
 				: shownMusic() == SHOW_NONE ? "Title only"
 				: hasCover(tracks) ? "Album art" : "Title");
