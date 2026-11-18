@@ -728,6 +728,9 @@ namespace bp
 		if (kbOpen || browse->playlists->selMode != SEL_NONE) return false;
 		if (inMenu && page != Page::Settings) return false;
 		if (page == Page::Info) return false;
+		// Book mode (held sideways, a page on each panel): both panels are the book, never the bar (the owner's call)
+		if (page == Page::DocText && docs->textStatus.book) return false;
+		if ((page == Page::MangaRead || page == Page::DocPages) && pageReader->readerStatus.book) return false;
 		// over a photo this is the photo viewer's page (drawPhoto), not the player's
 		if (page == Page::Main) return p.playingPhoto();
 		if (page == Page::Browse)
