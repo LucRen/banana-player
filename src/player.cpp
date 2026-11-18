@@ -145,8 +145,8 @@ namespace bp
 				 "load-select", "load-commands", "load-context-menu", "load-positioning"})
 			opt(o, "no");
 		opt("sub-auto", "fuzzy");			// movie.srt, movie.en.srt... next to movie.mkv
-		// the style from settings.conf is for plain subtitles; ASS/SSA keep their own (only sub-scale reaches
-		// them, and we leave it)
+		// mpv's default, kept: "scale" is its "yes" plus sub-scale, so a styled subtitle (ASS/SSA) keeps the
+		// script's own sizes and colours while a font it names that the card lacks falls back to the style's
 		opt("sub-ass-override", "scale");
 		if (!o.fontsDir.empty())
 		{
@@ -1577,13 +1577,14 @@ namespace bp
 		// A subtitle showing now keeps the look its track was made with: the new sub-* values reached a track mpv made
 		// after them, so a style change only showed once the file was reopened (a track made again). Make the showing
 		// one again at once: a local external file by mpv's sub-reload, an embedded track by choosing it again off and
-		// on, by its id as a track is chosen (both async, as every set). A network file's subtitle isn't fetched again
-		// at each step; styled subtitles (ASS/SSA) keep their own look (sub-ass-override stays "scale") and pictures
-		// aren't styled, so neither is made again.
+		// on, by its id as a track is chosen (both async, as every set). Styled subtitles (ASS/SSA) go the same way:
+		// sub-ass-override stays mpv's "scale" (the script's sizes and colours), but a font it names that the card
+		// lacks falls back to the style's, so it too is made again. A network file's subtitle isn't fetched again at
+		// each step; pictures (PGS, VobSub) have no style to change.
 		if (lookChanged)
 		{
 			const Track* sub = selected(TrackType::Sub);
-			if (sub && sub->codec != "ass" && sub->codec != "ssa" && !imageSubtitleCodec(sub->codec))
+			if (sub && !imageSubtitleCodec(sub->codec))
 			{
 				bool local = current >= 0 && current < (int)playlist.size() && !isNetPath(playlist[current]);
 				if (sub->external && local)

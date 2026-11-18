@@ -6,9 +6,10 @@
 namespace bp
 {
 	// How plain subtitles look: SRT, VTT, mov_text... drawn by libass in mpv's sub-* style. Styled subtitles (ASS/SSA)
-	// keep their own fonts, colours and borders (sub-ass-override stays at "scale"), and pictures (PGS, VobSub) are
-	// pictures. And how a subtitle file's text is read (ENCODING: every text file, styled or not; a file inside a video
-	// is UTF-8 already): Auto (UTF-8, else detected), or a code page for a file Auto reads wrong.
+	// keep the script's own sizes, colours and borders (sub-ass-override stays at "scale"; a font it names that the
+	// card lacks falls back to ours), and pictures (PGS, VobSub) are pictures. And how a subtitle file's text is read
+	// (ENCODING: every text file, styled or not; a file inside a video is UTF-8 already): Auto (UTF-8, else
+	// detected), or a code page for a file Auto reads wrong.
 
 	struct StyleChoice
 	{
