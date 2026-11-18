@@ -118,7 +118,7 @@ namespace bp
 		// (the page plays on: not told)
 		void stopped() { playHoldAt = 0; }
 		// Back from the player (B, "<", Back; its Stop; a photo closed): where it was opened from, as it was (the page,
-		// the folder, the cursor and the scroll; Home, a playlist, START's menu...), what plays going on behind it. Never
+		// the folder, the cursor and the scroll; Home, a playlist, Settings...), what plays going on behind it. Never
 		// opened from there (started with a file), or Show in folder asked for: the browser on lastPlayed (showBrowser)
 		void backFromPlayer(Player& p, const std::string& lastPlayed, const PlaySource& from = {}, int index = -1);
 		// opened behind the browser (a PlayRequest's stay): the browser stays the base page
@@ -206,7 +206,7 @@ namespace bp
 		// the bottom panel's backlight: off from its button, on again at the next touch
 		bool screenOn() const { return panel.on(); }
 		bool touchIsLocked() const;	// (the player screen's lock: PlayerPage, ui_player.h)
-		// START's menu's page ("menu", "settings"), "" while it's closed: for test runs
+		// START's page (Settings; the kept Menu of places would report "menu"), "" while it's closed: for test runs
 		const char* menuTabName() const
 		{
 			static const char* names[] = {"menu", "settings"};
@@ -584,23 +584,24 @@ namespace bp
 		void kbKey(int i);
 		void kbClose(bool keep);
 		void drawKeyboard();
-		// START's menu (Page::Menu), the Menu of places: Home, Files, Playlists, Network, Extensions, Settings,
-		// About. It is not a tab strip: A goes to a place, B or START closes it. Settings opens as the page it is
-		// (its groups), with the menu under it; About is its last group.
+		// START's page: Settings' group list, opened directly on the owner's decision (2026-11-18). B or START
+		// closes it back to where the user was. The Menu of places that used to be here (Page::Menu, its tiles
+		// Home..About, Quick settings and Quit) is kept but unreached: the full redesign brings it back.
 		enum Tab { TAB_MENU, TAB_SETTINGS, TABS };
 		enum MenuPlace { MP_HOME, MP_FILES, MP_PLAYLISTS, MP_MANGA, MP_NETWORK, MP_SETTINGS, MP_ABOUT, MP_PLACES };
 		bool inMenu = false;
-		int menuTab = TAB_MENU;	// (the page's report: the menu or Settings)
+		int menuTab = TAB_SETTINGS;	// (the page's report: Settings; TAB_MENU is the kept, unreached menu)
 		int menuCursor = 0;
 		// the browser's folder before the menu, and its cursor: back to them after
 		Page menuReturnPage = Page::Browse;	// where the menu was opened over (Main, Extensions, Browse)
 		std::string menuReturnDir;
 		int menuReturnCursor = 0, menuReturnScroll = 0;
-		void openMainMenu(Player& p, int tab = TAB_MENU);
+		void openMainMenu(Player& p, int tab = TAB_SETTINGS);
 		void showTab(int tab, Player& p);
 		void closeMenu(Player& p);
-		// the Menu's rows: a Now playing line while it plays and it was opened over another page; the places' tiles
-		// (four across); Quick settings and Quit. The tiles start under the header at 100, or under the line at 166
+		// the kept Menu of places' rows (unreached): a Now playing line while it plays and it was opened over
+		// another page; the places' tiles (four across); Quick settings and Quit. The tiles start under the header
+		// at 100, or under the line at 166
 		bool menuNowShown(const Player& p) const;
 		int menuTop(const Player& p) const { return menuNowShown(p) ? 166 : 100; }
 		Rect menuNowRect() const { return {16, 100, 608, 56}; }
@@ -897,7 +898,7 @@ namespace bp
 		// the select mode's bar (and Move's), the busy dialog's Cancel, the Add to... picker's rows (PICK_ROW + i)
 		static constexpr int SEL_ALL = 530, SEL_MOVE = 531, SEL_ACT = 532, SEL_CANCEL = 533, MOVE_CANCEL = 534, MOVE_DONE = 535,
 			BUSY_CANCEL = 536, PICK_ROW = 900;
-		// START's menu: the Now playing line, the places' tiles (MENU_TILE + i), Quick settings and Quit
+		// the kept Menu of places (unreached): the Now playing line, the places' tiles (MENU_TILE + i), Quick settings and Quit
 		static constexpr int MENU_NOW = 560, MENU_TILE = 561, MENU_QUICK = 570, MENU_QUIT = 571;
 		// Sound's touch buttons, apart from the grid's and the photo's; its dialogs' rows from DLG_ROW
 		static constexpr int SOUND_TAB0 = 510, SOUND_TAB1 = 511, EQ_SWITCH = 520, EQ_PREV = 521, EQ_NEXT = 522, EQ_NAME_ZONE = 523,

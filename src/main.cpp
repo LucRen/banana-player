@@ -1403,7 +1403,7 @@ int main(int argc, char** argv)
 			photos.checkPhoto();
 			photos.checkLoading();
 			photos.finished = false;	// (a photo stays: loop-file)
-			// the settings changed over a photo (START's menu over it): the player's, written; or the other way (the web)
+			// the settings changed over a photo (Settings over it): the player's, written; or the other way (the web)
 			if (std::string ps = serializeSettings(player.settings), fs = serializeSettings(photos.settings); fs != photoSettingsSeen)
 			{
 				player.setSettings(photos.settings);

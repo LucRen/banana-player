@@ -376,5 +376,51 @@ The arm64 bundle: `packaging/build-bundle.sh --quick` (Docker) run once at the e
   the path is the one `ui.predicting` branch in `chips()` and `chipAct`.
 - **The 5.1 file on the handheld**: it played here; its downmix happens in `aresample` before the tap.
 
+## 8. START opens Settings (2026-11-18)
+
+The owner's decision after the Menu of places (`fc4b17f`): **START** now opens **Settings** directly, on its group
+tiles, from any screen. The Menu of places is kept in the tree but unreached, because the full redesign brings it back;
+the code says so at `Ui::openMainMenu`, `Ui::showTab` and the kept Menu's block in `ui_menus.cpp`.
+
+- **Opening and closing**: every START call (`Ui::Home`, `Ui::Browse`, `Ui::Extensions`, `PlayerPage`, the Settings page
+  and the browser's context menu) goes through `openMainMenu`, whose default tab is now `TAB_SETTINGS`; `showTab` sets
+  `page = Page::Settings`, `setGroup = -1`. B or START at the tiles calls `closeMenu`, which restores the page, folder,
+  cursor and scroll it recorded when START was pressed (the player, if START was pressed there). B in a group still goes
+  back to the tiles; in About, back to the tiles. START from a group or About closes Settings outright, as B did on the
+  old Menu.
+- **Nothing lost**: Quick settings is **F**, from anywhere (`toggleQuick`), and its last row is Quit. Quit is also
+  **F + START**. The Settings tile page's hint bar now reads **D-PAD Move · A Open · F Quick settings · B Close**, and
+  Home's, the browser's and the photo viewer's START hints say **Settings** (the photo's on-screen button too).
+- **Kept**: `Page::Menu`, `MP_*`, `menuGo`, `menuTileRect`, `menuKeyRect`, `menuNowShown`, `menuTop`, `menuNowRect`,
+  `menuKey`, `menuPointer`, `drawMenu`, `showTab(TAB_MENU)` and the `menuTabName()` report. No path sets `Page::Menu`.
+
+### Checked
+
+Desktop build (macOS, `-DCMAKE_OSX_SYSROOT=…/MacOSX26.5.sdk`); `./build/core-test` ends `core: all passed`;
+`cmake --build build --target manga-check` prints `manga: all passed`.
+
+Scripted runs with generated media only (a 10 s Y4M test picture written as `.mp4` by a CMake script, so mpv plays a
+video):
+
+- START over the player: Settings' ten tiles under the kit's header, the mini bar under them showing the file and
+  **SELECT Now playing**, the new hint bar. Shots: `redesign-shots/start/start-player-{top,bottom}.png`.
+- START over Home: the same page with no mini bar; B closes it back to Home (`browse=home at=Files`, and the
+  `browser-after-start-b` shot). Shots: `browser-before`, `start-browser`, `browser-after-start-b`.
+- START over Files while the video plays (B from the player first): B closes back to that folder with the file and
+  **Playing** still on its row, the video going on. Shots: `browser-playing-before`, `start-browser-playing`,
+  `browser-playing-after`.
+- START twice, and START from an open group (Subtitles): each closes back to the player (`file=1/1` in the state line).
+  Shot: `start-group-closed`.
+- Home's and the browser's hint bars read **START Settings**.
+
+Shots are under `redesign-shots/start/` (not committed).
+
+### Not verified
+
+- The Settings page's `F` hint on the handheld's panel at one pixel a unit (it is the kit's hint bar, four items).
+- The old Menu of places was not driven: nothing reaches it, and its code is unchanged apart from the comments and the
+  default tab.
+
+
 
 

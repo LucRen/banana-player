@@ -162,6 +162,9 @@ namespace bp
 
 	void Ui::openMainMenu(Player& p, int tab)
 	{
+		// The owner's decision (2026-11-18): START opens Settings' group list directly. The Menu of places stays in
+		// the tree (Page::Menu, showTab(TAB_MENU), drawMenu, menuKey, menuPointer, menuGo) for the full redesign,
+		// which brings it back; nothing opens it meanwhile.
 		if (!inMenu)
 		{
 			menuReturnDir = browse->browseDir;
@@ -179,6 +182,7 @@ namespace bp
 		settingsPage->styleFromSubs = false;
 		cursor = scroll = 0;
 		if (tab == TAB_SETTINGS) { page = Page::Settings; setGroup = -1; return; }
+		// (the kept Menu of places: unreached since START opens Settings)
 		menuCursor = 0;
 		page = Page::Menu;
 	}
@@ -204,9 +208,9 @@ namespace bp
 		browse->enterFolder(menuReturnDir, p);
 	}
 
-	// ---- START: the Menu of places (Page::Menu) ----
-	// One page, no tabs: where you can go. What plays keeps playing while you go; B or START closes it. Settings is
-	// the Settings page itself (its tiles and groups, the menu under it); About is its last group.
+	// ---- START: the Menu of places (Page::Menu), kept but unreached ----
+	// START opens Settings directly now (the owner's decision); this page stays in the tree for the full redesign.
+	// One page, no tabs: where you could go. What plays keeps playing while you go; B or START closes it.
 	bool Ui::menuNowShown(const Player& p) const
 	{
 		// (on the player it is left out: you are there, and B goes back to it)
