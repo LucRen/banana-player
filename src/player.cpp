@@ -1570,7 +1570,36 @@ namespace bp
 
 	void Player::setSettings(const Settings& s, bool persist)
 	{
+		bool lookChanged = false;
+		for (int k = 0; k < ENCODING; k++)
+			if (s.style.pick[k] != settings.style.pick[k]) lookChanged = true;
 		for (auto& p : subStyleProperties(s.style)) prop(p.first.c_str(), p.second);
+		// A subtitle showing now keeps the look its track was made with: the new sub-* values reached a track mpv made
+		// after them, so a style change only showed once the file was reopened (a track made again). Make the showing
+		// one again at once: a local external file by mpv's sub-reload, an embedded track by choosing it again off and
+		// on, by its id as a track is chosen (both async, as every set). A network file's subtitle isn't fetched again
+		// at each step; styled subtitles (ASS/SSA) keep their own look (sub-ass-override stays "scale") and pictures
+		// aren't styled, so neither is made again.
+		if (lookChanged)
+		{
+			const Track* sub = selected(TrackType::Sub);
+			if (sub && sub->codec != "ass" && sub->codec != "ssa" && !imageSubtitleCodec(sub->codec))
+			{
+				bool local = current >= 0 && current < (int)playlist.size() && !isNetPath(playlist[current]);
+				if (sub->external && local)
+				{
+					fprintf(stderr, "subtitles: the style changed; its file read again\n");
+					const char* cmd[] = {"sub-reload", nullptr};
+					mpv_command_async(mpv, 0, cmd);
+				}
+				else if (!sub->external)
+				{
+					fprintf(stderr, "subtitles: the style changed; track %lld made again\n", (long long)sub->id);
+					prop("sid", "no");
+					prop("sid", std::to_string(sub->id));
+				}
+			}
+		}
 		if (s.style.pick[ENCODING] != settings.style.pick[ENCODING])
 		{
 			setSubtitleCharset(subEncodingCharset(s.style));
