@@ -31,6 +31,20 @@ choice tile), Tabs, Themes › The top screen; screens `music-view`, `music-viz-
 - **Themes:** 16-bit Lavender (after 16-bit) and Sakura (after 32-bit): seventeen; the picker is 6 + 6 + 5 swatches of
   84 x 30, 9 apart, names in Inter 10.5.
 
+## Mode switches (owner's handheld bugs)
+- **Art + visualizer / Visualizer only / None → Album art only ended the song.** The graph was cleared ("") and the
+  tracks chosen after it: for a moment nothing was selected, mpv ended the file (EOF) and the Session played the next.
+  Now a song with art reaching Album art only from a graph gets `Player::artPassGraph()` (`[aid1] anull [ao]; [vid1]
+  null [vo]`: the art one frame, as mpv gives it): graph to graph, never no track. A song's start still uses no graph.
+  Log: `music: <file>: has art, N tracks; graph passing the art through`.
+- **Album art only → Art + visualizer drew the visualizer small**: the art's margins stayed on after the graph changed
+  (they were set when the mode changed, half a second before the graph). `applyAudioDisplay` now calls
+  `updateOverlay` whenever it changes the graph, so the margins and the art box follow the picture the graph makes.
+  Log: `music: top panel margins L R T B | none (the whole panel), panscan P` on each change.
+- **The art fills its square** in Album art only: `panscan=1` with the margins (mpv crops to the box the margins
+  leave), 0 otherwise. The overlay's decode already cut the art square from its middle.
+- Checked on the Mac: all twelve switches among the four modes, a song with art and one without: no end, no skip.
+
 ## Not done / differs from the spec
 - **Circle** keeps its own colours (cyan to pink, a pale blue ring) and black ground: the spec's "ACCENT bars, TEXT caps,
   Yellow unchanged" doesn't hold for Circle (Yellow's Circle isn't yellow), and its ring fades to black (a dark halo on

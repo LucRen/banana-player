@@ -460,6 +460,9 @@ namespace bp
 		struct VizColours { std::string ground = "black", ink; };
 		static VizColours vizColours();
 		std::string blankGround() const { return blankGraph(groundColour()); }
+		// Album art only reached from another mode while the song plays: its sound and its art through a graph that
+		// does nothing (the art one frame, as mpv gives it), so the switch is graph to graph (applyAudioDisplay)
+		static std::string artPassGraph() { return "[aid1] anull [ao]; [vid1] null [vo]"; }
 		std::string groundSet;
 		void setGround(bool themed);
 		void setSongMargins(const std::string& lrtb);

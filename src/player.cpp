@@ -2382,16 +2382,29 @@ namespace bp
 		lastArt = hasCover(tracks);
 		int show = shownMusic();
 		std::string graph = songGraph(show, hasCover(tracks));
+		// Album art only on a playing song with art, from a graph: the art passed through a graph of its own, never
+		// the graph cleared. Cleared, mpv drops the tracks it fed and, for a moment, nothing is selected: the file
+		// ended (EOF) and the Session played the next song. Graph to graph, the tracks stay taken
+		if (graph.empty() && !graphSet.empty() && show == SHOW_ART && hasCover(tracks))
+		{
+			graph = artPassGraph();
+			fprintf(stderr, "music: %s: Album art only from a graph: the art through a graph of its own (never no track)\n",
+				baseName(currentPath()).c_str());
+		}
 		if (graphSet != graph)
 		{
 			// (in the log: a graph changed as a song starts, by the art its track list says it has)
 			fprintf(stderr, "music: %s: %s art, %d tracks; graph %s\n", baseName(currentPath()).c_str(),
-				hasCover(tracks) ? "has" : "no", (int)tracks.size(), graph.empty() ? "off" : graph.find("[vid1]") != std::string::npos ? "with the art" : "without art");
+				hasCover(tracks) ? "has" : "no", (int)tracks.size(), graph.empty() ? "off" : graph == artPassGraph() ? "passing the art through"
+				: graph.find("[vid1]") != std::string::npos ? "with the art" : "without art");
 			syncEq(true);	// the graph's change rebuilds the chain from af
 			prop("lavfi-complex", graph);
 			// (in the log: how long a style takes to come up, the sound's restart and the picture's, on the handheld)
 			graphAskedAt = ticks();
 			graphFrameLogged = false;
+			// the art's box and the lines for the picture the new graph makes (mpv's art in the margins, or the whole
+			// panel the graph's): a mode's change set them for the old graph, half a second before
+			updateOverlay();
 		}
 		if (graph.empty())
 		{
@@ -2445,6 +2458,11 @@ namespace bp
 		if (!lrtb.empty()) sscanf(lrtb.c_str(), "%lf %lf %lf %lf", &m[0], &m[1], &m[2], &m[3]);
 		const char* names[4] = {"video-margin-ratio-left", "video-margin-ratio-right", "video-margin-ratio-top", "video-margin-ratio-bottom"};
 		for (int i = 0; i < 4; i++) mpv_set_property_async(mpv, 0, names[i], MPV_FORMAT_DOUBLE, &m[i]);
+		// the art fills its square (cropped from a picture that isn't square), as the overlay's decode does: panscan
+		// crops to the box the margins leave. 0 with no margins (Art + visualizer, Visualizer only, None, a video)
+		double pan = lrtb.empty() ? 0 : 1;
+		mpv_set_property_async(mpv, 0, "panscan", MPV_FORMAT_DOUBLE, &pan);
+		fprintf(stderr, "music: top panel margins %s, panscan %g\n", lrtb.empty() ? "none (the whole panel)" : lrtb.c_str(), pan);
 	}
 
 	std::string Player::groundColour()
@@ -2595,7 +2613,7 @@ namespace bp
 
 		// the art shown as mpv's own video (Album art only, no graph): put in the art's box by the video's margins,
 		// in the layout of the mode it is shown in (a mode just changed: the graph comes half a second later)
-		bool videoArt = graphSet.empty() && hasCover(tracks);
+		bool videoArt = (graphSet.empty() || graphSet == artPassGraph()) && hasCover(tracks);
 		const int widest = std::max({songTextWidth(title, SONG_TITLE_FS, true), songTextWidth(chapter, SONG_ARTIST_FS),
 									 songTextWidth(artist, SONG_ARTIST_FS), songTextWidth(album, SONG_ALBUM_FS)});
 		SongLayout artOnly = songLayout(true, widest);
@@ -2615,7 +2633,8 @@ namespace bp
 			SongLayout l = show == SHOW_ART ? artOnly : songLayout(false, graphArt ? 9999 : widest);
 			// the art: mpv's (Album art only), the graph's (a network song), or the overlay's (decoded here)
 			enum { NOTHING, ART, OVERLAY, PLACEHOLDER } box = NOTHING;
-			if (show == SHOW_ART) box = tracks.empty() ? NOTHING : videoArt ? ART : PLACEHOLDER;
+			// (a song with art whose graph hasn't switched yet: nothing for that half second, not the placeholder)
+			if (show == SHOW_ART) box = tracks.empty() ? NOTHING : videoArt ? ART : hasCover(tracks) ? NOTHING : PLACEHOLDER;
 			else if (isNet) box = tracks.empty() ? NOTHING : graphArt ? ART : PLACEHOLDER;
 			else
 			{
@@ -2946,7 +2965,7 @@ namespace bp
 							  : graph.find("showspectrum") != std::string::npos ? "Spectrum"
 							  : graph.find("] remap [") != std::string::npos ? "Circle"
 							  : graph.find("lagfun") != std::string::npos ? "Peaks" : "Bars";	// the colours aren't told apart
-			row("Top screen", graph == blankGround() ? (shownMusic() == SHOW_ART ? "Album art (none: the placeholder)" : "Title only")
+			row("Top screen", graph == artPassGraph() ? std::string("Album art") : graph == blankGround() ? (shownMusic() == SHOW_ART ? "Album art (none: the placeholder)" : "Title only")
 				: graph.find("[vid1]") != std::string::npos || graph.find(":s=640x480:r=1:d=1") != std::string::npos ? "Album art + " + vis
 				: !graph.empty() ? "Visualizer: " + vis
 				: shownMusic() == SHOW_NONE ? "Title only"
