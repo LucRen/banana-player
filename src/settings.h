@@ -29,32 +29,40 @@ namespace bp
 	// whatever this says. The title, artist and album over either.
 	// None: neither, the title alone on black (the lightest)
 	enum MusicShow { SHOW_ART, SHOW_BOTH, SHOW_VIS, SHOW_NONE, SHOWS };
-	// Circle: the bars round a ring (cyan to purple to pink), drawn by looking each pixel up in two tables (remap)
 	// Peaks: a spectrum analyser's bars (coral) with a cap over each (green) that holds the bar's top and falls back
-	// Peaks Banana: the same in BananaOS's colours (yellow bars, cream caps), offered as "Peaks" (the coral one retired)
+	// Peaks Banana: the same in the theme's colours (ACCENT bars, TEXT caps), offered as "Peaks" (the coral one retired)
 	// Bars, Waves and Spectrum are retired, their graphs and enum values kept: nothing offers them and a setting
 	// naming one reads as Peaks; VIS_SHOWN lists what's offered, in order
 	// Pocket: Peaks as an old handheld's screen, four greens on a grid of chunky dots
-	// and six more (src/viz_more.h, a file each): a hi-fi LED meter, Synthwave, Banana stack, Night city, a phosphor
-	// oscilloscope and Heartbeat; then Campfire, Aurora, Sound garden, Turntable and Pixel sea; then Bunny hop, Bubble tea,
-	// Jellyfish, Music box, Fishbowl, Disco ball and Banana dancer. Vibing cat; then Popcorn machine, Jelly wobble,
-	// Tube man, Long cat and Washing machine. Peaks (coral), Oscilloscope, Turntable, Disco ball, Hi-fi LED,
-	// Synthwave, Banana stack and Heartbeat are kept but not offered (the owner's pick, 0.7.12): Peaks Banana is the
-	// default (offered as "Peaks"), and a setting naming one not offered reads as it
+	// and the styles a file each (src/viz_*.cpp, declared in src/viz_more.h): a hi-fi LED meter, Synthwave, Banana
+	// stack, Night city, a phosphor oscilloscope, Heartbeat, Campfire, Aurora, Turntable, Pixel sea, Bunny hop,
+	// Fishbowl, Disco ball, Banana dancer, Vibing cat, Popcorn machine, Jelly wobble, Tube man, Washing machine.
+	// Peaks (coral), Oscilloscope, Turntable, Disco ball, Hi-fi LED, Synthwave, Banana stack and Heartbeat are kept but
+	// not offered (the owner's pick, 0.7.12): a setting naming one reads as Peaks
+	// The six simple ones (src/viz_simple.cpp, 2026-11-19), in the theme's colours: Mirror bars, Wave, Dots, Levels,
+	// Area, Radial. They took the places of Circle, Music box, Bubble tea, Jellyfish, Sound garden and Long cat,
+	// whose code is gone: their ids stay (enum values and words), and a setting naming one reads as its replacement
+	// (visualizerReplacement)
 	// Lite (the player-drawn one, no graph) was removed for now, after the owner saw its bars sit mostly at the top
 	// on the handheld: branch vizlite keeps it, docs/notes/2026-11-17-viz-lite.md has its story, and a setting naming
 	// it reads as Peaks
 	enum Visualizer { VIS_BARS, VIS_WAVES, VIS_SPECTRUM, VIS_CIRCLE, VIS_PEAKS, VIS_PEAKS_BANANA, VIS_POCKET, VIS_LED,
 		VIS_SYNTHWAVE, VIS_BANANA_STACK, VIS_CITY, VIS_SCOPE, VIS_HEART, VIS_FIRE, VIS_AURORA, VIS_GARDEN, VIS_VINYL, VIS_SEA, VIS_BUNNY, VIS_BOBA,
 		VIS_JELLY, VIS_MUSICBOX, VIS_FISHBOWL, VIS_DISCO, VIS_DANCER, VIS_CAT, VIS_POPCORN, VIS_WOBBLE, VIS_TUBEMAN,
-		VIS_LONGCAT, VIS_WASHER, VISUALIZERS };
-	constexpr int VIS_SHOWN[] = {VIS_PEAKS_BANANA, VIS_CIRCLE, VIS_POCKET, VIS_CITY, VIS_DANCER, VIS_FIRE, VIS_AURORA, VIS_GARDEN,
-		VIS_SEA, VIS_BUNNY, VIS_BOBA, VIS_JELLY, VIS_MUSICBOX, VIS_FISHBOWL, VIS_CAT, VIS_POPCORN, VIS_WOBBLE, VIS_TUBEMAN, VIS_LONGCAT, VIS_WASHER};
+		VIS_LONGCAT, VIS_WASHER, VIS_MIRROR, VIS_WAVE, VIS_DOTS, VIS_LEVELS, VIS_AREA, VIS_RADIAL, VISUALIZERS };
+	constexpr int VIS_SHOWN[] = {VIS_PEAKS_BANANA, VIS_MIRROR, VIS_POCKET, VIS_CITY, VIS_DANCER, VIS_FIRE, VIS_AURORA, VIS_AREA,
+		VIS_SEA, VIS_BUNNY, VIS_DOTS, VIS_LEVELS, VIS_WAVE, VIS_FISHBOWL, VIS_CAT, VIS_POPCORN, VIS_WOBBLE, VIS_TUBEMAN, VIS_RADIAL, VIS_WASHER};
 	constexpr int VIS_SHOWN_COUNT = (int)(sizeof(VIS_SHOWN) / sizeof(VIS_SHOWN[0]));
 	// a visualizer's place in VIS_SHOWN (a hidden one: the first offered, Peaks, at 0)
 	int visualizerSlot(int v);
 	// the next one offered after v (dir 1) or before it (-1), round
 	int stepVisualizer(int v, int dir);
+	// a retired style's replacement (Circle: Mirror bars, Music box: Wave, Bubble tea: Dots, Jellyfish: Levels, Sound
+	// garden: Area, Long cat: Radial); any other as it is
+	int visualizerReplacement(int v);
+	// drawn on the theme's BG in the theme's colours when alone (Peaks, the six simple ones): the song's lines over it
+	// are the theme's too
+	bool visualizerOnGround(int v);
 	// music only (a video never loops): all = back to the folder's first file after its last
 	enum Loop { LOOP_OFF, LOOP_ALL, LOOP_ONE, LOOPS };
 	// the clock in the bottom panel's header
@@ -78,9 +86,9 @@ namespace bp
 	const char* loopLabel(int v);
 	// mpv's lavfi-complex: the first audio track to the speakers and, drawn, to the picture; overCover: over the first
 	// video track (the art), on its lower part
-	// mapsDir: where writeCircleMaps put Circle's tables; without them Circle is drawn as Bars
+	// mapsDir: where writeVisualizerMaps put the styles' stills; a style that reads some is drawn as Peaks without them
 	// fps: the styles drawn at 60 a second (Pocket console, src/viz_*.cpp) drawn at 30 or 45 instead, as fast in
-	// seconds (vizAtFps, src/vizcache.h); Peaks and Circle are 30 at any setting
+	// seconds (vizAtFps, src/vizcache.h); Peaks is 30 at any setting
 	std::string visualizerGraph(int vis, bool overCover, const std::string& mapsDir = "", int fps = 60);
 	// the same before vizAtFps, with its cacheable lut and lut2 marked (vizCacheLuts, src/vizcache.h, makes it a graph)
 	std::string visualizerGraphMarked(int vis, bool overCover, const std::string& mapsDir = "");
@@ -92,9 +100,8 @@ namespace bp
 	// a theme colour helper the styles share: WCAG contrast, and `c` moved towards `to` till it reaches `ratio` on `on`
 	double colourContrast(theme::Rgb a, theme::Rgb b);
 	theme::Rgb inkOn(theme::Rgb c, theme::Rgb on, theme::Rgb to, double ratio);
-	// Circle's tables, remap's xmap and ymap as 16-bit PGMs, in dir (made once, kept); false if they can't be written
-	bool writeCircleMaps(const std::string& dir);
-	// every style's stills into dir (Circle's tables, and what the six newer ones read): true when all are there
+	// every style's stills into dir (src/viz_*.cpp: Radial's tables, the scenes' pictures): true when all are there.
+	// The retired styles' stills, if any are left there, removed
 	bool writeVisualizerMaps(const std::string& dir);
 	// a style that reads stills from the maps folder (drawn as Peaks while there's none)
 	bool visualizerNeedsMaps(int vis);
@@ -102,11 +109,6 @@ namespace bp
 	bool lavfiPath(const std::string& p, std::string& out);
 	// a folder a filter graph can name (FFmpeg's option parser splits at ':' and '=' even inside quotes)
 	bool lavfiSafePath(const std::string& dir);
-	// Circle's picture, the panel's shape: the circle a little low, under the song's title
-	constexpr int CIRCLE_W = 640, CIRCLE_H = 480;
-	// the tables cover only the circle's square (its bars' reach, 200 out from 320,274; black round it is pad's): the
-	// lookup is most of a frame's cost, and the square is half the picture
-	constexpr int CIRCLE_BOX = 400, CIRCLE_X = 120, CIRCLE_Y = 74;
 	// None's picture: a tiny one at 5 frames a second drawn from the sound (so it ends with it), filled with `ground`
 	// (lavfi's colour: the theme's BG under a song's lines, "0xRRGGBB"): the last visualizer's frame would stay otherwise
 	std::string blankGraph(const std::string& ground = "black");

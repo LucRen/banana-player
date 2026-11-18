@@ -2310,10 +2310,10 @@ namespace bp
 
 	std::string Player::graphFor(int vis, bool overCover)
 	{
-		// Circle's tables: made the first time it's wanted, beside the settings, else (none kept, or a folder a
-		// filter graph can't name) in /tmp. Tried again at the next song when they couldn't be written (a full card)
-		// (and the newer styles' stills, the same once: src/viz_more.h; and the folder for the lut tables of a style
-		// with none, Peaks or Pocket console)
+		// the styles' stills (src/viz_more.h: Radial's tables, the scenes' pictures): made the first time one is
+		// wanted, beside the settings, else (none kept, or a folder a filter graph can't name) in /tmp. Tried again at
+		// the next song when they couldn't be written (a full card) (and the folder for the lut tables of a style with
+		// no stills, Peaks or Pocket console)
 		if (circleMaps.empty() && (visualizerNeedsMaps(vis) || visualizerGraphMarked(vis, overCover).find("bplut") != std::string::npos))
 		{
 			std::string dir = lavfiSafePath(opts.stateDir) ? opts.stateDir : "/tmp/banana-player";
@@ -2369,7 +2369,7 @@ namespace bp
 		if (show == SHOW_ART) return hasArt ? "" : blankGround();
 		// Art + visualizer: the band (black, the style's own ground) under the theme's ground, the art laid over it
 		// (updateOverlay): the same graph with art or without, so an album that mixes them never reopens the sound.
-		// A style that uses the art its own way (Circle's ring, Turntable's label) keeps it, and without art is drawn alone
+		// A style that uses the art its own way (Turntable's label) keeps it, and without art is drawn alone
 		std::string g = graphFor(settings.visualizer, true), ground = groundColour();
 		if (vizPlaceArt(g, 0, 0, 0).find("[vid1]") != std::string::npos) return hasArt ? g : graphFor(settings.visualizer, false);
 		// a network song's art from mpv (the overlay's decode reads local files only), placed once by the graph
@@ -2606,14 +2606,15 @@ namespace bp
 		if (c >= 0 && c < (int)chapters.size())
 			chapter = chapterUntitled(chapters[c].title) ? "Chapter " + std::to_string(c + 1) + " of " + std::to_string(chapters.size())
 				: chapters[c].title;
-		bool ownsArt = show == SHOW_BOTH && (settings.visualizer == VIS_CIRCLE || settings.visualizer == VIS_VINYL);
+		bool ownsArt = show == SHOW_BOTH && settings.visualizer == VIS_VINYL;
 		bool group = (show == SHOW_ART || show == SHOW_BOTH) && !ownsArt;
 		// the theme's ground (Album art only, Art + visualizer, None: app UI, docs/redesign Themes › The top screen):
 		// the lines TEXT, DIM_ON, DIM, the art's edge edgeOf(SURFACE); a visualizer alone keeps its picture
-		// Peaks alone is drawn on BG too (its bars ACCENT, caps TEXT: settings.cpp's peaksThemed), so its lines are the
-		// theme's; the other styles alone keep their picture and the white lines with a shadow
+		// Peaks alone is drawn on BG too (its bars ACCENT, caps TEXT: settings.cpp's peaksThemed), and so are the six
+		// simple ones (src/viz_simple.cpp), so their lines are the theme's; the other styles alone keep their picture
+		// and the white lines with a shadow
 		// (and Night city alone in a theme but Yellow: its sky is the theme's BG, docs/notes/2026-11-19-viz-theme.md)
-		const bool peaksAlone = show == SHOW_VIS && (settings.visualizer == VIS_PEAKS_BANANA ||
+		const bool peaksAlone = show == SHOW_VIS && (visualizerOnGround(settings.visualizer) ||
 			(settings.visualizer == VIS_CITY && theme::currentTheme() != 0));
 		const bool themed = group || show == SHOW_NONE || peaksAlone;
 		setGround(themed);
@@ -3011,10 +3012,8 @@ namespace bp
 		{
 			// what the top panel shows, as mpv has it now
 			std::string graph = get("lavfi-complex");
-			std::string vis = graph.find("showwaves") != std::string::npos ? "Waves"
-							  : graph.find("showspectrum") != std::string::npos ? "Spectrum"
-							  : graph.find("] remap [") != std::string::npos ? "Circle"
-							  : graph.find("lagfun") != std::string::npos ? "Peaks" : "Bars";	// the colours aren't told apart
+			// (the style by its setting: twenty graphs can't be told apart by a filter's name)
+			std::string vis = visualizerLabel(visualizerReplacement(settings.visualizer));
 			row("Top screen", graph == artPassGraph() ? std::string("Album art") : graph == blankGround() ? (shownMusic() == SHOW_ART ? "Album art (none: the placeholder)" : "Title only")
 				: graph.find("[vid1]") != std::string::npos || graph.find(":s=640x480:r=1:d=1") != std::string::npos ? "Album art + " + vis
 				: !graph.empty() ? "Visualizer: " + vis

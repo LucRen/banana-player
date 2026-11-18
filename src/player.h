@@ -380,7 +380,7 @@ namespace bp
 		void prop(const char* name, const std::string& value);
 		// an audio file: the visualizer (Audio display) and the title, artist and album over the top panel
 		void applyAudioDisplay();
-		std::string graphFor(int vis, bool overCover);	// visualizerGraph, with Circle's tables made first
+		std::string graphFor(int vis, bool overCover);	// visualizerGraph, with the styles' stills made first
 		std::string circleMaps;	// where they are, once made
 		bool lutsWarmed = false;	// every style's lut lookups asked for (graphFor), once a run
 		std::string graphSet;	// lavfi-complex as last set (prop)

@@ -9,6 +9,7 @@
 #include <fstream>
 #include <sstream>
 #include <sys/stat.h>
+#include <unistd.h>
 #include <vector>
 
 namespace bp
@@ -28,12 +29,13 @@ namespace bp
 	static const char* VIS_IDS[VISUALIZERS] = {"bars", "waves", "spectrum", "circle", "peaks", "peaks-yellow", "pocket", "led",
 		"synthwave", "banana-stack", "night-city", "oscilloscope", "heartbeat", "campfire", "aurora", "sound-garden", "turntable", "pixel-sea",
 		"bunny-hop", "bubble-tea", "jellyfish", "music-box", "fishbowl", "disco-ball", "banana-dancer", "vibing-cat",
-		"popcorn-machine", "jelly-wobble", "tube-man", "long-cat", "washing-machine"};
+		"popcorn-machine", "jelly-wobble", "tube-man", "long-cat", "washing-machine", "mirror-bars", "wave", "dots", "levels", "area",
+		"radial"};
 	static const char* VIS_LABELS[VISUALIZERS] = {"Bars", "Waves", "Spectrum", "Circle", "Peaks", "Peaks", "Pocket console",
 		"Hi-fi LED", "Synthwave", "Banana stack", "Night city", "Oscilloscope", "Heartbeat", "Campfire", "Aurora",
 		"Sound garden", "Turntable", "Pixel sea", "Bunny hop",
 		"Bubble tea", "Jellyfish", "Music box", "Fishbowl", "Disco ball", "Banana dancer", "Vibing cat",
-		"Popcorn", "Jelly wobble", "Tube man", "Long cat", "Washing machine"};
+		"Popcorn", "Jelly wobble", "Tube man", "Long cat", "Washing machine", "Mirror bars", "Wave", "Dots", "Levels", "Area", "Radial"};
 	static const char* LOOP_IDS[LOOPS] = {"off", "all", "one"};
 	static const char* MANGA_MODE_IDS[MANGA_MODES] = {"rtl", "ltr", "strip"};
 	static const char* MANGA_FIT_IDS[MANGA_FITS] = {"page", "width", "fill"};
@@ -93,60 +95,26 @@ namespace bp
 		int i = visualizerSlot(v) + (dir < 0 ? -1 : 1);
 		return VIS_SHOWN[(i % VIS_SHOWN_COUNT + VIS_SHOWN_COUNT) % VIS_SHOWN_COUNT];
 	}
-	const char* loopLabel(int v) { return LOOP_LABELS[v >= 0 && v < LOOPS ? v : 0]; }
 
-	// Circle: the spectrum's bars (BARS_W x BARS_H, low notes left, growing up) and beside them PALETTE columns, the
-	// ring's glow fading out to black; each pixel of the square picture is one of theirs (remap), so a frame costs a
-	// lookup a pixel. The bars run from the top down both sides, mirrored, SEGMENTS a side
-	static const int BARS_W = 256, BARS_H = 128, PALETTE = 16, SEGMENTS = 40;
-	static const double BAR_FROM = 84, BAR_TO = 200, RING = 76, CENTRE_Y = 274;
-	// the share of the measured spectrum the ring shows: showfreqs runs to half the sample rate, and its top ninth
-	// (16-24 kHz at 44.1/48 kHz, as Peaks cuts) has next to nothing in music, so the bars at the bottom never moved
-	static const double SHOWN = 8.0 / 9;
-	static const int SHOWN_W = (int)(BARS_W * SHOWN);
-	// a new name whenever the tables change: they're cached by size
-	static const char* CIRCLE_MAPS[2] = {"circle3-x.pgm", "circle3-y.pgm"};
-
-	bool writeCircleMaps(const std::string& dir)
+	int visualizerReplacement(int v)
 	{
-		const int w = CIRCLE_BOX, h = CIRCLE_BOX;
-		size_t bytes = (size_t)w * h * 2;
-		auto ready = [&](const std::string& path) {
-			return pgmFileOk(path, pgmFileSize(w, h, 65535));
-		};
-		if (ready(dir + "/" + CIRCLE_MAPS[0]) && ready(dir + "/" + CIRCLE_MAPS[1])) return true;
-		std::vector<unsigned char> xs(bytes), ys(bytes);
-		for (int y = 0; y < h; y++)
-			for (int x = 0; x < w; x++)
-			{
-				double dx = x + CIRCLE_X - CIRCLE_W / 2.0 + 0.5, dy = y + CIRCLE_Y - CENTRE_Y + 0.5, r = std::hypot(dx, dy);
-				double seg = std::fabs(std::atan2(dx, -dy)) / M_PI * SEGMENTS;	// 0 at the top, SEGMENTS at the bottom
-				int mx, my;
-				if (r >= BAR_FROM && r <= BAR_TO && seg - std::floor(seg) < 0.6)
-				{
-					// a bar: its frequency by the angle, its height by the distance out
-					mx = (int)((std::floor(seg) + 0.5) / SEGMENTS * SHOWN_W);
-					my = (int)std::lround((BARS_H - 1) * (1 - (r - BAR_FROM) / (BAR_TO - BAR_FROM)));
-				}
-				else
-				{
-					// the ring and its glow, else black (the palette's last column)
-					mx = BARS_W + std::min(PALETTE - 1, (int)std::lround(std::fabs(r - RING) * 2));
-					my = 0;
-				}
-				size_t i = ((size_t)y * w + x) * 2;
-				xs[i] = (unsigned char)(mx >> 8);
-				xs[i + 1] = (unsigned char)mx;
-				ys[i] = (unsigned char)(my >> 8);
-				ys[i + 1] = (unsigned char)my;
-			}
-		mkdir(dir.c_str(), 0755);
-		for (int k = 0; k < 2; k++)
+		switch (v)
 		{
-			if (!writePgmFile(dir + "/" + CIRCLE_MAPS[k], w, h, 65535, 1, k ? ys : xs)) return false;
+		case VIS_CIRCLE: return VIS_MIRROR;
+		case VIS_MUSICBOX: return VIS_WAVE;
+		case VIS_BOBA: return VIS_DOTS;
+		case VIS_JELLY: return VIS_LEVELS;
+		case VIS_GARDEN: return VIS_AREA;
+		case VIS_LONGCAT: return VIS_RADIAL;
+		default: return v;
 		}
-		return true;
 	}
+
+	bool visualizerOnGround(int v)
+	{
+		return v == VIS_PEAKS_BANANA || (v >= VIS_MIRROR && v <= VIS_RADIAL);
+	}
+	const char* loopLabel(int v) { return LOOP_LABELS[v >= 0 && v < LOOPS ? v : 0]; }
 
 	bool lavfiSafePath(const std::string& dir)
 	{
@@ -160,37 +128,6 @@ namespace bp
 		if (!lavfiSafePath(p)) return false;
 		out = "'" + p + "'";
 		return true;
-	}
-
-	static std::string circleGraph(bool overCover, const std::string& dir)
-	{
-		std::string xm, ym;
-		lavfiPath(dir + "/" + CIRCLE_MAPS[0], xm);
-		lavfiPath(dir + "/" + CIRCLE_MAPS[1], ym);
-		std::string bars = std::to_string(BARS_W) + "x" + std::to_string(BARS_H), sw = std::to_string(SHOWN_W);
-		// cyan (left: the low notes, at the top) to blue-purple to pink (the high, at the bottom), multiplied into
-		// the white bars; the ring a pale blue, fading over the palette's columns
-		// The still inputs (the gradient, the palette, the tables) are pictures that end, never loops: blend, hstack
-		// and remap go on with an ended input's last frame, and end when the bars (the sound) do. A loop never ends,
-		// so neither did the graph: past the song's end its sources poured out frames as fast as they could, mpv's
-		// clock stopped (the song never ended) and its memory grew by the gigabyte. One frame each (r=1): nullsrc's
-		// 25 a second over d=1 made the first second 55 frames, each one remapped
-		std::string g =
-			"[aid1] asplit [ao] [a]; "
-			"[a] aformat=sample_rates=44100|48000:channel_layouts=mono,showfreqs=s=" + bars + ":mode=bar:cmode=combined:ascale=log:fscale=log:win_size=1024:rate=30:colors=white|white,format=gbrp [bars]; "
-			"nullsrc=s=" + bars + ":r=1:d=1,format=gbrp,"
-			"geq=r='59+196*clip(2*X/" + sw + "-1,0,1)':g='232-140*clip(2*X/" + sw + ",0,1)-13*clip(2*X/" + sw + "-1,0,1)':b='224+31*clip(2*X/" + sw + ",0,1)-39*clip(2*X/" + sw + "-1,0,1)' [grad]; "
-			"[bars] [grad] blend=all_mode=multiply [cbars]; "
-			"nullsrc=s=" + std::to_string(PALETTE) + "x" + std::to_string(BARS_H) + ":r=1:d=1,format=gbrp,"
-			"geq=r='207*exp(-pow(X/4,2))':g='232*exp(-pow(X/4,2))':b='255*exp(-pow(X/4,2))' [pal]; "
-			"[cbars] [pal] hstack [src]; "
-			"movie=" + xm + " [xm]; movie=" + ym + " [ym]; ";
-		std::string pad = ",pad=" + std::to_string(CIRCLE_W) + ":" + std::to_string(CIRCLE_H) + ":" + std::to_string(CIRCLE_X) + ":" + std::to_string(CIRCLE_Y) + ":black";
-		if (!overCover) return g + "[src] [xm] [ym] remap" + pad + " [vo]";
-		// the art inside the ring
-		return g + "[src] [xm] [ym] remap" + pad + " [ring]; "
-			"[vid1] scale=96:96:force_original_aspect_ratio=decrease,format=gbrp [cover]; "
-			"[ring] [cover] overlay=x=(W-w)/2:y=" + std::to_string((int)CENTRE_Y) + "-h/2:eof_action=repeat:format=gbrp [vo]";
 	}
 
 	// Peaks: the spectrum in 64 bars (coral), each with a cap (green) that sits on the bar's highest point and falls
@@ -447,12 +384,25 @@ namespace bp
 
 	bool visualizerNeedsMaps(int vis)
 	{
-		return vis == VIS_CIRCLE || vis >= VIS_LED;
+		vis = visualizerReplacement(vis);
+		return vis >= VIS_LED && !(vis >= VIS_MIRROR && vis < VIS_RADIAL);
 	}
 
 	bool writeVisualizerMaps(const std::string& dir)
 	{
-		bool ok = writeCircleMaps(dir);
+		// the retired styles' stills (Circle's tables, Sound garden's, Bubble tea's, Jellyfish's, Music box's and Long
+		// cat's pictures): nothing reads them any more
+		static const char* RETIRED[] = {"circle3-x.pgm", "circle3-y.pgm", "garden1-alone.pgm", "garden1-strip.pgm", "garden1-bees.pgm",
+			"musicbox1-comb.pgm", "musicbox1-combs.pgm", "musicbox1-atlas.pgm", "musicbox1-y.pgm", "musicbox1-u.pgm", "musicbox1-v.pgm",
+			"lcat9-head-a.pgm", "lcat9-trow-a.pgm", "lcat9-tcol-a.pgm", "lcat9-hue-a.pgm", "lcat9-dist-a.pgm", "lcat9-head-s.pgm",
+			"lcat9-trow-s.pgm", "lcat9-tcol-s.pgm", "lcat9-hue-s.pgm", "lcat9-dist-s.pgm", "lcat9-row.pgm", "lcat9-col.pgm",
+			"boba1-alone.pgm", "boba2-strip.pgm", "boba1-wave.pgm", "boba1-fizz.pgm", "jelly2-s0.pgm", "jelly2-s1.pgm", "jelly2-s2.pgm",
+			"jelly2-s3.pgm", "jelly2-o0.pgm", "jelly2-o1.pgm", "jelly2-o2.pgm", "jelly2-o3.pgm", "jelly2-halo.pgm", "jelly2-ohalo.pgm",
+			"jelly2-speck.pgm", "jelly2-row.pgm"};
+		int removed = 0;
+		for (const char* f : RETIRED) removed += unlink((dir + "/" + f).c_str()) == 0;
+		if (removed) fprintf(stderr, "visualizer: %d stills of the retired styles removed from %s\n", removed, dir.c_str());
+		bool ok = writeRadialMaps(dir);
 		ok = writeLedMaps(dir) && ok;
 		ok = writeSynthwaveMaps(dir) && ok;
 		ok = writeBananaMaps(dir) && ok;
@@ -461,13 +411,9 @@ namespace bp
 		ok = writeHeartMaps(dir) && ok;
 		ok = writeFireMaps(dir) && ok;
 		ok = writeAuroraMaps(dir) && ok;
-		ok = writeGardenMaps(dir) && ok;
 		ok = writeVinylMaps(dir) && ok;
 		ok = writeSeaMaps(dir) && ok;
 		ok = writeBunnyMaps(dir) && ok;
-		ok = writeBobaMaps(dir) && ok;
-		ok = writeJellyMaps(dir) && ok;
-		ok = writeMusicboxMaps(dir) && ok;
 		ok = writeFishbowlMaps(dir) && ok;
 		ok = writeDiscoMaps(dir) && ok;
 		ok = writeDancerMaps(dir) && ok;
@@ -475,7 +421,6 @@ namespace bp
 		ok = writePopcornMaps(dir) && ok;
 		ok = writeWobbleMaps(dir) && ok;
 		ok = writeTubemanMaps(dir) && ok;
-		ok = writeLongcatMaps(dir) && ok;
 		ok = writeWasherMaps(dir) && ok;
 		return ok;
 	}
@@ -487,7 +432,18 @@ namespace bp
 
 	std::string visualizerGraphMarked(int vis, bool overCover, const std::string& mapsDir)
 	{
+		vis = visualizerReplacement(vis);
 		if (vis == VIS_POCKET) return pocketGraph(overCover);
+		// the simple ones (src/viz_simple.cpp); Radial with its tables, else as Peaks (below)
+		switch (vis)
+		{
+		case VIS_MIRROR: return mirrorGraph(overCover);
+		case VIS_WAVE: return waveGraph(overCover);
+		case VIS_DOTS: return dotsGraph(overCover);
+		case VIS_LEVELS: return levelsGraph(overCover);
+		case VIS_AREA: return areaGraph(overCover);
+		default: break;
+		}
 		// the newer ones (a file each, src/viz_*.cpp); with no stills yet, as Peaks
 		if (vis >= VIS_LED && vis < VISUALIZERS)
 		{
@@ -503,13 +459,9 @@ namespace bp
 			case VIS_HEART: return heartGraph(overCover, mapsDir);
 			case VIS_FIRE: return fireGraph(overCover, mapsDir);
 			case VIS_AURORA: return auroraGraph(overCover, mapsDir);
-			case VIS_GARDEN: return gardenGraph(overCover, mapsDir);
 			case VIS_VINYL: return vinylGraph(overCover, mapsDir);
 			case VIS_SEA: return seaGraph(overCover, mapsDir);
 			case VIS_BUNNY: return bunnyGraph(overCover, mapsDir);
-			case VIS_BOBA: return bobaGraph(overCover, mapsDir);
-			case VIS_JELLY: return jellyGraph(overCover, mapsDir);
-			case VIS_MUSICBOX: return musicboxGraph(overCover, mapsDir);
 			case VIS_FISHBOWL: return fishbowlGraph(overCover, mapsDir);
 			case VIS_DISCO: return discoGraph(overCover, mapsDir);
 			case VIS_DANCER: return dancerGraph(overCover, mapsDir);
@@ -517,13 +469,10 @@ namespace bp
 			case VIS_POPCORN: return popcornGraph(overCover, mapsDir);
 			case VIS_WOBBLE: return wobbleGraph(overCover, mapsDir);
 			case VIS_TUBEMAN: return tubemanGraph(overCover, mapsDir);
-			case VIS_LONGCAT: return longcatGraph(overCover, mapsDir);
+			case VIS_RADIAL: return radialGraph(overCover, mapsDir);
 			default: return washerGraph(overCover, mapsDir);
 			}
 		}
-		std::string quoted;
-		if (vis == VIS_CIRCLE && !mapsDir.empty() && lavfiPath(mapsDir, quoted)) return circleGraph(overCover, mapsDir);
-		if (vis == VIS_CIRCLE) vis = VIS_BARS;
 		// drawn at the panel's shape (mpv scales it to the panel) and 30 frames a second: light enough for the A55s
 		// beside the decoding
 		int h = overCover ? 200 : 480;
@@ -559,7 +508,7 @@ namespace bp
 		// rounded to the picture's 25ths). Bars' and Waves' background is already clear, and their colours already
 		// scaled by their alpha (Waves' edges fade), hence premultiplied; Spectrum's is black, so it's drawn with alpha
 		// (its loudness, 4x: only the near-black clear, as colorkey did, without its 5 ms a frame).
-		// vstack repeats the top's ended frame, as Circle's hstack does
+		// vstack repeats the top's ended frame
 		bool yuv = vis == VIS_SPECTRUM;
 		std::string strip = yuv ? "[a] " + draw + ":opacity=4,format=yuva444p" : "[a] " + draw;
 		return "[aid1] asplit [ao] [a]; "
@@ -635,6 +584,8 @@ namespace bp
 	// is read as VIS_PEAKS_BANANA ("Peaks") (the default), and so is Timeline (0.5.x, briefly: it became Peaks)
 	static void readVisualizer(Settings& s, const std::string& value)
 	{
+		// a retired style (2026-11-19): its replacement, in its place (Circle: Mirror bars, Long cat: Radial...)
+		s.visualizer = visualizerReplacement(s.visualizer);
 		if (value == "timeline") s.visualizer = VIS_PEAKS_BANANA;
 		// Lite isn't a choice any more: its values stay on branch vizlite
 		if (value == "lite") s.visualizer = VIS_PEAKS_BANANA;
@@ -682,7 +633,7 @@ namespace bp
 				.page(SG_MUSIC, 20, "Visualizer style", "Which visualizer is drawn: twenty styles, from Peaks to Washing machine (SELECT while playing).")
 				.shownAs(VIS_LABELS).stepped(true, stepVisualizer).afterRead(readVisualizer),
 			D::ints("visualizer-fps", &Settings::vizFps, VIZ_FPS, 3)
-				.page(SG_MUSIC, 30, "Visualizer frame rate", "How smoothly the visualizers move: 60 is smoothest, 30 lightest on the battery. Peaks and Circle stay at 30.")
+				.page(SG_MUSIC, 30, "Visualizer frame rate", "How smoothly the visualizers move: 60 is smoothest, 30 lightest on the battery. Peaks stays at 30.")
 				.shownAs(nullptr, " fps"),
 			D::range("manga-filter", &Settings::mangaFilter, 0, 3),
 			D::range("read-dim", &Settings::readDim, 0, 80, 10).stepped(false, nullptr, 10),

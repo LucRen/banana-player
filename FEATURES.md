@@ -533,7 +533,7 @@ Songs show their title, artist and album on the top screen. While a song plays:
   grid of tiles. The tile in use is filled in the theme's accent; the cursor is an accent edge. The styles: **Peaks**
   (default: 64 bars in the theme's accent, bass on
   the left, each with a cap in the theme's text colour that stays at the bar's highest point and slowly falls back, over a faint grid),
-  **Circle** (bars round a glowing ring, cyan to pink; with Art + visualizer, the album art sits inside the ring),
+  **Mirror bars** (the spectrum's bars growing up and down from a faint centre line),
   **Pocket console** (Peaks on an old handheld's screen: 15 bars of chunky dots in four shades, with falling caps;
   alone, the title is in the same ink in pixel type. In Yellow the old handheld's greens; in another theme four shades
   of its accent on a screen tinted with it), **Night city** (a skyline whose windows light up with the
@@ -541,21 +541,26 @@ Songs show their title, artist and album on the top screen. While a song plays:
   the mids wave its arms),
   **Campfire** (each flame leaps with its part of the sound, sparks fly on the treble; with Art + visualizer the fire
   spans the whole width), **Aurora** (northern lights
-  over a snowy ridge), **Sound garden** (pixel flowers that grow with the music and bloom at the peaks), **Pixel sea**
+  over a snowy ridge), **Area** (the spectrum as one filled, smooth shape, its edge in the accent, fading
+  to the ground towards the bottom), **Pixel sea**
   (moonlit waves and a little sailboat), **Bunny hop** (five bunnies, each hopping to its part of the music),
-  **Bubble tea** (pearls bouncing on the bass, fizz up the straw), **Jellyfish** (glowing jellyfish pulsing on the
-  beat), **Music box** (a comb whose teeth glow gold with the music, a turning dancer), **Fishbowl** (three goldfish
+  **Dots** (a dot-matrix spectrum: columns of round dots lit from the bottom over a faint grid of unlit ones),
+  **Levels** (two wide stereo meters, left and right, with a peak tick that holds and falls back), **Wave** (the
+  sound's waveform as one thick, smooth line over a faint centre line), **Fishbowl** (three goldfish
   swimming up with their bands), **Vibing cat** (a cat in headphones nodding along, a coffee steaming beside it),
   **Popcorn machine** (kernels popping on the beat), **Jelly wobble** (a worried jelly squashing on the bass), **Tube
-  man** (an inflatable tube man dancing faster with the music), **Long cat** (a cat that grows forever, climbing
-  faster with the music, a stack of solid rainbow bars at its sides, gone when it's quiet) or **Washing machine** (shaking and walking on the bass,
+  man** (an inflatable tube man dancing faster with the music), **Radial** (bars round a ring in four
+  mirrored quarters, their tips in the text colour) or **Washing machine** (shaking and walking on the bass,
   socks and a duck tumbling). The bar styles' bars stand out from their neighbours, so the spectrum has peaks and
   valleys. Every style measures the music evened out (only for the picture: the sound is untouched), so a quiet song
-  moves it about as much as a loud one, the treble side is lively too, and silence stays still. With Art + visualizer, every style but Circle is
+  moves it about as much as a loud one, the treble side is lively too, and silence stays still. With Art + visualizer, every style is
   drawn along the bottom of the screen, under the art, which it never covers, on the theme's ground. Coral Peaks, Hi-fi LED, Synthwave, Banana stack,
   Heartbeat, Oscilloscope, Turntable and Disco ball (earlier styles), and Bars, Waves and Spectrum, are retired: a
   saved choice of one of them becomes Peaks. The Lite style (drawn by the player itself, no graph) is removed for now:
-  a saved choice of it becomes Peaks too. The **D-pad** moves over both groups (DOWN from a mode to the style under
+  a saved choice of it becomes Peaks too. Circle, Sound garden, Bubble tea, Jellyfish, Music box and Long cat made way
+  for the six simple styles (2026-11-19): a saved choice of one becomes the style in its place (Mirror bars, Area,
+  Dots, Levels, Wave, Radial). The six simple ones and Peaks are drawn in the theme's colours (accent, text, dim and
+  button) on its ground, and the song's lines over them alone are in the theme's colours too. The **D-pad** moves over both groups (DOWN from a mode to the style under
   it, UP back), and moving changes nothing: **A** (or a tap) sets the mode or the style, and the top screen follows at
   once. **SELECT** steps the mode (Album art only → Art + visualizer → Visualizer only → None), **L** / **R** the tabs,
   **B** closes. The art is a square with rounded corners and a thin edge: 240 units on Album art only, 224 above the
@@ -586,7 +591,7 @@ lines are at the top left, with a shadow (Pocket console: in its own green pixel
 chapter is a line in the accent under the title. **None** shows the title in the middle (then "artist · album"). **Visualizer frame
 rate** (30, 45 or 60 fps; 45 by default) is how often the styles drawn at 60 (Pocket console and the pixel-art scenes)
 draw: everything moves at the same speed at any rate, only less smoothly at 30, which leaves the handheld more time
-for the sound. Peaks and Circle draw 30 a second at any setting. A style comes up quicker from the second time it's
+for the sound. Peaks draws 30 a second at any setting. A style comes up quicker from the second time it's
 used: its lookup tables are worked out once in the background and kept beside the settings.
 
 ## Sound: equalizer and effects
