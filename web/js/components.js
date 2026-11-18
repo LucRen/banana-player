@@ -188,11 +188,13 @@ export function HandheldArt({ mode }) {
 	if (mode === 'qr') {
 		const q = ['1111101011111', '1000101010001', '1011101110101', '1011100011101', '1000101010001', '1111101011111', '0000000100000', '1011011101101', '0110100010110', '1111101101011', '1000100110100', '1011101011011', '1111101101111'];
 		bottom = '<rect x="31" y="44.5" width="25" height="25" rx="1" fill="#fff"/>' + q.map((r, y) => [...r].map((c, x) => c === '1' ? `<rect x="${33 + x * 1.6}" y="${46.5 + y * 1.6}" width="1.6" height="1.6" fill="#000"/>` : '').join('')).join('') +
-			'<rect x="60" y="48" width="18" height="2" fill="#FFD23F"/><rect x="60" y="53" width="14" height="2" fill="#8F8A80"/><rect x="60" y="58" width="16" height="3" rx=".5" fill="#26242E"/>';
+			'<rect x="60" y="48" width="18" height="2" style="fill:var(--yellow)"/><rect x="60" y="53" width="14" height="2" style="fill:var(--dim)"/><rect x="60" y="58" width="16" height="3" rx=".5" style="fill:var(--btn)"/>';
 	}
 	const dark = mode !== 'qr';
-	const top = dark ? '<rect x="14" y="8" width="64" height="28" fill="#060608"/>' : '<rect x="14" y="8" width="64" height="28" fill="#000"/><rect x="36" y="14" width="20" height="2" fill="#FFD23F"/><rect x="30" y="20" width="32" height="2" fill="#E8E2D3"/><rect x="34" y="26" width="24" height="2" fill="#8F8A80"/>';
-	const svg = `<svg viewBox="0 0 92 84" class="dsmini" shape-rendering="crispEdges" aria-hidden="true"><rect x="8" y="2" width="76" height="38" rx="6" fill="#26242E" stroke="#605D60" stroke-width="1.5"/>${top}<rect x="20" y="40" width="52" height="3" fill="#1B1920"/><rect x="8" y="42" width="76" height="40" rx="6" fill="#26242E" stroke="#605D60" stroke-width="1.5"/><rect x="14" y="43" width="64" height="35" fill="${dark ? '#060608' : '#000'}"/>${bottom}</svg>`;
+	// (the theme's colours: the body and the bottom panel the main ones, the top panel's lines the top cards' (TOP_*);
+	// a screen that is off stays black)
+	const top = dark ? '<rect x="14" y="8" width="64" height="28" fill="#060608"/>' : '<rect x="14" y="8" width="64" height="28" fill="#000"/><rect x="36" y="14" width="20" height="2" style="fill:var(--top-title)"/><rect x="30" y="20" width="32" height="2" style="fill:var(--top-text)"/><rect x="34" y="26" width="24" height="2" style="fill:var(--top-sub)"/>';
+	const svg = `<svg viewBox="0 0 92 84" class="dsmini" shape-rendering="crispEdges" aria-hidden="true"><rect x="8" y="2" width="76" height="38" rx="6" stroke-width="1.5" style="fill:var(--btn);stroke:var(--e-btn)"/>${top}<rect x="20" y="40" width="52" height="3" style="fill:var(--l-btn)"/><rect x="8" y="42" width="76" height="40" rx="6" stroke-width="1.5" style="fill:var(--btn);stroke:var(--e-btn)"/><rect x="14" y="43" width="64" height="35" style="fill:${dark ? '#060608' : 'var(--bg)'}"/>${bottom}</svg>`;
 	return html`<span style="display:block;line-height:0" dangerouslySetInnerHTML=${{ __html: svg }}></span>`;
 }
 

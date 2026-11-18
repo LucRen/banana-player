@@ -768,7 +768,7 @@ namespace bp
 			p.paused + setGroup * 2 + 2, (long)std::floor(shownPosition(p)) * 2 + (predicting(p) && pagePlaying()), (long)p.duration, (int)p.aspect, p.loaded, a ? (long long)a->id : 0LL,
 			s ? (long long)s->id : 0LL, p.tracks.size(), (int)slideHeld(SL_SEEK), slideHeld(SL_SEEK) ? (int)(slide.value * 1000) : 0, p.speed,
 			p.index(), p.count(), pressedBtn, listTouch * 1000 + browse->browseVersion + (clearArmed != 0) * 100000 + (int)p.history().items().size() * 1000000);
-		std::string photo;	// (the browser's section and its listing: Browse::signature)
+		std::string photo = "|th" + std::to_string(theme::currentTheme());	// (the browser's section and its listing: Browse::signature)
 		// a slider under a finger: which, and where the finger has it (what draws differently while held reads these)
 		if (slide.on) photo += "|sl" + std::to_string(slide.id) + "." + std::to_string(slide.sub) + ":" + std::to_string(slide.value);
 		if (playHoldAt) photo += "|phold" + std::to_string((SDL_GetTicks() - playHoldAt) / 50);

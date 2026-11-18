@@ -143,7 +143,7 @@ namespace bp
 		st.size = s.txtSize;
 		st.spacing = s.txtSpacing;
 		st.margins = s.txtMargins;
-		st.theme = s.txtTheme;
+		st.theme = txtPage(s);
 		st.filter = s.txtFilter;
 		st.dim = s.readDim;
 		return st;

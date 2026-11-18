@@ -209,6 +209,9 @@ namespace bp
 		int takeCardShown() { int ms = cardMs; cardMs = 0; return ms; }
 		// the top panel with nothing playing: the icon, the name, where to pick something
 		void showIdle(bool on);
+		bool idleShown = false;
+		// the theme swapped: what stays up on the top panel with its colours in it (the idle title, a song's lines) sent again
+		void themeChanged();
 		// the top panel's pixels (main sets it): the idle icon is drawn in whole pixels at that size
 		void setTopSize(int w, int h) { topW = w; topH = h; }
 		int topW = 0, topH = 0;

@@ -542,7 +542,7 @@ namespace bp
 		FileJob& j = *fileJob;
 		// over the whole panel: nothing under it can be used until it ends
 		SDL_SetRenderDrawBlendMode(ren, SDL_BLENDMODE_BLEND);
-		fill({0, 0, W, H}, SDL_Color{0, 0, 0, 200});
+		fill({0, 0, W, H}, sdl(theme::BG, (Uint8)(255 * theme::VEIL_SHEET / 100)));	// (the veil: BG, as a sheet's)
 		Rect box{60, 110, W - 120, 270};
 		drawBox(box, SURFACE, R_DIALOG);
 		bool copy = j.op == CLIP_COPY;

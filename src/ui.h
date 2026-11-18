@@ -222,6 +222,9 @@ namespace bp
 		bool webPageShown() const { return page == Page::Web; }
 		// a folder changed from the web (an upload, a delete): listed again if the browser shows it
 		void folderChanged(const std::string& dir, Player& p);
+		// the theme swapped (theme::setTheme): the SDL copies of its colours taken again, and what was drawn once with a
+		// colour baked in (the PIN's digits, the support QR's address) dropped to be drawn again; the theme is in signature()
+		void themeChanged();
 		// a volume change made here (the web's, the quick settings'): how long main shows the level card (as
 		// takeCardShown), once, with its label and percent; main puts it on whatever the top panel shows
 		int takeLevelShown(std::string& label, int& percent) { int ms = levelMs; levelMs = 0; label = levelLabel; percent = levelPct; return ms; }

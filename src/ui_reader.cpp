@@ -136,8 +136,8 @@ namespace bp
 			}
 			if (it == mfTex.end())
 			{
-				// not decoded yet, or its turn to be made comes next frame: its place, dark
-				SDL_SetRenderDrawColor(ui.ren, 40, 40, 44, 255);
+				// not decoded yet, or its turn to be made comes next frame: its place, dark in every theme (TOP_TRACK)
+				SDL_SetRenderDrawColor(ui.ren, theme::TOP_TRACK.r, theme::TOP_TRACK.g, theme::TOP_TRACK.b, 255);
 				SDL_RenderFillRect(ui.ren, &r);
 				waiting++;
 				continue;

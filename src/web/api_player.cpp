@@ -4,6 +4,7 @@
 // calls only: nothing here waits for mpv.
 #include "web/server.h"
 #include "json.h"
+#include "theme.h"
 #include "player.h"
 #include "playlist.h"
 #include "playlists.h"
@@ -255,6 +256,13 @@ namespace bp
 			s.showHiddenFolders = p.settings.showHiddenFolders;
 			s.mangaOn = p.settings.mangaOn;
 			s.incognito = p.incognito;
+			{
+				const theme::Palette& t = theme::palette(p.settings.theme);
+				char bg[8];
+				snprintf(bg, sizeof bg, "#%02x%02x%02x", t.BG.r, t.BG.g, t.BG.b);
+				s.theme = t.id;
+				s.themeBg = bg;
+			}
 			return s;
 		}
 
@@ -670,10 +678,35 @@ namespace bp
 			answer(res, body, status);
 		});
 
-		// key=showHiddenFolders value=0|1: the handheld's Settings toggle (saved to settings.conf). Extensions aren't
-		// switched from here: Manage extensions is the handheld's alone
+		// key=showHiddenFolders value=0|1: the handheld's Settings toggle (saved to settings.conf); key=theme value=a
+		// theme's id (theme.h): the handheld's Theme, both panels and every page. Extensions aren't switched from here:
+		// Manage extensions is the handheld's alone
 		s.Post("/api/setting", [w](const httplib::Request& req, httplib::Response& res) {
 			std::string key = value(req, "key"), v = value(req, "value");
+			if (key == "theme")
+			{
+				int pick = -1;
+				for (int i = 0; i < theme::themeCount(); i++)
+					if (v == theme::themeId(i)) pick = i;
+				if (pick < 0)
+				{
+					WebServer::fail(res, 400, "Unknown theme");
+					return;
+				}
+				int status = 200;
+				std::string body = w->call([pick](Player& p, Ui&) {
+					// (main's loop sees the change and swaps the theme on both panels)
+					if (p.settings.theme != pick)
+					{
+						Settings st = p.settings;
+						st.theme = pick;
+						p.setSettings(st);
+					}
+					return std::string("{\"theme\":\"") + theme::themeId(pick) + "\"}";
+				}, 2000, status);
+				answer(res, body, status);
+				return;
+			}
 			if (key != "showHiddenFolders")
 			{
 				WebServer::fail(res, 400, "Unknown setting");

@@ -216,7 +216,7 @@ namespace bp
 	{
 		(void)p;
 		// over the page, dimmed: the note about repositories, once, the first time the reader is turned on
-		ui.fill({0, 0, W, H}, {0, 0, 0, 170});
+		ui.fill({0, 0, W, H}, sdl(theme::BG, (Uint8)(255 * theme::VEIL_SHEET / 100)));	// (the veil: BG, as a sheet's)
 		ui.drawBox(extSheetBox(), SURFACE, R_DIALOG);
 		drawMangaIcon({88, 108, 40, 40});
 		ui.drawTextMid("Manga reader is on", 1, TEXT, 136, 128, 420);

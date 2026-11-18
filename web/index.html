@@ -4,11 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <meta name="theme-color" content="#000000">
-<meta name="color-scheme" content="dark">
+<meta name="color-scheme" content="dark light">
 <title>Banana Player</title>
 <link rel="icon" type="image/png" href="/logo.png">
 <link rel="apple-touch-icon" href="/logo.png">
 <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/theme.css">
+<!-- the handheld's theme as the page last saw it, before the first paint (events.js: applyTheme) -->
+<script>try { var t = (localStorage.getItem('bp-theme') || '').split(' '); if (t[0] && t[0] !== 'yellow') document.documentElement.dataset.theme = t[0]; if (t[1]) document.querySelector('meta[name="theme-color"]').setAttribute('content', t[1]); } catch (e) {}</script>
 </head>
 <body>
 <noscript><p style="padding:24px;color:#F1EDE2">Banana Player's web dashboard needs JavaScript.</p></noscript>

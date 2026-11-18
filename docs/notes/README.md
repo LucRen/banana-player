@@ -35,3 +35,4 @@ Write the way the rest of the repo does: plain and precise, with the why. Say wh
 - [2026-11-16 redesign kit](2026-11-16-redesign-kit.md): how to build a screen with the redesign's component kit (kitlayout.h, ui_kit.h); the player screen as the first one.
 - [2026-11-14 button rows](button-rows.md): one helper for rows of buttons on the bottom panel (rowCell, gridCell, drawKeyedLabel).
 - [settings table](settings-table.md): a setting is one `SettingDef` entry (key, member, range, page row); what keeps custom code, how to add one.
+- [2026-11-18 themes](2026-11-18-themes.md): the theme table (theme.cpp), the names that read the current theme, the swap in main's loop, the dashboard's /theme.css.

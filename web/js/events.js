@@ -23,9 +23,20 @@ export function sayBye() {
 		try { fetch(url, { method: 'POST', keepalive: true, credentials: 'same-origin', headers: { 'X-BP': '1' } }).catch(() => {}); } catch (e) {}
 }
 addEventListener('pagehide', sayBye);
+// the handheld's theme (Settings › Power & screens › Theme): the page takes it. /theme.css holds every theme's variables,
+// written by the handheld from src/theme.cpp; kept for the next load, so the page starts in it (index.html)
+export function applyTheme(id, bg) {
+	if (!id) return;
+	const root = document.documentElement;
+	if (id === 'yellow') delete root.dataset.theme; else root.dataset.theme = id;
+	const meta = document.querySelector('meta[name="theme-color"]');
+	if (meta && bg) meta.setAttribute('content', bg);
+	try { localStorage.setItem('bp-theme', id + ' ' + (bg || '')); } catch (e) {}
+}
 export function applySnap(s) {
 	const prev = store.snap;
 	set({ snap: s, snapAt: Date.now() });
+	applyTheme(s.theme, s.themeBg);
 	// the Session: where it plays and where picks go. Out moving to this tab loads its file here; leaving, it stops
 	onSession(s.session);
 	if (!prev || prev.playlistSerial !== s.playlistSerial) set({ plTick: store.plTick + 1 });

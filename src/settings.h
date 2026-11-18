@@ -103,6 +103,9 @@ namespace bp
 	std::string blankGraph();
 
 	// <stateDir>/settings.conf: what the Settings page changes, for every file
+	// text-theme's values: Match theme (the page the app's theme picks: settings.h's txtPage), then textreader.h's
+	// pages one up (Dark, Light, Sepia, Black)
+	constexpr int TXT_PAGE_MATCH = 0, TXT_PAGES = 5;
 	struct Settings
 	{
 		SubStyle style;
@@ -145,6 +148,8 @@ namespace bp
 		int lidIncognito = LID_INCOGNITO_CLOSE_ALL;
 		// (not saved) the file named no lid-close: the choice is asked once at start (Ui::askLid), then kept
 		bool lidAsk = false;
+		// the app's colours, both panels and the dashboard (Settings › Power & screens › Theme): theme.h's table, by index
+		int theme = 0;
 		// the time left of the battery (Settings › Power & screens): 24-hour, 12-hour or none
 		int clock = CLOCK_24;
 		// the bottom panel off by itself (Settings › Power & screens) while a song or video plays and nothing is touched
@@ -181,7 +186,7 @@ namespace bp
 		int mangaFit = MANGA_FIT_PAGE;
 		// Files' document viewers. The text viewer (TXT, EPUB): its font, size, line spacing, margins, colours and
 		// filter (textreader.h's TXT_* and DOC_FILTER_*); the PDF viewer: its filter, and Single page or Strip
-		int txtFont = 0, txtSize = 2, txtSpacing = 1, txtMargins = 1, txtTheme = 0, txtFilter = 0;
+		int txtFont = 0, txtSize = 2, txtSpacing = 1, txtMargins = 1, txtTheme = TXT_PAGE_MATCH, txtFilter = 0;
 		// the text viewer's view: 0 the scroll, MANGA_BOOK_LEFT / _RIGHT Book (held sideways, the top panel on that side)
 		int txtBook = 0;
 		// Book mode's page turn: 0 the fold (a page folding at the spine), 1 none (the pages change at once)
@@ -219,6 +224,8 @@ namespace bp
 	};
 
 	std::string serializeSettings(const Settings& s);
+	// the reader's page now (textreader.h's TXT_THEME_*): text-theme's own, or Match theme's by the app's theme
+	int txtPage(const Settings& s);
 	Settings parseSettings(const std::string& text);
 
 	// The Settings page's groups (Ui::SetGroup's order: ui_settings.cpp checks it), and the manga reader's own page

@@ -90,7 +90,7 @@ function Toasts() {
 	return html`<div class="toasts" role="status" aria-live="polite">${store.toasts.map(t => html`<div class=${'toast box' + (t.out ? ' out' : '')} key=${t.id} style=${'--ms:' + (t.ms || 4000) + 'ms'}>
 		<span class="grow ttl">${t.text}</span>
 		${t.action && html`<button class="btn sm primary" onClick=${() => { set({ toasts: store.toasts.filter(x => x.id !== t.id) }); t.action.fn(); }}>${t.action.label}</button>`}
-		${t.action && html`<svg class="tring" viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="9" fill="none" stroke="#3a3842" stroke-width="3" /><circle cx="11" cy="11" r="9" fill="none" stroke="var(--yellow)" stroke-width="3" stroke-dasharray="56.55" stroke-dashoffset="0" /></svg>`}</div>`)}</div>`;
+		${t.action && html`<svg class="tring" viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="9" fill="none" style="stroke:var(--line)" stroke-width="3" /><circle cx="11" cy="11" r="9" fill="none" stroke="var(--yellow)" stroke-width="3" stroke-dasharray="56.55" stroke-dashoffset="0" /></svg>`}</div>`)}</div>`;
 }
 function HelpOverlay() {
 	const keys = [['Space', 'Play / pause'], ['← →', 'Back 5 s / forward 10 s'], ['Shift + ← →', 'Previous / next'], ['[ ]', 'Previous / next chapter'], ['L', 'Loop'], ['C', 'Subtitles on / off (a video in this browser)'], ['↑ ↓', 'Volume'], ['/', 'Find (Files, Playlists)'], ['?', 'This help'], ['Esc', 'Close']];

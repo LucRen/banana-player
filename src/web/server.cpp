@@ -5,6 +5,7 @@
 #include "web/assets.h"
 #include "web/subs.h"
 #include "json.h"
+#include "theme.h"
 #include "webauth.h"
 #include "webpath.h"
 #include <SDL.h>
@@ -431,8 +432,18 @@ namespace bp
 		const unsigned char* data = nullptr;
 		size_t len = 0;
 		std::string disk;
+		// every theme but Yellow (style.css's :root) as CSS variables, written from theme.cpp's table: the page sets
+		// data-theme from the state's "theme" (written once: the table is fixed while the player runs)
+		static const std::string themeCss = theme::themeCss(), themeTag = fnvHex(themeCss);
+		if (rel == "theme.css")
+		{
+			etag = themeTag;
+			mime = "text/css; charset=utf-8";
+			data = (const unsigned char*)themeCss.data();
+			len = themeCss.size();
+		}
 		// from disk while developing; what isn't there (the fonts, which live in assets/) still comes from the build
-		if (!cfg.webDir.empty() && readFile(cfg.webDir + "/" + rel, disk))
+		else if (!cfg.webDir.empty() && readFile(cfg.webDir + "/" + rel, disk))
 		{
 			etag = fnvHex(disk);
 			mime = mimeByExt(rel);

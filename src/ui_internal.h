@@ -17,10 +17,16 @@
 namespace bp
 {
 	inline constexpr SDL_Color sdl(theme::Rgb c, Uint8 a = 255) { return {c.r, c.g, c.b, a}; }
-	inline constexpr SDL_Color BG = sdl(theme::BG), TEXT = sdl(theme::TEXT), ACCENT = sdl(theme::ACCENT),
-		BUTTON = sdl(theme::BUTTON), DIM = sdl(theme::DIM), DANGER = sdl(theme::DANGER), SCREEN = sdl(theme::SCREEN),
-		PRESSED = sdl(theme::PRESSED), SURFACE = sdl(theme::SURFACE), DIM_ON = sdl(theme::DIM_ON),
-		ON_ACCENT = sdl(theme::ON_ACCENT), TRACK = sdl(theme::TRACK), KNOB = sdl(theme::KNOB), RULE = sdl(theme::RULE);
+	// the current theme's roles as SDL colours (theme.h's, copied by syncInk() after a swap: the names read them when drawn)
+	struct Ink
+	{
+		SDL_Color BG, TEXT, ACCENT, BUTTON, DIM, DANGER, SCREEN, PRESSED, SURFACE, DIM_ON, ON_ACCENT, TRACK, KNOB, RULE, RAIL;
+	};
+	extern Ink ink;	// (ui_draw.cpp)
+	void syncInk();
+	inline const SDL_Color &BG = ink.BG, &TEXT = ink.TEXT, &ACCENT = ink.ACCENT, &BUTTON = ink.BUTTON, &DIM = ink.DIM, &DANGER = ink.DANGER,
+		&SCREEN = ink.SCREEN, &PRESSED = ink.PRESSED, &SURFACE = ink.SURFACE, &DIM_ON = ink.DIM_ON, &ON_ACCENT = ink.ON_ACCENT, &TRACK = ink.TRACK,
+		&KNOB = ink.KNOB, &RULE = ink.RULE, &RAIL = ink.RAIL;
 	using theme::R_BUTTON;
 	using theme::R_TILE;
 	using theme::R_DIALOG;

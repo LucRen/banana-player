@@ -65,6 +65,7 @@ extern "C"
 #include "resume.h"
 #include "session.h"
 #include "settings.h"
+#include "theme.h"
 #include "strip.h"
 #include "tarx.h"
 #include "tracks.h"
@@ -5823,6 +5824,76 @@ static void testSubtitleCodePages()
 		"WEBVTT\n\n00:00:01.000 --> 00:00:02.000\n" + want + "\n\n");
 }
 
+// the themes (theme.h): Yellow is today's values, the table's rules give the spec's worked-out colours
+// (docs/redesign/components.md, Themes: from themes.py), the setting reads and writes each by its id, Match theme
+// picks the reader's page by the theme, and a swap changes what the names read
+static void testThemes()
+{
+	using namespace theme;
+	auto hx = [](Rgb c) { char s[8]; snprintf(s, sizeof s, "%02X%02X%02X", c.r, c.g, c.b); return std::string(s); };
+	CHECK_EQ(themeCount() >= 7, true);
+	CHECK_EQ(std::string(themeId(0)), "yellow");
+	CHECK_EQ(currentTheme(), 0);
+	// Yellow, value for value as before themes
+	CHECK_EQ(hx(BG) + hx(SURFACE) + hx(BUTTON) + hx(PRESSED) + hx(TRACK) + hx(RULE), "00000012111626242E3E3B4A1E1D242A2833");
+	CHECK_EQ(hx(TEXT) + hx(DIM) + hx(DIM_ON) + hx(ACCENT) + hx(ON_ACCENT) + hx(DANGER), "E8E2D38F8A80ABA597FFD23F000000F0645A");
+	CHECK_EQ(hx(TOP_CARD) + hx(TOP_TITLE) + hx(TOP_SUB) + hx(TOP_TRACK) + hx(TOP_SQUARE), "0B0A0DFFD23F8F8A8026242E121116");
+	CHECK_EQ(hx(RAIL), "0B0A0D");
+	CHECK_EQ(hx(edgeOf(BUTTON)) + hx(lipOf(BUTTON)) + hx(edgeOf(ACCENT)) + hx(lipOf(ACCENT)), "605D601B1920F8D76BB3932C");
+	// the ids are unique, and each reads back as itself
+	std::set<std::string> ids;
+	for (int i = 0; i < themeCount(); i++)
+	{
+		CHECK_EQ(ids.insert(themeId(i)).second, true);
+		Settings s;
+		s.theme = i;
+		CHECK_EQ(parseSettings(serializeSettings(s)).theme, i);
+		// the TOP_ tokens are dark in every theme (a card over a film); so is the veil-free top card's body
+		const Palette& p = palette(i);
+		CHECK_EQ(p.TOP_CARD.r + p.TOP_CARD.g + p.TOP_CARD.b < 3 * 64, true);
+	}
+	CHECK_EQ(parseSettings("theme = no-such\n").theme, 0);
+	// Light: its own RAIL, edges darker than the fill (EDGE_MIX 55), Yellow's top cards; the spec's worked-out values
+	int light = -1, contrast = -1, dark = -1;
+	for (int i = 0; i < themeCount(); i++)
+	{
+		std::string id = themeId(i);
+		if (id == "light") light = i;
+		if (id == "high-contrast") contrast = i;
+		if (id == "dark") dark = i;
+	}
+	CHECK_EQ(light > 0 && contrast > 0 && dark > 0, true);
+	const Palette& L = palette(light);
+	CHECK_EQ(hx(L.RAIL) + hx(edgeOf(L.BUTTON, L.TEXT, L.EDGE_MIX)) + hx(edgeOf(L.SURFACE, L.TEXT, L.EDGE_MIX)), "ECE7DB767370828081");
+	CHECK_EQ(hx(edgeOf(L.ACCENT, L.TEXT, L.EDGE_MIX)) + hx(lipOf(L.ACCENT)) + hx(edgeOf(L.DANGER, L.TEXT, L.EDGE_MIX)), "463312553900581F1F");
+	CHECK_EQ(hx(L.TOP_CARD) + hx(L.TOP_TITLE), "0B0A0DFFD23F");
+	const Palette& K = palette(dark);
+	CHECK_EQ(hx(K.RAIL) + hx(K.TOP_CARD) + hx(edgeOf(K.BUTTON, K.TEXT, K.EDGE_MIX)) + hx(lipOf(K.ACCENT)), "12121512121567686D7689A1");
+	// Match theme (text-theme's first value, the default): Light's page with Light, Black with High contrast, else Dark;
+	// a page chosen by hand holds whatever the theme; an old file's "dark" stays Dark
+	Settings m;
+	CHECK_EQ(m.txtTheme, TXT_PAGE_MATCH);
+	CHECK_EQ(txtPage(m), 0);
+	m.theme = light;
+	CHECK_EQ(txtPage(m), 1);
+	m.theme = contrast;
+	CHECK_EQ(txtPage(m), 3);
+	Settings old = parseSettings("text-theme = dark\ntheme = light\n");
+	CHECK_EQ(txtPage(old), 0);
+	CHECK_EQ(txtPage(parseSettings("text-theme = sepia\n")), 2);
+	CHECK_EQ(serializeSettings(old).find("text-theme = dark") != std::string::npos, true);
+	// a swap: the names read the new values; back to Yellow after
+	CHECK_EQ(setTheme(light), true);
+	CHECK_EQ(hx(BG) + hx(TEXT), "F7F4EC1B1A20");
+	CHECK_EQ(setTheme(light), false);
+	CHECK_EQ(setTheme(0), true);
+	CHECK_EQ(hx(BG), "000000");
+	// the dashboard's blocks: every theme but Yellow, by id
+	std::string css = themeCss();
+	CHECK_EQ(css.find("data-theme=\"yellow\"") == std::string::npos, true);
+	CHECK_EQ(css.find(":root[data-theme=\"light\"]{color-scheme:light;--bg:#f7f4ec;") != std::string::npos, true);
+}
+
 // the settings table (SettingDef): every entry reads what it writes, an old settings.conf reads as it did before the
 // table (values captured from the build before it), and the page's text and stepping come from the entry
 static void testSettingsTable()
@@ -5858,8 +5929,9 @@ static void testSettingsTable()
 	CHECK_EQ(std::string(defs[playback.front()].key), "remember-position");
 	CHECK_EQ(std::string(defs[playback.back()].key), "button-hotkeys");
 	auto screen = settingsOfGroup(SG_SCREEN);
-	CHECK_EQ(std::string(defs[screen.front()].key), "same-brightness");
-	CHECK_EQ(std::string(defs[screen[1]].key), "screen-off");
+	CHECK_EQ(std::string(defs[screen.front()].key), "theme");	// (the group's first row)
+	CHECK_EQ(std::string(defs[screen[1]].key), "same-brightness");
+	CHECK_EQ(std::string(defs[screen[2]].key), "screen-off");
 	CHECK_EQ(std::string(defs[screen.back()].key), "clock");
 	// the lid's key rows, under When the lid closes: power, volume, shoulders, then incognito
 	auto lid = std::find_if(screen.begin(), screen.end(), [&](int i) { return std::string(defs[i].key) == "lid-close"; });
@@ -8458,7 +8530,8 @@ static void testWeb()
 			"\"paused\":false,\"position\":1.5,\"positionAt\":42,\"duration\":0,\"speed\":1,\"volume\":0,\"volumeMax\":100,"
 			"\"eq\":{\"on\":false,\"preset\":\"\",\"gains\":[-3,0,0,0,0,0,0,0,0,0]},\"fx\":\"\",\"loop\":\"one\","
 			"\"shuffled\":false,\"shuffleMode\":false,\"chapters\":[{\"title\":\"A\",\"start\":0}],\"chapter\":0,\"tracks\":null,"
-			"\"clients\":1,\"session\":{\"boot\":0,\"v\":0},\"playlistSerial\":0,\"liked\":false,\"showHiddenFolders\":false,\"mangaOn\":false,\"incognito\":false}"));
+			"\"clients\":1,\"session\":{\"boot\":0,\"v\":0},\"playlistSerial\":0,\"liked\":false,\"showHiddenFolders\":false,\"mangaOn\":false,\"incognito\":false,"
+		"\"theme\":\"yellow\",\"themeBg\":\"#000000\"}"));
 
 		// the handheld's screen (its player left, or back to it) is news: the dashboard says "in the background"
 		{
@@ -11458,6 +11531,7 @@ int main()
 	testSubtitleCodePages();
 	testSettings();
 	testSettingsTable();
+	testThemes();
 	testEq();
 	testSoundFx();
 	testResume();

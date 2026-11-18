@@ -1,4 +1,5 @@
 #include "settings.h"
+#include "theme.h"
 #include "viz_more.h"
 #include "vizcache.h"
 #include <algorithm>
@@ -17,7 +18,7 @@ namespace bp
 	static const char* TXT_SIZE_IDS[] = {"small", "medium", "large", "larger", "largest"};
 	static const char* TXT_SPACING_IDS[] = {"tight", "normal", "loose"};
 	static const char* TXT_MARGIN_IDS[] = {"narrow", "normal", "wide"};
-	static const char* TXT_THEME_IDS[] = {"dark", "light", "sepia", "black"};
+	static const char* TXT_THEME_IDS[] = {"match", "dark", "light", "sepia", "black"};
 	static const char* DOC_FILTER_IDS[] = {"off", "warm", "warmer", "dim"};
 	static const char* TXT_VIEW_IDS[] = {"scroll", "book-left", "book-right"};
 	static const char* TXT_TURN_IDS[] = {"fold", "off"};
@@ -578,7 +579,7 @@ namespace bp
 		static const char* TXT_SIZE_LABELS[5] = {"Small", "Medium", "Large", "Larger", "Largest"};
 		static const char* TXT_SPACING_LABELS[3] = {"Tight", "Normal", "Loose"};
 		static const char* TXT_MARGIN_LABELS[3] = {"Narrow", "Normal", "Wide"};
-		static const char* TXT_THEME_LABELS[4] = {"Dark", "Light", "Sepia", "Black"};
+		static const char* TXT_THEME_LABELS[5] = {"Match theme", "Dark", "Light", "Sepia", "Black"};
 		static const char* TXT_VIEW_LABELS[3] = {"Scroll", "Book, left", "Book, right"};
 		static const char* PDF_VIEW_LABELS[2] = {"Single page", "Strip"};
 		static const int VIZ_FPS[] = {30, 45, 60};
@@ -611,8 +612,8 @@ namespace bp
 				.page(SG_READING, 30, "Line spacing", "How far apart the lines are.").shownAs(TXT_SPACING_LABELS).stepped(true),
 			D::choice("text-margins", &Settings::txtMargins, TXT_MARGIN_IDS, 3)
 				.page(SG_READING, 40, "Margins", "The room either side of the text.").shownAs(TXT_MARGIN_LABELS).stepped(true),
-			D::choice("text-theme", &Settings::txtTheme, TXT_THEME_IDS, 4)
-				.page(SG_READING, 50, "Colours", "The page's colours: dark, light, sepia or black.").shownAs(TXT_THEME_LABELS).stepped(true),
+			D::choice("text-theme", &Settings::txtTheme, TXT_THEME_IDS, TXT_PAGES)
+				.page(SG_READING, 50, "Colours", "The page's colours. Match theme: the Light page with the Light theme, Black with High contrast, else Dark. Or dark, light, sepia or black whatever the theme.").shownAs(TXT_THEME_LABELS).stepped(true),
 			D::choice("text-filter", &Settings::txtFilter, DOC_FILTER_IDS, 4),
 			D::choice("pdf-filter", &Settings::pdfFilter, DOC_FILTER_IDS, 4),
 			D::choice("text-view", &Settings::txtBook, TXT_VIEW_IDS, 3)
@@ -669,6 +670,10 @@ namespace bp
 				.page(SG_MANGA, 120, "Secure DNS", "Looks up sites through Cloudflare over HTTPS (one.one.one.one), past a network that blocks them.").shownAs(SHOWN_DNS),
 			D::flag("song-info", &Settings::songInfo)
 				.page(SG_MUSIC, 40, "Song info on top", "The song's title, artist and album over the top screen's picture (None shows the title anyway)."),
+			// (the ids and names are theme.cpp's table: a theme added there is a value here)
+			D::choice("theme", &Settings::theme, theme::themeIds(), theme::themeCount())
+				.page(SG_SCREEN, 5, "Theme", "The app's colours, on both screens and on the Web dashboard. Videos, pictures, album art, subtitles and a book's page keep their own.")
+				.shownAs(theme::themeNames()).stepped(true),
 			D::choice("clock", &Settings::clock, CLOCK_IDS, CLOCKS)
 				.page(SG_SCREEN, 130, "Clock", "The time in the top corner of this screen").shownAs(CLOCK_NAMES).stepped(true),
 			// (not round: Never at one end, 5 minutes at the other)
@@ -860,5 +865,11 @@ namespace bp
 			}
 		}
 		return s;
+	}
+
+	int txtPage(const Settings& s)
+	{
+		if (s.txtTheme <= TXT_PAGE_MATCH || s.txtTheme >= TXT_PAGES) return theme::matchedPage(s.theme);
+		return s.txtTheme - 1;
 	}
 }

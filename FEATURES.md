@@ -460,7 +460,7 @@ it); a word says when there's nothing more to find.
 words; the list, in reading order, goes to one with **A** and deletes one with **X** (twice).
 
 **Text options:** **Find…**, **Bookmarks**, **View** (Scroll or Book mode), **Hold** and **Page turn** (in Book mode), **Font** (Serif, Sans, Mono, Pixel, Pixel CJK), **Text size** (five sizes), **Line spacing**,
-**Margins**, **Colours** (Dark, Light, Sepia, Black), **Brightness & filter** (the sheet below) and **Encoding** (a TXT only: Auto, or the code page an old file was written in, when
+**Margins**, **Colours** (Match theme, Dark, Light, Sepia, Black: Match theme, the default, is the Light page with the Light, 16-bit or 32-bit theme, Black with High contrast, else Dark; one picked by hand holds whatever the theme), **Brightness & filter** (the sheet below) and **Encoding** (a TXT only: Auto, or the code page an old file was written in, when
 its letters come out wrong). They're kept for the next file. To go anywhere in the text, tap or drag the bar at the
 top of the bottom screen.
 
@@ -665,7 +665,7 @@ opens the Subtitles group; **B** there goes back to that sheet, on Subtitles.
 | **Photos** | Keep zoom between photos | On | The next photo opens at the same zoom and place. Off: each opens whole |
 | | Pan area | Left | Which side of the bottom screen the photo's pan area is on |
 | | Drag moves | The box | A drag in the pan area moves the box over the small photo, or the photo itself (like a phone) |
-| **Reading** | Font, Text size, Line spacing, Margins, Colours | Serif, Large, Normal, Normal, Dark | The defaults for every TXT and EPUB; each book's own SELECT › Text sheet still overrides them for that book. Five text sizes; Medium is the smallest that reads comfortably on the handheld |
+| **Reading** | Font, Text size, Line spacing, Margins, Colours | Serif, Large, Normal, Normal, Match theme | The defaults for every TXT and EPUB; each book's own SELECT › Text sheet still overrides them for that book. Five text sizes; Medium is the smallest that reads comfortably on the handheld |
 | | Text opens as | Scroll | Scroll down the page, or Book: held sideways with a page on each screen |
 | | PDF opens as | Single page | Single page, or Strip: a PDF's pages one after another |
 | **Files & history** | Remember last folder | Off | The file list opens where you last were |
@@ -673,7 +673,8 @@ opens the Subtitles group; **B** there goes back to that sheet, on Subtitles.
 | | Keep play history | On | Keeps Recent. Turning it off also deletes the history |
 | | Network files in Recent | On | Files played from a network folder go in Recent too. Off: they're left out, and the ones already there are removed |
 | | Clear play history | | Press **A** (or tap) twice. Positions you stopped at are kept |
-| **Power & screens** | Brightness (or Top and Bottom brightness) | as BananaOS has them | The screens' backlight, 10% to 100%: the same levels as BananaOS's own Settings and the brightness keys, kept after a restart |
+| **Power & screens** | Theme | Yellow | The app's colours on both screens and on the Web dashboard, fifteen: Yellow (the look before themes), Dark, Midnight blue, Dark purple, Dark red, Pink, Coffee, Mint, Retro green, Sunset, Candy, 16-bit, 32-bit, Light (warm paper, for sunlight) and High contrast. **LEFT/RIGHT** applies it at once, both screens and any open sheet redrawn; dashboard pages follow with their next state update (and open in it next time). Videos, photos, album art, visualizers, subtitles, the QR code and a book's page keep their own colours; the cards on the top screen (volume, chapter, notes, Playing in your browser) stay dark in every theme. Not in Quick settings |
+| | Brightness (or Top and Bottom brightness) | as BananaOS has them | The screens' backlight, 10% to 100%: the same levels as BananaOS's own Settings and the brightness keys, kept after a restart |
 | | Same for both screens | On | One brightness for both screens; off, each its own |
 | | Screen off (music) | 30 seconds | While a song plays, the bottom screen turns off by itself after that long without a touch or a button: Never, 15 or 30 seconds, 1, 2 or 5 minutes. Not while paused, and never while a photo or a comic is shown. A touch or any button brings it back |
 | | Screen off (video) | 30 s | The same while a video plays; Never keeps its seek bar, tracks and subtitles lit and ready to touch |

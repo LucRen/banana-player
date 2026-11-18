@@ -58,13 +58,15 @@ namespace bp
 		bool showHiddenFolders = false;	// the setting: folders with a ".hidden" file are listed
 		bool mangaOn = false;	// the setting: the manga reader is on (the dashboard's Manage extensions card)
 		bool incognito = false;	// incognito mode (the handheld's Quick settings): the page shows its mark, can't switch it
+		std::string theme = "yellow";	// the handheld's theme (theme.h's id): the page takes it (data-theme, /theme.css)
+		std::string themeBg = "#000000";	// its BG: the page's theme-color
 	};
 
 	// The JSON a page gets in `event: state`. Keys: path, title, artist, album, kind, source {kind, title, id, index,
 	// count}, screen, loading, paused, position, positionAt, duration, speed, volume, eq {on, preset, gains[10]}, fx, loop,
 	// shuffled, chapters [{title, start}], chapter, tracks (null, or {audio: [{id, label, selected, default, forced,
 	// external, lang}], sub: [the same], aid, sid}), clients, session (sessionJson's), playlistSerial, liked, showHiddenFolders,
-	// mangaOn.
+	// mangaOn, incognito, theme, themeBg.
 	std::string toJson(const WebSnapshot&);
 	// true when anything but position/positionAtMs differs, or b's position is more than 1.5 s from where a's
 	// would be by now (a's position plus the time between them times its speed, unless a is paused)

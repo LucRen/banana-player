@@ -1,4 +1,5 @@
 #include "pagerender.h"
+#include "theme.h"
 #include "framewatch.h"
 #include <algorithm>
 #include <cmath>
@@ -179,8 +180,9 @@ namespace bp
 		if (!gles) gl->GenVertexArrays(1, &vao);
 		gl->GetIntegerv(MAX_TEXTURE_SIZE, &maxTex);
 		if (maxTex <= 0) maxTex = 2048;
-		// a page not decoded yet: a dark grey block of its size, so the strip's length is there from the start
-		unsigned char px[4] = {40, 40, 44, 255};
+		// a page not decoded yet: a dark block of its size (TOP_TRACK, the theme's at the start: dark in every theme), so
+		// the strip's length is there from the start
+		unsigned char px[4] = {theme::TOP_TRACK.r, theme::TOP_TRACK.g, theme::TOP_TRACK.b, 255};
 		gl->GenTextures(1, &grey);
 		gl->BindTexture(TEXTURE_2D, grey);
 		gl->TexImage2D(TEXTURE_2D, 0, RGBA, 1, 1, 0, RGBA, UNSIGNED_BYTE, px);

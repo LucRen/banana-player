@@ -9,6 +9,7 @@
 
 namespace bp
 {
+	// the TOP_* tokens only: a card stands over a picture or in its place, dark in every theme (theme.h)
 	using namespace theme;
 
 	// the cards' body is a little see-through (the picture shows a little through, as the ASS cards' \1a&H20&)
@@ -194,7 +195,7 @@ namespace bp
 		if (bar) percent = std::clamp(percent, 0, top);
 		const bool volume = label == "Volume" && top > 100;
 		// the tone: cream at the usual levels, yellow boosted past 100, red past 120 (the hearing warning)
-		Rgb tone = !bar || percent <= 100 ? TEXT : percent > 120 ? DANGER : ACCENT;
+		Rgb tone = !bar || percent <= 100 ? TOP_TEXT : percent > 120 ? TOP_DANGER : TOP_TITLE;
 		std::string value = percent >= 0 ? std::to_string(percent) + "%" : "";
 		std::string third;
 		if (volume)
@@ -225,19 +226,19 @@ namespace bp
 			{
 				// up to the mark in cream, the part past it yellow, red past 120
 				float red = bw * 120 / top;
-				c.box(bx, by, at, bh, r, TEXT);
-				c.box(bx + at, by, std::min(fill, red) - at, bh, 0, ACCENT);
-				if (percent > 120) c.box(bx + red, by, fill - red, bh, 0, DANGER);
+				c.box(bx, by, at, bh, r, TOP_TEXT);
+				c.box(bx + at, by, std::min(fill, red) - at, bh, 0, TOP_TITLE);
+				if (percent > 120) c.box(bx + red, by, fill - red, bh, 0, TOP_DANGER);
 			}
-			else if (fill > 0) c.box(bx, by, fill, bh, r, TEXT);
-			if (top > 100) c.box(bx + at - c.px(1), by - c.px(5), (float)c.px(2), bh + c.px(10), 0, TEXT);
+			else if (fill > 0) c.box(bx, by, fill, bh, r, TOP_TEXT);
+			if (top > 100) c.box(bx + at - c.px(1), by - c.px(5), (float)c.px(2), bh + c.px(10), 0, TOP_TEXT);
 		}
 		if (!third.empty())
 		{
 			// (the warning is the longest: smaller to fit the card rather than cut)
 			float sz = SMALL;
 			while (sz > 9 && c.textW(INTER, sz, third) > w - 2 * padX) sz -= 0.5f;
-			c.text(INTER, sz, third, padX, h - padY - line3, percent > 100 ? tone : DIM);
+			c.text(INTER, sz, third, padX, h - padY - line3, percent > 100 ? tone : TOP_SUB);
 		}
 		return finish(c);
 	}
@@ -252,8 +253,8 @@ namespace bp
 		int h = padY * 2 + l1 + c.px(4) + l2 + (bar ? c.px(12) + c.px(6) : 0);
 		c.size(w, h);
 		c.box(0, 0, (float)w, (float)h, (float)c.px(R_TOP_CARD), TOP_CARD, CARD_ALPHA);
-		c.text(INTER, SMALL, c.fit(INTER, SMALL, label, w - 2 * padX), padX, padY, DIM);
-		c.text(PIXEL, NAME_SIZE, c.fit(PIXEL, NAME_SIZE, value, w - 2 * padX), padX, padY + l1 + c.px(4), ACCENT);
+		c.text(INTER, SMALL, c.fit(INTER, SMALL, label, w - 2 * padX), padX, padY, TOP_SUB);
+		c.text(PIXEL, NAME_SIZE, c.fit(PIXEL, NAME_SIZE, value, w - 2 * padX), padX, padY + l1 + c.px(4), TOP_TITLE);
 		if (bar)
 		{
 			// a segment a chapter by its start with a gap at each boundary, the shown one yellow
@@ -263,7 +264,7 @@ namespace bp
 			{
 				float x0 = bx + bw * std::clamp(starts[i], 0.f, 1.f), x1 = i + 1 < n ? bx + bw * std::clamp(starts[i + 1], 0.f, 1.f) : bx + bw;
 				if (i + 1 < n && x1 - x0 >= c.px(4)) x1 -= c.px(2);
-				c.box(x0, by, std::max(1.f, x1 - x0), bh, 0, i == active ? ACCENT : TOP_TRACK);
+				c.box(x0, by, std::max(1.f, x1 - x0), bh, 0, i == active ? TOP_TITLE : TOP_TRACK);
 			}
 		}
 		return finish(c);
@@ -273,7 +274,7 @@ namespace bp
 		const std::string& line2, bool danger)
 	{
 		Canvas c(fontsDir, panelH);
-		Rgb tone = danger ? DANGER : ACCENT;
+		Rgb tone = danger ? TOP_DANGER : TOP_TITLE;
 		const int padX = c.px(18), padY = c.px(12), maxW = c.px(560);
 		const int ico = icon.rows ? c.px(20) + c.px(10) : 0;
 		std::string a = c.fit(PIXEL, NAME_SIZE, line1, maxW - 2 * padX - ico);
@@ -287,7 +288,7 @@ namespace bp
 		int x = (w - rowW) / 2;
 		if (icon.rows) c.glyph(icon, (float)c.px(20), (float)x, padY + (h1 - c.px(20)) / 2.f, tone);
 		c.text(PIXEL, NAME_SIZE, a, x + ico, padY + (h1 - c.lineH(PIXEL, NAME_SIZE)) / 2, tone);
-		if (!b.empty()) c.text(INTER, 13, b, (w - c.textW(INTER, 13, b)) / 2, padY + h1 + c.px(6), DIM);
+		if (!b.empty()) c.text(INTER, 13, b, (w - c.textW(INTER, 13, b)) / 2, padY + h1 + c.px(6), TOP_SUB);
 		return finish(c);
 	}
 
@@ -296,7 +297,7 @@ namespace bp
 		Canvas c(fontsDir, panelH);
 		if (panelW <= 0) panelW = c.px(640);
 		if (panelH <= 0) panelH = c.px(480);
-		const Rgb tone = s.danger ? DANGER : ACCENT;
+		const Rgb tone = s.danger ? TOP_DANGER : TOP_TITLE;
 		const int tile = c.px(72), side = c.px(40), colW = panelW - 2 * side;
 		std::string title = c.fit(PIXEL, 29, s.title, colW), line = c.fit(INTER, 16, s.line, colW, true),
 			hint = c.fit(INTER, 14, s.hint, colW);
@@ -313,7 +314,7 @@ namespace bp
 		if (s.full) c.box(0, 0, (float)w, (float)h, 0, TOP_CARD);	// (opaque: the page's picture under it isn't the card's)
 		else c.box(0, 0, (float)w, (float)h, (float)c.px(R_TOP_CARD), TOP_CARD, 240);
 		float cx = w / 2.f, y = (float)top;
-		c.ring(cx - tile / 2.f, y, (float)tile, (float)tile, (float)c.px(18), (float)c.px(2), BUTTON, SURFACE);
+		c.ring(cx - tile / 2.f, y, (float)tile, (float)tile, (float)c.px(18), (float)c.px(2), TOP_TRACK, TOP_SQUARE);
 		if (s.spinner >= 0)
 		{
 			// eight dots round the tile's middle, one lit going round, the ones behind it fading
@@ -338,7 +339,7 @@ namespace bp
 		if (!line.empty())
 		{
 			y += c.px(9);
-			c.text(INTER, 16, line, (int)(cx - c.textW(INTER, 16, line) / 2.f), (int)y, TEXT);
+			c.text(INTER, 16, line, (int)(cx - c.textW(INTER, 16, line) / 2.f), (int)y, TOP_TEXT);
 			y += hL;
 		}
 		if (s.share >= 0)
@@ -346,12 +347,12 @@ namespace bp
 			y += c.px(16);
 			float bw = (float)c.px(300), bh = (float)c.px(6);
 			c.box(cx - bw / 2, y, bw, bh, bh / 2, TOP_TRACK);
-			if (s.share > 0) c.box(cx - bw / 2, y, std::max(bh, bw * std::min(1.f, s.share)), bh, bh / 2, ACCENT);
+			if (s.share > 0) c.box(cx - bw / 2, y, std::max(bh, bw * std::min(1.f, s.share)), bh, bh / 2, TOP_TITLE);
 			y += bh;
 			if (!time.empty())
 			{
 				y += c.px(8);
-				c.text(INTER, 13, time, (int)(cx - c.textW(INTER, 13, time) / 2.f), (int)y, DIM);
+				c.text(INTER, 13, time, (int)(cx - c.textW(INTER, 13, time) / 2.f), (int)y, TOP_SUB);
 				y += hTi;
 			}
 		}
@@ -363,16 +364,16 @@ namespace bp
 			{
 				// the key's cap: a small square with its letter
 				float cs = (float)c.px(22);
-				c.ring((float)x, y + (hH - cs) / 2, cs, cs, (float)c.px(6), c.px(1.5f), DIM, BUTTON);
-				c.text(INTER, 12, s.key, (int)(x + (cs - c.textW(INTER, 12, s.key)) / 2), (int)(y + (hH - c.lineH(INTER, 12)) / 2), TEXT);
+				c.ring((float)x, y + (hH - cs) / 2, cs, cs, (float)c.px(6), c.px(1.5f), TOP_SUB, TOP_TRACK);
+				c.text(INTER, 12, s.key, (int)(x + (cs - c.textW(INTER, 12, s.key)) / 2), (int)(y + (hH - c.lineH(INTER, 12)) / 2), TOP_TEXT);
 				x += cap;
 			}
-			c.text(INTER, 14, hint, x, (int)(y + (hH - c.lineH(INTER, 14)) / 2), DIM);
+			c.text(INTER, 14, hint, x, (int)(y + (hH - c.lineH(INTER, 14)) / 2), TOP_SUB);
 		}
 		if (s.full && !s.foot.empty())
 		{
 			std::string f = c.fit(INTER, 13, s.foot, colW);
-			c.text(INTER, 13, f, (int)(cx - c.textW(INTER, 13, f) / 2.f), h - c.px(30) - c.lineH(INTER, 13), DIM);
+			c.text(INTER, 13, f, (int)(cx - c.textW(INTER, 13, f) / 2.f), h - c.px(30) - c.lineH(INTER, 13), TOP_SUB);
 		}
 		return finish(c);
 	}

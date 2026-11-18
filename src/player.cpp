@@ -1895,8 +1895,18 @@ namespace bp
 		}
 	}
 
+	void Player::themeChanged()
+	{
+		int sent = 0;
+		if (idleShown) { showIdle(true); sent++; }
+		if (isAudio && loaded) { updateOverlay(); sent++; }
+		// (a Loading card is drawn again at its next step, every 100 ms; a level card lasts a second or two)
+		fprintf(stderr, "theme: top panel overlays sent again: %d\n", sent);
+	}
+
 	void Player::showIdle(bool on)
 	{
+		idleShown = on;
 		if (!on)
 		{
 			const char* cmd[] = {"osd-overlay", "3", "none", "", nullptr};
@@ -1950,7 +1960,7 @@ namespace bp
 		}
 		if (!picture)
 		{
-			const struct { char c; std::string colour; } inks[] = {{'.', ass(TOP_SQUARE)}, {'Y', ass(TOP_TITLE)}, {'W', ass(TEXT)}};
+			const struct { char c; std::string colour; } inks[] = {{'.', ass(TOP_SQUARE)}, {'Y', ass(TOP_TITLE)}, {'W', ass(TOP_TEXT)}};
 			for (auto& ink : inks)
 			{
 				std::string path;
@@ -2738,7 +2748,7 @@ namespace bp
 			// why the visualizer has stopped for now, in the accent's yellow (a blank line first: right under the
 			// song's lines it read as part of them)
 			if (engineLoading)
-				t += "\\N{\\fs" + num(u(14)) + "}\\h\\N{\\c" + ass(ACCENT) + "}" + assText("Loading manga engine\xE2\x80\xA6");
+				t += "\\N{\\fs" + num(u(14)) + "}\\h\\N{\\c" + ass(TOP_TITLE) + "}" + assText("Loading manga engine\xE2\x80\xA6");
 			ev += t + "\n";
 		}
 		else if (!group && infoOn)
@@ -2762,7 +2772,7 @@ namespace bp
 		}
 		// the manga engine starting over Album art only (the visualizers rest as None): its note at the foot
 		if (engineLoading && show != SHOW_NONE)
-			ev += "{\\an2\\pos(480,696)\\bord0\\shad0\\fs" + num(u(14)) + "\\1c" + ass(ACCENT) + "}" + assText("Loading manga engine\xE2\x80\xA6") + "\n";
+			ev += "{\\an2\\pos(480,696)\\bord0\\shad0\\fs" + num(u(14)) + "\\1c" + ass(TOP_TITLE) + "}" + assText("Loading manga engine\xE2\x80\xA6") + "\n";
 
 		std::string logLine = std::string(show == SHOW_ART ? "Album art only" : show == SHOW_BOTH ? "Art + visualizer" : show == SHOW_VIS ? "Visualizer only" : "None") +
 							  ", info " + (infoOn ? "on" : "off") + ": " + why;

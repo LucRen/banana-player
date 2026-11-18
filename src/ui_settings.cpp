@@ -31,7 +31,7 @@ namespace bp
 		// the strategies of the Reading rows (settings.cpp's ids, by index) and a group's short name
 		const char* const DOC_FONTS[5] = {"Serif", "Sans", "Mono", "Pixel", "CJK pixel"};
 		const char* const DOC_SIZES[5] = {"Small", "Medium", "Large", "Larger", "Largest"};
-		const char* const DOC_THEMES[4] = {"Dark", "Light", "Sepia", "Black"};
+		const char* const DOC_THEMES[5] = {"Match theme", "Dark", "Light", "Sepia", "Black"};
 		std::string docLabel(const char* const* labels, int count, int v)
 		{
 			return labels[v >= 0 && v < count ? v : 0];
@@ -39,7 +39,7 @@ namespace bp
 		std::string styleLikeLabel(const Settings& s)
 		{
 			return docLabel(DOC_FONTS, 5, s.txtFont) + " \xC2\xB7 " + docLabel(DOC_SIZES, 5, s.txtSize) + " \xC2\xB7 " +
-				docLabel(DOC_THEMES, 4, s.txtTheme);
+				docLabel(DOC_THEMES, 5, s.txtTheme);
 		}
 	}
 
@@ -375,7 +375,7 @@ namespace bp
 			return std::string(s.keepHistory ? "History on" : "History off") + " \xC2\xB7 " +
 				(s.showHiddenFolders ? "hidden folders on" : "hidden folders off");
 		case GROUP_SCREEN:
-			return std::string("Screen off ") + screenOffLabel(s.screenOffAfter) + " \xC2\xB7 " +
+			return std::string(theme::palette(s.theme).name) + " \xC2\xB7 screen off " + screenOffLabel(s.screenOffAfter) + " \xC2\xB7 " +
 				(s.lidKeepPlaying ? "the lid keeps playing" : "the lid pauses");
 		case GROUP_WEB:
 			if (ui.incognito) return "Off in incognito";

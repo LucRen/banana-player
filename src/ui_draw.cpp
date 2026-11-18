@@ -357,6 +357,35 @@ namespace bp
 		SDL_RenderSetClipRect(ren, had ? &keep : nullptr);
 	}
 
+	static Ink inkOf(const theme::Palette& t)
+	{
+		return {sdl(t.BG), sdl(t.TEXT), sdl(t.ACCENT), sdl(t.BUTTON), sdl(t.DIM), sdl(t.DANGER), sdl(t.BUTTON), sdl(t.PRESSED), sdl(t.SURFACE),
+			sdl(t.DIM_ON), sdl(t.ON_ACCENT), sdl(t.TRACK), sdl(t.TEXT), sdl(t.RULE), sdl(t.RAIL)};
+	}
+	Ink ink = inkOf(theme::current);
+	void syncInk() { ink = inkOf(theme::current); }
+
+	void Ui::themeChanged()
+	{
+		syncInk();
+		int dropped = 0;
+		for (auto it = cache.begin(); it != cache.end();)
+		{
+			if (it->first.compare(0, 4, "pin|") != 0) { ++it; continue; }
+			if (it->second) SDL_DestroyTexture(it->second);
+			it = cache.erase(it);
+			dropped++;
+		}
+		if (supportTex)
+		{
+			SDL_DestroyTexture(supportTex);
+			supportTex = nullptr;
+			dropped++;
+		}
+		supportPx = 0;
+		fprintf(stderr, "theme: bottom panel recoloured, %d cached textures dropped\n", dropped);
+	}
+
 	static theme::Rgb rgb(SDL_Color c) { return {c.r, c.g, c.b}; }
 
 	void Ui::drawLevel(Rect track, int w, SDL_Color trackInk, SDL_Color fillInk)
@@ -782,7 +811,7 @@ namespace bp
 	void Ui::drawDialog(Rect box, const std::string& title)
 	{
 		// over the page, dimmed: a panel, its title on top; the footer is the dialog's (its hints drawn after)
-		fill({0, 0, W, H}, {0, 0, 0, 170});
+		fill({0, 0, W, H}, sdl(theme::BG, (Uint8)(255 * theme::VEIL_SHEET / 100)));	// (the veil: BG, as a sheet's)
 		fill({0, 436, W, 44}, BG);	// the page's hints gone (as dark as the rest): the dialog's go there
 		drawBox(box, SURFACE, R_DIALOG);
 		if (!title.empty()) drawTextMid(title, 1, ACCENT, box.x + box.w / 2, box.y + 30, box.w - 40, 2);

@@ -41,7 +41,7 @@ namespace bp
 		const char* SIZE_NAMES[TXT_SIZES] = {"Small", "Medium", "Large", "Larger", "Largest"};
 		const char* SPACING_NAMES[TXT_SPACINGS] = {"Tight", "Normal", "Loose"};
 		const char* MARGIN_NAMES[TXT_MARGINS] = {"Narrow", "Normal", "Wide"};
-		const char* THEME_NAMES[TXT_THEMES] = {"Dark", "Light", "Sepia", "Black"};
+		const char* THEME_NAMES[TXT_PAGES] = {"Match theme", "Dark", "Light", "Sepia", "Black"};
 		const char* FILTER_NAMES[DOC_FILTERS] = {"Off", "Warm", "Warmer", "Dim"};
 
 		// the menus' rows
@@ -445,7 +445,7 @@ namespace bp
 		case DT_SIZE: s.txtSize = std::clamp(s.txtSize + dir, 0, TXT_SIZES - 1); break;
 		case DT_SPACING: s.txtSpacing = std::clamp(s.txtSpacing + dir, 0, TXT_SPACINGS - 1); break;
 		case DT_MARGINS: s.txtMargins = std::clamp(s.txtMargins + dir, 0, TXT_MARGINS - 1); break;
-		case DT_THEME: cyc(s.txtTheme, TXT_THEMES); break;
+		case DT_THEME: cyc(s.txtTheme, TXT_PAGES); break;
 		case DT_FILTER: case DP_FILTER: docMenu = DOC_MENU_NONE; ui.openLight(); return;	// the Brightness sheet
 		case DT_VIEW:
 			// Scroll or Book, held as Book was last (the top panel on the left the first time)
@@ -632,7 +632,7 @@ namespace bp
 			case DT_SIZE: v = SIZE_NAMES[std::clamp(p.settings.txtSize, 0, TXT_SIZES - 1)]; break;
 			case DT_SPACING: v = SPACING_NAMES[std::clamp(p.settings.txtSpacing, 0, TXT_SPACINGS - 1)]; break;
 			case DT_MARGINS: v = MARGIN_NAMES[std::clamp(p.settings.txtMargins, 0, TXT_MARGINS - 1)]; break;
-			case DT_THEME: v = THEME_NAMES[std::clamp(p.settings.txtTheme, 0, TXT_THEMES - 1)]; break;
+			case DT_THEME: v = THEME_NAMES[std::clamp(p.settings.txtTheme, 0, TXT_PAGES - 1)]; break;
 			case DT_FILTER: v = FILTER_NAMES[std::clamp(p.settings.txtFilter, 0, DOC_FILTERS - 1)]; break;
 			case DP_FILTER: v = FILTER_NAMES[std::clamp(p.settings.pdfFilter, 0, DOC_FILTERS - 1)]; break;
 			case DT_ENCODING: v = textEncoding.empty() ? "Auto (" + textStatus.encoding + ")" : textStatus.encoding; break;

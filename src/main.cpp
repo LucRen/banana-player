@@ -19,6 +19,7 @@
 #include "reader.h"
 #include "textreader.h"
 #include "topscreen.h"
+#include "theme.h"
 #include "readerfetch.h"
 #include "manganet.h"
 #include "ui.h"
@@ -465,6 +466,12 @@ int main(int argc, char** argv)
 		// Player, and a page of its own)
 		ui.mainPlayer = &player;
 		bool haveUi = bottom && ui.init(bottom, opts.fontsDir);
+		// the theme settings.conf names, before anything is drawn (a change later: the loop's check, below)
+		if (theme::setTheme(player.settings.theme))
+		{
+			fprintf(stderr, "theme: %s -> %s (start)\n", theme::themeId(0), theme::themeId(theme::currentTheme()));
+			ui.themeChanged();
+		}
 		// what closing the lid does, asked once at a start whose settings.conf names none (not in a scripted run:
 		// its steps and pictures expect the panel as it is; BP_ASK_LID=1 asks there too)
 		if (haveUi && player.settings.lidAsk && (steps.empty() || getenv("BP_ASK_LID"))) ui.askLid();
@@ -1779,7 +1786,7 @@ int main(int argc, char** argv)
 				// (sent again once the held copy has loaded, and for each file: the first one after a start could go to an
 				// mpv with no picture yet, and the card never showed till something else changed)
 				int hint = elsewhere ? ui.takeOverHint(player) : 0;	// (sent again as the bottom panel's page changes)
-				std::string shown = elsewhere ? std::to_string(ui.pagePlaying()) + std::to_string(sound) + std::to_string(waiting) + std::to_string(hint) + name +
+				std::string shown = elsewhere ? std::to_string(theme::currentTheme()) + std::to_string(ui.pagePlaying()) + std::to_string(sound) + std::to_string(waiting) + std::to_string(hint) + name +
 					(player.loaded ? "|L|" : "|-|") + player.currentPath() : "";
 				if (shown != elsewhereShown)
 				{
@@ -1989,6 +1996,23 @@ int main(int argc, char** argv)
 			{
 				refreshedAt = now;
 				topDark = false;	// the black of no video drawn again too
+			}
+			// the theme changed (Settings › Power & screens › Theme stepped, or the dashboard): both panels drawn again in
+			// it at once, what was sent to mpv with its colours sent again, and the panels redrawn for a while after (as
+			// after a wake: KMSDRM can drop a frame)
+			if (shown().settings.theme != theme::currentTheme())
+			{
+				const char* from = theme::themeId(theme::currentTheme());
+				theme::setTheme(shown().settings.theme);
+				fprintf(stderr, "theme: %s -> %s\n", from, theme::themeId(theme::currentTheme()));
+				ui.themeChanged();
+				player.themeChanged();
+				freshUntil = std::max(freshUntil, now + 2000);
+				refreshedAt = 0;
+				refresh = true;
+				renderPending = true;
+				topDark = false;
+				if (reader.isOpen()) reader.redrawSoon();
 			}
 			// the manga reader's downloads move on (nothing while its network side hasn't started)
 			mangaNet->pump(now);
