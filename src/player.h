@@ -2,6 +2,7 @@
 #include "aspect.h"
 #include "eq.h"
 #include "history.h"
+#include "levelcard.h"
 #include "photo.h"
 #include "resume.h"
 #include "settings.h"
@@ -176,10 +177,11 @@ namespace bp
 		bool deleteEqPreset(const std::string& name);
 		// the card over the top panel: "Equalizer · Rock" and the curve, or "Equalizer off" (1.5 s, see takeCardShown)
 		void showEqCard();
-		// a card in the same place (Like, Add to playlist): a glyph (rows of '#' cells, ink as &HBBGGRR&), a line, and
-		// under it a dim one (the title it was for). 1.5 s, see takeCardShown
-		void showNoteCard(const char* const* rows, int h, const char* ink, const std::string& line1, const std::string& line2);
-		void osd(const std::string& text, int ms = 1500);
+		// the note (levelcard.h), bottom centre: an optional glyph (rows of '#' cells), a line in yellow (red: danger), and
+		// under it a dim one (the title it was for). 3 s
+		void showNoteCard(const char* const* rows, int h, const std::string& line1, const std::string& line2, bool danger = false);
+		// a short note, one line (a failure's, "Couldn't ...", in red); ms at least 3 s
+		void osd(const std::string& text, int ms = 3000);
 		// the level card over the top panel ("Volume", 85; levelcard.h's picture as an mpv image overlay), till
 		// hideLevel. The bar's top is the Max volume setting for "Volume", 100 for the rest
 		void showLevel(const std::string& label, int percent);
@@ -348,11 +350,16 @@ namespace bp
 		int cardMs = 0;
 		// the level card's pixels by the serial of the command that took them: mpv reads them when the command runs
 		// (and again while shown), so they live till its answer, the shown one till it's replaced or removed
-		static constexpr int LEVEL_OVERLAY = 1;	// (overlay-add's id: the idle icon has 0)
+		// overlay-add's ids (the idle icon has 0): later ones are drawn over earlier ones
+		static constexpr int OV_LOAD = 1, OV_STATE = 2, OV_LEVEL = 3, OV_NOTE = 4, OV_COUNT = 5;
 		std::map<uint64_t, std::shared_ptr<std::vector<uint8_t>>> levelPixels;
-		uint64_t levelSerial = 0, levelShownSerial = 0;
+		uint64_t levelSerial = 0, shownSerial[OV_COUNT] = {};
+		uint64_t noteUntil = 0;	// the note's time (ticks), 0: none up
 		void levelReplied(uint64_t serial);
-		void dropLevelCard();	// the level card's overlay removed (another card takes its spot, or its time is up)
+		void putImage(int id, const LevelCardImage& card, int x, int y);	// a card as overlay `id`
+		void dropImage(int id);	// overlay `id` removed (another card takes its spot, or its time is up)
+		void dropLevelCard() { dropImage(OV_LEVEL); }
+		void showLevelCard(const LevelCardImage& card, int ms);	// the top-right spot's: level, chapter, Equalizer
 		bool pendingOn = false;		// a chapter jump made, mpv's answer not in yet
 		int pendingChapter = -1;
 		uint64_t pendingAt = 0;

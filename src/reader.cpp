@@ -1065,10 +1065,10 @@ namespace bp
 		return need;
 	}
 
-	void MangaReader::showOverlay(std::shared_ptr<const std::vector<uint8_t>> rgba, int w, int h, float middle, int64_t untilMs)
+	void MangaReader::showOverlay(std::shared_ptr<const std::vector<uint8_t>> rgba, int w, int h, int64_t untilMs)
 	{
 		if (!opened) return;
-		card.show(pr, std::move(rgba), w, h, middle, untilMs);
+		card.show(pr, std::move(rgba), w, h, untilMs);
 		redrawSoon(2);	// (a card replaced while one is fully up: frame() alone wouldn't ask)
 	}
 

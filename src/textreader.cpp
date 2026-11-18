@@ -664,10 +664,10 @@ namespace bp
 		return px;
 	}
 
-	void TextReader::showOverlay(std::shared_ptr<const std::vector<uint8_t>> rgba, int w, int h, float middle, int64_t untilMs)
+	void TextReader::showOverlay(std::shared_ptr<const std::vector<uint8_t>> rgba, int w, int h, int64_t untilMs)
 	{
 		if (!src) return;
-		card.show(pr, std::move(rgba), w, h, middle, untilMs);
+		card.show(pr, std::move(rgba), w, h, untilMs);
 		redrawSoon(2);	// (a card replaced while one is fully up: frame() alone wouldn't ask)
 	}
 

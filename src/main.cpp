@@ -242,7 +242,7 @@ int main(int argc, char** argv)
 				// BUTTON~MS: held MS ms, then let go
 				std::string::size_type tilde = step.find('~');
 				bool held = tilde != std::string::npos && buttonFromName(step.substr(0, tilde)) != Button::None && atoi(step.c_str() + tilde + 1) > 0;
-				bool ok = burst || held || buttonFromName(step) != Button::None || step == "info" || step == "page" || step == "update" || step == "web" || step == "F" || step == "rows" || step == "screenshot" || step == "volup" || step == "voldown" || step.rfind("prop:", 0) == 0 || step.rfind("shot:", 0) == 0 || step.rfind("level:", 0) == 0 ||
+				bool ok = burst || held || buttonFromName(step) != Button::None || step == "info" || step == "page" || step == "update" || step == "web" || step == "F" || step == "rows" || step == "screenshot" || step == "volup" || step == "voldown" || step.rfind("prop:", 0) == 0 || step.rfind("shot:", 0) == 0 || step.rfind("level:", 0) == 0 || step.rfind("card:", 0) == 0 ||
 					(sscanf(step.c_str(), "tap:%f:%f%n", &v[0], &v[1], &n) == 2 && n == (int)step.size()) ||
 					(sscanf(step.c_str(), "dtap:%f:%f%n", &v[0], &v[1], &n) == 2 && n == (int)step.size()) ||
 					(sscanf(step.c_str(), "hold:%f:%f%n", &v[0], &v[1], &n) == 2 && n == (int)step.size()) ||
@@ -817,10 +817,10 @@ int main(int argc, char** argv)
 		auto readerOnTop = [&] { return ts.onTop(ui); };
 		// The level card (levelcard.h: one picture, the same on every screen) on whatever the top panel shows: mpv's
 		// (what plays, a photo, the idle screen), and over a reader's pages when a reader draws the panel (mpv's
-		// would be under them). Every volume, brightness and zoom card comes through here. percent < 0: the label
-		// alone (the reader's zoom), on the reader only
+		// would be under them). Every volume, brightness and zoom card comes through here. "Zoom": the reader's, on the reader
+		// only (the line alone)
 		auto showLevelCard = [&](const std::string& label, int percent, int ms) {
-			bool bar = percent >= 0;
+			bool bar = label != "Zoom";
 			if (bar) shown().showLevel(label, percent);
 			if (haveUi && readerOnTop())
 				ts.cardOnReader(label, percent, bar, bar ? levelTop(label, player.settings.volumeMax) : 0, ms);
@@ -1643,6 +1643,18 @@ int main(int argc, char** argv)
 							ev.user.data1 = new std::string(name);
 							SDL_PushEvent(&ev);
 						}
+						else if (step.rfind("card:", 0) == 0)
+						{
+							// card:state|eq|note|like|fail: a top-panel card as its feature would show it (for a shot:)
+							std::string what = step.substr(5);
+							if (what == "state") player.showElsewhere(true, true, "Chrome on Mac", false, 1, G_WEB_ROWS, G_WEB.h);
+							else if (what == "off") player.showElsewhere(false);
+							else if (what == "eq") player.showEqCard();
+							else if (what == "note") player.osd("Speed 1.5\xc3\x97");
+							else if (what == "like") player.showNoteCard(G_HEART_ROWS, G_HEART.h, "Added to Liked", "Big Buck Bunny");
+							else if (what == "fail") player.osd("Couldn't save Liked");
+							renderPending = true;
+						}
 						else if (step.rfind("shot:", 0) == 0)
 						{
 							// both panels: <BP_SHOTS or .>/<name>-top.png and -bottom.png
@@ -1770,7 +1782,7 @@ int main(int argc, char** argv)
 					(player.loaded ? "|L|" : "|-|") + player.currentPath() : "";
 				if (shown != elsewhereShown)
 				{
-					player.showElsewhere(elsewhere, ui.pagePlaying(), name, waiting, hint, G_LAPTOP_ROWS, G_LAPTOP.h);
+					player.showElsewhere(elsewhere, ui.pagePlaying(), name, waiting, hint, G_WEB_ROWS, G_WEB.h);
 					elsewhereShown = shown;
 				}
 			}

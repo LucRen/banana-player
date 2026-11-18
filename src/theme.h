@@ -29,10 +29,10 @@ namespace bp
 		constexpr Rgb KNOB = TEXT;
 		constexpr Rgb RULE{0x2A, 0x28, 0x33};	// thin lines between rows
 
-		// the top panel (mpv's OSD)
-		constexpr Rgb TOP_TITLE = ACCENT;	// the idle title and logo, a card's level, "Playing in your browser"
+		// the top panel's cards (src/levelcard.cpp: level, chapter/Equalizer, note, state card; mpv image overlays)
+		constexpr Rgb TOP_TITLE = ACCENT;	// the idle title and logo, a note's line, a state card's title, a card's level when boosted
 		constexpr Rgb TOP_SUB = DIM;
-		constexpr Rgb TOP_CARD{0x0B, 0x0A, 0x0D};	// the volume / chapter / sound cards' body
+		constexpr Rgb TOP_CARD{0x0B, 0x0A, 0x0D};	// every card's body (level, chapter, Equalizer, note, state card; the level is cream, yellow past 100%, red past 120%)
 		constexpr Rgb TOP_TRACK = BUTTON;
 		constexpr Rgb TOP_SQUARE = SURFACE;	// the logo's dark square
 

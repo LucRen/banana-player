@@ -898,7 +898,7 @@ namespace bp
 		if (!pickerOne.empty())
 		{
 			// one file: the card over the top panel, the Add square's check
-			p.showNoteCard(G_PLAYLIST_ROWS, G_PLAYLIST.h, theme::ass(theme::TEXT).c_str(), (again ? "Added again to " : "Added to ") + pl.name,
+			p.showNoteCard(G_PLAYLIST_ROWS, G_PLAYLIST.h, (again ? "Added again to " : "Added to ") + pl.name,
 				pickerNewOne ? "New playlist \xC2\xB7 " + pickerOneTitle : pickerOneTitle);
 			ui.addFlashUntil = SDL_GetTicks() + 1200;
 		}

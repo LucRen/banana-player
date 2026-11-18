@@ -128,8 +128,8 @@ namespace bp
 		double zoom() const { return zscale; }
 		int zoomPct() const { return (int)(zscale * 100 + 0.5); }	// (z is always one of the steps, 100 … 800)
 		// a card over the pages (the level card, levelcard.h: the volume, brightness or zoom while reading), RGBA,
-		// until untilMs; its middle at `middle` of the panel's height, as levelCardMiddle puts mpv's
-		void showOverlay(std::shared_ptr<const std::vector<uint8_t>> rgba, int w, int h, float middle, int64_t untilMs);
+		// until untilMs
+		void showOverlay(std::shared_ptr<const std::vector<uint8_t>> rgba, int w, int h, int64_t untilMs);
 		// a few frames more (KMSDRM drops the first after a start or a wake)
 		void redrawSoon(int n = 5) { forceFrames = std::max(forceFrames, n); }
 		// a page still loading shows a turning ring: main wakes this often to draw its next step

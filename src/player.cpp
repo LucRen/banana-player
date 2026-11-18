@@ -13,6 +13,7 @@
 #include "soundfx.h"
 #include "playlist.h"
 #include "theme.h"
+#include "ui_glyphs.h"
 #include "vizcache.h"
 #include <algorithm>
 #include <chrono>
@@ -1260,14 +1261,20 @@ namespace bp
 
 	void Player::checkLoading()
 	{
+		// the note's time is up (the loop draws the panel once more so a card on an idle one goes)
+		if (noteUntil && ticks() >= noteUntil)
+		{
+			noteUntil = 0;
+			dropImage(OV_NOTE);
+			cardMs = 1;
+		}
 		// (buffering: the network file waits, as a file opening does, but with a word of its own)
 		bool show = (loading() && ticks() - loadAt >= 300) || buffering();
 		if (!show)
 		{
 			if (spinnerStep >= 0)
 			{
-				const char* cmd[] = {"osd-overlay", "4", "none", "", nullptr};
-				mpv_command_async(mpv, 0, cmd);
+				dropImage(OV_LOAD);
 				spinnerStep = -1;
 			}
 			return;
@@ -1275,24 +1282,14 @@ namespace bp
 		int step = (int)(ticks() / 100 % 8) + (loading() ? 0 : 8);	// the word changes with the next step
 		if (step == spinnerStep) return;
 		spinnerStep = step;
-		// eight dots round the middle of a 960x720 canvas, one lit going round, the word under them, on a dark card
-		// (the last file's picture can still be up)
-		std::string ev = "{\\an7\\pos(390,262)\\bord0\\shad0\\1c" + ass(TOP_CARD) + "\\1a&H08&\\p1}" + roundBox(180, 180, R_TOP_CARD) + "{\\p0}\n";
-		for (int i = 0; i < 8; i++)
-		{
-			double a = i * M_PI / 4;
-			int x = 480 + (int)std::lround(std::sin(a) * 36), y = 330 - (int)std::lround(std::cos(a) * 36);
-			int age = (step % 8 - i + 8) % 8;	// the lit one, then fading behind it
-			const char* alpha = age == 0 ? "00" : age == 1 ? "40" : age == 2 ? "80" : "B0";
-			char d[160];
-			snprintf(d, sizeof d, "{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c%s\\1a&H%s&\\p1}m 0 0 l 12 0 12 12 0 12{\\p0}\n", x - 6, y - 6,
-				ass(TOP_TITLE).c_str(), alpha);
-			ev += d;
-		}
-		ev += "{\\an8\\pos(480,390)\\bord2\\shad0\\fnInter\\fs30\\1c" + ass(TEXT) + "}";
-		ev += loading() ? "Loading" : "Buffering";
-		const char* cmd[] = {"osd-overlay", "4", "ass-events", ev.c_str(), "960", "720", "20", "no", "no", nullptr};
-		mpv_command_async(mpv, 0, cmd);
+		// the state card (levelcard.h) with the spinner in its tile, over the middle (the last file's picture can still be up)
+		StateCardSpec spec;
+		spec.spinner = step % 8;
+		spec.title = loading() ? "Loading" : "Buffering";
+		spec.full = false;
+		const int pw = topW > 0 ? topW : 960, ph = topH > 0 ? topH : 720;
+		LevelCardImage card = drawStateCard(opts.fontsDir, pw, ph, spec);
+		putImage(OV_LOAD, card, (pw - card.w) / 2, (ph - card.h) / 2);
 	}
 
 	void Player::checkPhoto()
@@ -1820,39 +1817,67 @@ namespace bp
 		return true;
 	}
 
-	void Player::showLevel(const std::string& label, int percent)
+	void Player::putImage(int id, const LevelCardImage& card, int x, int y)
 	{
-		// the one level card (levelcard.h: the readers show the same picture over their pages), as an mpv image
-		// overlay at the panel's own pixels: in the middle over what plays, lower with nothing playing (under the
-		// icon and the name)
-		const int pw = topW > 0 ? topW : 960, ph = topH > 0 ? topH : 720;
-		LevelCardImage card = drawLevelCard(opts.fontsDir, ph, label, percent, levelTop(label, settings.volumeMax));
-		if (!card.ok()) return;
-		// it takes the place of a chapter, equalizer or note card (they share the spot)
-		const char* none[] = {"osd-overlay", "2", "none", "", nullptr};
-		mpv_command_async(mpv, 0, none);
-		// overlay-add reads premultiplied BGRA from our memory ("&" and its address) when the command runs, which
-		// is later (async: never a wait on mpv here): the pixels are kept till its answer, and the ones shown till
-		// the card is replaced or removed
+		if (!card.ok() || id < 0 || id >= OV_COUNT) return;
+		// overlay-add reads premultiplied BGRA from our memory ("&" and its address) when the command runs, which is
+		// later (async: never a wait on mpv here): the pixels are kept till its answer, and the ones shown till the
+		// card is replaced or removed
 		auto px = std::make_shared<std::vector<uint8_t>>(premultipliedBgra(card));
 		uint64_t serial = ++levelSerial;
 		levelPixels[serial] = px;
-		levelShownSerial = serial;
-		int x = (pw - card.w) / 2, y = (int)std::lround(ph * levelCardMiddle(playing()) - card.h / 2.0);
-		std::string id = std::to_string(LEVEL_OVERLAY), xs = std::to_string(x), ys = std::to_string(y),
-			src = "&" + std::to_string((uintptr_t)px->data()), ws = std::to_string(card.w), hs = std::to_string(card.h),
-			st = std::to_string(card.w * 4);
-		const char* add[] = {"overlay-add", id.c_str(), xs.c_str(), ys.c_str(), src.c_str(), "0", "bgra", ws.c_str(), hs.c_str(),
+		if (!shownSerial[id] || id != OV_LOAD) fprintf(stderr, "card: show overlay %d %dx%d at %d,%d\n", id, card.w, card.h, x, y);
+		shownSerial[id] = serial;
+		std::string ids = std::to_string(id), xs = std::to_string(x), ys = std::to_string(y), src = "&" + std::to_string((uintptr_t)px->data()),
+			ws = std::to_string(card.w), hs = std::to_string(card.h), st = std::to_string(card.w * 4);
+		const char* add[] = {"overlay-add", ids.c_str(), xs.c_str(), ys.c_str(), src.c_str(), "0", "bgra", ws.c_str(), hs.c_str(),
 			st.c_str(), nullptr};
 		mpv_command_async(mpv, LEVEL_REPLY + serial, add);
 	}
 
+	void Player::dropImage(int id)
+	{
+		if (id < 0 || id >= OV_COUNT || !shownSerial[id]) return;
+		std::string ids = std::to_string(id);
+		const char* rm[] = {"overlay-remove", ids.c_str(), nullptr};
+		// (its pixels go with this command's answer: an add still queued before it may read them)
+		uint64_t serial = ++levelSerial;
+		shownSerial[id] = 0;
+		if (id != OV_LOAD) fprintf(stderr, "card: drop overlay %d\n", id);
+		mpv_command_async(mpv, LEVEL_REPLY + serial, rm);
+	}
+
+	void Player::showLevelCard(const LevelCardImage& card, int ms)
+	{
+		if (!card.ok()) return;
+		const int pw = topW > 0 ? topW : 960, ph = topH > 0 ? topH : 720;
+		int x, y;
+		levelCardPos(pw, ph, card, x, y);
+		putImage(OV_LEVEL, card, x, y);
+		cardMs = ms;
+	}
+
+	void Player::showLevel(const std::string& label, int percent)
+	{
+		// the one level card (levelcard.h: the readers show the same picture over their pages), as an mpv image
+		// overlay at the panel's own pixels, top right; it takes the place of a chapter or equalizer card
+		const int pw = topW > 0 ? topW : 960, ph = topH > 0 ? topH : 720;
+		LevelCardImage card = drawLevelCard(opts.fontsDir, ph, label, percent, levelTop(label, settings.volumeMax), levelIcon(label));
+		int x, y;
+		levelCardPos(pw, ph, card, x, y);
+		putImage(OV_LEVEL, card, x, y);
+	}
+
 	void Player::levelReplied(uint64_t serial)
 	{
-		// the core has run every command up to this one: the pixels of earlier cards aren't read any more (the one
-		// shown is kept: it may be read again till it's replaced or removed)
+		// the core has run every command up to this one: the pixels of earlier cards aren't read any more (the ones
+		// shown are kept: they may be read again till replaced or removed)
 		for (auto it = levelPixels.begin(); it != levelPixels.end() && it->first <= serial;)
-			it = it->first == levelShownSerial ? std::next(it) : levelPixels.erase(it);
+		{
+			bool shown = false;
+			for (uint64_t sh : shownSerial) shown = shown || sh == it->first;
+			it = shown ? std::next(it) : levelPixels.erase(it);
+		}
 	}
 
 	void Player::showIdle(bool on)
@@ -1936,58 +1961,26 @@ namespace bp
 		mpv_command_async(mpv, 0, cmd);
 	}
 
-	static std::string assText(std::string s);
-
 	void Player::showElsewhere(bool on, bool playing, const std::string& where, bool waiting, int hint, const char* const* glyph, int glyphH)
 	{
 		if (!on)
 		{
-			const char* cmd[] = {"osd-overlay", "6", "none", "", nullptr};
-			mpv_command_async(mpv, 0, cmd);
+			dropImage(OV_STATE);
 			return;
 		}
-		std::string ev = "{\\an7\\pos(0,0)\\bord0\\shad0\\1c" + ass(TOP_CARD) + "\\1a&H00&\\p1}m 0 0 l 960 0 960 720 0 720{\\p0}\n";
-		// the page's mark over the title (its cells 12 units square, centred on 480, 236)
-		if (glyph && glyphH > 0)
-		{
-			int w = 0;
-			std::string path;
-			for (int y = 0; y < glyphH; y++)
-			{
-				w = std::max(w, (int)strlen(glyph[y]));
-				for (int x = 0; glyph[y][x];)
-				{
-					if (glyph[y][x] != '#') { x++; continue; }
-					int e = x;
-					while (glyph[y][e] == '#') e++;
-					char r[96];
-					snprintf(r, sizeof r, "m %d %d l %d %d %d %d %d %d ", x * 12, y * 12, e * 12, y * 12, e * 12, (y + 1) * 12, x * 12, (y + 1) * 12);
-					path += r;
-					x = e;
-				}
-			}
-			char head[128];
-			snprintf(head, sizeof head, "{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c%s\\p1}", 480 - w * 6, 236 - glyphH * 6, ass(TOP_TITLE).c_str());
-			ev += head + path + "{\\p0}\n";
-		}
-		// (a long name: the title smaller, kept on one line)
-		std::string title = std::string(waiting ? "Waiting for " : playing ? "Playing in " : "Paused in ") + assText(where);
-		int fs = title.size() > 34 ? 40 : title.size() > 26 ? 48 : 56;
-		ev += "{\\an5\\pos(480,340)\\bord0\\shad0\\q2\\fnPixelify Sans\\fs" + std::to_string(fs) + "\\1c" + ass(TOP_TITLE) + "}" + title + "\n";
-		if (waiting)
-		{
-			ev += "{\\an5\\pos(480,412)\\bord0\\shad0\\fnInter\\fs30\\1c" + ass(TEXT) + "}Tap Play here on that page to start the sound\n";
-			ev += "{\\an5\\pos(480,464)\\bord0\\shad0\\fnInter\\fs28\\1c" + ass(TOP_SUB) + "}B: play on the handheld instead";
-		}
+		// the state card (levelcard.h), the whole top panel: the page's mark in the tile, who plays, what, and what to press
+		StateCardSpec spec;
+		spec.icon = {glyph, glyphH};
+		spec.title = std::string(waiting ? "Waiting for " : playing ? "Playing in " : "Paused in ") + where;
+		spec.line = waiting ? "Tap Play on that page to start the sound" : baseName(currentPath());
+		if (waiting) { spec.key = "B"; spec.hint = "play on the handheld instead"; }
 		// (only what works on the page shown below: A is the player's; elsewhere, where to go for it)
-		else if (hint == 1) ev += "{\\an5\\pos(480,412)\\bord0\\shad0\\fnInter\\fs30\\1c" + ass(TOP_SUB) + "}Hold A to play here";
-		else if (hint == 2)
-			ev += "{\\an5\\pos(480,412)\\bord0\\shad0\\fnInter\\fs30\\1c" + ass(TOP_SUB) + "}Go to the player to play it here";
+		else if (hint == 1) { spec.key = "A"; spec.hint = "hold to play it here"; }
+		else if (hint == 2) spec.hint = "Go to the player to play it here";
 		// a song with the equalizer or an effect on: the browser plays it without them (they're the handheld's)
-		if (isAudio && (settings.eqOn || settings.soundFx != SoundFx::None))
-			ev += "\n{\\an5\\pos(480,600)\\bord0\\shad0\\fnInter\\fs26\\1c" + ass(TOP_SUB) + "}Your equalizer and effects don't apply in the browser";
-		const char* cmd[] = {"osd-overlay", "6", "ass-events", ev.c_str(), "960", "720", "5", "no", "no", nullptr};
-		mpv_command_async(mpv, 0, cmd);
+		if (isAudio && (settings.eqOn || settings.soundFx != SoundFx::None)) spec.foot = "Your equalizer and effects don't apply in the browser";
+		const int pw = topW > 0 ? topW : 960, ph = topH > 0 ? topH : 720;
+		putImage(OV_STATE, drawStateCard(opts.fontsDir, pw, ph, spec), 0, 0);
 	}
 
 	void Player::wakeOutput()
@@ -2099,147 +2092,56 @@ namespace bp
 		int n = (int)chapters.size();
 		if (index < 0 || index >= n || playlist.empty()) return;
 		std::string of = "Chapter " + std::to_string(index + 1) + " of " + std::to_string(n);
+		// the note over the first or last chapter, after the count
+		std::string note = edge < 0 ? " \xc2\xb7 This is the first chapter" : edge > 0 ? " \xc2\xb7 This is the last chapter" : "";
 		bool untitled = chapterUntitled(chapters[index].title);
-		std::string ev =
-			"{\\an7\\pos(180,296)\\bord0\\shad0\\1c" + ass(TOP_CARD) + "\\1a&H20&\\p1}" + roundBox(600, 128, R_TOP_CARD) + "{\\p0}\n";
-		// the line 1 note over the first or last chapter, in yellow after the count
-		std::string note = edge < 0 ? "  \xc2\xb7  This is the first chapter" : edge > 0 ? "  \xc2\xb7  This is the last chapter" : "";
-		auto line1 = [&](const std::string& text) {
-			ev += "{\\an7\\pos(208,310)\\bord0\\shad0\\fnInter\\fs24\\1c" + ass(TOP_SUB) + "}" + text;
-			if (!note.empty()) ev += "{\\1c" + ass(TOP_TITLE) + "}" + note;
-			ev += "\n";
-		};
-		if (untitled)
-		{
-			// the count is the title line; a note has line 1 to itself (no empty title line under it)
-			if (!note.empty())
-				ev += "{\\an7\\pos(208,310)\\bord0\\shad0\\fnInter\\fs24\\1c" + ass(TOP_TITLE) + "}" + note.substr(6) + "\n";
-			ev += "{\\an7\\pos(208,340)\\bord0\\shad0\\fnInter\\fs32\\1c" + ass(TEXT) + "}" + of + "\n";
-		}
-		else
-		{
-			line1(of);
-			if (!untitled)
-				ev += "{\\an7\\pos(208,340)\\bord0\\shad0\\fnInter\\fs32\\q2\\clip(180,296,780,424)\\1c" + ass(TEXT) + "}" +
-					cardText(chapters[index].title, 32) + "\n";
-		}
-		// the bar: a segment a chapter by its start, a gap at each boundary (none in a segment under 6 units)
+		std::vector<float> starts;
 		if (duration > 0)
-		{
-			std::string teal, yellow;
-			for (int i = 0; i < n; i++)
-			{
-				int x0 = (int)std::lround(std::min(1.0, std::max(0.0, chapters[i].time / duration)) * 544);
-				int x1 = i + 1 < n ? (int)std::lround(std::min(1.0, std::max(0.0, chapters[i + 1].time / duration)) * 544) : 544;
-				if (x1 - x0 >= 6 && i + 1 < n) x1 -= 2;
-				x1 = std::max(x1, x0 + 1);
-				char r[96];
-				snprintf(r, sizeof r, "m %d 0 l %d 0 %d 10 %d 10 ", x0, x1, x1, x0);
-				(i == index ? yellow : teal) += r;
-			}
-			ev += "{\\an7\\pos(208,398)\\bord0\\shad0\\1c" + ass(TOP_TRACK) + "\\p1}" + teal + "{\\p0}\n";
-			ev += "{\\an7\\pos(208,398)\\bord0\\shad0\\1c" + ass(TOP_TITLE) + "\\p1}" + yellow + "{\\p0}";
-		}
-		dropLevelCard();	// (the spot is this card's now)
-		const char* cmd[] = {"osd-overlay", "2", "ass-events", ev.c_str(), "960", "720", "10", "no", "no", nullptr};
-		mpv_command_async(mpv, 0, cmd);
-		cardMs = 2000;
+			for (auto& c : chapters) starts.push_back((float)(c.time / duration));
+		const int ph = topH > 0 ? topH : 720;
+		// (untitled: the count is the value, nothing above it but the word)
+		LevelCardImage card = untitled ? drawLabelCard(opts.fontsDir, ph, "Chapter" + note, std::to_string(index + 1) + " of " + std::to_string(n), starts, index)
+									   : drawLabelCard(opts.fontsDir, ph, of + note, chapters[index].title, starts, index);
+		showLevelCard(card, 2000);
 	}
 
 	void Player::showEqCard()
 	{
-		// the volume card's colours, in the same overlay (one replaces the other); with nothing playing, under the
-		// icon and the name. The curve (centred, 334 to 626) under the text
-		int dy = playing() ? 0 : 250;
 		bool on = settings.eqOn, fx = settings.soundFx != SoundFx::None;
 		std::string preset = settings.eqPreset.empty() ? "Custom" : settings.eqPreset, effect = soundFxName(settings.soundFx);
-		// "Equalizer · Rock", "Rock · Concert hall" (the preset cut short for the effect's room), "EQ off · Cave",
-		// "Equalizer off"
-		std::string text = !fx ? (on ? "Equalizer \xc2\xb7 " + cardText(preset, 24) : "Equalizer off")
-							   : (on ? cardText(preset, 16) : "EQ off") + " \xc2\xb7 " + effect;
-		char e[1024];
-		snprintf(e, sizeof e,
-			"{\\an7\\pos(280,%d)\\bord0\\shad0\\1c%s\\1a&H20&\\p1}%s{\\p0}\n"
-			"{\\an7\\pos(304,%d)\\bord0\\shad0\\fnInter\\fs28\\q2\\clip(280,%d,680,%d)\\1c%s}",
-			300 + dy, ass(TOP_CARD).c_str(), roundBox(400, 124, R_TOP_CARD).c_str(), 312 + dy, 300 + dy, 424 + dy,
-			ass(on || fx ? TEXT : TOP_SUB).c_str());
-		std::string ev = e + text + "\n";
-		snprintf(e, sizeof e, "{\\an7\\pos(334,%d)\\bord0\\shad0\\1c%s\\p1}m 0 0 l 292 0 292 2 0 2{\\p0}", 392 + dy, ass(TOP_TRACK).c_str());
-		ev += e;
-		// the curve: a bar a band, up or down from the teal line by its gain. One event each, its drawing from 0 0:
-		// libass places a drawing by its own box, so a shared one would move with its highest bar
-		for (int i = 0; i < EQ_BANDS; i++)
-		{
-			double g = settings.eqGains[i];
-			int h = (int)std::lround(std::fabs(g) * 2.5);
-			if (!h) continue;
-			snprintf(e, sizeof e, "\n{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c%s\\p1}m 0 0 l 22 0 22 %d 0 %d{\\p0}",
-				334 + 30 * i, g > 0 ? 392 + dy - h : 394 + dy, ass(on ? TOP_TITLE : TOP_SUB).c_str(), h, h);
-			ev += e;
-		}
-		dropLevelCard();	// (the spot is this card's now)
-		const char* cmd[] = {"osd-overlay", "2", "ass-events", ev.c_str(), "960", "720", "10", "no", "no", nullptr};
-		mpv_command_async(mpv, 0, cmd);
-		cardMs = 1500;
+		// "Rock \xc2\xb7 On", "Off", "Rock \xc2\xb7 Concert hall", "EQ off \xc2\xb7 Cave"
+		std::string value = !fx ? (on ? preset + " \xc2\xb7 On" : "Off") : (on ? preset : "EQ off") + " \xc2\xb7 " + effect;
+		showLevelCard(drawLabelCard(opts.fontsDir, topH > 0 ? topH : 720, "Equalizer", value), 1500);
 	}
 
-	void Player::showNoteCard(const char* const* rows, int h, const char* ink, const std::string& line1, const std::string& line2)
+	void Player::showNoteCard(const char* const* rows, int h, const std::string& line1, const std::string& line2, bool danger)
 	{
-		// the equalizer card's box and colours; the glyph's cells 4.5 units (\p2: drawn at twice the scale) on the
-		// left, centred on (332, 362), the two lines right of it
-		int dy = playing() ? 0 : 250, w = 0;
-		for (int y = 0; y < h; y++) w = std::max(w, (int)strlen(rows[y]));
-		std::string path;
-		for (int y = 0; y < h; y++)
-			for (int x = 0; rows[y][x];)
-			{
-				if (rows[y][x] != '#') { x++; continue; }
-				int e = x;
-				while (rows[y][e] == '#') e++;
-				char r[96];
-				snprintf(r, sizeof r, "m %d %d l %d %d %d %d %d %d ", x * 9, y * 9, e * 9, y * 9, e * 9, (y + 1) * 9, x * 9, (y + 1) * 9);
-				path += r;
-				x = e;
-			}
-		char e[1024];
-		snprintf(e, sizeof e,
-			"{\\an7\\pos(280,%d)\\bord0\\shad0\\1c%s\\1a&H20&\\p1}%s{\\p0}\n"
-			"{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c%s\\p2}",
-			300 + dy, ass(TOP_CARD).c_str(), roundBox(400, 124, R_TOP_CARD).c_str(), (int)std::lround(332 - w * 2.25), (int)std::lround(362 + dy - h * 2.25), ink);
-		std::string ev = e + path + "{\\p0}\n";
-		snprintf(e, sizeof e, "{\\an4\\pos(382,%d)\\bord0\\shad0\\fnInter\\fs28\\q2\\clip(280,%d,668,%d)\\1c%s}", 345 + dy, 300 + dy, 424 + dy, ass(TEXT).c_str());
-		ev += e + cardText(line1, 30) + "\n";
-		snprintf(e, sizeof e, "{\\an4\\pos(382,%d)\\bord0\\shad0\\fnInter\\fs22\\q2\\clip(280,%d,668,%d)\\1c%s}", 384 + dy, 300 + dy, 424 + dy, ass(TOP_SUB).c_str());
-		ev += e + cardText(line2, 30);
-		dropLevelCard();	// (the spot is this card's now)
-		const char* cmd[] = {"osd-overlay", "2", "ass-events", ev.c_str(), "960", "720", "10", "no", "no", nullptr};
-		mpv_command_async(mpv, 0, cmd);
-		cardMs = 1500;
+		const int pw = topW > 0 ? topW : 960, ph = topH > 0 ? topH : 720;
+		LevelCardImage card = drawNoteCard(opts.fontsDir, ph, CardGlyph{rows, h}, line1, line2, danger);
+		int x, y;
+		noteCardPos(pw, ph, card, x, y);
+		putImage(OV_NOTE, card, x, y);
+		noteUntil = ticks() + 3000;
+		cardMs = 3000;	// (the caller draws the panel while it is up)
 	}
 
 	void Player::hideLevel()
 	{
-		const char* cmd[] = {"osd-overlay", "2", "none", "", nullptr};
-		mpv_command_async(mpv, 0, cmd);
 		dropLevelCard();
-	}
-
-	void Player::dropLevelCard()
-	{
-		if (!levelShownSerial) return;
-		std::string id = std::to_string(LEVEL_OVERLAY);
-		const char* rm[] = {"overlay-remove", id.c_str(), nullptr};
-		// (its pixels go with this command's answer: an add still queued before it may read them)
-		uint64_t serial = ++levelSerial;
-		levelShownSerial = 0;
-		mpv_command_async(mpv, LEVEL_REPLY + serial, rm);
 	}
 
 	void Player::osd(const std::string& text, int ms)
 	{
-		std::string d = std::to_string(ms);
-		const char* cmd[] = {"show-text", text.c_str(), d.c_str(), nullptr};
-		mpv_command_async(mpv, 0, cmd);
+		// every short note goes through the note (levelcard.h); a failure's in red
+		bool bad = text.find("ouldn't") != std::string::npos || text.find("an't ") != std::string::npos || text.find("ailed") != std::string::npos;
+		const int pw = topW > 0 ? topW : 960, ph = topH > 0 ? topH : 720;
+		LevelCardImage card = drawNoteCard(opts.fontsDir, ph, CardGlyph{}, text, "", bad);
+		int x, y;
+		noteCardPos(pw, ph, card, x, y);
+		putImage(OV_NOTE, card, x, y);
+		ms = std::max(ms, 3000);
+		noteUntil = ticks() + ms;
+		cardMs = ms;
 	}
 
 	void Player::saveResume()

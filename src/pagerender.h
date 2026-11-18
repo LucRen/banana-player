@@ -98,15 +98,13 @@ namespace bp
 		static constexpr int KEY = 0x7ffffff0;	// its texture among the pages' (no page, band or row has it)
 		static constexpr int FADE_MS = 400;
 		int w = 0, h = 0;
-		float middle = 0.5f;	// its middle, as a fraction of the panel's height
 		int64_t until = 0;
 		bool drawn = false;	// the last draw showed it
-		void show(PageRenderer& pr, std::shared_ptr<const std::vector<uint8_t>> rgba, int cw, int ch, float mid, int64_t untilMs)
+		void show(PageRenderer& pr, std::shared_ptr<const std::vector<uint8_t>> rgba, int cw, int ch, int64_t untilMs)
 		{
 			if (!rgba || cw <= 0 || ch <= 0) return;
 			w = cw;
 			h = ch;
-			middle = mid;
 			until = untilMs;
 			pr.addPage(KEY, cw, ch, std::move(rgba));
 		}
@@ -130,7 +128,7 @@ namespace bp
 			drawn = until && now < until && pr.has(KEY);
 			if (!drawn) return;
 			float a = std::min(1.f, std::max(0.f, (float)(until - now) / FADE_MS));
-			float x = (float)((vw - w) / 2), y = (float)(int)(vh * middle - h / 2.f + 0.5f);
+			float m = (float)(int)(20 * vh / 480.f + 0.5f), x = (float)vw - m - w, y = m;	// top right, 20 units in
 			placed.push_back({KEY, x, y, (float)w, (float)h, false, true, a, true});
 		}
 	};

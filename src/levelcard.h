@@ -1,7 +1,10 @@
-// The level card (Volume, Brightness, Browser volume; the manga reader's zoom) over the top panel, as one picture.
-// Every top-panel screen shows this same picture: mpv's (video, music, a photo, the idle screen) as an image overlay
-// (Player::showLevel), the manga and text readers' as a card over their pages (CardOverlay in pagerender.h). One
-// drawing, so the screens can't drift apart. Main thread only (its font is opened once and kept).
+// The cards over the top panel, each drawn as one picture at the panel's own pixels (docs/redesign/components.md,
+// "Top screen"): the level card (Volume, Brightness, Browser volume, the reader's Zoom), the label card (the chapter and
+// Equalizer: a small label over a value), the note (one line, an optional second) and the state card (Playing in a
+// browser, Loading, Buffering). Every top-panel screen shows the same pictures: mpv's (video, music, a photo, the idle
+// screen) as image overlays (Player), the manga and text readers' as a card over their pages (CardOverlay in
+// pagerender.h). One drawing, so the screens can't drift apart. All sizes are the spec's 640x480 units, scaled to the
+// panel. Main thread only (the fonts are opened once and kept).
 #pragma once
 #include <cstdint>
 #include <memory>
@@ -17,15 +20,43 @@ namespace bp
 		bool ok() const { return rgba && w > 0 && h > 0; }
 	};
 
+	// an icon: the G_* glyph's rows ('#' drawn); none when rows is null
+	struct CardGlyph
+	{
+		const char* const* rows = nullptr;
+		int h = 0;
+	};
+
 	// the bar's whole for a label: the volume's is the Max volume setting (120, 150: a mark at 100, louder in
 	// colour), everything else's 100
 	int levelTop(const std::string& label, int volumeMax);
-	// the card at a panel panelH pixels high (its proportions are a 960x720 canvas's). top <= 0: the label alone,
-	// without the bar or a percent (the reader's zoom)
-	LevelCardImage drawLevelCard(const std::string& fontsDir, int panelH, const std::string& label, int percent, int top);
-	// where its middle goes, as a fraction of the panel's height: the middle over what plays; lower with nothing
-	// playing (under the idle screen's icon and name) and over a reader's pages (the text being read stays clear)
-	float levelCardMiddle(bool playing);
+	// The level card: icon, name and value on a line; with top > 0 a bar under them (and, for Volume with top > 100,
+	// the third line about the mark and the boost). top <= 0: the line alone, 200 wide (the reader's zoom: percent < 0
+	// leaves the value out). Cream at normal levels, yellow past 100%, red past 120%.
+	LevelCardImage drawLevelCard(const std::string& fontsDir, int panelH, const std::string& label, int percent, int top, CardGlyph icon);
+	// The chapter and Equalizer cards: the small label dim over the value in yellow. `starts` (the chapters' starts
+	// as shares of the file, ascending) and `active` draw the chapter bar under them
+	LevelCardImage drawLabelCard(const std::string& fontsDir, int panelH, const std::string& label, const std::string& value,
+		const std::vector<float>& starts = {}, int active = -1);
+	// The note: one line in yellow (red for a failure) with an optional icon, and an optional second line
+	LevelCardImage drawNoteCard(const std::string& fontsDir, int panelH, CardGlyph icon, const std::string& line1,
+		const std::string& line2, bool danger);
+	// The state card: a centred column (a tile with an icon or the spinner, a title, a line, an optional bar and its
+	// time line, a hint with its key cap, a foot line). Whole panel (full) or just the column on a card
+	struct StateCardSpec
+	{
+		CardGlyph icon;
+		int spinner = -1;	// >= 0: the spinner's lit dot (0-7) in the tile instead of the icon
+		bool danger = false;
+		std::string title, line, hint, key, foot, timeLine;
+		float share = -1;	// the bar, 0..1; < 0: none
+		bool full = true;
+	};
+	LevelCardImage drawStateCard(const std::string& fontsDir, int panelW, int panelH, const StateCardSpec& spec);
+	// where a card goes on a panel pw x ph: the level, label and chapter cards top right (20 units from the edges), the
+	// note at the bottom centre (26 up)
+	void levelCardPos(int pw, int ph, const LevelCardImage& card, int& x, int& y);
+	void noteCardPos(int pw, int ph, const LevelCardImage& card, int& x, int& y);
 	// mpv's overlay-add takes premultiplied BGRA
 	std::vector<uint8_t> premultipliedBgra(const LevelCardImage& card);
 }

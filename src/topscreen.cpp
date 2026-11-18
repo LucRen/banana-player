@@ -12,6 +12,7 @@
 #include "theme.h"
 #include "ui.h"
 #include "ui_docs.h"
+#include "ui_glyphs.h"
 #include "ui_manga.h"
 #include "ui_reader.h"
 #include <algorithm>
@@ -128,13 +129,11 @@ namespace bp
 	{
 		int tw = 0, th = 0;
 		SDL_GL_GetDrawableSize(top, &tw, &th);
-		LevelCardImage c = drawLevelCard(fontsDir, th, label, percent, barTop);
+		LevelCardImage c = drawLevelCard(fontsDir, th, label, percent, barTop, levelIcon(label));
 		SDL_GL_MakeCurrent(top, gl);
-		// (a reader's page isn't something playing: the card sits low, clear of the text being read)
-		float mid = levelCardMiddle(false);
 		int64_t until = (int64_t)SDL_GetTicks() + ms;
-		if (c.ok() && reader.isOpen()) reader.showOverlay(c.rgba, c.w, c.h, mid, until);
-		else if (c.ok()) textReader.showOverlay(c.rgba, c.w, c.h, mid, until);
+		if (c.ok() && reader.isOpen()) reader.showOverlay(c.rgba, c.w, c.h, until);
+		else if (c.ok()) textReader.showOverlay(c.rgba, c.w, c.h, until);
 	}
 
 	TextReader::Style TopScreen::textStyle(const Settings& s) const
@@ -338,7 +337,7 @@ namespace bp
 			// a zoom changed (keys, the menu, a double-tap): its percent on the pages a moment, fading out
 			if (reader.zoomPct() != ui.pageReader->readerStatus.zoomPct && reader.chapterGen() == zoomShownGen && haveUi)
 			{
-				showLevelCard(std::to_string(reader.zoomPct()) + "%", -1, 1200);
+				showLevelCard("Zoom", reader.zoomPct(), 1200);
 			}
 			zoomShownGen = reader.chapterGen();
 			ui.pageReader->readerStatus.zoomPct = reader.zoomPct();

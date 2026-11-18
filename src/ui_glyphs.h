@@ -1,6 +1,7 @@
 // The glyphs: small pictures as rows of cells ('#' drawn), every icon on one grid. tools/make-sprite.py reads
 // this file to make web/sprite.svg: keep each glyph a GLYPH(G_NAME, "row", ...) call.
 #pragma once
+#include "levelcard.h"
 #include "ui.h"
 
 namespace bp
@@ -212,4 +213,11 @@ GLYPH(G_CHAPTERS, "###.#######", "###.#######", "...........", "###.#####..", "#
 	GLYPH(G_CAP_UP, "....#....", "...###...", "..#####..", ".#######.", "#########")
 	GLYPH(G_CAP_DOWN, "#########", ".#######.", "..#####..", "...###...", "....#....")
 #undef GLYPH
+	// the icon of a level card by its name (Volume, Browser volume: the speaker; Brightness: the sun; Zoom: the glass)
+	inline CardGlyph levelIcon(const std::string& label)
+	{
+		if (label == "Brightness") return {G_SUN_ROWS, G_SUN.h};
+		if (label == "Zoom") return {G_SEARCH_ROWS, G_SEARCH.h};
+		return {G_SPEAKER_ROWS, G_SPEAKER.h};
+	}
 }

@@ -1190,8 +1190,8 @@ namespace bp
 	void Ui::likeCard(Player& p, bool liked, const std::string& title)
 	{
 		// in the volume card's place: which file it was (a Like pressed as the song changes still says)
-		if (liked) p.showNoteCard(G_HEART_ROWS, G_HEART.h, theme::ass(theme::ACCENT).c_str(), "Added to Liked", title);
-		else p.showNoteCard(G_HEART_O_ROWS, G_HEART_O.h, theme::ass(theme::DIM).c_str(), "Removed from Liked", title);
+		if (liked) p.showNoteCard(G_HEART_ROWS, G_HEART.h, "Added to Liked", title);
+		else p.showNoteCard(G_HEART_O_ROWS, G_HEART_O.h, "Removed from Liked", title);
 	}
 
 	void Ui::likeNow(Player& p)
@@ -1276,7 +1276,7 @@ namespace bp
 			if (!browse->playlists->plStore->setLiked(path, title, duration, on, at, dropped))
 			{
 				if (browse->playlists->plStore->likable(path))
-					p.showNoteCard(G_ALERT_ROWS, G_ALERT.h, theme::ass(theme::DANGER).c_str(), "Couldn't save Liked", "The card may be full or locked");
+					p.showNoteCard(G_ALERT_ROWS, G_ALERT.h, "Couldn't save Liked", "The card may be full or locked", true);
 				return browse->playlists->plStore->isLiked(path);
 			}
 			// Liked is what plays: its order moved (a new one goes first), the player told as an edit

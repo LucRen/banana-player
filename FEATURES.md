@@ -1305,10 +1305,17 @@ combination instead.)
   the file's tags.
 - **Battery:** an icon on the bottom screen, red when it's low, with a bolt while charging (and its percent, if you
   turn that on in Settings).
-- **Volume and brightness:** the keys show a level card on the top screen, the same card on every screen (a video,
-  music, a photo, nothing playing, the manga reader, a document): in the middle over what plays, lower otherwise.
-  With Max volume at 120 or 150 its bar runs to that top, with a mark at 100 and the part above it yellow (red past
-  120). The manga reader's zoom shows its percent in the same card.
+- **Volume and brightness:** the keys show a level card on the top screen, top right, the same card on every screen (a
+  video, music, a photo, nothing playing, the manga reader, a document): icon, name and value, a bar under them. Cream at
+  normal levels; with Max volume at 120 or 150 the bar runs to that top with a mark at 100, and past 100 the value and
+  the part past the mark turn yellow with "Boosted" under it, red past 120 with "Very loud: can harm hearing and the
+  speakers". The manga reader's and the text viewer's zoom is the same card without a bar (200 wide).
+- **Chapter and Equalizer cards:** the same spot and body, a small label over the value in yellow ("Chapter 3 of 8" over
+  its title, with a segment bar of the chapters; "Equalizer" over "Rock · On").
+- **Notes:** the short messages ("Added to Liked", "Speed 1.5×", "This is the first one", ...) are one card at the
+  bottom centre of the top screen: a line in yellow (red for a failure), an optional icon and dim second line; 3 s.
+- **Playing in a browser, Loading, Buffering:** one state card: a tile with an icon (the spinner while loading), a
+  title, a line, and a hint with its key cap.
 - **Loading:** a file that takes a moment to open (a big photo, a slow card) shows a spinner on the top screen.
 - **Lock** (**X** → **Lock touch**): locks the touch screen while playing; the buttons still work (**X** → **Screen
   off** too). Hold the large lock for a second to unlock, or **X** → **Unlock touch**.
