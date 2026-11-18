@@ -450,13 +450,11 @@ namespace bp
 		case DT_VIEW:
 			// Scroll or Book, held as Book was last (the top panel on the left the first time)
 			s.txtBook = s.txtBook ? 0 : (docBookHoldLast ? docBookHoldLast : MANGA_BOOK_LEFT);
-			if (s.txtBook) docBookToastUntil = SDL_GetTicks() + 4000;
 			break;
 		case DT_TURN: cyc(s.txtTurn, 2); break;
 		case DT_HOLD:
 			s.txtBook = s.txtBook == MANGA_BOOK_LEFT ? MANGA_BOOK_RIGHT : MANGA_BOOK_LEFT;
 			docBookHoldLast = s.txtBook;
-			docBookToastUntil = SDL_GetTicks() + 4000;
 			break;
 		case DT_ENCODING:
 		{
@@ -777,8 +775,7 @@ namespace bp
 				Settings s = p.settings;
 				s.txtBook = docBookHoldLast ? docBookHoldLast : MANGA_BOOK_LEFT;
 				p.setSettings(s);
-				docBookToastUntil = SDL_GetTicks() + 4000;
-				break;
+					break;
 			}
 			case Button::B: docClose(p); break;
 			default: break;

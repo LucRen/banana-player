@@ -2551,9 +2551,9 @@ namespace bp
 				mangaStore->putSeries(s);
 				mangaSave();
 			}
-		// on: how to hold it, said the panel's usual way up (it is still held so); off: nothing to say
-		mangaBookToast = book;
-		mangaToastUntil = book ? now + 3000 : 0;
+		// no "how to hold it" note on entering Book mode (the owner's call): the View row already says it
+		mangaBookToast = 0;
+		mangaToastUntil = 0;
 		mangaCtrlUntil = 0;
 		ui.pageReader->mfTagUntil = book ? now + 3000 : 0;
 		ui.pageReader->mangaZoomAsked = 100;
