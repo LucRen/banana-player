@@ -39,9 +39,9 @@ namespace bp
 	// 2-4x less of all three at 96/192 kHz. Always in, so the af's output rate is the file's own for its whole run: mpv
 	// reopens the sound output when that rate changes (an EQ switched on or off would cost a gap), not the format
 	std::string afInputFilter();
-	// Lite's meter, a passthrough entry after afInputFilter while that style is chosen: 1024-sample frames measured
-	// by astats (RMS and peak, reset each frame), so the player can read af-metadata/bplite without a graph, a
-	// picture or a card write. It changes no sample: the same sound goes on to the EQ and the effect
+	// Lite's meter, a passthrough entry after afInputFilter while that style is chosen: 512-sample frames measured
+	// by astats (RMS, reset each frame), so the player can read af-metadata/bplite without a graph, a picture or a
+	// card write. It changes no sample: the same sound goes on to the EQ and the effect
 	std::string liteTapFilter();
 	// mpv's `af` value, "" when flat. All bands are always in it when it isn't, so af-command can reach each one
 	std::string eqFilterString(const EqGains&);

@@ -217,6 +217,15 @@ namespace bp
 		mpv_observe_property(mpv, LAVFI_GRAPH, "lavfi-complex", MPV_FORMAT_STRING);
 		// Lite's meter: the astats entry's figures, as its frames come (never read: a read waits for mpv)
 		mpv_observe_property(mpv, LITE_META, "af-metadata/bplite", MPV_FORMAT_NODE);
+		// how far ahead of the speakers Lite's tap hears: mpv filters the sound into the output's buffer, and that
+		// buffer is the lead the picture has to take off (an option, so a plain read is enough; 0.2 s is mpv's)
+		{
+			double buf = 0;
+			if (mpv_get_property(mpv, "options/audio-buffer", MPV_FORMAT_DOUBLE, &buf) < 0 || !(buf > 0.02) || buf > 1)
+				buf = 0.2;
+			liteBuffer = (uint64_t)std::lround(buf * 1000);
+			liteLead = liteBuffer + 20;	// + the af-metadata tick: a reading is at most one tick old as it arrives
+		}
 		if (o.net && !o.net->attach(mpv)) fprintf(stderr, "net: mpv has no stream callbacks: network files won't open\n");
 		mpv_set_wakeup_callback(mpv, wakeup, ctx);
 		setAspect(aspect);
@@ -958,10 +967,10 @@ namespace bp
 				}
 				case LITE_META:
 				{
-					// Lite's astats figures (src/vizlite.h works out the beat from them). RMS is the steady one; a
-					// frame too short for a mean still has a peak. Channels 3 and 4 are the lowpass copy (the bass);
-					// 1 and 2 the sound as it plays. Only while the tap is in the chain: a stale map after a style
-					// change is left alone
+					// Lite's astats figures (src/vizlite.h works out the gain and the beat from them). RMS is the
+					// level, never Peak_level: most music's peak sits near full scale, which is what made Lite look
+					// weak. Channels 3 and 4 are the lowpass copy (the bass); 1 and 2 the sound as it plays. Only
+					// while the tap is in the chain: a stale map after a style change is left alone
 					auto* n = p->format == MPV_FORMAT_NODE ? (mpv_node*)p->data : nullptr;
 					if (!n || n->format != MPV_FORMAT_NODE_MAP)
 					{
@@ -986,7 +995,7 @@ namespace bp
 						fprintf(stderr, "lite: first af-metadata/bplite: %d keys: %s\n", n->u.list->num, keys.c_str());
 					}
 					if (settings.visualizer != VIS_LITE) break;
-					double rms = NAN, peak = NAN, brms[2] = {NAN, NAN}, bpeak[2] = {NAN, NAN};
+					double rms = NAN, brms[2] = {NAN, NAN};
 					for (int i = 0; i < n->u.list->num; i++)
 					{
 						const char* k = n->u.list->keys[i];
@@ -996,22 +1005,23 @@ namespace bp
 						else if (v.format == MPV_FORMAT_DOUBLE) d = v.u.double_;
 						else continue;
 						if (!strcmp(k, "lavfi.astats.Overall.RMS_level")) rms = d;
-						else if (!strcmp(k, "lavfi.astats.Overall.Peak_level")) peak = d;
 						else if (!strcmp(k, "lavfi.astats.3.RMS_level")) brms[0] = d;
 						else if (!strcmp(k, "lavfi.astats.4.RMS_level")) brms[1] = d;
-						else if (!strcmp(k, "lavfi.astats.3.Peak_level")) bpeak[0] = d;
-						else if (!strcmp(k, "lavfi.astats.4.Peak_level")) bpeak[1] = d;
 					}
 					auto mean = [](double a, double b) {
 						if (std::isfinite(a) && std::isfinite(b)) return (a + b) / 2;
 						return std::isfinite(a) ? a : b;
 					};
-					double total = std::isfinite(rms) ? rms : peak, bass = mean(brms[0], brms[1]);
-					if (!std::isfinite(bass)) bass = mean(bpeak[0], bpeak[1]);
+					double bass = mean(brms[0], brms[1]);
+					double total = rms;
 					if (!std::isfinite(total)) total = bass;
 					if (!std::isfinite(bass)) bass = total;
-					if (std::isfinite(total)) lite.sample(total, ticks());
-					if (std::isfinite(bass)) liteBass.sample(bass, ticks());
+					// a silent frame is -inf: still a reading (its silence is what stops the redraw later)
+					if (!std::isfinite(total)) total = -100;
+					if (!std::isfinite(bass)) bass = total;
+					uint64_t nowMs = ticks();
+					lite.sample(total, nowMs);
+					liteBass.sample(bass, nowMs);
 					break;
 				}
 				}

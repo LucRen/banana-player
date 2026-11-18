@@ -62,8 +62,8 @@ namespace bp
 		bool topDark = false;	// the top panel cleared while there's no video
 		int topDraws = 0;
 		bool logNextTop = false;
-		// Lite's drawing state: the bars' eased heights (fast attack, ~200 ms decay), the beat's glow, and when it
-		// last drew (redrawn at the visualizer-fps setting, never while paused or silent)
+		// Lite's drawing state: the bars' eased heights (immediate attack, 250 ms fall), the beat's glow (180 ms
+		// fall), and when it last drew (redrawn at the visualizer-fps setting, never while paused or silent)
 		static constexpr int LITE_BARS = 12;
 		double liteBars[LITE_BARS] = {};
 		double litePulse = 0;
@@ -72,9 +72,9 @@ namespace bp
 		int liteLoads = -1;
 		bool liteDrew = false;
 		// where Lite's frames go (in the log): whether the panel is drawing it now, how many frames were presented
-		// and what the tap gave since the last 10 s line
+		// and what the tap gave since the last 10 s line (the readings, their rate, the gain and the beats)
 		bool liteOnPanel = false;
-		uint64_t liteFrames = 0, liteFramesShown = 0, liteMetaShown = 0, liteReadingsShown = 0;
+		uint64_t liteFrames = 0, liteFramesShown = 0, liteMetaShown = 0, liteReadingsShown = 0, liteBeatsShown = 0;
 		Uint32 liteLogAt = 0;
 		// About's support QR, large (Ui::aboutQrUp): the panel's own picture while it is up, composed at its pixels
 		// (supportqr.h) and drawn 1:1 through its own renderer, so the code's edges stay the file's

@@ -319,15 +319,25 @@ namespace bp
 		// (the first frame of an episode is drawn at once, forced: the panel must not keep another style's picture, and
 		// the log's first window starts here. Then, once per 10 s, what the tap gave and what was presented: a panel
 		// that stays black says with it whether mpv sent af-metadata/bplite at all (the count climbing: the drawing is
-		// what's wrong) or nothing came)
+		// what's wrong) or nothing came. The readings rate says whether mpv reports each 512-sample frame or batches
+		// them into its audio tick; the gain's floor and ceiling say how the automatic gain is set; the beats count them)
 		if (!liteLogAt) forced = true;
 		if (!liteLogAt || now - liteLogAt >= 10000)
 		{
 			if (liteLogAt)
-				fprintf(stderr, "lite: in %u ms: %llu metadata updates, %llu readings, %llu frames drawn (level %.2f, bass %.2f%s)\n",
-					(unsigned)(now - liteLogAt), (unsigned long long)(shown.liteMetaUpdates - liteMetaShown),
-					(unsigned long long)(shown.lite.samples - liteReadingsShown), (unsigned long long)(liteFrames - liteFramesShown),
-					shown.liteLevel(), shown.liteBassLevel(), shown.liteSilent() ? ", silent" : "");
+			{
+				Uint32 span = now - liteLogAt;
+				uint64_t readings = shown.lite.samples - liteReadingsShown, beats = shown.liteBeatsTotal();
+				fprintf(stderr, "lite: in %u ms: %llu metadata updates, %llu readings (%.1f/s), %llu frames drawn "
+					"(level %.2f, bass %.2f, gain %.0f..%.0f dB, %llu beats%s)\n",
+					(unsigned)span, (unsigned long long)(shown.liteMetaUpdates - liteMetaShown),
+					(unsigned long long)readings, span ? 1000.0 * readings / span : 0.0,
+					(unsigned long long)(liteFrames - liteFramesShown), shown.liteLevel(), shown.liteBassLevel(),
+					shown.liteFloorDb(), shown.liteCeilDb(), (unsigned long long)(beats - liteBeatsShown),
+					shown.liteSilent() ? ", silent" : "");
+				liteBeatsShown = beats;
+			}
+			else liteBeatsShown = shown.liteBeatsTotal();
 			liteLogAt = now;
 			liteMetaShown = shown.liteMetaUpdates;
 			liteReadingsShown = shown.lite.samples;
@@ -365,19 +375,23 @@ namespace bp
 			if (beats > liteBeatsSeen) litePulse = 1;
 			liteBeatsSeen = beats;
 		}
-		litePulse *= std::exp(-dt / 0.22);	// a beat's glow fades in about a fifth of a second
+		litePulse *= std::exp(-dt / 0.18);	// a beat's glow fades in about 180 ms
 		double level = shown.liteLevel();
 		double bass = shown.liteBassLevel();
 		bool quiet = true;
 		for (int i = 0; i < LITE_BARS; i++)
 		{
-			// the left (bass) bars take the bass reading; the rest the whole sound's, older ones further right, so
-			// the row moves as a wave instead of one solid block
-			double hist = i < 4 ? shown.liteBassRecent(i) : shown.liteRecent(i - 4);
-			double target = std::clamp(hist * (0.92 - 0.025 * i) + level * 0.06, 0.0, 1.0);
+			// Each bar is a different age, the bass-led ones on the left and the whole sound to the right: two bands
+			// still give the row a wave (a kick runs across it instead of lifting every bar at once), and the ages
+			// are real readings, so neighbouring bars differ even on a steady note. The oldest is ~260 ms back: a
+			// history to watch, not a second picture lagging behind the first
+			int age = i * 24;
+			double b = shown.liteBassAge(age), l = shown.liteLevelAge(age);
+			double bassWeight = 0.88 - 0.065 * i;	// 0.88 at the left, 0.16 at the right
+			double target = std::clamp(b * bassWeight + l * (1 - bassWeight), 0.0, 1.0);
 			if (target < 0.02) target = 0;
-			if (target > liteBars[i]) liteBars[i] = target;	// fast attack
-			else liteBars[i] += (target - liteBars[i]) * (1 - std::exp(-dt / 0.2));	// ~200 ms decay
+			if (target > liteBars[i]) liteBars[i] = target;	// immediate attack: the reading is the sound as it came
+			else liteBars[i] += (target - liteBars[i]) * (1 - std::exp(-dt / 0.25));	// 250 ms fall
 			if (liteBars[i] < 0.005) liteBars[i] = 0;
 			if (liteBars[i] > 0.005) quiet = false;
 		}
@@ -749,6 +763,11 @@ namespace bp
 				fprintf(stderr, "lite: the top panel %dx%d, %d fps: the player's own GL draws and swaps it (%s), no mpv video frame, no graph\n",
 					w, h, std::clamp(shown.settings.vizFps, 30, 60),
 					shown.liteOverArt() ? "over mpv's album art" : "on black, mpv's OSD only");
+				// the tap filters the sound into mpv's output buffer, so its newest reading is that far ahead of the
+				// speakers: the drawing shows the reading from liteLeadMs ago (said once, so a delayed picture is
+				// told apart from a slow one)
+				fprintf(stderr, "lite: readings are shown %llu ms behind the tap: mpv's audio buffer is %llu ms, plus one af-metadata tick\n",
+					(unsigned long long)shown.liteLeadMs(), (unsigned long long)shown.liteBufferMs());
 			}
 			else
 			{

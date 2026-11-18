@@ -230,13 +230,24 @@ namespace bp
 		// loaded, the display shows a visualizer, and no reader covers the panel); the rest is what it draws.
 		bool liteShown() const;
 		bool liteOverArt() const;
-		double liteLevel() const { return lite.level; }
-		double liteRecent(int back) const { return lite.recent(back); }
-		double liteBassLevel() const { return liteBass.level; }
-		double liteBassRecent(int back) const { return liteBass.recent(back); }
-		uint64_t liteBeats() const { return liteBass.beats; }	// the bass's kicks: the beat the glow follows
+		// what is heard now: the tap filters ahead of the speakers, so the reading shown is the one from liteLeadMs ago
+		// (LiteMeter::at interpolates between readings; the picture then moves at the panel's rate, not the tap's)
+		double liteLevel() const { return lite.at(ticks() - liteLead); }
+		double liteLevelAge(int ms) const { return lite.at(ticks() - liteLead - (uint64_t)std::max(0, ms)); }
+		double liteBassLevel() const { return liteBass.at(ticks() - liteLead); }
+		double liteBassAge(int ms) const { return liteBass.at(ticks() - liteLead - (uint64_t)std::max(0, ms)); }
+		// the bass's kicks at that audible time: the beat the glow follows
+		uint64_t liteBeats() const { return liteBass.beatsAt(ticks() - liteLead); }
+		uint64_t liteBeatsTotal() const { return liteBass.beats; }	// (for the log: every kick the tap reported)
 		bool liteSilent() const { return lite.silent; }
+		double liteFloorDb() const { return lite.gainFloorDb(); }
+		double liteCeilDb() const { return lite.gainCeilDb(); }
+		uint64_t liteLeadMs() const { return liteLead; }
+		uint64_t liteBufferMs() const { return liteBuffer; }
 		LiteMeter lite, liteBass;	// the tap's readings (src/vizlite.h): the whole sound, and its bass
+		// how far ahead of the speakers the tap filters (mpv's audio-buffer, read once at init, plus the af-metadata
+		// tick); the log says it once, and the drawing reads readings that old
+		uint64_t liteLead = 220, liteBuffer = 200;
 		// the tap as it comes in: how many af-metadata/bplite values mpv sent (a top panel with no bars: zero says the
 		// tap is never heard, the count climbing says it is and the drawing is what's wrong). The 10 s line is the
 		// top panel's (topscreen.cpp)
