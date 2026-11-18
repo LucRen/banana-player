@@ -1776,8 +1776,8 @@ namespace bp
 
 	std::string Ui::Manga::extSignature() const
 	{
-		return "|ext" + std::to_string(ui.mangaOn) + std::to_string(extCursor) + std::to_string(extSheet) +
-			std::to_string(extSheetCursor) + " " + std::to_string(extPressed);
+		return "|ext" + std::to_string(ui.mangaOn) + std::to_string(ui.catalogsOn) + std::to_string(extCursor) +
+			std::to_string(extSheet) + std::to_string(extSheetCursor) + " " + std::to_string(extPressed);
 	}
 
 	std::string Ui::Manga::signature(const Player& p) const

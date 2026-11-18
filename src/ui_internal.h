@@ -96,6 +96,14 @@ namespace bp
 	inline const char* HOMEDIR = "\x01home";	// Home: the Recent strip and the sections' tiles
 	inline const char* EXTDIR = "\x01" "ext";	// the Extensions section: the extensions' drawer
 	inline const char* SECTION_NAMES[] = {"Files", "Playlists", "Network", "Extensions"};
+	// Home's Extensions tile and the drawer's line: what's on, in the drawer's order
+	inline std::string extensionsSummary(bool manga, bool catalogs)
+	{
+		int n = (manga ? 1 : 0) + (catalogs ? 1 : 0);
+		if (n == 0) return "None on";
+		std::string names = manga && catalogs ? "Manga reader, Catalogs" : manga ? "Manga reader" : "Catalogs";
+		return std::to_string(n) + " on \xC2\xB7 " + names;
+	}
 	inline const Ui::Glyph* const SECTION_GLYPHS[] = {&G_CARD, &G_PLAYLIST, &G_NETWORK, &G_BLOCKS};
 	inline const char* NETROOT = "\x01net";	// the Network tab's first page: the saved connections
 	inline const char* FORMDIR = "\x01form";	// a connection's form (Add connection, Edit)

@@ -504,27 +504,7 @@ namespace bp
 		return "";
 	}
 
-	std::string OpdsEntry::acquisition() const
-	{
-		// a chapter on a shelf is a zip: take the best comicbook type offered, not the first acquisition link, which
-		// on some servers is a pdf the handheld can't open
-		int best = -1;
-		std::string href;
-		for (const OpdsLink& l : links)
-		{
-			if (!istarts(l.rel, "http://opds-spec.org/acquisition")) continue;
-			int rank = 3;
-			if (istarts(l.type, "application/vnd.comicbook+zip")) rank = 0;
-			else if (istarts(l.type, "application/zip")) rank = 1;
-			else if (istarts(l.type, "application/x-cbz")) rank = 2;
-			if (best < 0 || rank < best)
-			{
-				best = rank;
-				href = l.href;
-			}
-		}
-		return href;
-	}
+	std::string OpdsEntry::acquisition() const { return opdsAcquire(*this).href; }
 
 	std::string OpdsEntry::pse() const
 	{
@@ -539,6 +519,65 @@ namespace bp
 		// atom+xml, the acquisition links are the images and zips
 		for (const OpdsLink& l : links)
 			if (istarts(l.type, "application/atom+xml")) return l.href;
+		return "";
+	}
+
+	namespace
+	{
+		// The order the readers prefer: a comic first (a shelf's chapter), then the books, then anything else. The
+		// rank is also what says a file is openable: past kUnsupported the readers have nothing for it.
+		constexpr int kUnsupported = 6;
+
+		int acquisitionRank(const std::string& type)
+		{
+			if (istarts(type, "application/vnd.comicbook+zip")) return 0;
+			if (istarts(type, "application/zip")) return 1;
+			if (istarts(type, "application/x-cbz")) return 2;
+			if (istarts(type, "application/epub+zip")) return 3;
+			if (istarts(type, "application/pdf")) return 4;
+			if (istarts(type, "text/plain")) return 5;
+			return kUnsupported;
+		}
+	}
+
+	OpdsAcquisition opdsAcquire(const OpdsEntry& e)
+	{
+		// not the first acquisition link: some servers put a format the readers can't open first (Calibre's MOBI
+		// beside an EPUB, a PDF beside a comicbook zip)
+		OpdsAcquisition out;
+		int best = kUnsupported + 1;
+		for (const OpdsLink& l : e.links)
+		{
+			if (!istarts(l.rel, "http://opds-spec.org/acquisition")) continue;
+			int rank = acquisitionRank(l.type);
+			if (rank >= best) continue;
+			best = rank;
+			out.href = l.href;
+			out.type = l.type;
+			out.length = l.length;
+			out.supported = rank < kUnsupported;
+		}
+		return out;
+	}
+
+	std::string opdsFormatName(const std::string& type)
+	{
+		if (istarts(type, "application/epub+zip")) return "EPUB";
+		if (istarts(type, "application/pdf")) return "PDF";
+		if (istarts(type, "application/vnd.comicbook+zip") || istarts(type, "application/zip")
+		    || istarts(type, "application/x-cbz")) return "CBZ";
+		if (istarts(type, "text/plain")) return "TXT";
+		if (istarts(type, "application/x-mobipocket-ebook") || istarts(type, "application/vnd.amazon.ebook")) return "MOBI";
+		return "";
+	}
+
+	std::string opdsFormatExtension(const std::string& type)
+	{
+		if (istarts(type, "application/epub+zip")) return "epub";
+		if (istarts(type, "application/pdf")) return "pdf";
+		if (istarts(type, "application/vnd.comicbook+zip") || istarts(type, "application/zip")
+		    || istarts(type, "application/x-cbz")) return "cbz";
+		if (istarts(type, "text/plain")) return "txt";
 		return "";
 	}
 
@@ -724,6 +763,10 @@ namespace bp
 						l.type = attrValue("type");
 						l.href = attrValue("href");
 						l.title = attrValue("title");
+						// Atom's `length` is a byte count; anything that isn't digits carries none
+						std::string len = attrValue("length");
+						if (!len.empty() && len.size() < 19 && len.find_first_not_of("0123456789") == std::string::npos)
+							l.length = std::strtoll(len.c_str(), nullptr, 10);
 						for (const Attr& a : attrs)
 						{
 							std::string ap;
@@ -898,6 +941,36 @@ namespace bp
 		subAll(o, "%7BmaxWidth%7D", mw);
 		subAll(o, "%7bmaxWidth%7d", mw);
 		return o;
+	}
+
+	std::string opdsSearchTemplate(const std::string& descXml, const std::string& descUrl)
+	{
+		// the description's query template: the first one carrying {searchTerms}, in either brace spelling. A
+		// description lists a self url and the like before it, so scanning for the placeholder, not for the first
+		// template, is the difference between searching and reloading the description forever.
+		size_t p = 0;
+		while ((p = descXml.find("template=", p)) != std::string::npos)
+		{
+			p += 9;
+			size_t open = descXml.find_first_of("\"'", p);
+			if (open == std::string::npos) break;
+			for (size_t i = p; i < open; i++)
+				if (descXml[i] != ' ' && descXml[i] != '\t' && descXml[i] != '\r' && descXml[i] != '\n')
+				{
+					open = std::string::npos;	// what looked like the name was only text
+					break;
+				}
+			if (open == std::string::npos) continue;
+			size_t close = descXml.find(descXml[open], open + 1);
+			if (close == std::string::npos) break;
+			std::string t;
+			decodeInto(descXml.substr(open + 1, close - open - 1), t);	// a separator is &amp; there and & here
+			p = close + 1;
+			if (t.find("{searchTerms}") != std::string::npos || t.find("%7BsearchTerms%7D") != std::string::npos
+			    || t.find("%7bsearchTerms%7d") != std::string::npos)
+				return opdsResolve(descUrl, t);
+		}
+		return "";
 	}
 
 	bool parseKomgaPage(const std::string& json, std::vector<KomgaItem>& items, int& totalPages)

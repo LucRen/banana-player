@@ -24,6 +24,7 @@
 #include "ui_docs.h"
 #include "ui_reader.h"
 #include "ui_manga.h"
+#include "ui_catalog.h"
 #include "ui_sound.h"
 #include "ui_web.h"
 #include "ui_player.h"
@@ -94,6 +95,8 @@ namespace bp
 		areas.push_back(webPage.get());
 		manga = std::make_unique<Manga>(*this);
 		areas.push_back(manga.get());
+		catalog = std::make_unique<Catalog>(*this);
+		areas.push_back(catalog.get());
 		settingsPage = std::make_unique<SettingsPage>(*this);
 		areas.push_back(settingsPage.get());
 		browse = std::make_unique<Browse>(*this);
@@ -147,6 +150,7 @@ namespace bp
 		if (topOverlay()) return overlayKey(b, p);
 		sameBrightness = p.settings.sameBrightness;
 		mangaOn = p.settings.mangaOn;
+		catalogsOn = p.settings.catalogsOn;
 		// dark (Screen off, or off by itself): over what plays, the playback keys work blind and leave it dark (play
 		// and pause, seek, next and previous, chapters, like: issue #3, watching with the bottom screen off; not UP /
 		// DOWN, which do nothing on the player now);
@@ -514,6 +518,7 @@ namespace bp
 		}
 		if (topOverlay()) return overlayPointer(pt, x, y, p);
 		mangaOn = p.settings.mangaOn;
+		catalogsOn = p.settings.catalogsOn;
 		if (fileJob) return fileJobPointer(pt, x, y);
 		if (browse->clipPointer(pt, x, y, p)) return false;
 		// All recent's tabs: a tap on one shows that kind

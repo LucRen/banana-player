@@ -34,6 +34,18 @@ namespace bp
 				if (p == "/data") base = p;
 			dlRoot = base + "/Manga";
 		}
+		// the catalogs' books: a Books folder already on a card, else one beside the manga's, on the main card
+		bookRoot.clear();
+		for (auto& p : places)
+			for (const char* n : {"/Books", "/books", "/BOOKS"})
+				if (bookRoot.empty() && isDirectory(p + n)) bookRoot = p + n;
+		if (bookRoot.empty())
+		{
+			std::string base = places.empty() ? state : places.front();
+			for (auto& p : places)
+				if (p == "/data") base = p;
+			bookRoot = base + "/Books";
+		}
 	}
 
 	void MangaNet::start()

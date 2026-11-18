@@ -707,6 +707,7 @@ namespace bp
 				.page(SG_SCREEN, 30, "Same for both screens", "One brightness for both screens. Off: each its own."),
 			D::flag("shuffle", &Settings::shuffle),	// (no row: the play mode, as loop)
 			D::flag("manga-reader", &Settings::mangaOn),
+			D::flag("catalogs", &Settings::catalogsOn),	// (the OPDS book catalogs' switch, as the manga reader's: no row)
 			D::flag("manga-intro-shown", &Settings::mangaIntroShown),
 			D::flag("manga-swap-lr", &Settings::mangaSwapLR)
 				.page(SG_MANGA, 30, "Swap Left/Right", "Off: RIGHT is always forward. On: LEFT is forward (to match a right-to-left book)."),

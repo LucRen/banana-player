@@ -190,6 +190,9 @@ namespace bp
 		bool webDashboard = false;
 		// the manga reader (Manage extensions): off by default; off, nothing of it shows or runs
 		bool mangaOn = false;
+		// the book catalogs (Manage extensions): OPDS shelves read into Books; off by default, and off means nothing
+		// of it shows or runs either
+		bool catalogsOn = false;
 		// the manga reader's mode for a series that has none of its own: right to left (printed manga), left to right, strip
 		int mangaMode = MANGA_STRIP;	// a new reader reads down a strip (webtoons and most sources' chapters)
 		// the paged modes' fit (MANGA_FIT_*): Page, Width, Fill; the Strip always fits width

@@ -64,6 +64,8 @@ namespace bp
 		MangaJava& javaSources() { return javaState; }
 		const MangaJava& javaSources() const { return javaState; }
 		const std::string& downloadsRoot() const { return dlRoot; }
+		// the catalogs' books: <the card>/Books, made when the first one is saved (the OPDS extension)
+		const std::string& booksRoot() const { return bookRoot; }
 		// answers nobody in here claimed (the Ui's own fetches: a server's catalogue, a cover by URL)
 		std::vector<MangaFetch::Result> takeFetched();
 		// the reader's page fetches take their own answers by id before they reach takeFetched, so the Ui's own
@@ -78,7 +80,7 @@ namespace bp
 	private:
 		bool running = false;
 		Uint32 evFetch = 0, evWorker = 0;
-		std::string state, dlRoot;
+		std::string state, dlRoot, bookRoot;
 		MangaFetch fetcher;
 		std::unique_ptr<FetchApi> api;
 		MangaWorker work;

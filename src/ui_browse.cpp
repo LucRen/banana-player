@@ -294,7 +294,7 @@ namespace bp
 			homeView->stripT0 = 0;
 		}
 		// the drawer draws itself (ui_ext.cpp): its one row only keeps the list's counts sane
-		else if (dir == EXTDIR) add(-1, ui.mangaOn ? "1 on" : "None on", "", "");
+		else if (dir == EXTDIR) add(-1, extensionsSummary(ui.mangaOn, ui.catalogsOn), "", "");
 		else if (dir == PLROOT)
 		{
 			// the saved playlists, by name

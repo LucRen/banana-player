@@ -25,6 +25,7 @@
 #include "ui.h"
 #include "ui_glyphs.h"
 #include "ui_docs.h"
+#include "ui_catalog.h"
 #include "ui_manga.h"
 #include "session_host.h"
 #include "updater.h"
@@ -511,6 +512,7 @@ int main(int argc, char** argv)
 		// the reader's Secure DNS setting reaches the threads as a flag, never by their reading the Ui's state
 		mangaNet->setSecureDns(player.settings.mangaSecureDns);
 		ui.manga->mangaNet = mangaNet;
+		ui.catalog->net = mangaNet;
 		// the thread that lists the network folders (its answers come as evNet)
 		NetWorker netWorker([](NetListing* l) {
 			SDL_Event ev{};
@@ -2042,11 +2044,13 @@ int main(int argc, char** argv)
 				if (mangaDnsOn != player.settings.mangaSecureDns) mangaNet->setSecureDns(player.settings.mangaSecureDns);
 				mangaDnsOn = player.settings.mangaSecureDns;
 			}
-			// the reader turned off (Manage extensions, or the dashboard): everything asked of its network side goes
+			// the extensions turned off (Manage extensions, or the dashboard): everything asked of the network side
+			// goes. It stays up while either is on: the catalogs use the same fetcher and server store
 			{
-				static bool mangaWasOn = false;
-				if (mangaWasOn && !player.settings.mangaOn) mangaNet->off();
-				mangaWasOn = player.settings.mangaOn;
+				static bool extWasOn = false;
+				bool on = player.settings.mangaOn || player.settings.catalogsOn;
+				if (extWasOn && !on) mangaNet->off();
+				extWasOn = on;
 			}
 #ifdef BP_WEB
 			// the cards changed (a second card put in or taken out): the dashboard's places follow

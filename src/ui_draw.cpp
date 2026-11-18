@@ -422,6 +422,7 @@ namespace bp
 		pageReader->readFilterNow = page == Page::DocPages ? p.settings.pdfFilter : p.settings.mangaFilter;
 		pageReader->readDimNow = p.settings.readDim;
 		mangaOn = p.settings.mangaOn;
+		catalogsOn = p.settings.catalogsOn;
 		manga->mangaHistOn = p.settings.mangaHistory;
 		// before the signature: "Again to clear" goes back to how it was when the second tap would no longer clear
 		if (clearArmed && SDL_GetTicks() - clearArmed >= QUIT_WINDOW_MS) clearArmed = 0;

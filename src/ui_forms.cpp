@@ -22,6 +22,7 @@
 #include "ui_sound.h"
 #include "ui_docs.h"
 #include "ui_manga.h"
+#include "ui_catalog.h"
 
 namespace bp
 {
@@ -301,6 +302,16 @@ namespace bp
 			kbPressed = -1;
 			if (keep) manga->mangaFilterTextTyped(kbEdit.text);
 			else browse->browseVersion++;
+			return;
+		}
+		if (kbField == CATALOG_NAME_FIELD || kbField == CATALOG_URL_FIELD || kbField == CATALOG_USER_FIELD ||
+			kbField == CATALOG_PASS_FIELD || kbField == CATALOG_SEARCH_FIELD)
+		{
+			// the catalogs' form and their search: Done writes the field or runs the query; B keeps the value
+			kbOpen = false;
+			kbPressed = -1;
+			catalog->kbDone(kbField, kbEdit.text, keep);
+			browse->browseVersion++;
 			return;
 		}
 		kbOpen = false;

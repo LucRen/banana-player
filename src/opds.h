@@ -11,7 +11,18 @@ namespace bp
 	struct OpdsLink
 	{
 		std::string rel, type, href, title;
-		int count = -1;	// thr:count or pse:count carried by the link; -1 when it carries none
+		int count = -1;		// thr:count or pse:count carried by the link; -1 when it carries none
+		long long length = -1;	// the file's bytes (`length`); -1 when the link carries none
+	};
+
+	// An entry's acquisition as a reader should take it: the best of its acquisition links (a comic first, then an
+	// EPUB, a PDF, a text file, and any other type last), with that link's type and size. `supported` says whether
+	// this app's readers open that kind of file at all.
+	struct OpdsAcquisition
+	{
+		std::string href, type;
+		long long length = -1;
+		bool supported = false;
 	};
 
 	struct OpdsEntry
@@ -22,10 +33,20 @@ namespace bp
 		// the href of the link an entry carries for each job, "" when it carries none of that kind
 		std::string cover() const;	// rel http://opds-spec.org/image
 		std::string thumbnail() const;	// rel http://opds-spec.org/image/thumbnail
-		std::string acquisition() const;	// rel http://opds-spec.org/acquisition…, best comicbook zip first
+		std::string acquisition() const;	// rel http://opds-spec.org/acquisition…, the best of them (opdsAcquire)
 		std::string pse() const;	// rel http://vaemendis.net/opds-pse/stream, still the {pageNumber} template
 		std::string nav() const;	// a link down into another catalogue (atom+xml;profile=opds-catalog)
 	};
+
+	// the best acquisition link of an entry (see OpdsAcquisition); href empty when it carries none
+	OpdsAcquisition opdsAcquire(const OpdsEntry& e);
+	// what a MIME type is called on screen ("EPUB", "PDF", "CBZ", "TXT"), "" for one we can't read
+	std::string opdsFormatName(const std::string& type);
+	// the extension a type's file is saved with ("epub", "pdf", "cbz", "txt"), "" for one we can't read
+	std::string opdsFormatExtension(const std::string& type);
+	// an OpenSearch description's query template, made absolute, with its {searchTerms} still in place; "" when it
+	// lists none or the text isn't a description
+	std::string opdsSearchTemplate(const std::string& descXml, const std::string& descUrl);
 
 	struct OpdsFeed
 	{

@@ -134,6 +134,9 @@ namespace bp
 		void openManga(Player& p);	// the app: its store loaded and the card scanned (ui_manga.cpp)
 		void openExtensionsDrawer(Player& p);	// B in either page: back to the drawer (the Browse page on it)
 		void extToggleManga(Player& p);	// A on the row or the chip: on / off (the first time, the sheet)
+		void extToggleCatalogs(Player& p);	// the same for the book catalogs (no note: nothing to explain)
+		void extToggle(int i, Player& p);	// the extension at a Manage-extensions row (0: the reader, 1: the catalogs)
+		void extOpen(int i, Player& p);	// the one a tile or a row opens
 		void extSheetChoose(int i, Player& p);	// Open Manga, Done
 		bool extDrawerKey(Button b, Player& p);
 		bool extKey(Button b, Player& p);
@@ -144,17 +147,18 @@ namespace bp
 		void drawExtensions(const Player& p);
 		void drawManga(const Player& p);
 		void drawExtSheet(const Player& p);
-		// the touch ids: apart from the grid's, the buttons' and the pages'
-		static constexpr int EXT_TILE = 560, EXT_MANAGE = 561, EXT_ROW = 562, EXT_CHIP = 563, EXT_GEAR = 564, EXT_OPEN = 565,
-			EXT_DONE = 566;
+		// the touch ids: apart from the grid's, the buttons' and the pages'. The rows of Manage extensions are
+		// EXT_ROW0 + i and their chips EXT_CHIP0 + i (i 0: the reader, 1: the catalogs)
+		static constexpr int EXT_TILE = 560, EXT_MANAGE = 561, EXT_ROW0 = 562, EXT_CHIP0 = 570, EXT_GEAR = 564,
+			EXT_OPEN = 565, EXT_DONE = 566;
 		Rect extTileRect(int i) const { return {16 + i * 200, 88, 188, 150}; }	// (one to a row: several fit)
 		Rect extManageRect() const { return {190, 304, 260, 48}; }
-		Rect extRowRect() const { return {16, 88, 608, 70}; }
-		Rect extChipRect() const { return {548, 104, 64, 36}; }
-		Rect extGearRect() const { return {536, 104, 76, 36}; }
+		Rect extRowRect(int i) const { return {16, 88 + i * 82, 608, 70}; }
+		Rect extChipRect(int i) const { return {548, 104 + i * 82, 64, 36}; }
+		Rect extGearRect(int i) const { return {536, 104 + i * 82, 76, 36}; }
 		Rect extSheetBox() const { return {60, 90, 520, 300}; }
 		Rect extSheetBtn(int i) const { return {i ? 328 : 92, 310, 220, 50}; }
-		static constexpr int EXT_DRAWER_TILES = 1;	// (what's on: the manga reader, so far)
+		static constexpr int EXT_COUNT = 2;	// (what Manage extensions lists: the manga reader, the book catalogs)
 
 		// ---- the manga reader (ui_manga.cpp) ----
 		// Page::Manga's four tabs (Library, History, Browse, Downloads), each its own cursor and scroll;

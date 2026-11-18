@@ -3,12 +3,40 @@
 #include "pagedecode.h"
 #include "ui_internal.h"
 #include "ui_manga.h"
+#include "ui_catalog.h"
 #include "ui_browse.h"
 #include "ui_playlists.h"
 #include "ui_home.h"
 
 namespace bp
 {
+	// ---- the extensions: what Manage extensions lists, in its order ----
+	namespace
+	{
+		// 0 the manga reader, 1 the book catalogs
+		bool extOn(int i, const Player& p)
+		{
+			return i == 0 ? p.settings.mangaOn : i == 1 ? p.settings.catalogsOn : false;
+		}
+
+		int extOnCount(const Player& p)
+		{
+			return (p.settings.mangaOn ? 1 : 0) + (p.settings.catalogsOn ? 1 : 0);
+		}
+
+		// the k-th extension that is on, in the drawer's order
+		int extOnAt(int k, const Player& p)
+		{
+			for (int i = 0; i < Ui::Manga::EXT_COUNT; i++)
+				if (extOn(i, p))
+				{
+					if (k == 0) return i;
+					k--;
+				}
+			return -1;
+		}
+	}
+
 	// ---- the Extensions drawer, Manage extensions and the manga reader's page ----
 
 	void Ui::Manga::openManga(Player& p)
@@ -44,6 +72,7 @@ namespace bp
 	{
 		extSheet = false;
 		ui.page = Page::Browse;
+		extCursor = 0;
 		ui.inMenu = false;
 		ui.browse->setSection(TAB_EXT);
 		ui.browse->enterFolder(EXTDIR, p);
@@ -68,6 +97,26 @@ namespace bp
 		ui.cursor = ui.scroll = 0;
 	}
 
+	void Ui::Manga::extToggleCatalogs(Player& p)
+	{
+		Settings s = p.settings;
+		s.catalogsOn = !s.catalogsOn;
+		p.setSettings(s);
+		ui.catalogsOn = s.catalogsOn;
+	}
+
+	void Ui::Manga::extToggle(int i, Player& p)
+	{
+		if (i == 0) extToggleManga(p);
+		else extToggleCatalogs(p);
+	}
+
+	void Ui::Manga::extOpen(int i, Player& p)
+	{
+		if (i == 0) openManga(p);
+		else if (ui.catalog) ui.catalog->open(p);
+	}
+
 	void Ui::Manga::extSheetChoose(int i, Player& p)
 	{
 		extSheet = false;
@@ -78,9 +127,11 @@ namespace bp
 	{
 		if (b == Button::Start) { openExtensions(); return true; }
 		if (b != Button::A) return false;
-		// what's on (the manga reader); with none on, its button's page
-		if (p.settings.mangaOn) openManga(p);
-		else openExtensions();
+		// what's on (the reader, the catalogs); with none on, its button's page
+		int n = extOnCount(p);
+		if (n == 0) { openExtensions(); return true; }
+		int which = extOnAt(std::clamp(extCursor, 0, n - 1), p);
+		if (which >= 0) extOpen(which, p);
 		return true;
 	}
 
@@ -100,7 +151,9 @@ namespace bp
 		if (b == Button::Select && ui.nowPlayable(p)) { ui.goNowPlaying(p); return false; }
 		switch (b)
 		{
-		case Button::A: extToggleManga(p); break;
+		case Button::Up: extCursor = (extCursor + EXT_COUNT - 1) % EXT_COUNT; break;
+		case Button::Down: extCursor = (extCursor + 1) % EXT_COUNT; break;
+		case Button::A: extToggle(extCursor, p); break;
 		case Button::Start: ui.openMainMenu(p); break;
 		case Button::B: openExtensionsDrawer(p); break;
 		default: break;
@@ -122,20 +175,26 @@ namespace bp
 			if (ui.page == Page::Manga) return mangaPointer(pt, x, y, p);
 			if (ui.page == Page::Browse)
 			{
-				if (!p.settings.mangaOn) { if (extManageRect().hit(x, y)) extPressed = EXT_MANAGE; return false; }
-				for (int i = 0; i < EXT_DRAWER_TILES; i++)
-					if (extTileRect(i).hit(x, y)) { extCursor = i; extPressed = EXT_TILE; }
+				if (extOnCount(p) == 0) { if (extManageRect().hit(x, y)) extPressed = EXT_MANAGE; return false; }
+				int n = extOnCount(p);
+				for (int k = 0; k < n; k++)
+					if (extTileRect(k).hit(x, y)) { extCursor = k; extPressed = EXT_TILE; }
 				return false;
 			}
-			if (extRowRect().hit(x, y)) extPressed = EXT_ROW;
-			if (extChipRect().hit(x, y)) extPressed = EXT_CHIP;
+			for (int i = 0; i < EXT_COUNT; i++)
+			{
+				if (extRowRect(i).hit(x, y)) extPressed = EXT_ROW0 + i;
+				if (extChipRect(i).hit(x, y)) extPressed = EXT_CHIP0 + i;
+			}
 			return false;
 		}
 		if (pt.kind != Pointer::Up || extPressed < 0) return false;
 		int id = extPressed;
 		extPressed = -1;
-		Rect r = id == EXT_TILE ? extTileRect(extCursor) : id == EXT_MANAGE ? extManageRect() : id == EXT_ROW ? extRowRect()
-			: id == EXT_CHIP ? extChipRect() : id == EXT_GEAR ? extGearRect() : extSheetBtn(id - EXT_OPEN);
+		Rect r = id == EXT_TILE ? extTileRect(extCursor) : id == EXT_MANAGE ? extManageRect()
+			: id >= EXT_CHIP0 && id < EXT_CHIP0 + EXT_COUNT ? extChipRect(id - EXT_CHIP0)
+			: id >= EXT_ROW0 && id < EXT_ROW0 + EXT_COUNT ? extRowRect(id - EXT_ROW0)
+			: id == EXT_GEAR ? extGearRect(0) : extSheetBtn(id - EXT_OPEN);
 		// a finger that slid away changed its mind
 		return r.hit(x, y) && extAct(id, p);
 	}
@@ -149,9 +208,18 @@ namespace bp
 	bool Ui::Manga::extAct(int id, Player& p)
 	{
 		if (id == EXT_OPEN || id == EXT_DONE) { extSheetChoose(id - EXT_OPEN, p); return false; }
-		if (id == EXT_TILE) openManga(p);
+		if (id == EXT_TILE)
+		{
+			int which = extOnAt(std::clamp(extCursor, 0, std::max(0, extOnCount(p) - 1)), p);
+			if (which >= 0) extOpen(which, p);
+		}
 		else if (id == EXT_MANAGE) openExtensions();
-		else if (id == EXT_ROW || id == EXT_CHIP) extToggleManga(p);
+		else if (id >= EXT_CHIP0 && id < EXT_CHIP0 + EXT_COUNT) extToggle(id - EXT_CHIP0, p);
+		else if (id >= EXT_ROW0 && id < EXT_ROW0 + EXT_COUNT)
+		{
+			extCursor = id - EXT_ROW0;
+			extToggle(extCursor, p);
+		}
 		else if (id == EXT_GEAR) openExtSettings();
 		return false;
 	}
@@ -159,7 +227,7 @@ namespace bp
 	void Ui::Manga::drawExtensionsDrawer(const Player& p)
 	{
 		// the section header (its markers, "<") is drawn before this: the drawer is the section's top
-		if (!p.settings.mangaOn)
+		if (extOnCount(p) == 0)
 		{
 			// none on: what extensions are, and the way to turn one on
 			ui.drawGlyphMid(G_BLOCKS, W / 2, 160, DIM, 6);
@@ -172,17 +240,21 @@ namespace bp
 			ui.drawHints({{"START", "Manage extensions"}, {"B", "Home"}, {"L/R", "Sections"}});
 			return;
 		}
-		// what's on: one tile each, its book, its name and what it does
-		ui.drawTextMid(std::to_string(EXT_DRAWER_TILES) + " on", 0, DIM, 16, 64);
-		for (int i = 0; i < EXT_DRAWER_TILES; i++)
+		// what's on: one tile each, its mark, its name and what it does
+		int n = extOnCount(p);
+		ui.drawTextMid(std::to_string(n) + " on", 0, DIM, 16, 64);
+		for (int k = 0; k < n; k++)
 		{
-			Rect t = extTileRect(i);
-			bool at = extCursor == i;
-			ui.drawBox(t, extPressed == EXT_TILE ? PRESSED : at ? BUTTON : SURFACE, R_TILE, at);
+			int which = extOnAt(k, p);
+			Rect t = extTileRect(k);
+			bool at = extCursor == k;
+			ui.drawBox(t, extPressed == EXT_TILE && at ? PRESSED : at ? BUTTON : SURFACE, R_TILE, at);
 			// (the name at the small size, as the mock has it: the large one doesn't fit a tile)
-			drawMangaIcon({t.x + t.w / 2 - 38, 102, 76, 76});
-			ui.drawTextMid("Manga reader", 0, at ? ACCENT : TEXT, t.x + t.w / 2, 196, t.w - 16, 2);
-			ui.drawTextMid("Comics and manga", 0, at ? DIM_ON : DIM, t.x + t.w / 2, 218, t.w - 16, 2);
+			if (which == 0) drawMangaIcon({t.x + t.w / 2 - 38, 102, 76, 76});
+			else ui.drawGlyphMid(G_BOOK, t.x + t.w / 2, 140, at ? ACCENT : TEXT, 3);
+			ui.drawTextMid(which == 0 ? "Manga reader" : "Catalogs", 0, at ? ACCENT : TEXT, t.x + t.w / 2, 196, t.w - 16, 2);
+			ui.drawTextMid(which == 0 ? "Comics and manga" : "Books from OPDS", 0, at ? DIM_ON : DIM, t.x + t.w / 2, 218,
+				t.w - 16, 2);
 		}
 		ui.drawTextMid("Turn more on in Manage extensions (START).", 0, DIM, W / 2, 270, 560, 2);
 		ui.drawHints({{"A", "Open"}, {"START", "Manage extensions"}, {"B", "Home"}, {"L/R", "Sections"}});
@@ -191,25 +263,31 @@ namespace bp
 	void Ui::Manga::drawExtensions(const Player& p)
 	{
 		ui.drawHeader("Manage extensions", p);
-		ui.drawTextMid(std::to_string(EXT_DRAWER_TILES) + " extension", 0, DIM, 16, 64);
-		// the extension's row: its mark, its name and what it does, its switch, its settings
-		Rect row = extRowRect();
-		ui.drawFocus(row);
-		drawMangaIcon({30, 100, 46, 46});
-		ui.drawTextMid("Manga reader", 1, ACCENT, 92, 110, 360);
-		ui.drawTextMid("Comics and manga from files and servers", 0, DIM, 92, 136, 360);
-		bool on = p.settings.mangaOn;
-		Rect chip = extChipRect();
-		ui.fillRound(chip, on ? ACCENT : BUTTON, R_CHIP);
-		ui.drawTextMid(on ? "On" : "Off", 0, on ? ON_ACCENT : TEXT, chip.x + chip.w / 2, chip.y + chip.h / 2, chip.w - 8, 2);
-		// (on and off only: the extension's settings are its own, START inside it)
-		ui.drawTextMid("More extensions come with later versions.", 0, DIM, W / 2, 190, 560, 2);
+		ui.drawTextMid(std::to_string(EXT_COUNT) + " extensions", 0, DIM, 16, 64);
+		for (int i = 0; i < EXT_COUNT; i++)
+		{
+			Rect row = extRowRect(i);
+			bool at = extCursor == i;
+			if (at) ui.drawFocus(row);
+			if (i == 0) drawMangaIcon({30, row.y + 12, 46, 46});
+			else ui.drawGlyphMid(G_BOOK, 53, row.y + 35, at ? ACCENT : TEXT, 2);
+			ui.drawTextMid(i == 0 ? "Manga reader" : "Catalogs", 1, at ? ACCENT : TEXT, 92, row.y + 22, 360);
+			ui.drawTextMid(i == 0 ? "Comics and manga from files and servers" : "Books from OPDS shelves, kept in Books",
+				0, DIM, 92, row.y + 48, 400);
+			bool on = extOn(i, p);
+			Rect chip = extChipRect(i);
+			bool down = extPressed == EXT_CHIP0 + i;
+			ui.fillRound(chip, down ? PRESSED : on ? ACCENT : BUTTON, R_CHIP);
+			ui.drawTextMid(on ? "On" : "Off", 0, on ? ON_ACCENT : TEXT, chip.x + chip.w / 2, chip.y + chip.h / 2, chip.w - 8, 2);
+		}
+		// (on and off only: an extension's settings are its own, START inside it)
+		ui.drawTextMid("More extensions come with later versions.", 0, DIM, W / 2, 300, 560, 2);
 		if (extSheet)
 		{
 			drawExtSheet(p);
 			return;
 		}
-		ui.drawHints({{"A", "On / Off"}, {"B", "Back"}});
+		ui.drawHints({{"A", "On / Off"}, {"UP/DOWN", "Move"}, {"B", "Back"}});
 	}
 
 	void Ui::Manga::drawExtSheet(const Player& p)

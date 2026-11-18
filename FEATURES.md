@@ -996,17 +996,37 @@ off hides it and stops it; nothing is deleted.
 - **Manga reader**: comics and manga from the files on your cards, from your servers (Komga, Kavita, OPDS), and from
   sources you install from repositories. The first time it's turned on, a sheet says where to find it and that
   repositories are added by you: Banana Player doesn't provide or check their content.
+- **Catalogs**: OPDS shelves read for their **books** — a Calibre library, Project Gutenberg, Standard Ebooks and the
+  like. The catalogue is browsed like a folder; a book's EPUB or PDF comes down into **Books** on the card and opens
+  in the reader Files already has (a CBZ opens in the comic reader). Search is the catalogue's own (OpenSearch).
 
 ### The drawer and Manage extensions
 
-- With the reader on, the drawer shows **1 on** and a tile for it: **Manga reader**, *Comics and manga*. **A** opens
-  it. With none on, the drawer says **No extensions are on** and explains that an extension adds to Banana Player and
-  that nothing of it shows or runs until you turn it on.
-- **Manage extensions** lists the reader with its mark, what it does and an **On/Off** switch. **A** turns it on or off;
-  **X** (or the gear) opens **Manga settings**, the reader's own settings page.
+- With an extension on, the drawer shows **1 on** (or **2 on**) and a tile for each: **Manga reader**,
+  *Comics and manga*, and **Catalogs**, *Books from OPDS*. **A** opens the one at the cursor. With none on, the drawer
+  says **No extensions are on** and explains that an extension adds to Banana Player and that nothing of it shows or
+  runs until you turn it on.
+- **Manage extensions** lists both, each with its mark, what it does and an **On/Off** switch. **A** turns the one at
+  the cursor on or off (**UP/DOWN** moves); **X** (or the gear) opens **Manga settings**, the reader's own settings
+  page, when the reader's row is the one at the cursor.
 - The first time the reader is turned on, a sheet comes over **Manage extensions**: it says the reader reads from your
   files and servers, and from sources in repositories you add, and that repositories are added by you: Banana Player
   doesn't provide or check their content. **Open Manga** opens the reader, **Done** closes the sheet.
+
+### Catalogs (OPDS books)
+
+**A** on the **Catalogs** tile opens the catalog list: your saved OPDS shelves, each with its name and address, or
+**No catalogs yet**. **Y** adds one: **Name**, **Address** (the OPDS start feed's URL), **User** and **Password** if
+the server asks for them, then **Test** (the address, the sign-in and a feed) and **Save**; **X** edits the one at the
+cursor, and **Delete** in its form asks twice. Passwords are sealed as the network folders' are and never shown again.
+
+**A** on a catalog opens its start feed as a list. A folder row opens the next feed; **B** steps back, and out of the
+catalog to the list. A book row shows its format and size; **A** downloads it into `Books` on the card (a progress
+card while it comes, **B** stops it) and opens it: EPUB in the text viewer, PDF in the pages viewer, CBZ in the comic
+reader. A row whose format Banana Player can't read says so and isn't downloaded. **X** reloads the feed, **Y** searches
+it (the catalogue's OpenSearch description supplies the form; the keyboard takes the words) and a **More...** row at
+the end brings the feed's next page.
+
 
 ### The Manga reader
 

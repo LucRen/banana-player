@@ -56,31 +56,6 @@ namespace bp
 			}
 		}
 
-		// an OpenSearch description is not an Atom feed, so parseOpds won't read it; it is a handful of attributes,
-		// and the one we want is escaped markup: a parameter separator is written &amp; there and "&" here
-		std::string decodeEntities(const std::string& s)
-		{
-			std::string o;
-			for (size_t i = 0; i < s.size();)
-			{
-				if (s[i] == '&')
-				{
-					size_t semi = s.find(';', i + 1);
-					if (semi != std::string::npos && semi - i <= 10)
-					{
-						std::string name = s.substr(i + 1, semi - i - 1);
-						if (name == "amp") { o += '&'; i = semi + 1; continue; }
-						if (name == "lt") { o += '<'; i = semi + 1; continue; }
-						if (name == "gt") { o += '>'; i = semi + 1; continue; }
-						if (name == "quot") { o += '"'; i = semi + 1; continue; }
-						if (name == "apos") { o += '\''; i = semi + 1; continue; }
-					}
-				}
-				o += s[i++];
-			}
-			return o;
-		}
-
 		// the entry's best cover, absolute: the full image where the server offers one, its thumbnail otherwise
 		std::string opdsCover(const std::string& feedUrl, const OpdsEntry& e)
 		{
@@ -96,36 +71,6 @@ namespace bp
 			for (const OpdsLink& l : e.links)
 				if (l.href == pse && l.count >= 0) return l.count;
 			return -1;
-		}
-
-		// the description's query template: the first one carrying {searchTerms}, in either brace spelling
-		// (opdsPseUrl met the same doubling). Descriptions list a self url and the like before it, so scanning
-		// for the placeholder, not for the first template, is the difference between searching and reloading
-		// the description forever.
-		std::string searchTemplate(const std::string& descXml, const std::string& descUrl)
-		{
-			size_t p = 0;
-			while ((p = descXml.find("template=", p)) != std::string::npos)
-			{
-				p += 9;
-				size_t open = descXml.find_first_of("\"'", p);
-				if (open == std::string::npos) break;
-				for (size_t i = p; i < open; i++)
-					if (descXml[i] != ' ' && descXml[i] != '\t' && descXml[i] != '\r' && descXml[i] != '\n')
-					{
-						open = std::string::npos;	// the name ends here was only text
-						break;
-					}
-				if (open == std::string::npos) continue;
-				size_t close = descXml.find(descXml[open], open + 1);
-				if (close == std::string::npos) break;
-				std::string t = decodeEntities(descXml.substr(open + 1, close - open - 1));
-				p = close + 1;
-				if (t.find("{searchTerms}") != std::string::npos || t.find("%7BsearchTerms%7D") != std::string::npos
-				    || t.find("%7bsearchTerms%7d") != std::string::npos)
-					return opdsResolve(descUrl, t);
-			}
-			return "";
 		}
 
 		// Komga's own ordering value where it gave one; the name's number for extras and for servers that sort
@@ -378,7 +323,7 @@ namespace bp
 	RemoteRequest remoteOpdsSearch(const MangaServer& s, const std::string& password, const std::string& descUrl,
 	                               const std::string& descXml, const std::string& query)
 	{
-		std::string templ = searchTemplate(descXml, descUrl);
+		std::string templ = opdsSearchTemplate(descXml, descUrl);
 		if (!templ.empty())
 		{
 			// the text is the only part this writes: placeholders the server left in the template ({startPage?}

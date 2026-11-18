@@ -2263,6 +2263,54 @@ static void testOpds()
 	         std::string("https://komga.example/api/series/7/books/21/page/12?width=900"));
 	CHECK_EQ(opdsPseUrl("/s/21/%7BpageNumber%7D?w=%7BmaxWidth%7D", 3, 640), std::string("/s/21/3?w=640"));
 
+	// a book's acquisition: the EPUB beats the PDF and the MOBI beside it, whatever order the server wrote them in;
+	// its length is kept when the link carries one, and the format helpers say what a reader can open
+	{
+		OpdsFeed book;
+		CHECK_EQ(parseOpds(R"BK(<feed xmlns="http://www.w3.org/2005/Atom"><id>f</id><title>Books</title>
+<entry><id>1</id><title>A Novel</title>
+  <link rel="http://opds-spec.org/acquisition" type="application/x-mobipocket-ebook" href="/a.mobi" length="900"/>
+  <link rel="http://opds-spec.org/acquisition" type="application/pdf" href="/a.pdf" length="123456"/>
+  <link rel="http://opds-spec.org/acquisition" type="application/epub+zip" href="/a.epub" length="2345678"/>
+</entry>
+<entry><id>2</id><title>Scans</title>
+  <link rel="http://opds-spec.org/acquisition" type="application/pdf" href="/b.pdf"/>
+</entry>
+<entry><id>3</id><title>Web only</title>
+  <link rel="http://opds-spec.org/acquisition" type="text/html" href="/c.html"/>
+</entry></feed>)BK", book), true);
+		CHECK_EQ(book.entries.size(), (size_t)3);
+		OpdsAcquisition a = opdsAcquire(book.entries[0]);
+		CHECK_EQ(a.href, std::string("/a.epub"));
+		CHECK_EQ(a.type, std::string("application/epub+zip"));
+		CHECK_EQ(a.length, 2345678LL);
+		CHECK_EQ(a.supported, true);
+		CHECK_EQ(opdsFormatName(a.type), std::string("EPUB"));
+		CHECK_EQ(opdsFormatExtension(a.type), std::string("epub"));
+		CHECK_EQ(book.entries[0].acquisition(), std::string("/a.epub"));	// the entry's own pick follows opdsAcquire
+		CHECK_EQ(opdsFormatName(opdsAcquire(book.entries[1]).type), std::string("PDF"));
+		CHECK_EQ(opdsAcquire(book.entries[1]).length, -1);	// no length: -1, not 0
+		CHECK_EQ(opdsAcquire(book.entries[2]).supported, false);	// HTML: the readers can't open it
+		CHECK_EQ(opdsFormatExtension("application/vnd.comicbook+zip"), std::string("cbz"));
+		CHECK_EQ(opdsFormatName("application/zip"), std::string("CBZ"));
+	}
+
+	// an OpenSearch description's query template: the one carrying {searchTerms}, its &amp; decoded, made absolute
+	{
+		const std::string desc = R"OS(<?xml version="1.0"?>
+<OpenSearchDescription xmlns="http://a9.com/-/spec/opensearch/1.1/">
+  <Url type="application/atom+xml" template="https://cal.example/opds/shelf?q={searchTerms}&amp;page={startPage?}"/>
+  <Url type="application/atom+xml" template="/opds/search?q={searchTerms}"/>
+</OpenSearchDescription>)OS";
+		CHECK_EQ(opdsSearchTemplate(desc, "https://cal.example/opds/catalog.xml"),
+		         std::string("https://cal.example/opds/shelf?q={searchTerms}&page={startPage?}"));
+		CHECK_EQ(opdsSearchTemplate(desc, "https://cal.example/opds/catalog.xml"),
+		         std::string("https://cal.example/opds/shelf?q={searchTerms}&page={startPage?}"));
+		CHECK_EQ(opdsSearchTemplate("<OpenSearchDescription><Url template=\"/x?q=%7BsearchTerms%7D\"/></OpenSearchDescription>",
+			"https://h.example/opds"), std::string("https://h.example/x?q=%7BsearchTerms%7D"));
+		CHECK_EQ(opdsSearchTemplate("<not-a-description template=\"#frag\"/>", "https://h.example/"), std::string(""));
+	}
+
 	// opdsResolve, one case per shape a server actually writes
 	CHECK_EQ(opdsResolve("http://h:80/opds/library", "http://cdn.x/a.jpg"), std::string("http://cdn.x/a.jpg"));
 	CHECK_EQ(opdsResolve("http://h:80/opds/library", "sub/x"), std::string("http://h:80/opds/sub/x"));

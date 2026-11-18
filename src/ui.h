@@ -41,6 +41,9 @@ namespace bp
 		MGSRV_PASS_FIELD = 67;
 	// a source filter's text value (ui_manga_filters.cpp); 60-67 are the other fields
 	inline constexpr int MANGA_FILTER_FIELD = 68;
+	// the book catalogs' form and search (ui_catalog.cpp); 60-68 are the other pages' fields
+	inline constexpr int CATALOG_NAME_FIELD = 69, CATALOG_URL_FIELD = 70, CATALOG_USER_FIELD = 71,
+		CATALOG_PASS_FIELD = 72, CATALOG_SEARCH_FIELD = 73;
 
 	// The bottom panel: what is playing and where, the transport (previous, -5 s, play, +10 s, next), the choices
 	// (audio, subtitles, aspect, speed, settings) and their pages. Laid out on 640x480 (the RG DS's panel) and scaled
@@ -163,6 +166,10 @@ namespace bp
 		// touches it through the area's methods). (public: main and the dashboard's routes reach its store, caches, workers)
 		struct Manga;
 		std::unique_ptr<Manga> manga;
+		// ---- the book catalogs: an area (Area), all of it in ui_catalog.h / ui_catalog.cpp ----
+		// OPDS shelves browsed for books, which go into <the card>/Books and open in Files' readers
+		struct Catalog;
+		std::unique_ptr<Catalog> catalog;
 		// ---- Files' document viewers: an area (Area, below), all of it in ui_docs.h / ui_docs.cpp ----
 		// (public: main talks to it for the top panel's text viewer and the PDF viewer's pan area)
 		struct Docs;
@@ -306,7 +313,7 @@ namespace bp
 		friend class SessionHost;
 		friend struct WebPlaylistGlue;
 		enum class Page { Main, Menu, Settings, Browse, Info, About, Sound, Web, Manga, Extensions, MangaSeries,
-			MangaRead, MangaSettings, MangaSources, DocText, DocPages };
+			MangaRead, MangaSettings, MangaSources, DocText, DocPages, Catalogs };
 		using Rect = lay::Box;	// (kitlayout.h: the kit's layout maths give and take the same box)
 		// An overlay: a dialog or a sheet over the page (ui_overlay.cpp; docs/notes/overlay-stack.md). While it is on
 		// the stack it gets the keys and the touches (the topmost one only: it is modal), is drawn over the page (all
@@ -452,6 +459,7 @@ namespace bp
 		std::string lightNote(const Player& p) const;
 		bool showHidden = false;	// the setting, kept here for drawBrowseMenu (no Player there)
 		bool mangaOn = false;		// the manga reader's switch, kept here for tileSub (no Player there)
+		bool catalogsOn = false;	// the book catalogs' switch, kept here beside it
 		// a recent file played (as All recent's rows play one), from its start, shown in its folder (Files or Network)
 		void openFile(const std::string& path, Player& p);
 		void showInFolder(const std::string& path, Player& p);
