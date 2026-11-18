@@ -62,6 +62,39 @@ player of its own). Places, read marks and resume points are kept as Stop keeps 
 on. With Keep playing, nothing is loaded after it, so `LidGuard` restores BananaOS's lid sleep and the
 handheld sleeps a few seconds later.
 
+### The false lid closes on the handheld (2026-11-18)
+
+The handheld's log had the lid/sleep Close all firing with the lid open and incognito off, always right after
+manga or Java-extension activity (`manga: library read`, `javaext: … answering`, `javaext: … idle 300 s:
+stopping it`): `incognito: the lid closed: close all`, then `incognito: close all: stop, close, Home,
+incognito off`, then the Session's Stop.
+
+**Cause: the SDL user-event numbers, not the lid switch.** `SDL_RegisterEvents(13)` reserved
+`evMpv`…`evMpv+12`, but `evVolKey` and `evLidIncognito` were written as `+13` and `+14`. The Manga app's two
+later registrations (`evMangaFetch`, `evMangaWorker`) took exactly those two numbers. So every MangaWorker wake
+— a library read, the Java extension starting, answering or its idle stop — arrived as `evLidIncognito`. Its
+handler (`main`) took any code other than Quit as **Close all**, never checked incognito, and ran before
+`evMangaWorker` in the chain, so it also swallowed the worker's event. Nothing in the lid path caused it:
+`SleepWatch`'s `lidClosed`/`SW_LID` read, the `SIGCONT` wake and the loop's time gaps were right. That is also
+why the log line is the main thread's `close all` and never the watch's `(decided on the main thread)` one.
+
+**Fix:**
+
+- The pool is 15 (`evMpv` + the 14 below it), so each event type has its own number again.
+- `bp::incognitoLidAction` (`src/lidtrigger.*`, bpcore, `tests/core_test.cpp`'s `testIncognitoLid`) is the one
+  rule: a trigger only for an open → closed transition with incognito on at that moment and the setting not
+  Nothing; a stale copy or a value from nowhere is `NotInCharge`.
+- `SleepWatch` fires only on `SW_LID` open → closed and re-reads the switch (`EVIOCGSW`) before calling back;
+  a repeated or replayed closed event, a `SIGCONT` and a busy main loop are not a close.
+- Every entry checks again on the main thread: the lid event handler (incognito on and the switch still shut;
+  otherwise the ordinary lid pause / Keep playing), the power key's 2 s hold (the sleep still happens; only the
+  Close all / Quit is dropped), and the idle sleep's hook. `Ui::incognitoCloseAll` is the last gate.
+- Logs: the trigger's source and what it does — `incognito: lid switch: closed: close all (decided on the main
+  thread)`, `incognito: lid switch: close all`, `incognito: power hold: close all, then sleeping`,
+  `incognito: idle sleep: close all, then sleeping` (and `…: quitting` for Quit); a trigger ignored because
+  incognito is off says `incognito: lid switch|power hold|idle sleep ignored: incognito is off` once, not per
+  event; a lid event whose switch reads open says `incognito: lid switch: ignored (the lid is open)`.
+
 **Quit:** main quits; with a power hold it asks for the sleep first.
 
 **The Web dashboard:** while incognito is on the server does not listen. `Ui::applyIncognito(true)` stops it
@@ -82,7 +115,9 @@ choice in a dim line, **Cancel** (B, yellow) and **Turn on** (A). With nobody si
 ## Checked
 
 Desktop build (macOS): `cmake --build build -j`; `./build/core-test` ends `core: all passed` (including the
-Settings table's new rows); `cmake --build build --target manga-check` prints `manga: all passed`.
+Settings table's new rows and `testIncognitoLid`); `cmake --build build --target manga-check` prints
+`manga: all passed`. The false-lid fix of 2026-11-18 built the same way; `packaging/build-bundle.sh --quick`
+could not be run in that session (the harness shell refused the script).
 
 Scripted runs, generated media only (a testsrc H.264 MP4 with a quiet sine, a quiet sine MP3):
 Settings' ten groups and Power & screens scrolled to the two lid rows; incognito on from Quick settings

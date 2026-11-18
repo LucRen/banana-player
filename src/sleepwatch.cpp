@@ -220,8 +220,11 @@ namespace bp
 						if (ev[i].type != EV_SW) continue;
 						if (ev[i].code == SW_LID)
 						{
-							lidShut = ev[i].value != 0;
-							if (ev[i].value == 1) lid = true;
+							// only open -> closed is a close: a repeated or replayed "closed" is the same shut lid,
+							// not another close to pause or close everything for
+							bool shut = ev[i].value != 0;
+							if (shut && !lidShut.load()) lid = true;
+							lidShut = shut;
 						}
 						else if (ev[i].code == SW_HEADPHONE_INSERT)
 						{
@@ -234,6 +237,15 @@ namespace bp
 					close(fd);	// the device went away: SIGCONT still covers the sleeps
 					swFds.erase(std::find(swFds.begin(), swFds.end(), fd));
 				}
+			}
+#endif
+			// the switch itself has the last word on a close: an event read for a lid that is open again (or a
+			// half-written one) is not a close, and nothing is paused or closed for it
+#ifdef __linux__
+			if (lid)
+			{
+				lidShut = switchOn(swFds, SW_LID);
+				if (!lidShut.load()) lid = false;
 			}
 #endif
 			if (jackOut && onUnplug) onUnplug("headphones out");

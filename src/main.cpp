@@ -27,6 +27,7 @@
 #include "updater.h"
 #include "idlesleep_host.h"
 #include "lidsleep_host.h"
+#include "lidtrigger.h"
 #include "powerkey.h"
 #include "volumekey.h"
 #include "battery.h"
@@ -297,7 +298,9 @@ int main(int argc, char** argv)
 		fprintf(stderr, "SDL: %s\n", SDL_GetError());
 		return 1;
 	}
-	evMpv = SDL_RegisterEvents(13);
+	// 15: evMpv itself and the 14 event types below it. One short once handed the manga's two registrations the
+	// numbers of evVolKey and evLidIncognito, so a manga worker's wake closed everything as if the lid had shut
+	evMpv = SDL_RegisterEvents(15);
 	evRender = evMpv + 1;
 	evTouch = evMpv + 2;
 	evLevel = evMpv + 3;
@@ -604,20 +607,26 @@ int main(int argc, char** argv)
 		static std::atomic<int> lidIncognitoMode{0};
 		IdleSleep idleSleep;
 		SleepWatch sleepWatch;
-		sleepWatch.start([&player, &photos](bool lid) {
+		// Every incognito trigger asks again here, on the main thread, with the state of this moment: the watch's
+		// thread and the power key's hold a copy that is a loop old, and a stale on must never close everything.
+		// An ignored one says so once (a flood would hide the rest of the log); the next trigger that counts
+		// clears it again
+		bool incognitoOffSaid = false;
+		auto incognitoNow = [&](const char* source) {
+			if (ui.incognitoOn())
+			{
+				incognitoOffSaid = false;
+				return true;
+			}
+			if (!incognitoOffSaid) fprintf(stderr, "incognito: %s ignored: incognito is off\n", source);
+			incognitoOffSaid = true;
+			return false;
+		};
+		// what a lid close does when incognito isn't in charge: Keep playing, or paused here (the watch's thread does
+		// it as the lid shuts, before bananad stops the process; main does it if incognito turned off meanwhile)
+		auto lidPause = [&](bool lid) {
 			// Keep playing: the lid shut is only the panels going dark (BananaOS's lid sleep is off while it plays,
 			// LidGuard). If the handheld sleeps after all, the SIGCONT after it pauses as always
-			if (lid && incognitoOn.load() && lidIncognitoMode.load() != LID_INCOGNITO_NOTHING)
-			{
-				// Close all / Quit win over Keep playing: main does it (and asks for the sleep when it is its own)
-				SDL_Event ev{};
-				ev.type = evLidIncognito;
-				ev.user.code = lidIncognitoMode.load();
-				SDL_PushEvent(&ev);
-				fprintf(stderr, "incognito: the lid closed: %s (decided on the main thread)\n",
-					lidIncognitoMode.load() == LID_INCOGNITO_QUIT ? "quit" : "close all");
-				return;
-			}
 			if (lid && keepOnLid.load())
 			{
 				fprintf(stderr, "lid: closed, keeps playing\n");
@@ -634,6 +643,23 @@ int main(int argc, char** argv)
 			(void)lid;
 #endif
 			onMpvWakeup(nullptr);
+		};
+		sleepWatch.start([&](bool lid) {
+			// Close all / Quit win over Keep playing: main does it (it owns the Player and the Ui), and it checks
+			// incognito again before anything closes. Only a real open -> closed transition (the switch, read by
+			// SleepWatch) is a close; a SIGCONT is a wake and pauses as it always did
+			IncognitoLidAction action = incognitoLidAction(lid, incognitoOn.load(), lidIncognitoMode.load());
+			if (action != IncognitoLidAction::NotInCharge)
+			{
+				SDL_Event ev{};
+				ev.type = evLidIncognito;
+				ev.user.code = lidIncognitoMode.load();
+				SDL_PushEvent(&ev);
+				fprintf(stderr, "incognito: lid switch: closed: %s (decided on the main thread)\n",
+					action == IncognitoLidAction::Quit ? "quit" : "close all");
+				return;
+			}
+			lidPause(lid);
 		}, [] {
 #ifdef BP_WEB
 			// back (or never gone: lid sleep off): the pages' "asleep" undone; the state follows (woke: webForce)
@@ -1114,26 +1140,36 @@ int main(int argc, char** argv)
 				}
 				else if (e.type == evLidIncognito)
 				{
-					// the lid closed in incognito with Close all or Quit: decided first, then the lid does what it does
-					if (e.user.code == LID_INCOGNITO_QUIT)
+					// a real lid-close transition from the switch (SleepWatch). Incognito decides here, and only if it
+					// is on at this moment and the switch still reads shut; otherwise this is an ordinary lid close
+					IncognitoLidAction action = incognitoLidAction(sleepWatch.lidClosed(), ui.incognitoOn(), player.settings.lidIncognito);
+					if (!sleepWatch.lidClosed())
+						fprintf(stderr, "incognito: lid switch: ignored (the lid is open)\n");
+					else if (!incognitoNow("lid switch")) lidPause(true);
+					else if (action == IncognitoLidAction::Quit)
 					{
-						fprintf(stderr, "incognito: the lid closed: quitting\n");
+						fprintf(stderr, "incognito: lid switch: quitting\n");
 						running = false;
 					}
-					else
+					else if (action == IncognitoLidAction::CloseAll)
 					{
-						fprintf(stderr, "incognito: the lid closed: close all\n");
+						fprintf(stderr, "incognito: lid switch: close all\n");
 						closePhoto(false);
 						if (haveUi) ui.incognitoCloseAllNow(player);
 					}
+					else lidPause(true);	// Nothing: the lid does what it does with incognito off
 				}
 				else if (e.type == evPower)
 				{
 					int holdMode = e.user.code;
 					if (holdMode == PowerKey::SleepAfterCloseAll || holdMode == PowerKey::SleepAfterQuit)
 					{
-						// a 2 s hold in incognito: Close all / Quit first, then the sleep the hold asked for
-						if (holdMode == PowerKey::SleepAfterQuit)
+						// a 2 s hold is a sleep request whatever incognito says: the close all / quit is the extra,
+						// decided here from the incognito and setting of this moment (the key's thread read a copy a
+						// loop old). The sleep is asked for in either case
+						int mode = player.settings.lidIncognito;
+						if (!incognitoNow("power hold") || mode == LID_INCOGNITO_NOTHING) askBananadSleep();
+						else if (mode == LID_INCOGNITO_QUIT)
 						{
 							fprintf(stderr, "incognito: power hold: quitting, then sleeping\n");
 							running = false;
@@ -1817,10 +1853,16 @@ int main(int argc, char** argv)
 					h.webActive = webServer && webServer->running() && webServer->activeWithin(120000);
 #endif
 					idleSleep.tick(now, h, [&] {
-						// incognito decides first, just before the sleep the player asks for
-						if (!ui.incognitoOn()) return;
+						// incognito decides first, just before the sleep the player asks for, and only if it is on at
+						// this moment
+						if (!incognitoNow("idle sleep")) return;
 						int mode = player.settings.lidIncognito;
-						if (mode == LID_INCOGNITO_CLOSE_ALL) { closePhoto(false); ui.incognitoCloseAllNow(player); }
+						if (mode == LID_INCOGNITO_CLOSE_ALL)
+						{
+							fprintf(stderr, "incognito: idle sleep: close all, then sleeping\n");
+							closePhoto(false);
+							ui.incognitoCloseAllNow(player);
+						}
 						else if (mode == LID_INCOGNITO_QUIT) { fprintf(stderr, "incognito: idle sleep: quitting\n"); running = false; }
 					});
 				}
