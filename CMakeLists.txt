@@ -169,9 +169,12 @@ endif()
 # the commit in crash.log's records (empty without git, as in a source tarball)
 execute_process(COMMAND git -c safe.directory=* describe --always --dirty --exclude=*
 	WORKING_DIRECTORY ${CMAKE_SOURCE_DIR} OUTPUT_VARIABLE BP_COMMIT OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+# (in a generated file, not a compile definition: as a definition every commit, or a dirty tree, changed every
+# source's flags and rebuilt the whole player; configure_file rewrites it only when the text changes)
+configure_file(src/buildinfo.cpp.in ${CMAKE_BINARY_DIR}/buildinfo.cpp @ONLY)
+target_sources(banana-player PRIVATE ${CMAKE_BINARY_DIR}/buildinfo.cpp)
 target_compile_definitions(banana-player PRIVATE
 	BP_VERSION="${PROJECT_VERSION}"
-	BP_COMMIT="${BP_COMMIT}"
 	BP_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets"
 	BP_MANGA_FETCH=1)	# mangarepos.cpp's adapter for MangaFetch; repos-test has no fetcher to link
 if(BP_GLES)

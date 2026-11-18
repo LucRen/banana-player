@@ -8,7 +8,8 @@
 #
 # Fast again and again: the build tools are baked into a Docker image made once (bp-builder, tagged by the package
 # list below), and the libraries are installed into .cache/bundle/prefix, kept between runs (built again only when a
-# version below changes, or with --clean); the player builds incrementally in .cache/bundle/bp-build.
+# version below changes, or with --clean); the player builds incrementally in .cache/bp-build (per checkout), through ccache (.cache/bundle/ccache);
+# .cache/bundle is the main checkout's, shared by every worktree.
 #
 # Out: dist/ports/BananaPlayer/ (bin, lib, share) and dist/ports/Banana Player.sh, ready for roms/ports on the card;
 # dist/BananaPlayer-<version>-aarch64.zip with both; dist/symbols/banana-player-<version>, the player unstripped (for crash.log).
@@ -42,7 +43,7 @@ read -r -d '' BUILDER <<'DOCKERFILE' || true
 FROM debian:bookworm
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
-	build-essential pkg-config cmake meson ninja-build nasm git ca-certificates curl xz-utils zip patchelf file \
+	build-essential pkg-config cmake meson ninja-build nasm git ca-certificates curl xz-utils zip patchelf file ccache \
 	python3 python3-jinja2 python3-pip \
 	libdav1d-dev libfreetype-dev libfribidi-dev libharfbuzz-dev libfontconfig-dev zlib1g-dev libasound2-dev \
 	libsdl2-dev libsdl2-ttf-dev libegl-dev libgles-dev libdrm-dev libssl-dev libcurl4-openssl-dev \
@@ -53,14 +54,18 @@ RUN pip3 install -q --break-system-packages 'meson>=1.3' 2>&1 | grep -v "^WARNIN
 DOCKERFILE
 
 if [ "${1:-}" != "--inside" ]; then
-	mkdir -p "$HERE/dist" "$HERE/.cache/bundle"
+	# the libraries, their sources and ccache's store: one cache for the main checkout and every worktree (the main
+	# checkout's .cache/bundle), so a new worktree doesn't build FFmpeg and mpv again; the player's own build folder
+	# stays per checkout (two bundles at once in two worktrees: fine, unless both have to build the libraries)
+	SHARED="$(cd "$(git -C "$HERE" rev-parse --git-common-dir)/.." && pwd)/.cache/bundle"
+	mkdir -p "$HERE/dist" "$SHARED" "$HERE/.cache/bp-build"
 	TAG="bp-builder:$(printf '%s' "$BUILDER" | shasum -a 256 | cut -c1-12)"
 	if ! docker image inspect "$TAG" >/dev/null 2>&1; then
 		echo "== the build tools image ($TAG), once"
 		printf '%s\n' "$BUILDER" | docker build --platform linux/arm64 -q -t "$TAG" - >/dev/null
 	fi
 	exec docker run --rm --platform linux/arm64 \
-		-v "$HERE":/src -v "$HERE/.cache/bundle":/cache \
+		-v "$HERE":/src -v "$SHARED":/cache -v "$HERE/.cache/bp-build":/bpb \
 		"$TAG" bash /src/packaging/build-bundle.sh --inside "$@"
 fi
 shift
@@ -78,7 +83,7 @@ if [ "$CLEAN" = 1 ] || [ "$(cat $PREFIX/.versions 2>/dev/null)" != "$STAMP" ]; t
 	echo "== the libraries from scratch"
 	# (libplacebo and mpv are git checkouts under unversioned names: a new version needs a new clone; FFmpeg's and
 	# libass's trees were configured for the old prefix)
-	rm -rf $PREFIX $SRC/libplacebo $SRC/mpv /cache/bp-build
+	rm -rf $PREFIX $SRC/libplacebo $SRC/mpv /bpb/*
 	(cd $SRC/ffmpeg-$FFMPEG_VERSION 2>/dev/null && make distclean >/dev/null 2>&1) || true
 fi
 mkdir -p $SRC $PREFIX
@@ -190,10 +195,12 @@ echo "$STAMP" > $PREFIX/.versions
 
 echo "== banana-player"
 # incremental, in the cache: a one-line change rebuilds one file
-BPB=/cache/bp-build
+BPB=/bpb
+# ccache: a reconfigure, --clean or another worktree's build of the same sources costs a lookup, not a compile
+export CCACHE_DIR=/cache/ccache CCACHE_MAXSIZE=5G CCACHE_BASEDIR=/src CCACHE_NOHASHDIR=1
 # BP_WEB: libavformat from the FFmpeg above (its .pc files are in $PREFIX/lib/pkgconfig, on PKG_CONFIG_PATH)
 # -g: the copy kept in dist/symbols/ maps crash.log's frames to lines (the bundle's own is stripped)
-cmake -S /src -B $BPB -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS=-g -DBP_GLES=ON -DBP_NET=ON -DBP_WEB=ON -DBP_TOOLS=OFF -DPDFIUM_DIR=$PREFIX/pdfium \
+cmake -S /src -B $BPB -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS=-g -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBP_GLES=ON -DBP_NET=ON -DBP_WEB=ON -DBP_TOOLS=OFF -DPDFIUM_DIR=$PREFIX/pdfium \
 	-DCMAKE_INSTALL_RPATH='$ORIGIN/../lib' -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON >/dev/null
 # --quick (a push to the handheld) builds the player alone: the tests are the desktop build's job there, and
 # core_test.cpp, which includes most headers, takes about 70 s to compile, so a change to settings.h took 73 s

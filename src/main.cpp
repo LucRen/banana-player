@@ -65,6 +65,11 @@
 #include <malloc.h>
 #endif
 
+namespace bp
+{
+	const char* buildCommit();	// buildinfo.cpp (generated): the commit, for crash.log
+}
+
 using namespace bp;
 
 #ifdef BP_WEB
@@ -261,7 +266,7 @@ int main(int argc, char** argv)
 		else { usage(); return 2; }
 	}
 	// a crash's record in <state>/crash.log, kept across runs (log.txt keeps two)
-	bp::crashlog::install(opts.stateDir, BP_VERSION, BP_COMMIT);
+	bp::crashlog::install(opts.stateDir, BP_VERSION, bp::buildCommit());
 	// BananaOS's lid sleep, if a run that kept playing with the lid shut ended without putting it back (the power
 	// went): put back before anything else, so the handheld's own setting is never left changed
 	LidGuard lidGuard;
