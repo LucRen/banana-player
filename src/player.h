@@ -464,7 +464,7 @@ namespace bp
 		// does nothing (the art one frame, as mpv gives it), so the switch is graph to graph (applyAudioDisplay)
 		static std::string artPassGraph() { return "[aid1] anull [ao]; [vid1] null [vo]"; }
 		std::string groundSet;
-		void setGround(bool themed);
+		void setGround(bool themed, const char* why = nullptr);
 		void setSongMargins(const std::string& lrtb);
 		std::string layoutLogged;	// the last layout's log line, so each change is logged once
 		bool isAudio = false, isPhoto = false;

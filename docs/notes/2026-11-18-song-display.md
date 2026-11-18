@@ -75,3 +75,10 @@ choice tile), Tabs, Themes › The top screen; screens `music-view`, `music-viz-
 on a theme change reopens the sound (debounced 500 ms). A pixel-art style's lut tables for the new Peaks colours are
 made in the background the first time (the expressions meanwhile). Draining a 30-60 fps graph under the pane costs
 what it cost before on screen, minus the drawing.
+
+## Later: nothing playing (branch idle-theme, 2026-11-19)
+`Player::showIdle(true)` sets the same ground (`setGround(true, "nothing plays")`; a video or a photo puts black back
+at its overlay, a song its mode's), re-sent on a theme change (`themeChanged` shows the idle screen again). The name
+is ACCENT, its line DIM, the fallback logo (src/logo.h, when app.png can't be read) BUTTON / ACCENT / TEXT; app.png's
+own transparency sits on any ground. Log: `top: ground #RRGGBB (nothing plays | the theme's BG under a song | black:
+a picture)`.

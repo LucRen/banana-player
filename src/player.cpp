@@ -1922,6 +1922,9 @@ namespace bp
 	void Player::showIdle(bool on)
 	{
 		idleShown = on;
+		// nothing playing: app UI on the theme's ground (docs/redesign Themes › The top screen), as a song's modes;
+		// what plays next sets its own (a video, a photo: black; a song: its mode's)
+		if (on) setGround(true, "nothing plays");
 		if (!on)
 		{
 			const char* cmd[] = {"osd-overlay", "3", "none", "", nullptr};
@@ -1975,7 +1978,7 @@ namespace bp
 		}
 		if (!picture)
 		{
-			const struct { char c; std::string colour; } inks[] = {{'.', ass(TOP_SQUARE)}, {'Y', ass(TOP_TITLE)}, {'W', ass(TOP_TEXT)}};
+			const struct { char c; std::string colour; } inks[] = {{'.', ass(BUTTON)}, {'Y', ass(ACCENT)}, {'W', ass(TEXT)}};
 			for (auto& ink : inks)
 			{
 				std::string path;
@@ -1995,8 +1998,9 @@ namespace bp
 				ev += head + path + "{\\p0}\n";
 			}
 		}
-		ev += "{\\an8\\pos(480,330)\\bord0\\shad0\\fnPixelify Sans\\fs72\\1c" + ass(TOP_TITLE) + "}Banana Player\n";
-		ev += "{\\an8\\pos(480,420)\\bord0\\shad0\\fnInter\\fs30\\1c" + ass(TOP_SUB) + "}Pick a video or a song on the bottom screen";
+		// in the main tokens, on BG (a light theme's top screen is light)
+		ev += "{\\an8\\pos(480,330)\\bord0\\shad0\\fnPixelify Sans\\fs72\\1c" + ass(ACCENT) + "}Banana Player\n";
+		ev += "{\\an8\\pos(480,420)\\bord0\\shad0\\fnInter\\fs30\\1c" + ass(DIM) + "}Pick a video or a song on the bottom screen";
 		const char* cmd[] = {"osd-overlay", "3", "ass-events", ev.c_str(), "960", "720", "0", "no", "no", nullptr};
 		mpv_command_async(mpv, 0, cmd);
 	}
@@ -2486,7 +2490,7 @@ namespace bp
 		return c;
 	}
 
-	void Player::setGround(bool themed)
+	void Player::setGround(bool themed, const char* why)
 	{
 		// mpv's own ground, round its picture where none is drawn: Album art only's margins (a graph's picture fills
 		// the panel, so there it is the graph's). Set on a change only: a property, no per-frame work
@@ -2497,7 +2501,7 @@ namespace bp
 		groundSet = c;
 		const char* v = groundSet.c_str();	// (copied by mpv before it returns)
 		mpv_set_property_async(mpv, 0, "background-color", MPV_FORMAT_STRING, &v);
-		fprintf(stderr, "music: top panel ground %s (%s)\n", c, themed ? "the theme's BG under a song" : "black");
+		fprintf(stderr, "top: ground %s (%s)\n", c, why ? why : themed ? "the theme's BG under a song" : "black: a picture");
 	}
 
 	void Player::dropSongArt()
