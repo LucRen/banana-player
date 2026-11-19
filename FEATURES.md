@@ -231,7 +231,7 @@ Like a song or a video to keep it in **Liked**, a playlist of its own. Photos an
 | **UP / DOWN** | Nothing: the Next line is a tap, and the chips are touch only. (They no longer change the speed; that is the **Speed** chip or View's Speed tab) |
 | **X** | **More**: a sheet with **Lock touch**, **Screen off**, **Info** and **Stop** (in red) as its first four keys, then **Like**, **Add to playlist…**, **Show in folder** and, while a dashboard page that can play is open, **Play on…**. The D-pad moves, **A** chooses, **X** or **B** closes |
 | **Y** | **List** (the **List** key): one sheet with **Up next** (the folder or playlist that plays, in its own order, the one playing marked **Now**) and **Chapters** (every chapter with its start; a file without chapters has only Up next), with **Shuffle**'s switch and **Repeat** (Off / All / One) in its header. **L / R** step the tabs, **UP / DOWN** move, **LEFT / RIGHT** page, **A** plays from the row, **L2 / R2** jump a chapter with the sheet open, **Y** or **B** closes |
-| **SELECT** | **View**, a sheet over the controls. A video: **Subtitles** (Off, the file's tracks, and **Subtitle style…**), **Audio**, **Picture** (Fit, Fill, Stretch) and **Speed** (0.5x to 2.5x). A song: **Display** (the four Show modes and a **Visualizer style** row), **Visualizer** (the ten styles as a grid), **Equalizer**, **Effects** and **Speed**. **L / R** switch tabs, **UP / DOWN** move, **LEFT / RIGHT** page a long list, **A** chooses, **SELECT** or **B** closes (on a song's Display, **SELECT** steps the Show mode); it opens on the tab you used last |
+| **SELECT** | **View**, a sheet over the controls. A video: **Subtitles** (Off, the file's tracks, and **Subtitle style…**), **Audio**, **Picture** (Fit, Fill, Stretch) and **Speed** (0.5x to 2.5x). A song: **Display** (the four Show modes and a **Visualizer style** row), **Visualizer** (the fifteen styles as a grid), **Equalizer**, **Effects** and **Speed**. **L / R** switch tabs, **UP / DOWN** move, **LEFT / RIGHT** page a long list, **A** chooses, **SELECT** or **B** closes (on a song's Display, **SELECT** steps the Show mode); it opens on the tab you used last |
 | **START** | **Settings**: the ten group tiles; **B** or **START** closes it back to where you were |
 | **L3** (press the stick, RG DS Plus) | Like / Unlike what plays |
 | **B** (or **Back**) | Back to the list: it keeps playing (see [Playing while you browse](#playing-while-you-browse)) |
@@ -529,8 +529,8 @@ Songs show their title, artist and album on the top screen. While a song plays:
   it too). One page: under "Top screen shows", four tiles in a row, one always in use: **Album art only** (default),
   **Art + visualizer** (the art above the visualizer along the foot), **Visualizer only**, or **None** (just the title:
   the lightest on the battery). Under them the line "Visualizer · <style>" (with Album art only or None: "<style> · not
-  shown now: the top screen shows <mode>"; the style can still be set, and is kept), then the ten styles in a 5 × 2
-  grid of tiles (the same ten, in the same order, on Settings' Visualizer style row). The tile in use is filled in
+  shown now: the top screen shows <mode>"; the style can still be set, and is kept), then the fifteen styles in a 5 × 3
+  grid of tiles (the same fifteen, in the same order, on Settings' Visualizer style row). The tile in use is filled in
   the theme's accent; the cursor is an accent edge. The styles: **Peaks** (default: 64 bars in the theme's accent,
   bass on the left, each with a cap in the theme's text colour that stays at the bar's highest point and slowly falls
   back, over a faint grid), **Ribbon** (the spectrum as one smooth glowing line, bass to treble, a soft fade beneath
@@ -544,12 +544,20 @@ Songs show their title, artist and album on the top screen. While a song plays:
   drift, loud ones rush, each star stretching into a streak), **Strings** (eight strings across the screen, the thick
   bass one at the foot, each vibrating as wide as its band is loud, the blur of its swing behind it), **Helix** (two
   strands of beads twisting round each other, bass at the left: a bead swells with its band and the twist turns faster
-  as the song gets louder) or **Sparks** (small lights lifting off the foot where the music is, a louder band sending
-  more and higher, and a brighter handful on each beat). The bar styles' bars stand out from their neighbours, so the
+  as the song gets louder), **Sparks** (small lights lifting off the foot where the music is, a louder band sending
+  more and higher, and a brighter handful on each beat), **Bouncy keys** (a keyboard whose keys rise with their
+  bands, and a ball hopping from key to key, a hop a beat, toward a loud key, which dips and lights as it lands),
+  **Rocket** (a little rocket flying right, its flame growing with the bass, its smoke trail the spectrum, the stars
+  streaking past faster as the song gets louder), **Rain check** (rain falling where the music is, heavier under the
+  loud bands; alone someone waits it out under an umbrella that bobs with the bass, with the art the rain bounces off
+  the cover), **Sleepy moon** (a moon that dozes through quiet passages breathing out Zs and wakes when the song gets
+  loud, rays out, stars twinkling with the treble over a cloud bank that is the spectrum; with the art a smaller moon
+  at the top right) or **Dance line** (twelve tiny dancers, one a band, jumping as high as their band is loud, the
+  line swaying in time). The bar styles' bars stand out from their neighbours, so the
   spectrum has peaks and valleys; silence stays still. With Art + visualizer, every style is drawn along the bottom of
-  the screen, under the art, on the theme's ground, except **Sparks** and **Starfield**, which fill the whole screen
+  the screen, under the art, on the theme's ground, except **Sparks**, **Starfield**, **Rain check** and **Sleepy moon**, which fill the whole screen
   behind the art and the song's lines (they pass behind them, never over them), the art and lines then centred on
-  the screen as on Album art only. All ten are drawn by the player, not
+  the screen as on Album art only. All fifteen are drawn by the player, not
   mpv, at the Visualizer frame rate setting, in the theme's colours (a theme change recolours them at once):
   switching among them, or to None and back, never interrupts the sound, and with Visualizer only they keep clear of
   the song's lines and of a volume or other card. A song from a network folder shows its style still (flat: the

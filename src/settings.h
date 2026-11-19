@@ -50,11 +50,13 @@ namespace bp
 		VIS_SYNTHWAVE, VIS_BANANA_STACK, VIS_CITY, VIS_SCOPE, VIS_HEART, VIS_FIRE, VIS_AURORA, VIS_GARDEN, VIS_VINYL, VIS_SEA, VIS_BUNNY, VIS_BOBA,
 		VIS_JELLY, VIS_MUSICBOX, VIS_FISHBOWL, VIS_DISCO, VIS_DANCER, VIS_CAT, VIS_POPCORN, VIS_WOBBLE, VIS_TUBEMAN,
 		VIS_LONGCAT, VIS_WASHER, VIS_MIRROR, VIS_WAVE, VIS_DOTS, VIS_LEVELS, VIS_AREA, VIS_RADIAL, VIS_HORIZON,
-		VIS_STEPS, VIS_BARCODE, VIS_RINGS, VIS_RIBBON, VIS_GRID, VIS_STARFIELD, VIS_STRINGS, VIS_HELIX, VIS_SPARKS, VISUALIZERS };
-	// the owner's final ten (2026-11-19), in its order, all drawn by the player (src/viznative.h, no mpv graph). The
-	// others are commented out of the list, their code kept so they can come back: a setting naming one reads as Peaks
+		VIS_STEPS, VIS_BARCODE, VIS_RINGS, VIS_RIBBON, VIS_GRID, VIS_STARFIELD, VIS_STRINGS, VIS_HELIX, VIS_SPARKS,
+		VIS_BOUNCY, VIS_ROCKET, VIS_RAIN, VIS_MOON, VIS_DANCE, VISUALIZERS };
+	// the owner's final ten (2026-11-19) and the five fun ones after them, in its order, all drawn by the player
+	// (src/viznative.h, no mpv graph). The others are commented out of the list, their code kept so they can come
+	// back: a setting naming one reads as Peaks
 	constexpr int VIS_SHOWN[] = {VIS_PEAKS_BANANA, VIS_RIBBON, VIS_MIRROR, VIS_POCKET, VIS_HORIZON, VIS_GRID, VIS_STARFIELD, VIS_STRINGS,
-		VIS_HELIX, VIS_SPARKS /* , VIS_CITY, VIS_AURORA, VIS_DOTS, VIS_STEPS, VIS_BARCODE, VIS_RINGS, VIS_DANCER, VIS_SEA, VIS_WOBBLE,
+		VIS_HELIX, VIS_SPARKS, VIS_BOUNCY, VIS_ROCKET, VIS_RAIN, VIS_MOON, VIS_DANCE /* , VIS_CITY, VIS_AURORA, VIS_DOTS, VIS_STEPS, VIS_BARCODE, VIS_RINGS, VIS_DANCER, VIS_SEA, VIS_WOBBLE,
 		VIS_WASHER, VIS_TUBEMAN */};
 	constexpr int VIS_SHOWN_COUNT = (int)(sizeof(VIS_SHOWN) / sizeof(VIS_SHOWN[0]));
 	// a visualizer's place in VIS_SHOWN (a hidden one: the first offered, Peaks, at 0)

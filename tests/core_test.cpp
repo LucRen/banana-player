@@ -6325,6 +6325,85 @@ static void testVizNative()
 	CHECK_EQ(inksOf(r, VI_P_SCREEN), 0);
 	CHECK(inksOf(r, VI_P_LIGHT) == 15 && inksOf(r, VI_BG) == 80 + 25);
 
+	// the five fun ones (2026-11-19): all native, Rain check and Sleepy moon over the whole panel
+	for (int v : {VIS_BOUNCY, VIS_ROCKET, VIS_RAIN, VIS_MOON, VIS_DANCE}) CHECK(vizNativeStyle(v));
+	CHECK(vizFullPanel(VIS_RAIN) && vizFullPanel(VIS_MOON) && !vizFullPanel(VIS_BOUNCY) && !vizFullPanel(VIS_ROCKET) && !vizFullPanel(VIS_DANCE));
+	// Bouncy keys: a beat lands the ball (its key lit) and sends it to another key within seven; the ball's hop is timed
+	// by the beat's interval
+	st.reset(VIS_BOUNCY);
+	for (int i = 0; i < 14; i++) st.targets[i] = i == 12 ? VN_TOP : 40;
+	vizStep(st, 0.5);
+	const int was = st.to;
+	st.beats++;
+	vizStep(st, 1 / 30.0);
+	CHECK(st.hit[was] > 0.9f && st.from == was && st.to != was && std::abs(st.to - was) <= 7);
+	float bx0, by0, br;
+	vizBouncyBall(st, bx0, by0, br);
+	for (int f = 0; f < 60; f++) vizStep(st, 1 / 30.0);	// (no beat: it waits on its key)
+	float bx1, by1;
+	vizBouncyBall(st, bx1, by1, br);
+	CHECK(std::fabs(bx1 - (st.to + 0.5f) * 640 / 14) < 0.01f && st.trailN == 9);
+	vizShapes(st, false, r);
+	CHECK(inside(r, 0) && inksOf(r, VI_ACCENT) > 0);
+	// Rocket: its 40 stars stay on the panel's width
+	st.reset(VIS_ROCKET);
+	st.loud = 1;
+	for (int f = 0; f < 200; f++) vizStep(st, 1 / 30.0);
+	bool onPanel = true;
+	for (auto& q : st.streaks) onPanel = onPanel && q.x >= -30 - 40 && q.x <= 670;
+	CHECK(onPanel);
+	vizShapes(st, true, r);
+	CHECK(r.size() > 40);
+	// Rain check: the pools never past their sizes; alone, drops hit the umbrella (splashes); with the art, its top
+	st.reset(VIS_RAIN);
+	for (int i = 0; i < 20; i++) st.targets[i] = VN_TOP;
+	int splashed = 0;
+	for (int f = 0; f < 300; f++)
+	{
+		vizStep(st, f % 5 ? 1 / 30.0 : 0.2);
+		CHECK(st.dropN <= VizStyleState::DROPS && st.splashN <= VizStyleState::SPLASHES && st.ringN <= VizStyleState::RINGS);
+		splashed = std::max(splashed, st.splashN);
+	}
+	CHECK(st.dropN == VizStyleState::DROPS || st.dropN > 100);
+	CHECK(splashed > 0);
+	vizShapes(st, false, r);
+	CHECK(inksOf(r, VI_TEXT) > 0);	// (the figure under the umbrella)
+	st.reset(VIS_RAIN);
+	st.band = true;
+	st.cover[0] = 98, st.cover[1] = 116, st.cover[2] = 342, st.cover[3] = 364;
+	for (int i = 0; i < 20; i++) st.targets[i] = VN_TOP;
+	bool under = false;
+	for (int f = 0; f < 120; f++)
+	{
+		vizStep(st, 1 / 30.0);
+		for (int i = 0; i < st.dropN; i++)
+			under = under || (st.drops[i].x > 120 && st.drops[i].x < 300 && st.drops[i].y > 200 && st.drops[i].y < 360);
+	}
+	CHECK(!under);	// (none falls through the cover; beside it they drift a little under its edge, as the proposal)
+	st.band = false;
+	// Sleepy moon: awake past its line on the loudness over a second, asleep again only under the lower one
+	st.reset(VIS_MOON);
+	st.avg = 0.3f;
+	vizStep(st, 1 / 30.0);
+	CHECK(!st.awake);
+	st.avg = 0.65f;
+	vizStep(st, 1 / 30.0);
+	CHECK(st.awake);
+	st.avg = 0.55f;
+	vizStep(st, 1 / 30.0);
+	CHECK(st.awake);
+	st.avg = 0.45f;
+	vizStep(st, 1 / 30.0);
+	CHECK(!st.awake);
+	vizShapes(st, false, r);
+	CHECK(inside(r, 0) && r.size() > 50);
+	// Dance line: twelve dancers, the line swaying a half turn a beat
+	st.reset(VIS_DANCE);
+	vizStep(st, 0.55);
+	CHECK(std::fabs(st.phase - M_PI) < 0.01);
+	vizShapes(st, true, r);
+	CHECK(inside(r, 280) && inksOf(r, VI_BUTTON) == 1 + 12);
+
 	// the clock: on at the speed while moving, held otherwise
 	VizClock c;
 	CHECK_EQ(c.at(5), -1.0);
@@ -6786,19 +6865,19 @@ static void testSettings()
 	CHECK_EQ(visualizerGraph(VIS_PEAKS_BANANA, false).find("lagfun=decay=") != std::string::npos, true);
 	// the cycle: the offered ones (VIS_SHOWN), Peaks first; from one not offered as from Peaks
 	{
-		// the owner's final ten (2026-11-19), in its order, round
+		// the owner's final ten (2026-11-19) and the five fun ones, in its order, round
 		const int order[] = {VIS_PEAKS_BANANA, VIS_RIBBON, VIS_MIRROR, VIS_POCKET, VIS_HORIZON, VIS_GRID, VIS_STARFIELD, VIS_STRINGS,
-			VIS_HELIX, VIS_SPARKS};
-		for (int i = 0; i < 10; i++)
+			VIS_HELIX, VIS_SPARKS, VIS_BOUNCY, VIS_ROCKET, VIS_RAIN, VIS_MOON, VIS_DANCE};
+		for (int i = 0; i < 15; i++)
 		{
-			CHECK_EQ(stepVisualizer(order[i], 1), order[(i + 1) % 10]);
-			CHECK_EQ(stepVisualizer(order[(i + 1) % 10], -1), order[i]);
+			CHECK_EQ(stepVisualizer(order[i], 1), order[(i + 1) % 15]);
+			CHECK_EQ(stepVisualizer(order[(i + 1) % 15], -1), order[i]);
 		}
-		// the six new ids, kept by their words
-		for (const char* id : {"ribbon", "grid", "starfield", "strings", "helix", "sparks"})
+		// the new ids, kept by their words
+		for (const char* id : {"ribbon", "grid", "starfield", "strings", "helix", "sparks", "bouncy-keys", "rocket", "rain-check", "sleepy-moon", "dance-line"})
 		{
 			const int v = parseSettings(std::string("visualizer = ") + id + "\n").visualizer;
-			CHECK(v >= VIS_RIBBON && v <= VIS_SPARKS);
+			CHECK(v >= VIS_RIBBON && v <= VIS_DANCE);
 			CHECK_EQ(parseSettings(serializeSettings(parseSettings(std::string("visualizer = ") + id + "\n"))).visualizer, v);
 		}
 		// the ones commented out of the list (their code kept) and the older retired ones read as Peaks
@@ -6817,7 +6896,7 @@ static void testSettings()
 		for (int i = 0, v = VIS_PEAKS_BANANA; i < VIS_SHOWN_COUNT; i++, v = stepVisualizer(v, 1)) seen |= 1ull << v;
 		unsigned long long want = 0;
 		for (int v : VIS_SHOWN) want |= 1ull << v;
-		CHECK_EQ(VIS_SHOWN_COUNT, 10);
+		CHECK_EQ(VIS_SHOWN_COUNT, 15);
 		CHECK_EQ(seen, want);
 	}
 	// Pocket console: kept by its id, named, its own graph (Peaks' caps, YUV only), alone and over the art
@@ -9868,7 +9947,7 @@ static void testKitLayout()
 	}
 
 	// the Visualizer tab's style grid: the styles, five a row, inside its area, in rows that meet its edges
-	Box grid{16, 300, 608, 2 * 46 + 6};
+	Box grid{16, 300, 608, 3 * 46 + 2 * 6};
 	auto cells = gridCells(grid, VIS_SHOWN_COUNT, 5, 6);
 	CHECK_EQ((int)cells.size(), VIS_SHOWN_COUNT);
 	CHECK_EQ(cells[0].x, 16);
@@ -12546,19 +12625,19 @@ static void testKitDisplayPage()
 	// a finger: the tile under it, -1 between them
 	CHECK_EQ(displayAt(d, d.style[7].x + 5, d.style[7].y + 5), 11);
 	CHECK_EQ(displayAt(d, d.mode[0].x + d.mode[0].w + 3, d.mode[0].y + 10), -1);
-	// the final ten: two rows of five, inside the sheet over its hints
+	// the final fifteen: three rows of five, inside the sheet over its hints
 	DisplayPage f = displayPage(VIS_SHOWN_COUNT);
-	CHECK_EQ(f.count(), 4 + 10);
-	CHECK_EQ(f.style[5].y - (f.style[0].y + f.style[0].h), 6); CHECK_EQ(f.style[9].x, f.style[4].x);
-	CHECK_EQ(f.style[0].y > f.styleLine.y && f.style[9].y + f.style[9].h <= f.sheet.hints.y, true);
+	CHECK_EQ(f.count(), 4 + 15);
+	CHECK_EQ(f.style[10].y - (f.style[5].y + f.style[5].h), 6); CHECK_EQ(f.style[14].x, f.style[4].x);
+	CHECK_EQ(f.style[0].y > f.styleLine.y && f.style[14].y + f.style[14].h <= f.sheet.hints.y, true);
 	for (int i = 0; i < f.count(); i++)
 	{
 		CHECK_EQ(kitInside(f.item(i), PANEL_W, PANEL_H), true);
 		if (i) CHECK_EQ(kitApart(f.item(i), f.item(i - 1)), true);
 	}
-	CHECK_EQ(displayMove(f, 4 + 4, Dir::Down), 4 + 9);
-	CHECK_EQ(displayMove(f, 4 + 9, Dir::Down), 4 + 9);
-	CHECK_EQ(displayAt(f, f.style[9].x + 5, f.style[9].y + 5), 4 + 9);
+	CHECK_EQ(displayMove(f, 4 + 9, Dir::Down), 4 + 14);
+	CHECK_EQ(displayMove(f, 4 + 14, Dir::Down), 4 + 14);
+	CHECK_EQ(displayAt(f, f.style[14].x + 5, f.style[14].y + 5), 4 + 14);
 }
 
 // the top panel's song layout (docs/redesign/components.md, Song layout): the drawings' numbers

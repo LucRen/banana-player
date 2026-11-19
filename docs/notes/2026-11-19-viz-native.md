@@ -172,3 +172,28 @@ draws the top panel:
 
 Checked on the Mac: the four modes and a few styles on a song with art (48 kHz) and one without (44.1 kHz), a seek and
 a pause: no `lavfi-complex` in either log (`graph -` in the audio lines), the art and the placeholder in both art modes.
+
+## The five fun ones (same day)
+
+After Sparks, in this order: **Bouncy keys, Rocket, Rain check, Sleepy moon, Dance line** (15 shown; Display 5 x 3;
+ids `bouncy-keys`, `rocket`, `rain-check`, `sleepy-moon`, `dance-line`; glyphs `G_VIS_BOUNCY` … `G_VIS_DANCE`), from the
+fun proposals page, shapes only (no images or textures): ellipses (`VizRect` kind 3, a fan), rounded boxes and the
+rocket's body as fans, round-ended lines, arcs as polylines.
+
+- **The beat's timing:** the state keeps the time since the last beat and its interval (eased, 0.3..1.2 s): Bouncy
+  keys' hop is a parabola over one interval (a beat lands it and picks the next key within seven, the loudest plus a
+  little chance; with no beat it waits on its key), Dance line sways half a turn a beat.
+- **The worker's ~1 s loudness** (`VizHint::avg`, an exponential over the spectra's real gaps) wakes Sleepy moon past
+  0.6 (-20 dBFS RMS) and sends it back to sleep under 0.5 (-24): the proposal's 0.31/0.24 were its made-up scale.
+  Constants to tune on real music (`MOON_WAKE`, `MOON_SLEEP`).
+- **Pools, fixed:** Rocket's 40 star streaks, Rain check's 260 drops, 80 splashes, 40 puddle rings (packed, swapped
+  out), Bouncy keys' 9-point trail.
+- **Whole panel:** Rain check and Sleepy moon (`vizFullPanel`), the art group centred as Album art only; Rain check's
+  drops splash on the art's top edge (`VizStyleState::cover` = `Player::nativeArtBox`, told before each step), Sleepy
+  moon is smaller at the top right (R 46 at 578,62: it may pass behind a long title's box). Bouncy keys, Rocket and
+  Dance line keep the band.
+
+Checked on the Mac: the five switched alone and with the art, a seek, a pause, `flip:visualizer=rocket|sleepy-moon:6:300`:
+"now (the same tap, no graph change)" each time, 46.3 frames a second at 45 fps. What may differ on the handheld:
+Rain check at a full pool (260 drops as quads, ~1.6k vertices, plus the rings' arcs) and Sleepy moon's 40 overlapping
+cloud discs (blended fill at the foot); the moon may stay asleep on quiet masters (the line above).

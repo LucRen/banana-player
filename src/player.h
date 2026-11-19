@@ -118,6 +118,8 @@ namespace bp
 		int nativeStyle() const { return settings.visualizer; }
 		// where the shapes mustn't go (640x480 units): mpv's cards, and alone the song's lines (drawn by mpv under them)
 		std::vector<VizRect> nativeKeepClear() const;
+		// Art + visualizer: the art's box (Rain check's drops bounce off it); empty otherwise
+		VizRect nativeArtBox() const { return shownMusic() == SHOW_BOTH ? groupArtBox : VizRect{0, 0, 0, 0, 0}; }
 		void nativeDrew() { nativeFrames++; }	// (the log's frames a second)
 		// the cards up now (mpv's image overlays: level, state, note...), in 640x480 units: the bars are drawn round them
 		std::vector<VizRect> cardsUp() const;

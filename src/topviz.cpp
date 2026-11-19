@@ -173,6 +173,7 @@ namespace bp
 			std::copy(got, got + n, nativeState.targets);
 			nativeState.loud = hint.loud;
 			nativeState.beats = hint.beats;
+			nativeState.avg = hint.avg;
 		}
 		else fresh = false;
 		if (!mpvFrame && !fresh && !refresh && !first && !restyled) return;
@@ -182,6 +183,9 @@ namespace bp
 		if (first) fprintf(stderr, "viz-native: the top panel is the player's: mpv's ground and lines, the style over them, swapped here\n");
 		nativeUp = true;
 		// paused: the shapes stay as they were (the graph's picture froze too); mpv may still ask for a frame (a card)
+		nativeState.band = shown.nativeBand();
+		const VizRect art = shown.nativeArtBox();
+		nativeState.cover[0] = art.x0, nativeState.cover[1] = art.y0, nativeState.cover[2] = art.x1, nativeState.cover[3] = art.y1;
 		if (!shown.paused) vizStep(nativeState, dt);
 		SDL_GL_MakeCurrent(top, gl);
 		int w = 0, h = 0;
@@ -256,6 +260,20 @@ namespace bp
 						vert(cx + qc * r0, cy + qs * r0, c);
 						vert(cx + pc * r0, cy + ps * r0, c);
 					}
+					pc = qc, ps = qs;
+				}
+				continue;
+			}
+			if (r.kind == 3)
+			{
+				// an ellipse round (x0, y0), radii x1 across and y1 down: a fan
+				const float cx = r.x0 * sx, cy = r.y0 * sy, rx = r.x1 * sx, ry = r.y1 * sy;
+				const int seg = std::clamp((int)(std::max(rx, ry) * 2.1f), 8, 128);
+				float pc = 1, ps = 0;
+				for (int i = 1; i <= seg; i++)
+				{
+					const float a = (float)(2 * M_PI * i / seg), qc = std::cos(a), qs = std::sin(a);
+					vert(cx, cy, c), vert(cx + pc * rx, cy + ps * ry, c), vert(cx + qc * rx, cy + qs * ry, c);
 					pc = qc, ps = qs;
 				}
 				continue;

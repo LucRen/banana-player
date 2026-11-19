@@ -230,6 +230,7 @@ namespace bp
 		uint64_t seeks = 0, spectra = 0;
 		VizBeat beat;
 		uint32_t beats = 0;
+		float loudAvg = 0;
 		auto beatAt = std::chrono::steady_clock::now();
 		auto loudAt = std::chrono::steady_clock::now();
 		auto next = std::chrono::steady_clock::now();
@@ -267,7 +268,10 @@ namespace bp
 			const float loudness = vizLoudness(win.data(), VN_FFT);
 			{
 				auto t1 = std::chrono::steady_clock::now();
-				if (beat.step(vizBassEnergy(mag.data(), VN_RATE, VN_FFT), std::chrono::duration<double>(t1 - beatAt).count())) beats++;
+				const double gap = std::chrono::duration<double>(t1 - beatAt).count();
+				if (beat.step(vizBassEnergy(mag.data(), VN_RATE, VN_FFT), gap)) beats++;
+				// the loudness over about a second (Sleepy moon)
+				loudAvg += (loudness - loudAvg) * (float)(1 - std::exp(-std::min(gap, 1.0) / 1.0));
 				beatAt = t1;
 			}
 			bool loud = false;
@@ -279,7 +283,7 @@ namespace bp
 				std::copy(targets, targets + bands.bars, j->targets);
 				j->targetsVis = vis;
 				j->targetsN = bands.bars;
-				j->hint = {loudness, beats};
+				j->hint = {loudness, beats, loudAvg};
 				j->seq++;
 				j->stats.spectra = spectra;
 				j->stats.seeks = seeks;

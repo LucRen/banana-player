@@ -66,6 +66,7 @@ namespace bp
 	{
 		float loud = 0;
 		uint32_t beats = 0;
+		float avg = 0;	// the loudness over about the last second (Sleepy moon's awake or asleep)
 	};
 	float vizLoudness(const float* samples, int n);
 	// the bass's energy (40..160 Hz) in the magnitudes
@@ -96,8 +97,45 @@ namespace bp
 		int vis = -1, n = 0;
 		float targets[VN_MAX_BARS] = {}, levels[VN_MAX_BARS] = {}, holds[VN_MAX_BARS] = {};
 		// the final ten's new six (2026-11-19): the worker's hint, as told and as eased
-		float loud = 0, loudShown = 0;
+		float loud = 0, loudShown = 0, avg = 0;
 		uint32_t beats = 0, beatsSeen = 0;
+		// told by the caller before vizStep: Art + visualizer, and the art's box there (Rain check's drops bounce off it;
+		// x1 <= x0: none)
+		bool band = false;
+		float cover[4] = {0, 0, 0, 0};
+		// the five fun ones (2026-11-19): the time, the beat's interval (a beat-timed motion between beats)
+		double time = 0, sinceBeat = 0, interval = 0.55;
+		float bass = 0;
+		// Bouncy keys: each key's dip, the ball's hop (from, to, its height), its trail
+		float hit[16] = {};
+		int from = 3, to = 8, trailN = 0;
+		float hop = 0.6f, trail[9][2] = {};
+		// Rocket's stars; Rain check's drops, splashes and puddle rings; Sleepy moon's state
+		struct Streak
+		{
+			float x, y, sp;
+		};
+		static constexpr int STREAKS = 40;
+		Streak streaks[STREAKS] = {};
+		struct Drop
+		{
+			float x, y, v;
+		};
+		static constexpr int DROPS = 260, SPLASHES = 80, RINGS = 40;
+		Drop drops[DROPS] = {};
+		struct Splash
+		{
+			float x, y, vx, vy, life;
+		};
+		Splash splashes[SPLASHES] = {};
+		struct Puddle
+		{
+			float x, a;
+		};
+		Puddle rings[RINGS] = {};
+		int dropN = 0, splashN = 0, ringN = 0;
+		bool awake = false;
+		float aw = 0, zPhase = 0;
 		double phase = 0;	// Strings' swing, Helix's twist; Grid's time to its next row (0..1)
 		uint32_t rng = 1;	// (xorshift: the particles' and stars' chance, the same run to run)
 		float slow[VN_MAX_BARS] = {};	// Ribbon's slow line
@@ -125,6 +163,8 @@ namespace bp
 	};
 	// a frame on: the levels eased (Peaks: as measured, its bars aren't eased) and the holds let fall
 	void vizStep(VizStyleState& s, double dt);
+	// Bouncy keys' ball: where it is on its hop (a parabola between two key tops, timed by the beat) and its radius
+	void vizBouncyBall(const VizStyleState& s, float& bx, float& by, float& r);
 
 	// a shape to draw, in 640x480 units. kind 0 a box (x0,y0)-(x1,y1); kind 1 a ring round (x0,y0) from radius x1 to
 	// y1 (0: a disc). ink: VizInk; mix: VI_RAMP's place from BUTTON (0) to ACCENT (1); alpha: 1 opaque

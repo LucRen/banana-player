@@ -30,13 +30,14 @@ namespace bp
 		"synthwave", "banana-stack", "night-city", "oscilloscope", "heartbeat", "campfire", "aurora", "sound-garden", "turntable", "pixel-sea",
 		"bunny-hop", "bubble-tea", "jellyfish", "music-box", "fishbowl", "disco-ball", "banana-dancer", "vibing-cat",
 		"popcorn-machine", "jelly-wobble", "tube-man", "long-cat", "washing-machine", "mirror-bars", "wave", "dots", "levels", "area",
-		"radial", "horizon", "steps", "barcode", "rings", "ribbon", "grid", "starfield", "strings", "helix", "sparks"};
+		"radial", "horizon", "steps", "barcode", "rings", "ribbon", "grid", "starfield", "strings", "helix", "sparks", "bouncy-keys", "rocket", "rain-check", "sleepy-moon", "dance-line"};
 	static const char* VIS_LABELS[VISUALIZERS] = {"Bars", "Waves", "Spectrum", "Circle", "Peaks", "Peaks", "Pocket console",
 		"Hi-fi LED", "Synthwave", "Banana stack", "Night city", "Oscilloscope", "Heartbeat", "Campfire", "Aurora",
 		"Sound garden", "Turntable", "Pixel sea", "Bunny hop",
 		"Bubble tea", "Jellyfish", "Music box", "Fishbowl", "Disco ball", "Banana dancer", "Vibing cat",
 		"Popcorn", "Jelly wobble", "Tube man", "Long cat", "Washing machine", "Mirror bars", "Wave", "Dots", "Levels", "Area", "Radial", "Horizon", "Steps", "Barcode", "Rings",
-		"Ribbon", "Grid", "Starfield", "Strings", "Helix", "Sparks"};
+		"Ribbon", "Grid", "Starfield", "Strings", "Helix", "Sparks", "Bouncy keys", "Rocket", "Rain check",
+		"Sleepy moon", "Dance line"};
 	static const char* LOOP_IDS[LOOPS] = {"off", "all", "one"};
 	static const char* MANGA_MODE_IDS[MANGA_MODES] = {"rtl", "ltr", "strip"};
 	static const char* MANGA_FIT_IDS[MANGA_FITS] = {"page", "width", "fill"};
@@ -124,7 +125,8 @@ namespace bp
 	bool visualizerOnGround(int v)
 	{
 		return v == VIS_PEAKS_BANANA || v == VIS_MIRROR || v == VIS_DOTS || v == VIS_HORIZON || v == VIS_STEPS || v == VIS_BARCODE ||
-			   v == VIS_RINGS || v == VIS_POCKET || v == VIS_RIBBON || v == VIS_GRID || v == VIS_STARFIELD || v == VIS_STRINGS || v == VIS_HELIX || v == VIS_SPARKS;
+			   v == VIS_RINGS || v == VIS_POCKET || v == VIS_RIBBON || v == VIS_GRID || v == VIS_STARFIELD || v == VIS_STRINGS || v == VIS_HELIX || v == VIS_SPARKS ||
+			   v >= VIS_BOUNCY;
 	}
 	const char* loopLabel(int v) { return LOOP_LABELS[v >= 0 && v < LOOPS ? v : 0]; }
 
@@ -643,7 +645,7 @@ namespace bp
 			D::choice("music-show", &Settings::musicShow, SHOW_IDS, SHOWS)
 				.page(SG_MUSIC, 10, "Music display", "What the top screen shows while a song plays (SELECT while playing).").shownAs(SHOW_LABELS).stepped(true),
 			D::choice("visualizer", &Settings::visualizer, VIS_IDS, VISUALIZERS)
-				.page(SG_MUSIC, 20, "Visualizer style", "Which visualizer is drawn: ten styles, from Peaks to Sparks (SELECT while playing).")
+				.page(SG_MUSIC, 20, "Visualizer style", "Which visualizer is drawn: fifteen styles, from Peaks to Dance line (SELECT while playing).")
 				.shownAs(VIS_LABELS).stepped(true, stepVisualizer).afterRead(readVisualizer),
 			D::ints("visualizer-fps", &Settings::vizFps, VIZ_FPS, 3)
 				.page(SG_MUSIC, 30, "Visualizer frame rate", "How smoothly the visualizers move: 60 is smoothest, 30 lightest on the battery.")
