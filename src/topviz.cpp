@@ -1,6 +1,6 @@
 // The native visualizers on the top panel (topscreen.h, docs/notes/2026-11-19-viz-native.md): mpv's picture first (the
 // theme's ground from the blank graph, the art overlay, the song's lines), the style's shapes over it in plain GL (one
-// small shader, coloured triangles: Mirror bars is 41 quads), then the panel presented. Nothing else swaps the top
+// small shader, coloured triangles in one buffer a frame), then the panel presented. Nothing else swaps the top
 // window while the style is up, so this path's own swap is what puts each frame on the glass (KMSDRM: Lite's lesson).
 #include "player.h"
 #include "theme.h"
@@ -19,7 +19,8 @@ namespace bp
 	{
 		constexpr unsigned GL_TRIANGLES_ = 0x0004, GL_FLOAT_ = 0x1406, GL_ARRAY_BUFFER_ = 0x8892, GL_STREAM_DRAW_ = 0x88E0,
 			GL_BLEND_ = 0x0BE2, GL_DEPTH_TEST_ = 0x0B71, GL_SCISSOR_TEST_ = 0x0C11, GL_CULL_FACE_ = 0x0B44,
-			GL_VERTEX_SHADER_ = 0x8B31, GL_FRAGMENT_SHADER_ = 0x8B30, GL_COMPILE_STATUS_ = 0x8B81, GL_LINK_STATUS_ = 0x8B82;
+			GL_VERTEX_SHADER_ = 0x8B31, GL_FRAGMENT_SHADER_ = 0x8B30, GL_COMPILE_STATUS_ = 0x8B81, GL_LINK_STATUS_ = 0x8B82,
+			GL_SRC_ALPHA_ = 0x0302, GL_ONE_MINUS_SRC_ALPHA_ = 0x0303;
 
 		struct VizGl
 		{
@@ -48,6 +49,9 @@ namespace bp
 			VIZ_GL(void, DrawArrays, unsigned, int, int)
 			VIZ_GL(void, Viewport, int, int, int, int)
 			VIZ_GL(void, Disable, unsigned)
+			VIZ_GL(void, Enable, unsigned)
+			VIZ_GL(void, BlendFunc, unsigned, unsigned)
+			VIZ_GL(void, Scissor, int, int, int, int)
 			VIZ_GL(void, GenVertexArrays, int, unsigned*)
 			VIZ_GL(void, BindVertexArray, unsigned)
 #undef VIZ_GL
@@ -90,6 +94,9 @@ namespace bp
 			VIZ_LOAD(DrawArrays, true)
 			VIZ_LOAD(Viewport, true)
 			VIZ_LOAD(Disable, true)
+			VIZ_LOAD(Enable, true)
+			VIZ_LOAD(BlendFunc, true)
+			VIZ_LOAD(Scissor, true)
 #ifdef BP_GLES
 			VIZ_LOAD(GenVertexArrays, false)
 			VIZ_LOAD(BindVertexArray, false)
@@ -100,12 +107,12 @@ namespace bp
 #undef VIZ_LOAD
 			if (!ok) return g;
 #ifdef BP_GLES
-			const char* vs = "#version 100\nattribute vec2 pos; attribute vec3 col; varying vec3 c;\n"
+			const char* vs = "#version 100\nattribute vec2 pos; attribute vec4 col; varying vec4 c;\n"
 							 "void main() { c = col; gl_Position = vec4(pos, 0.0, 1.0); }\n";
-			const char* fs = "#version 100\nprecision mediump float; varying vec3 c;\nvoid main() { gl_FragColor = vec4(c, 1.0); }\n";
+			const char* fs = "#version 100\nprecision mediump float; varying vec4 c;\nvoid main() { gl_FragColor = c; }\n";
 #else
-			const char* vs = "#version 150\nin vec2 pos; in vec3 col; out vec3 c;\nvoid main() { c = col; gl_Position = vec4(pos, 0.0, 1.0); }\n";
-			const char* fs = "#version 150\nin vec3 c; out vec4 o;\nvoid main() { o = vec4(c, 1.0); }\n";
+			const char* vs = "#version 150\nin vec2 pos; in vec4 col; out vec4 c;\nvoid main() { c = col; gl_Position = vec4(pos, 0.0, 1.0); }\n";
+			const char* fs = "#version 150\nin vec4 c; out vec4 o;\nvoid main() { o = c; }\n";
 #endif
 			auto compile = [&](unsigned kind, const char* src) -> unsigned {
 				unsigned s = g.CreateShader(kind);
@@ -150,24 +157,25 @@ namespace bp
 
 	void TopScreen::drawNative(Player& shown, std::atomic<bool>& renderPending, bool refresh)
 	{
-		// mpv's own news (a 5 fps ground frame, the lines or a card changed) and the tap's (new bars)
+		// mpv's own news (a 5 fps ground frame, the lines or a card changed) and the tap's (new levels)
 		const bool mpvFrame = renderPending.exchange(false) && shown.frameDue();
-		const bool fresh = shown.nativeTake(nativeTargets);
+		float got[VN_MAX_BARS];
+		int vis = -1, n = 0;
+		bool fresh = shown.nativeTake(got, vis, n);
 		const bool first = !nativeUp;
-		if (!mpvFrame && !fresh && !refresh && !first) return;
+		// another native style chosen: its own state at once (paused too), the tap's levels for it from its next look
+		const bool restyled = nativeState.vis != shown.nativeStyle();
+		if (first || restyled) nativeState.reset(shown.nativeStyle());
+		if (fresh && vis == nativeState.vis && n == nativeState.n) std::copy(got, got + n, nativeState.targets);
+		else fresh = false;
+		if (!mpvFrame && !fresh && !refresh && !first && !restyled) return;
 		const Uint32 now = SDL_GetTicks();
 		const double dt = first ? 0 : (now - nativeAt) / 1000.0;
 		nativeAt = now;
-		if (first)
-		{
-			std::fill(nativeLevels, nativeLevels + VN_BARS, 0.0f);
-			std::fill(nativeTargets, nativeTargets + VN_BARS, 0.0f);
-			fprintf(stderr, "viz-native: the top panel is the player's: mpv's ground and lines, the bars over them, swapped here\n");
-		}
+		if (first) fprintf(stderr, "viz-native: the top panel is the player's: mpv's ground and lines, the style over them, swapped here\n");
 		nativeUp = true;
-		// paused: the bars stay as they were (the graph's picture froze too); mpv may still ask for a frame (a card)
-		if (!shown.paused)
-			for (int i = 0; i < VN_BARS; i++) nativeLevels[i] = vizEase(nativeLevels[i], nativeTargets[i], dt);
+		// paused: the shapes stay as they were (the graph's picture froze too); mpv may still ask for a frame (a card)
+		if (!shown.paused) vizStep(nativeState, dt);
 		SDL_GL_MakeCurrent(top, gl);
 		int w = 0, h = 0;
 		SDL_GL_GetDrawableSize(top, &w, &h);
@@ -182,40 +190,100 @@ namespace bp
 		shown.render(w, h, 0, false, true);	// the ground, the art, the lines (mpv's last frame again when it has no new one)
 		VizGl& g = vizGl();
 		if (!g.ok) return;
-		std::vector<VizRect> rects;
-		mirrorBarsRects(nativeLevels, VN_BARS, shown.nativeBand(), rects);
-		// a card up (volume, a state, a note): mpv drew it with its picture, under the bars; they go round it instead
-		for (const VizRect& card : shown.cardsUp()) vizCutOut(rects, card);
+		std::vector<VizRect> shapes;
+		vizShapes(nativeState, shown.nativeBand(), shapes);
 		// the theme's inks, read each frame: a theme change shows at once
-		const theme::Rgb inks[2] = {theme::ACCENT, theme::DIM};
+		auto inkOf = [](const VizRect& r, float* c) {
+			theme::Rgb k;
+			switch (r.ink)
+			{
+			case VI_DIM: k = theme::DIM; break;
+			case VI_BUTTON: k = theme::BUTTON; break;
+			case VI_TEXT: k = theme::TEXT; break;
+			case VI_BG: k = theme::BG; break;
+			case VI_WHITE: k = {255, 255, 255}; break;
+			case VI_RAMP:
+			{
+				const theme::Rgb a = theme::BUTTON, b = theme::ACCENT;
+				c[0] = (a.r + (b.r - a.r) * r.mix) / 255.0f, c[1] = (a.g + (b.g - a.g) * r.mix) / 255.0f, c[2] = (a.b + (b.b - a.b) * r.mix) / 255.0f;
+				c[3] = r.alpha;
+				return;
+			}
+			default: k = theme::ACCENT; break;
+			}
+			c[0] = k.r / 255.0f, c[1] = k.g / 255.0f, c[2] = k.b / 255.0f, c[3] = r.alpha;
+		};
 		std::vector<float> v;
-		v.reserve(rects.size() * 30);
+		v.reserve(shapes.size() * 36);
 		const float sx = w / 640.0f, sy = h / 480.0f;
-		for (const VizRect& r : rects)
+		auto vert = [&](float x, float y, const float* c) {
+			v.insert(v.end(), {x / w * 2 - 1, 1 - y / h * 2, c[0], c[1], c[2], c[3]});
+		};
+		for (const VizRect& r : shapes)
 		{
+			float c[4];
+			inkOf(r, c);
+			if (r.kind == 1)
+			{
+				// a ring (or a disc) round (x0, y0) from radius x1 to y1: a strip of quads, ~3 px a segment
+				const float cx = r.x0 * sx, cy = r.y0 * sy, r0 = r.x1 * sy, r1 = r.y1 * sy;
+				const int seg = std::clamp((int)(r1 * 2.1f), 24, 256);
+				float pc = 1, ps = 0;
+				for (int i = 1; i <= seg; i++)
+				{
+					const float a = (float)(2 * M_PI * i / seg), qc = std::cos(a), qs = std::sin(a);
+					vert(cx + pc * r1, cy + ps * r1, c);
+					vert(cx + qc * r1, cy + qs * r1, c);
+					vert(cx + qc * r0, cy + qs * r0, c);
+					if (r0 > 0)
+					{
+						vert(cx + pc * r1, cy + ps * r1, c);
+						vert(cx + qc * r0, cy + qs * r0, c);
+						vert(cx + pc * r0, cy + ps * r0, c);
+					}
+					pc = qc, ps = qs;
+				}
+				continue;
+			}
 			// whole pixels, so each bar keeps its width across the row
-			const float x0 = std::round(r.x0 * sx) / w * 2 - 1, x1 = std::round(r.x1 * sx) / w * 2 - 1;
-			const float y0 = 1 - std::round(r.y0 * sy) / h * 2, y1 = 1 - std::round(r.y1 * sy) / h * 2;
-			const theme::Rgb c = inks[r.ink];
-			const float cr = c.r / 255.0f, cg = c.g / 255.0f, cb = c.b / 255.0f;
-			const float q[6][2] = {{x0, y0}, {x1, y0}, {x1, y1}, {x0, y0}, {x1, y1}, {x0, y1}};
-			for (auto& p : q) v.insert(v.end(), {p[0], p[1], cr, cg, cb});
+			const float x0 = std::round(r.x0 * sx), x1 = std::round(r.x1 * sx), y0 = std::round(r.y0 * sy), y1 = std::round(r.y1 * sy);
+			if (x1 <= x0 || y1 <= y0) continue;
+			vert(x0, y0, c), vert(x1, y0, c), vert(x1, y1, c), vert(x0, y0, c), vert(x1, y1, c), vert(x0, y1, c);
 		}
+		// where they may go: the panel less the song's lines (alone) and mpv's cards, which mpv drew under them: a
+		// scissor pass for each free box (a few draws of the same buffer, nothing cut shape by shape)
+		std::vector<VizRect> free = {{0, 0, 640, 480, 0}};
+		for (const VizRect& keep : shown.nativeKeepClear()) vizCutOut(free, keep);
 		g.Viewport(0, 0, w, h);
 		g.Disable(GL_DEPTH_TEST_);
-		g.Disable(GL_SCISSOR_TEST_);
 		g.Disable(GL_CULL_FACE_);
-		g.Disable(GL_BLEND_);
+		g.Enable(GL_BLEND_);
+		g.BlendFunc(GL_SRC_ALPHA_, GL_ONE_MINUS_SRC_ALPHA_);
 		g.UseProgram(g.prog);
 		if (g.BindVertexArray) g.BindVertexArray(g.vao);
 		g.BindBuffer(GL_ARRAY_BUFFER_, g.vbo);
 		g.BufferData(GL_ARRAY_BUFFER_, (long)(v.size() * sizeof(float)), v.data(), GL_STREAM_DRAW_);
 		g.EnableVertexAttribArray((unsigned)g.aPos);
 		g.EnableVertexAttribArray((unsigned)g.aCol);
-		g.VertexAttribPointer((unsigned)g.aPos, 2, GL_FLOAT_, 0, 5 * sizeof(float), nullptr);
-		g.VertexAttribPointer((unsigned)g.aCol, 3, GL_FLOAT_, 0, 5 * sizeof(float), (const void*)(2 * sizeof(float)));
-		g.DrawArrays(GL_TRIANGLES_, 0, (int)(v.size() / 5));
-		// (mpv's next render expects the default bindings)
+		g.VertexAttribPointer((unsigned)g.aPos, 2, GL_FLOAT_, 0, 6 * sizeof(float), nullptr);
+		g.VertexAttribPointer((unsigned)g.aCol, 4, GL_FLOAT_, 0, 6 * sizeof(float), (const void*)(2 * sizeof(float)));
+		const bool whole = free.size() == 1 && free[0].x0 == 0 && free[0].y0 == 0 && free[0].x1 == 640 && free[0].y1 == 480;
+		if (whole) g.Disable(GL_SCISSOR_TEST_);
+		else g.Enable(GL_SCISSOR_TEST_);
+		for (const VizRect& f : free)
+		{
+			if (!whole)
+			{
+				// (GL's rows go up)
+				const int x0 = (int)std::round(f.x0 * sx), x1 = (int)std::round(f.x1 * sx), y0 = (int)std::round(f.y0 * sy), y1 = (int)std::round(f.y1 * sy);
+				if (x1 <= x0 || y1 <= y0) continue;
+				g.Scissor(x0, h - y1, x1 - x0, y1 - y0);
+			}
+			g.DrawArrays(GL_TRIANGLES_, 0, (int)(v.size() / 6));
+		}
+		// (mpv's next render expects the default state)
+		g.Disable(GL_SCISSOR_TEST_);
+		g.Disable(GL_BLEND_);
 		g.DisableVertexAttribArray((unsigned)g.aPos);
 		g.DisableVertexAttribArray((unsigned)g.aCol);
 		g.BindBuffer(GL_ARRAY_BUFFER_, 0);

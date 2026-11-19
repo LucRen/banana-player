@@ -71,8 +71,8 @@ namespace bp
 		int paneW = 0, paneH = 0;
 		CardOverlay paneCard;	// the level card over the pane (mpv's is under it): cardOnReader puts it there
 		bool paneCardNew = false;
-		// the native visualizer (Mirror bars, src/topviz.cpp): its bars' eased levels and newest targets, when it last drew
-		float nativeLevels[VN_BARS] = {}, nativeTargets[VN_BARS] = {};
+		// the native visualizers (src/topviz.cpp): the style's levels and holds, when it last drew
+		VizStyleState nativeState;
 		Uint32 nativeAt = 0;
 		bool nativeUp = false;
 

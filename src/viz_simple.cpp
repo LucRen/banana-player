@@ -186,6 +186,7 @@ namespace bp
 	// Mirror bars: the spectrum in 40 bars, each grown up and down from a centre line by the same height. Bars ACCENT,
 	// the centre line DIM (in the gaps, and under a bar that's quiet). A local song's Mirror bars are drawn by the player
 	// (src/viznative.h, docs/notes/2026-11-19-viz-native.md); this graph is a network song's, and a file the tap can't read
+	// (so are this file's other five styles and Peaks: their graphs remain only as that fallback)
 	std::string mirrorGraph(bool overCover)
 	{
 		Timer tm;

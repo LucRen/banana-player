@@ -29,15 +29,16 @@ namespace bp
 
 		// a song's tap: its path (local), the frame rate (30, 45, 60), wake: called from the worker when new targets
 		// are ready (coalesced: once until taken)
-		void start(const std::string& path, int fps, std::function<void()> wake);
+		void start(const std::string& path, int fps, int vis, std::function<void()> wake);
 		void stop();
 		bool running() const { return (bool)job; }
 		const std::string& path() const { return jobPath; }
 		void setFps(int fps);
+		void setStyle(int vis);	// a native style's bands (vizStyleBands): the next spectrum is measured for it
 		// the clock from mpv (main thread): pts < 0 unknown
 		void setClock(const VizClock& c);
-		// the newest targets (VN_BARS) when they're newer than *seq; *seq moves on
-		bool take(float* out, uint64_t& seq);
+		// the newest targets (n of them, measured for style vis; out holds VN_MAX_BARS) when newer than seq; seq moves on
+		bool take(float* out, uint64_t& seq, int& vis, int& n);
 		// the file couldn't be opened or decoded: the caller falls back to the graph style
 		bool failed() const;
 		std::string info() const;	// what is decoded, for the log

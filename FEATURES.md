@@ -533,7 +533,7 @@ Songs show their title, artist and album on the top screen. While a song plays:
   grid of tiles (the same fifteen, in the same order, on Settings' Visualizer style row). The tile in use is filled in
   the theme's accent; the cursor is an accent edge. The styles: **Peaks** (default: 64 bars in the theme's accent,
   bass on the left, each with a cap in the theme's text colour that stays at the bar's highest point and slowly falls
-  back, over a faint grid), **Mirror bars** (the spectrum's bars growing up and down from a faint centre line; drawn by the player, not mpv, at the Visualizer frame rate setting, so switching to it from None and back never interrupts the sound; a song from a network folder keeps the older mpv-drawn version),
+  back, over a faint grid), **Mirror bars** (the spectrum's bars growing up and down from a faint centre line),
   **Pocket console** (Peaks on an old handheld's screen: 15 bars of chunky dots in four shades, with falling caps;
   alone, the title is in the same ink in pixel type. In Yellow the old handheld's greens; in another theme four shades
   of its accent on a screen tinted with it), **Night city** (a skyline whose windows light up with the music; in a
@@ -551,7 +551,10 @@ Songs show their title, artist and album on the top screen. While a song plays:
   valleys. Every style measures the music evened out (only for the picture: the sound is untouched), so a quiet song
   moves it about as much as a loud one, the treble side is lively too, and silence stays still. With Art +
   visualizer, every style is drawn along the bottom of the screen, under the art, which it never covers, on the
-  theme's ground. Peaks, Mirror bars, Horizon, Dots, Steps, Barcode and Rings are drawn in the theme's colours
+  theme's ground. Peaks, Mirror bars, Horizon, Dots, Steps, Barcode and Rings are drawn by the player, not mpv, at the
+  Visualizer frame rate setting: switching among them, or to None and back, never interrupts the sound, and with
+  Visualizer only they keep clear of the song's lines and of a volume or other card (a song from a network folder
+  keeps the older mpv-drawn versions, at 30 fps). They are drawn in the theme's colours
   (accent, text, dim and button) on its ground, and the song's lines over them alone are in the theme's colours too.
   Earlier styles no longer offered: Circle, Sound garden, Bubble tea and Long cat (and Area and Radial, offered for a
   day) read as the style in their place (Mirror bars, Horizon, Dots, Steps); Wave, Levels, Campfire, Bunny hop,

@@ -113,8 +113,11 @@ namespace bp
 		// the top panel draws the native style now (a local song, its display a visualizer, not resting)
 		bool nativeShown() const { return vizTap.running() && !vizTap.failed(); }
 		bool nativeBand() const { return nativeOverArt; }	// Art + visualizer: the band along the foot
-		// the bars' newest targets, if new since the last take
-		bool nativeTake(float* out) { return vizTap.take(out, nativeSeq); }
+		// the newest targets (VN_MAX_BARS room), with the style and band count they're for, if new since the last take
+		bool nativeTake(float* out, int& vis, int& n) { return vizTap.take(out, nativeSeq, vis, n); }
+		int nativeStyle() const { return settings.visualizer; }
+		// where the shapes mustn't go (640x480 units): mpv's cards, and alone the song's lines (drawn by mpv under them)
+		std::vector<VizRect> nativeKeepClear() const;
 		void nativeDrew() { nativeFrames++; }	// (the log's frames a second)
 		// the cards up now (mpv's image overlays: level, state, note...), in 640x480 units: the bars are drawn round them
 		std::vector<VizRect> cardsUp() const;
@@ -505,6 +508,8 @@ namespace bp
 		VizTap vizTap;
 		std::function<void()> nativeWake;
 		bool nativeFailed = false, nativeOverArt = false, nativeMoving = false;
+		int nativeStyleSent = -1;	// the style the tap measures for
+		VizRect linesBox{0, 0, 0, 0, 0};	// the song's lines over a visualizer alone (updateOverlay), in units
 		uint64_t nativeSeq = 0, nativeFrames = 0, nativeAt = 0, nativeLoggedAt = 0;
 		VizClock audioClock;	// mpv's audio-pts and when it came (observed: never read)
 		bool hidingVideo = false;	// hideVideo(true): a video's picture off (each video's loadfile says vid=no)

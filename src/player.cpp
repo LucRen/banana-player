@@ -2553,7 +2553,7 @@ namespace bp
 	{
 		// a network song keeps the graph style: the tap's second decode opens local files only (bpnet:// goes through
 		// mpv's stream callbacks), and a second read of a remote file would double its traffic
-		return settings.visualizer == VIS_MIRROR && isAudio && !isNet && currentPath().find("://") == std::string::npos && !nativeFailed;
+		return vizNativeStyle(settings.visualizer) && isAudio && !isNet && currentPath().find("://") == std::string::npos && !nativeFailed;
 	}
 
 	static uint64_t steadyNs()
@@ -2569,6 +2569,14 @@ namespace bp
 			(unsigned long long)nativeFrames, (unsigned long long)st.spectra, (unsigned long long)st.seeks, why);
 		vizTap.stop();
 		nativeMoving = false;
+		nativeStyleSent = -1;
+	}
+
+	std::vector<VizRect> Player::nativeKeepClear() const
+	{
+		std::vector<VizRect> r = cardsUp();
+		if (shownMusic() == SHOW_VIS && linesBox.x1 > linesBox.x0) r.push_back(linesBox);
+		return r;
 	}
 
 	void Player::syncNative()
@@ -2594,9 +2602,10 @@ namespace bp
 			nativeAt = ticks();
 			nativeLoggedAt = 0;
 			std::function<void()> wake = nativeWake;
-			vizTap.start(path, settings.vizFps, wake);
-			fprintf(stderr, "viz-native: Mirror bars for %s (%s), %d fps: a second decode, mono %d Hz, FFT %d (PFFFT), on mpv's audio-pts "
-				"(the sound heard: mpv's output delay already off), drawn a frame ahead\n", baseName(path).c_str(),
+			vizTap.start(path, settings.vizFps, settings.visualizer, wake);
+			nativeStyleSent = settings.visualizer;
+			fprintf(stderr, "viz-native: %s for %s (%s), %d fps: a second decode, mono %d Hz, FFT %d (PFFFT), on mpv's audio-pts "
+				"(the sound heard: mpv's output delay already off), drawn a frame ahead\n", visualizerLabel(settings.visualizer), baseName(path).c_str(),
 				nativeOverArt ? "Art + visualizer: the band" : "Visualizer only", settings.vizFps, VN_RATE, VN_FFT);
 		}
 		if (vizTap.failed())
@@ -2609,6 +2618,13 @@ namespace bp
 			return;
 		}
 		vizTap.setFps(settings.vizFps);
+		if (settings.visualizer != nativeStyleSent)
+		{
+			// a native style to another: the same tap, the same blank graph (no sound reopen), its own bands
+			if (nativeStyleSent >= 0) fprintf(stderr, "viz-native: %s now (the same tap, no graph change)\n", visualizerLabel(settings.visualizer));
+			nativeStyleSent = settings.visualizer;
+			vizTap.setStyle(settings.visualizer);
+		}
 		VizClock c = audioClock;
 		c.speed = speed > 0 ? speed : 1;
 		c.moving = !paused && !pausedForCache && !seekingSince && c.pts >= 0;
@@ -2791,6 +2807,7 @@ namespace bp
 			dropSongArt();
 			return;
 		}
+		linesBox = {0, 0, 0, 0, 0};
 		// the song's lines (docs/redesign/components.md, Song layout); the ASS canvas is 960x720, 1.5x the units
 		const double K = 1.5;
 		auto u = [&](double v) { return (int)std::lround(v * K); };
@@ -3075,8 +3092,10 @@ namespace bp
 				: "\\q2\\bord2\\blur4\\3c&H000000&\\shad3\\4c&H000000&";
 			// a line each, from the top (22, 18): title 26, then 5 down the artist 17, 3 down the album 14
 			double y = 18;
+			int linesW = 0;
 			auto line = [&](const std::string& s, int fs, bool bold, const std::string& colour, int gap) {
 				y += gap;
+				linesW = std::max(linesW, lineW(songFitText(s, fs, 596, bold), fs, bold));
 				ev += "{\\an7\\pos(" + num(u(22)) + "," + num(u(y)) + ")" + look + "\\fs" + num(u(fs)) + (bold ? "\\b1" : "\\b0") + "\\1c" + colour + "}" +
 					  assText(songFitText(s, fs, 596, bold)) + "\n";
 				y += fs * 1.2;
@@ -3088,6 +3107,8 @@ namespace bp
 			if (!chapter.empty()) line(chapter, 17, false, pocket ? PMID : peaksAlone ? MARK : ass(TOP_TITLE), 4);
 			if (!artist.empty()) line(artist, 17, false, pocket ? PINK : peaksAlone ? INK2 : CREAM, 5);
 			if (!album.empty()) line(album, 14, false, pocket ? PMID : peaksAlone ? INK3 : GREY, 3);
+			// the native styles are drawn after mpv's picture: they keep off the lines' box (8 units round them)
+			linesBox = {22 - 8, 18 - 8, 22 + (float)linesW + 8, (float)y + 6, 0};
 		}
 		// the manga engine starting over Album art only (the visualizers rest as None): its note at the foot
 		if (engineLoading && show != SHOW_NONE)

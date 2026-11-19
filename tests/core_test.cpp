@@ -6062,6 +6062,95 @@ static void testVizNative()
 	for (auto& q : r) area += (q.x1 - q.x0) * (q.y1 - q.y0);
 	CHECK_EQ(area, 540.0f * 4 + 12 * (14 + 74) + 12 * 4);
 
+	// every native style: its band count, sound edges, and its shapes at silence and at full
+	const int styles[] = {VIS_MIRROR, VIS_PEAKS_BANANA, VIS_DOTS, VIS_STEPS, VIS_BARCODE, VIS_RINGS, VIS_HORIZON};
+	const int bars[] = {40, 64, 32, 20, 96, 10, 20};
+	for (int k = 0; k < 7; k++)
+	{
+		CHECK(vizNativeStyle(styles[k]));
+		CHECK_EQ(vizStyleBands(styles[k]).bars, bars[k]);
+		const std::vector<int> se = vizBandEdges(bars[k], VN_FFT, VN_RATE, 40, 14000);
+		bool up = se.front() >= 1 && se.back() <= VN_FFT / 2;
+		for (size_t i = 1; i < se.size(); i++) up = up && se[i] > se[i - 1];
+		CHECK(up);
+	}
+	CHECK(!vizNativeStyle(VIS_CITY));
+	CHECK(vizStyleBands(VIS_PEAKS_BANANA).plain && !vizStyleBands(VIS_DOTS).plain);
+	auto inksOf = [](const std::vector<VizRect>& rs, int ink) { int c = 0; for (auto& q : rs) c += q.ink == ink; return c; };
+	VizStyleState st;
+	// Peaks: silent, 64 caps on the foot and the four faint lines; caps fall 102 levels a second
+	st.reset(VIS_PEAKS_BANANA);
+	vizShapes(st, false, r);
+	CHECK_EQ(inksOf(r, VI_TEXT), 64);
+	CHECK_EQ(inksOf(r, VI_WHITE), 4);
+	CHECK_EQ(inksOf(r, VI_ACCENT), 0);
+	st.targets[0] = 250;
+	vizStep(st, 0.016);
+	CHECK_EQ(st.levels[0], 250.0f);
+	st.targets[0] = 0;
+	vizStep(st, 1.0);
+	CHECK(st.levels[0] == 0 && std::fabs(st.holds[0] - 148) < 0.01);
+	vizShapes(st, true, r);
+	CHECK_EQ(inksOf(r, VI_WHITE), 0);	// (no lines in the band)
+	// Dots: 32 x 17 dots (3 boxes each) from 120 down alone (75% of the height), all lit at full
+	st.reset(VIS_DOTS);
+	vizShapes(st, false, r);
+	CHECK_EQ((int)r.size(), 32 * 17 * 3);
+	CHECK_EQ(inksOf(r, VI_BUTTON), 32 * 17 * 3);
+	float topY = 480;
+	for (auto& q : r) topY = std::min(topY, q.y0);
+	CHECK_EQ(topY, 122.0f);
+	for (int i = 0; i < 32; i++) st.targets[i] = VN_TOP;
+	vizStep(st, 0.016);
+	vizShapes(st, false, r);
+	CHECK_EQ(inksOf(r, VI_ACCENT), 32 * 17 * 3);
+	vizShapes(st, true, r);
+	CHECK_EQ((int)r.size(), 32 * 9 * 3);
+	// Steps: at full, the fill reaches 120 alone (75%), 280 in the band; the peak line held 73.9 a second
+	st.reset(VIS_STEPS);
+	for (int i = 0; i < 20; i++) st.targets[i] = VN_TOP;
+	vizStep(st, 0.016);
+	vizShapes(st, false, r);
+	topY = 480;
+	for (auto& q : r) topY = std::min(topY, q.y0);
+	CHECK_EQ(topY, 120.0f);
+	vizShapes(st, true, r);
+	topY = 480;
+	for (auto& q : r) topY = std::min(topY, q.y0);
+	CHECK_EQ(topY, 280.0f);
+	for (int i = 0; i < 20; i++) st.targets[i] = 0;
+	vizStep(st, 1.0);
+	CHECK(std::fabs(st.holds[0] - (252 - 73.9f)) < 0.01);
+	vizShapes(st, false, r);
+	CHECK_EQ(inksOf(r, VI_DIM), 20);	// the peaks, still up
+	// Barcode: 96 hairlines, faint at silence, the accent at full
+	st.reset(VIS_BARCODE);
+	vizShapes(st, false, r);
+	CHECK_EQ((int)r.size(), 96);
+	CHECK(r[0].mix == 0 && r[0].x0 == 0 && r[95].x0 == 2 * 317 && r[0].y1 - r[0].y0 == 480);
+	// Rings: ten faint guides and the dot at silence; the first ring at its widest at full
+	st.reset(VIS_RINGS);
+	vizShapes(st, false, r);
+	CHECK_EQ(inksOf(r, VI_BUTTON), 10);
+	CHECK_EQ(inksOf(r, VI_TEXT), 1);
+	st.targets[0] = VN_TOP;
+	vizStep(st, 0.016);
+	vizShapes(st, false, r);
+	CHECK(r[0].ink == VI_ACCENT && std::fabs((r[0].y1 - r[0].x1) - 4 * 0.42f * 10.6f) < 0.01);
+	// Horizon: the skyline two thirds of the sky at full (107 of 160 rows), mirrored, with its striped reflection
+	st.reset(VIS_HORIZON);
+	for (int i = 0; i < 20; i++) st.targets[i] = VN_TOP;
+	vizStep(st, 0.016);
+	vizShapes(st, false, r);
+	int sky = 0, stripes = 0;
+	for (auto& q : r)
+	{
+		if (q.ink == VI_ACCENT) { sky++; CHECK_EQ(q.y1 - q.y0, 214.0f); }
+		if (q.ink == VI_DIM && q.y1 - q.y0 == 2) stripes++;
+	}
+	CHECK_EQ(sky, 40);
+	CHECK(stripes > 10);
+
 	// the clock: on at the speed while moving, held otherwise
 	VizClock c;
 	CHECK_EQ(c.at(5), -1.0);

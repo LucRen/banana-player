@@ -1,8 +1,8 @@
-# Native visualizers: Mirror bars drawn by the player (2026-11-19)
+# Native visualizers: the simple styles and Peaks drawn by the player (2026-11-19)
 
 Why: the graph-built simple styles stalled mpv on the handheld (2026-11-19-viz-simple.md, "The stall"). A style the
-player draws itself has no graph to stall, no sound reopen on a switch, and costs less. Mirror bars is the pilot; the
-path is meant for the other simple styles too.
+player draws itself has no graph to stall, no sound reopen on a switch, and costs less. Mirror bars was the pilot (the
+first half of this note); Peaks, Dots, Steps, Barcode, Rings and Horizon followed the same day ("The other six", below).
 
 ## How it works
 
@@ -38,11 +38,47 @@ path is meant for the other simple styles too.
   Geometry is the graph's doubled: 16 units a bar, 12 wide, the line 4 tall; alone centred at 240, 218 each way at
   most; in the band (rows 280..480) centred at 380, 94 each way.
 
+## The other six (same day)
+
+The same tap, FFT and clock; each style its own bands (`vizStyleBands`: Peaks 64, Dots 32, Steps 20, Barcode 96, Rings
+10, Horizon 20, all log spaced 40 Hz..14 kHz), told to the worker with `VizTap::setStyle` (a switch between native
+styles keeps the tap and the blank graph: no sound reopen, one log line `viz-native: <style> now`). Peaks takes the
+levels plain (its graph had no contrast push or bed cut, and its bars weren't eased); the others are spectrumRow's.
+`VizStyleState` (bpcore) holds the levels and the held peaks; `vizStep` eases them, `vizShapes` makes each style's
+shapes from its graph's geometry (the half-size picture doubled; `rowsUpTo` reproduces the graphs' "height of this
+row" stills exactly):
+
+- **Peaks:** 64 bars of 8 units (2 apart) from the foot, ACCENT; a 4-unit TEXT cap on each held peak, falling 102
+  levels a second (the graph's lagfun 0.8679 at 30 fps); alone, the four faint white lines (10%) every 96 units.
+- **Dots:** 32 x 17 dots alone (from 120 down: 75% of the height), 32 x 9 in the band; 20-unit cells, the dot 16 with
+  its corners cut (three boxes); lit ACCENT from the foot, the rest BUTTON.
+- **Steps:** 20 bands of 32 units: fill BUTTON, the held peak's step DIM (73.9 a second: lagfun 0.95 at 60), the
+  outline ACCENT (each top 1 step alone, 2 in the band, and the rises/falls at a band's first 4 units); alone up to 75%.
+- **Barcode:** 96 two-unit hairlines the region's height, from BUTTON to ACCENT by level (a mixed colour per line).
+- **Rings:** ten rings (ACCENT) whose half-width steps through the graph's eight widths, a quiet band's guide
+  (BUTTON), the centre dot (TEXT); real circles (a strip of quads, ~3 px a segment) where the graph's were remapped.
+- **Horizon:** the 20 bands mirrored (bass in the middle) as a 40-column skyline (ACCENT, two thirds of the sky at
+  most), a BUTTON sun disc behind it (its part under the line covered with BG), the 4-unit DIM line, and the striped
+  reflection (DIM, odd 2-unit rows, the skyline squashed by REF/SKY, runs merged).
+
+**The song's lines over the shapes** (Visualizer only, the gap left by the pilot): mpv draws the lines with its picture,
+before the shapes, so the shapes keep off them. `Player::linesBox` (updateOverlay: the lines' measured width, 8 units
+round) and mpv's cards (`cardsUp`) are cut out of the panel (`vizCutOut` on the whole 640x480), and the one vertex
+buffer is drawn once per free box with a GL scissor (a few draws, no shape cut by hand; rings included). A loud bar
+now stops at the box round the title. In Art + visualizer the lines are above the band, so only cards matter there.
+
+Drawing is one buffer of coloured triangles a frame (positions and RGBA; blending on for Peaks' faint lines), no
+textures. The largest is Dots alone: 1632 boxes, ~10k vertices, built on the main thread each frame.
+
+Checked on the Mac (one run): the seven switched in turn with `set:visualizer=…`, then a seek forward and back, a pause,
+Art + visualizer, and `flip:visualizer=steps|rings:6:300` (six switches 300 ms apart): no graph change, no stall, 47.4
+frames a second at 45 fps. One contact sheet of the seven alone matched the graphs' looks.
+
 ## Log lines
 
 | line | when |
 |---|---|
-| `viz-native: Mirror bars for <file> (<mode>), N fps: a second decode, mono 32000 Hz, FFT 1024 (PFFFT), on mpv's audio-pts …` | the tap starts for a song |
+| `viz-native: <style> for <file> (<mode>), N fps: a second decode, mono 32000 Hz, FFT 1024 (PFFFT), on mpv's audio-pts …` | the tap starts for a song |
 | `viz-native: the top panel is the player's: …` | the first native frame after another picture |
 | `viz-native: GL ready` (or `no glX` / `shader: …`) | the GL side, once a run |
 | `viz-native: <file>: in 5.0 s 34.0 frames drawn a second, 28.6 spectra a second, audio-pts told 5.0 a second, N seeks; decoding aac 44100 Hz 2 ch` | once, 5 s in |
@@ -60,12 +96,10 @@ None and back (no graph change). One screenshot (Art + visualizer) matched the g
 
 The second decode's CPU (an MP3/AAC decode and a 32 kHz resample: a few percent of one A55 core expected; the worker
 runs at nice 5); `audio-pts`'s update rate under the bundled mpv 0.40 (the 5 s line says it); GLES's attribute
-locations and the swap under KMSDRM; the song's lines (mpv's ASS) are drawn under the bars, so in Visualizer only a very
-loud treble bar (they reach row 22) can cross the title at the top left, where the graph's lines stayed on top.
-mpv's cards (volume, state, note) are cut out of the bars (`vizCutOut`, `Player::cardsUp`), so they stay readable.
+locations and the swap under KMSDRM; the lines' box is measured with the Mac's fonts here and the bundle's Inter there (the
+same Inter); Dots' ~10k vertices a frame on the A55 (the main thread's share: the log's frames a second says if it lags).
 
 ## Left out
 
-The other simple styles (Dots, Steps, Horizon, Barcode, Rings) still use graphs; the shapes and the targets are the
-parts to add (`mirrorBarsRects` / `vizMirrorTargets` beside new ones). The tap ignores a chosen second audio track
+Pocket console, Night city, Aurora and the scene styles still use graphs. The tap ignores a chosen second audio track
 (the blank graph plays `[aid1]` too).

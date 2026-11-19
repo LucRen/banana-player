@@ -189,12 +189,13 @@ namespace bp
 	struct VizTap::Job
 	{
 		std::atomic<bool> stop{false}, woken{false};
-		std::atomic<int> fps{30};
+		std::atomic<int> fps{30}, vis{0};
 		std::function<void()> wake;
 		std::mutex m;
 		std::condition_variable cv;
 		VizClock clock;	// (m)
-		float targets[VN_BARS] = {};	// (m)
+		float targets[VN_MAX_BARS] = {};	// (m)
+		int targetsVis = 0, targetsN = 0;	// (m) the style they were measured for
 		uint64_t seq = 0;	// (m)
 		bool failed = false;	// (m)
 		std::string info;	// (m)
@@ -220,9 +221,11 @@ namespace bp
 			if (j->wake) j->wake();
 			return;
 		}
-		const std::vector<int> edges = vizBandEdges(VN_BARS, VN_FFT, VN_RATE, 40, 14000);
+		int vis = -1;
+		VizBands bands;
+		std::vector<int> edges;
 		std::vector<float> win(VN_FFT), mag(VN_FFT / 2);
-		float targets[VN_BARS];
+		float targets[VN_MAX_BARS];
 		uint64_t seeks = 0, spectra = 0;
 		auto loudAt = std::chrono::steady_clock::now();
 		auto next = std::chrono::steady_clock::now();
@@ -246,15 +249,24 @@ namespace bp
 			const double t = c.at(nowNs()) + 1.0 / fps;
 			d->window(t, win.data(), VN_FFT, seeks);
 			spectrum.magnitudes(win.data(), mag.data());
-			vizMirrorTargets(mag.data(), edges, VN_RATE, VN_FFT, targets);
+			if (j->vis != vis)
+			{
+				// another native style: its own band count (the same 40 Hz..14 kHz, log spaced)
+				vis = j->vis;
+				bands = vizStyleBands(vis);
+				edges = vizBandEdges(bands.bars, VN_FFT, VN_RATE, 40, 14000);
+			}
+			vizBandTargets(mag.data(), edges, VN_RATE, VN_FFT, bands.plain, targets);
 			spectra++;
 			bool loud = false;
-			for (float v : targets) loud = loud || v > 0;
+			for (int i = 0; i < bands.bars; i++) loud = loud || targets[i] > 0;
 			auto now = std::chrono::steady_clock::now();
 			if (loud) loudAt = now;
 			{
 				std::lock_guard<std::mutex> g(j->m);
-				std::copy(targets, targets + VN_BARS, j->targets);
+				std::copy(targets, targets + bands.bars, j->targets);
+				j->targetsVis = vis;
+				j->targetsN = bands.bars;
 				j->seq++;
 				j->stats.spectra = spectra;
 				j->stats.seeks = seeks;
@@ -268,11 +280,12 @@ namespace bp
 		}
 	}
 
-	void VizTap::start(const std::string& path, int fps, std::function<void()> wake)
+	void VizTap::start(const std::string& path, int fps, int vis, std::function<void()> wake)
 	{
 		stop();
 		job = std::make_shared<Job>();
 		job->fps = fps;
+		job->vis = vis;
 		job->wake = std::move(wake);
 		jobPath = path;
 		std::thread(runTap, job, path).detach();
@@ -292,6 +305,11 @@ namespace bp
 		if (job) job->fps = fps;
 	}
 
+	void VizTap::setStyle(int vis)
+	{
+		if (job) job->vis = vis;
+	}
+
 	void VizTap::setClock(const VizClock& c)
 	{
 		if (!job) return;
@@ -307,14 +325,16 @@ namespace bp
 		if (wake) job->cv.notify_all();
 	}
 
-	bool VizTap::take(float* out, uint64_t& seq)
+	bool VizTap::take(float* out, uint64_t& seq, int& vis, int& n)
 	{
 		if (!job) return false;
 		job->woken = false;
 		std::lock_guard<std::mutex> g(job->m);
 		if (job->seq == seq) return false;
 		seq = job->seq;
-		std::copy(job->targets, job->targets + VN_BARS, out);
+		std::copy(job->targets, job->targets + job->targetsN, out);
+		vis = job->targetsVis;
+		n = job->targetsN;
 		return true;
 	}
 
