@@ -7,6 +7,7 @@
 #include "ui_manga.h"
 #include "cbz.h"
 #include "comicinfo.h"
+#include "mangaseriescache.h"
 #include "format.h"
 #include "playlist.h"
 #include <algorithm>
@@ -43,6 +44,11 @@ namespace bp
 			}
 			return "Chapter";
 		}
+
+		// a chapter the card holds is this one of the source's list: the number is the download's own (ComicInfo's),
+		// the title is what writeChapter put there; either can be the one that matches when a source numbers its
+		// chapters its own way
+		bool dlNumberMatches(double cardNumber, const MangaChapter& c) { return cardNumber >= 0 && c.number > 0 && cardNumber == c.number; }
 
 		std::string baseNoExt(const std::string& path)
 		{
@@ -153,6 +159,7 @@ namespace bp
 					ch.title = meta.ciTitle.empty() ? baseNoExt(name) : meta.ciTitle;
 					ch.sourceId = meta.ciSourceId;
 					ch.seriesKey = meta.ciSeriesKey;
+					ch.chapterId = meta.ciChapterId;
 					ch.number = infoNumber(meta.ciNumber);
 					if (ch.number < 0) ch.number = chapterNumber(ch.title);
 					ch.pages = meta.ciPageCount > 0 ? meta.ciPageCount : std::max(0, meta.pages);
@@ -188,6 +195,52 @@ namespace bp
 			mdlLocal++;
 		}
 		mdlCard = std::move(found);
+		mangaDlLinkCard();
+	}
+
+	void Ui::Manga::mangaDlLinkCard()
+	{
+		if (!mangaStore) return;
+		bool changed = false;
+		for (const auto& s : mdlCard)
+			for (const auto& ch : s.chapters)
+			{
+				if (!isSourceId(ch.seriesKey) || ch.sourceId.empty()) continue;	// no source to link to: its own place
+				std::string chapterId = ch.chapterId;
+				if (chapterId.empty())
+				{
+					// an older download: its source chapter found in the series' list (the page's own when it is
+					// open, else the list cached on the card), by title first, then by number
+					const std::vector<MangaChapter>* list = nullptr;
+					if (ch.seriesKey == mangaSeriesId && mangaSrcChaptersOn) list = &mangaSrcChapters;
+					else
+					{
+						auto it = mdlLinkLists.find(ch.seriesKey);
+						if (it == mdlLinkLists.end())
+						{
+							MangaSeriesCache c;
+							if (!mangaSeriesCacheRead(ui.stateDirPath, ch.seriesKey, c)) c.chapters.clear();
+							it = mdlLinkLists.emplace(ch.seriesKey, std::move(c.chapters)).first;
+						}
+						list = &it->second;
+					}
+					const MangaChapter* hit = nullptr;
+					for (const auto& c : *list)
+						if (dlChapterName(c) == ch.title) { hit = &c; break; }
+					if (!hit)
+						for (const auto& c : *list)
+							if (dlNumberMatches(ch.number, c)) { hit = &c; break; }
+					if (!hit) continue;	// not found (yet): the path keeps its own place
+					chapterId = sourceItemId(ch.sourceId, hit->key);
+				}
+				MangaStore::Link l = mangaStore->linkChapter(ch.path, chapterId, ch.seriesKey);
+				if (l == MangaStore::Link::Same || l == MangaStore::Link::Linked) continue;
+				// (logged: a place that moved between ids is otherwise invisible until a tick is missing)
+				fprintf(stderr, "manga: %s the downloaded copy's place %s into %s\n",
+					l == MangaStore::Link::Merged ? "merged" : "moved", ch.path.c_str(), chapterId.c_str());
+				changed = true;
+			}
+		if (changed) mangaDirty = true;
 	}
 
 	uint64_t Ui::Manga::mangaDlCardBytes() const
@@ -229,9 +282,7 @@ namespace bp
 			for (const auto& ch : s.chapters)
 			{
 				if (ch.sourceId != sourceId || ch.seriesKey != seriesId) continue;
-				// the number is the download's own (ComicInfo's), and the title is what writeChapter put there;
-				// either can be the one that matches when a source numbers its chapters its own way
-				if (ch.number >= 0 && c.number > 0 && ch.number == c.number) return &ch;
+				if (dlNumberMatches(ch.number, c)) return &ch;
 				if (ch.title == title) return &ch;
 			}
 		return nullptr;

@@ -3579,6 +3579,110 @@ static void testPaged()
 	CHECK_EQ(e.current(), 0);
 }
 
+// Issue #15: a downloaded chapter and its online chapter keep one place, under the source's ids
+static void testMangaStoreLinkedDownloads()
+{
+	const std::string path = "/sd/Manga/Ember/Chapter 3.cbz";
+	const std::string cid = "src:mangadex:ch-3", sid = "src:mangadex:ember";
+	const std::string local = "local:/sd/Manga/Ember";
+
+	// the canonical key: a linked file reads and writes the source chapter's place; an unlinked one keeps its own
+	{
+		MangaStore m;
+		CHECK_EQ(m.canonicalChapter(path), path);
+		CHECK_EQ((bool)(m.linkChapter(path, cid, sid) == MangaStore::Link::Linked), true);
+		CHECK_EQ((bool)(m.linkChapter(path, cid, sid) == MangaStore::Link::Same), true);
+		CHECK_EQ(m.canonicalChapter(path), cid);
+		CHECK_EQ(m.canonicalChapter("/sd/Manga/Ember/Extra.cbz"), std::string("/sd/Manga/Ember/Extra.cbz"));
+		MangaSeries ls;
+		ls.id = local;
+		m.putSeries(ls);
+		// the downloaded copy read (from On this handheld): its place is visible from the online id
+		ChapterProgress p;
+		p.seriesId = local;
+		p.chapterId = path;
+		p.page = 6;
+		p.pages = 20;
+		p.at = 1000;
+		m.setProgress(p);
+		const ChapterProgress* on = m.progress(cid);
+		CHECK_EQ((bool)(on != nullptr), true);
+		CHECK_EQ(on->page, 6);
+		CHECK_EQ(on->seriesId, sid);
+		CHECK_EQ((bool)(m.progress(path) == on), true);
+		CHECK_EQ(m.history(10).size(), (size_t)1);	// one row, not two
+		CHECK_EQ(m.series(local)->lastRead, (int64_t)1000);	// its folder's series still moves up the library
+		// read online further: the copy opens there too
+		p.seriesId = sid;
+		p.chapterId = cid;
+		p.page = 19;
+		p.at = 2000;
+		m.setProgress(p);
+		CHECK_EQ(m.progress(path)->page, 19);
+		CHECK_EQ(m.progress(path)->read, true);
+		// the folder's series counts it read, by its path; an unlinked chapter of it doesn't
+		CHECK_EQ(m.unread(local, {path, "/sd/Manga/Ember/Extra.cbz"}), 1);
+		// marked unread from the folder's page: the one place changes
+		m.markRead(local, {path}, false);
+		CHECK_EQ(m.progress(cid)->read, false);
+		CHECK_EQ(m.history(10).size(), (size_t)1);
+	}
+
+	// the migration: a place under the path and one under the source id merge into the source's, once
+	{
+		MangaStore m;
+		ChapterProgress a;	// read online first
+		a.seriesId = sid;
+		a.chapterId = cid;
+		a.page = 3;
+		a.pages = 20;
+		a.at = 100;
+		m.setProgress(a);
+		ChapterProgress b;	// then further in the downloaded copy, later
+		b.seriesId = local;
+		b.chapterId = path;
+		b.page = 12;
+		b.pages = 20;
+		b.at = 500;
+		m.setProgress(b);
+		m.markRead(sid, {cid}, true);	// and marked read online
+		CHECK_EQ(m.history(10).size(), (size_t)2);
+		CHECK_EQ((bool)(m.linkChapter(path, cid, sid) == MangaStore::Link::Merged), true);
+		std::vector<ChapterProgress> h = m.history(10);
+		CHECK_EQ(h.size(), (size_t)1);
+		CHECK_EQ(h[0].chapterId, cid);
+		CHECK_EQ(h[0].seriesId, sid);
+		CHECK_EQ(h[0].page, 12);	// the later place
+		CHECK_EQ(h[0].at, (int64_t)500);
+		CHECK_EQ(h[0].read, true);	// read in either
+		// linked again (the next scan): nothing moves
+		CHECK_EQ((bool)(m.linkChapter(path, cid, sid) == MangaStore::Link::Same), true);
+		CHECK_EQ(m.history(10).size(), (size_t)1);
+	}
+	// a place only under the path moves to the source id; the earlier one wins nothing when it is older
+	{
+		MangaStore m;
+		ChapterProgress b;
+		b.seriesId = local;
+		b.chapterId = path;
+		b.page = 4;
+		b.pages = 20;
+		b.at = 50;
+		m.setProgress(b);
+		ChapterProgress a;
+		a.seriesId = sid;
+		a.chapterId = "src:mangadex:ch-4";
+		a.page = 9;
+		a.at = 900;
+		m.setProgress(a);
+		CHECK_EQ((bool)(m.linkChapter(path, cid, sid) == MangaStore::Link::Moved), true);
+		CHECK_EQ(m.progress(cid)->page, 4);
+		CHECK_EQ(m.progress(cid)->seriesId, sid);
+		CHECK_EQ(m.progressOf(local).size(), (size_t)0);
+		CHECK_EQ(m.history(10).size(), (size_t)2);
+	}
+}
+
 static void testMangaStore()
 {
 	// an extension's series found again under a new id: its entry, heart and chapters' places move over
@@ -4120,6 +4224,34 @@ static void testMangaLocalLazy(const std::string& M, const std::vector<LocalSeri
 	CHECK_EQ(b.ciVolume, m.ciVolume);
 	CHECK_EQ(b.ciSeriesKey, m.ciSeriesKey);
 	unlink(file.c_str());
+	// a download's BPChapter survives the trip; a line written before it was kept (one field fewer) still reads
+	{
+		ChapterMetaCache withId;
+		ChapterFileMeta d = m;
+		d.ciChapterId = "src:mangadex:ch-7";
+		withId.put("/x/a.cbz", 1, 2, d);
+		ChapterMetaCache again;
+		again.parse(withId.text());
+		ChapterFileMeta g;
+		CHECK(again.get("/x/a.cbz", 1, 2, g));
+		CHECK_EQ(g.ciChapterId, std::string("src:mangadex:ch-7"));
+		// the same line without its last field, its checksum made again as the old writer made it
+		std::string t = withId.text();
+		size_t ln = t.find('\n') + 1;
+		std::string line = t.substr(ln, t.find('\n', ln) - ln);
+		line = line.substr(0, line.rfind('\t'));	// the checksum off
+		line = line.substr(0, line.rfind('\t'));	// and BPChapter
+		uint32_t h = 2166136261u;
+		for (unsigned char ch : line) h = (h ^ ch) * 16777619u;
+		char sum[16];
+		snprintf(sum, sizeof sum, "\t%08x", h);
+		ChapterMetaCache old;
+		old.parse("# bp manga files 1\n" + line + sum + "\n");
+		ChapterFileMeta o;
+		CHECK(old.get("/x/a.cbz", 1, 2, o));
+		CHECK_EQ(o.ciChapterId, std::string());
+		CHECK_EQ(o.ciSeriesKey, m.ciSeriesKey);
+	}
 	std::string text = cache.text();
 	size_t first = text.find('\n') + 1;	// (past the header)
 	std::string bad = text;
@@ -4536,6 +4668,17 @@ static void testComicInfo()
 	CHECK_EQ(parseComicInfo("<ComicInfo><BPSource>mangadex</BPSource><BPSeriesKey>abc-123</BPSeriesKey></ComicInfo>", c), true);
 	CHECK_EQ(c.sourceId, std::string("mangadex"));
 	CHECK_EQ(c.seriesKey, std::string("abc-123"));
+	// BPChapter: the source chapter a download is a copy of (issue #15), written and read back
+	{
+		ComicInfo w;
+		w.sourceId = "mangadex";
+		w.seriesKey = "src:mangadex:abc-123";
+		w.chapterId = "src:mangadex:ch-7";
+		ComicInfo r;
+		CHECK_EQ(parseComicInfo(writeComicInfo(w), r), true);
+		CHECK_EQ(r.chapterId, std::string("src:mangadex:ch-7"));
+		CHECK_EQ(r.seriesKey, std::string("src:mangadex:abc-123"));
+	}
 
 	// no ComicInfo element: false, and the struct is left as it was
 	c = ComicInfo();
@@ -12841,6 +12984,7 @@ int main()
 	testMangaFilters();
 	testPaged();
 	testMangaStore();
+	testMangaStoreLinkedDownloads();
 	testMangaLocal();
 	testMangaNetFolders();
 	testComicInfo();
