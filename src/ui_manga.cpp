@@ -127,6 +127,9 @@ namespace bp
 		mangaBrowseReset(p);
 		// the Downloads sheet's page lists wait for the worker again; a queued chapter is the queue's, not this
 		mangaDownloadsReset();
+		// the downloads on the card linked to their source chapters, so a copy's place is the online chapter's
+		// whichever page opens it (issue #15): a folder walk of the downloads only, their files read on the worker
+		mangaDlEnsureCard(true);
 		// (what the panels waited for: a big card once froze them here for minutes)
 		fprintf(stderr, "manga: app opened in %u ms on the main thread\n", (unsigned)(SDL_GetTicks() - openAt));
 	}
@@ -193,6 +196,8 @@ namespace bp
 			// the Downloads tab's card waited for some of these
 			for (const auto& f : r.metas)
 				if (f.series.empty()) { mdlCardStale = true; mangaLocalSerial++; break; }
+			// (and their links to the source chapters made now, not when a page that shows the card is next drawn)
+			if (mdlCardStale) mangaDlEnsureCard();
 			if (r.scanDone && r.gen == mangaScanGen)
 			{
 				mangaScanning = false;

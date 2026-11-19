@@ -5,6 +5,7 @@
 #include "reader.h"
 #include "readerfetch.h"
 #include "textreader.h"
+#include "viznative.h"
 #include <SDL.h>
 #include <atomic>
 #include <cstdint>
@@ -70,6 +71,28 @@ namespace bp
 		int paneW = 0, paneH = 0;
 		CardOverlay paneCard;	// the level card over the pane (mpv's is under it): cardOnReader puts it there
 		bool paneCardNew = false;
+		// the native visualizers (src/topviz.cpp): the style's levels and holds, when it last drew
+		VizStyleState nativeState;
+		Uint32 nativeAt = 0;
+		bool nativeUp = false;
+		// what each frame costs (the 5 s viz-native draw line: the handheld's log says where the time goes)
+		struct NativeCost
+		{
+			uint64_t since = 0;	// (performance counter) the window's start
+			int frames = 0, mpvRenders = 0, logs = 0;
+			double mpvMs = 0, buildMs = 0, glMs = 0, swapMs = 0, swapMax = 0, gpuMs = 0, gapMax = 0;
+			long verts = 0, draws = 0, fillPx = 0, blendPx = 0;
+			int vertsMax = 0;
+		} nativeCost;
+		uint64_t nativeLast = 0;	// (performance counter) the last frame drawn
+		uint64_t nativeNext = 0;	// (performance counter) when the next frame is due
+		static constexpr double NATIVE_EARLY_MS = 1.5;	// a frame drawn this early counts as due (the loop's wake is ms-grained)
+		bool nativeLayerDirty = false;	// mpv has a new picture for the layer
+		bool nativeActive = false;	// the last pass drew (or would have drawn) the native style, not a reader's pages
+		// the loop's wait: ms till the native style's next frame is due, -1 when none is (not up, paused)
+		int nativeWaitMs(Player& shown);
+		// mpv's picture alone on the theme's ground while its own ground is clear (a song's visualizer not up yet)
+		void groundFrame(Player& shown, int w, int h);
 
 	private:
 		// the QR drawn 1:1 into the top window (the context made current here); false when it couldn't be composed
@@ -77,6 +100,12 @@ namespace bp
 		// the pane drawn 1:1 (composed first when it changed); false when it couldn't be
 		bool drawPane(const PaneSpec& spec, const std::string& key, int w, int h);
 		void drawPaneNow(int w, int h);	// the composed pane and the card over it
+		// the native visualizer's frame: drawn when the tap has new bars or mpv a new frame, then swapped (topviz.cpp)
+		void drawNative(Player& shown, std::atomic<bool>& renderPending, bool refresh);
+		// a frame, not swapped (screenshots too): the ground, the shapes (withShapes), mpv's layer over them (rendered
+		// again when mpvNew or it has none yet)
+		void nativeFrame(Player& shown, int w, int h, bool mpvNew, bool withShapes);
+		double nativePeriod(const Player& shown) const;	// ms between frames at the Visualizer frame rate setting
 		// the text viewer's look (Settings: the Text viewer's rows)
 		TextReader::Style textStyle(const Settings& s) const;
 		Uint32 slowLogged = 0;	// when a take under the pages was last logged (once per 5 s)

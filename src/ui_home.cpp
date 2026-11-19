@@ -876,6 +876,7 @@ namespace bp
 		int x0 = b.x + 78, room = keyX - 14 - x0;
 		int sw = std::min(room / 2, (int)std::lround(textWidth(sub, 0) / sx));
 		int tmax = std::max(40, room - sw - 12);
+		// static, cut with "…": the mini bar doesn't take the Title marquee (the owner's call, 2026-11-19)
 		drawTextMid(title, 0, TEXT, x0, mid, tmax);
 		int tw = std::min(tmax, (int)std::lround(textWidth(title, 0) / sx));
 		int sx0 = x0 + tw + 12;

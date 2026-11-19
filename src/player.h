@@ -7,8 +7,10 @@
 #include "resume.h"
 #include "settings.h"
 #include "tracks.h"
+#include "viztap.h"
 #include <mpv/client.h>
 #include <mpv/render_gl.h>
+#include <functional>
 #include <map>
 #include <mutex>
 #include <memory>
@@ -104,6 +106,31 @@ namespace bp
 		void checkAudio();
 		// called each pass: the song's art, decoded on a thread of its own for Art + visualizer, laid over once it's in
 		void checkSongArt();
+		// Native visualizers (src/viznative.h: Mirror bars, drawn by the player, not mpv; docs/notes/2026-11-19-viz-native.md).
+		// Called each pass: the tap started or stopped with what the top panel shows, mpv's clock told to it, a file
+		// it couldn't read put back on the graph style
+		void syncNative();
+		// the top panel draws the native style now (a local song, its display a visualizer, not resting)
+		bool nativeShown() const { return (vizTap.running() && !vizTap.failed()) || nativeIdle; }
+		bool nativeBand() const { return nativeOverArt; }	// Art + visualizer: the band along the foot
+		// the newest targets (VN_MAX_BARS room), with the style and band count they're for, if new since the last take
+		bool nativeTake(float* out, int& vis, int& n, VizHint& hint) { return vizTap.take(out, nativeSeq, vis, n, hint); }
+		int nativeStyle() const { return settings.visualizer; }
+		// where the shapes mustn't go (640x480 units): mpv's cards (the song's lines and the art are drawn over them:
+		// mpv's layer, topviz.cpp)
+		std::vector<VizRect> nativeKeepClear() const;
+		// mpv's ground clear (0 0 0 0) under a song's native visualizer: the top panel composes mpv's picture (the art,
+		// the lines, the cards) over the style's shapes, so the lines have no box round them
+		bool groundClear() const { return groundSet == GROUND_CLEAR; }
+		// the top panel can't compose (no framebuffers): mpv's ground the theme's again, its picture under the shapes
+		void nativeLayerFailed();
+		// Art + visualizer: the art's box (Rain check's drops bounce off it); empty otherwise
+		VizRect nativeArtBox() const { return shownMusic() == SHOW_BOTH ? groupArtBox : VizRect{0, 0, 0, 0, 0}; }
+		void nativeDrew() { nativeFrames++; }	// (the log's frames a second)
+		// the cards up now (mpv's image overlays: level, state, note...), in 640x480 units: the bars are drawn round them
+		std::vector<VizRect> cardsUp() const;
+		// the tap's wake (from its thread): main pushes an SDL event
+		void setNativeWake(std::function<void()> w) { nativeWake = std::move(w); }
 		// called now and then: a song with a visualizer (or None's picture) at its end. The filter graph's picture
 		// never ends, so mpv never ends the file: the clock runs on past the song. Ended here instead (or, Loop one,
 		// started again)
@@ -124,7 +151,9 @@ namespace bp
 		bool frameDue();
 		// mpv's result: < 0 when it couldn't draw (in the log, the first few times: a black top panel's cause)
 		// fbo: the target (0 the window's; main's small one for what plays under a photo)
-		int render(int w, int h, unsigned fbo = 0, bool skip = false);	// skip: take the frame, draw nothing
+		// skip: take the frame, draw nothing; noWait: never held till the frame's display time (the native visualizer
+		// draws at its own rate over mpv's 5 fps ground: a wait there stalled its bars up to 60 ms, five times a second)
+		int render(int w, int h, unsigned fbo = 0, bool skip = false, bool noWait = false);
 		void reportSwap();
 
 		// a photo is up over what plays (on the photo viewer's own mpv): a video's picture is neither decoded nor drawn
@@ -157,6 +186,7 @@ namespace bp
 		void setSettings(const Settings& s, bool persist = true);
 		// called each turn of the loop: the music display's graph, once its changes have settled
 		void checkDisplay();
+		void displayNow() { if (displayDueAt) displayDueAt = 1; }	// (tests: the debounced display change at once)
 		// called each turn of the loop (and with all=true at shutdown): the saves that waited out their second
 		void flushWrites(bool all = false);
 		// called each turn of the loop: with BP_CPU_LOG=1, the player's CPU use in the log every 30 s while playing
@@ -275,6 +305,10 @@ namespace bp
 		// a song's artist and album from its tags ("" none)
 		const std::string& artist() const { return tagArtist; }
 		const std::string& album() const { return tagAlbum; }
+		// a song with no cover (the Art placeholder stands in), and what its drawing is keyed by: the album's name, else
+		// the title, else the file's name
+		bool songArtMissing() const;
+		std::string artPlaceholderKey() const;
 
 		// the Media info page: sections (header rows) of label/value rows, read from mpv as it plays
 		struct InfoRow
@@ -360,6 +394,7 @@ namespace bp
 		static constexpr int OV_LOAD = 2, OV_STATE = 3, OV_LEVEL = 4, OV_NOTE = 5, OV_COUNT = 6;	// 1: the song art (ART_OVERLAY), under every card
 		std::map<uint64_t, std::shared_ptr<std::vector<uint8_t>>> levelPixels;
 		uint64_t levelSerial = 0, shownSerial[OV_COUNT] = {};
+		VizRect cardAt[OV_COUNT] = {};	// each card's box while it's up, in 640x480 units (the native bars leave it clear)
 		uint64_t noteUntil = 0;	// the note's time (ticks), 0: none up
 		void levelReplied(uint64_t serial);
 		void putImage(int id, const LevelCardImage& card, int x, int y);	// a card as overlay `id`
@@ -380,10 +415,14 @@ namespace bp
 		void prop(const char* name, const std::string& value);
 		// an audio file: the visualizer (Audio display) and the title, artist and album over the top panel
 		void applyAudioDisplay();
-		std::string graphFor(int vis, bool overCover);	// visualizerGraph, with the styles' stills made first
-		std::string circleMaps;	// where they are, once made
-		bool lutsWarmed = false;	// every style's lut lookups asked for (graphFor), once a run
 		std::string graphSet;	// lavfi-complex as last set (prop)
+		// the freeze's log (watchLog: the play state for 10 s after a graph change; last values seen, never read)
+		std::string setValues[11], graphLabel, graphHash, seenPause = "?", seenCoreIdle = "?", seenIdleActive = "?", seenEof = "?";
+		uint64_t graphChangeAt = 0;
+		void watchLog(const char* name, const char* value) const;
+	public:
+		void logPlayPressed(const char* sessionState) const;
+	private:
 		uint64_t graphAskedAt = 0;	// when a song's graph was last changed while it played (the log times the switch)
 		bool graphFrameLogged = true;	// the switch's first frame logged (render)
 		uint64_t displayDueAt = 0;	// the display changed: its graph applied then (checkDisplay)
@@ -422,14 +461,30 @@ namespace bp
 		bool lastArt = false;
 		std::string lastArtDir;
 		int shownMusic() const;	// MusicShow as it comes out now (None while the visualizer rests)
-		// the graph for a Show mode, by whether the song has art (Album art only with art: none, mpv shows the art)
-		std::string songGraph(int show, bool hasArt);
 		void updateOverlay();
-		// The song's art on the top panel (src/songlayout.h). Album art only: mpv's own video, put in the art's box
-		// by its video margins. Art + visualizer: the graph's top is black and the art is an image overlay, decoded
-		// here once (a thread of its own) at the panel's pixels, its corners rounded: so the art's place can follow
-		// the title's width without a new graph (a graph changed reopens the sound). A network song's art comes
-		// from mpv instead, placed by the graph at the spot a long title gives
+		// The song's title on the top panel as a Title marquee (docs/redesign/components.md): when it doesn't fit its
+		// line's box it is its own ASS overlay (id 2), sent again with a new \pos inside a \clip at each step
+		struct TopMarq
+		{
+			bool on = false;
+			std::string key, text, style;	// its text and its look (font, size, colour) as ASS tags
+			double x = 0, y = 0, boxW = 0;	// units: the box's left, the line's anchor (an: 4 its middle, 7 its top)
+			int textW = 0, fs = 0, an = 4;
+			bool fade = true;	// fades in the ground's colour (BG); none over a picture
+			uint64_t start = 0;
+			int lastStep = -1;
+			uint64_t sentAt = 0;	// (ticks) the last place sent while sliding
+		};
+		TopMarq topMarq;
+		void setTopMarquee(const std::string& text, const std::string& style, int an, double x, double y, double boxW, int fs, int textW, bool fade);
+	public:
+		void tickMarquee();	// each loop pass: the title's next step sent when it is due
+		bool marqueeMoving() const;	// (the loop wakes at the steps' rate)
+		void marqueeRestart() { topMarq.key.clear(); if (topMarq.on) updateOverlay(); }	// the panel woke
+	private:
+		// The song's art on the top panel (src/songlayout.h). The art is an image overlay (Album art only and Art + visualizer), decoded here once (a
+		// thread of its own) at the panel's pixels, its corners rounded. A network song's art is mpv's own video
+		// instead (the decode reads local files only), put in the art's box by the video's margins
 		struct SongArtJob
 		{
 			std::mutex m;
@@ -451,26 +506,38 @@ namespace bp
 		void dropSongArt();	// the overlay off and the job forgotten (another file, another mode)
 		std::string marginsSet;	// the video margins as last set ("" none)
 		// a song's top panel on the theme's ground (Album art only, Art + visualizer, None: docs/redesign, Song layout):
-		// BG as lavfi writes it ("0xRRGGBB"), None's and the placeholder's picture of it, and mpv's background-color
-		// (themed: BG; else black) as last sent
-		static std::string groundColour();
-		// the hook for themed visualizers (a style's ground and ink by the theme, not written yet): what the band of Art +
-		// visualizer is drawn over (today black, the styles' own) and the ink a style may take. A theme change rebuilds
-		// any graph that names them (themeChanged: displayDueAt, the switch timed by graphAskedAt)
-		struct VizColours { std::string ground = "black", ink; };
-		static VizColours vizColours();
-		std::string blankGround() const { return blankGraph(groundColour()); }
-		// Album art only reached from another mode while the song plays: its sound and its art through a graph that
-		// does nothing (the art one frame, as mpv gives it), so the switch is graph to graph (applyAudioDisplay)
-		static std::string artPassGraph() { return "[aid1] anull [ao]; [vid1] null [vo]"; }
+		// mpv's background-color (themed: BG; else black) as last sent. No graph draws any of it (2026-11-19)
 		std::string groundSet;
-		void setGround(bool themed, const char* why = nullptr);
+		static constexpr const char* GROUND_CLEAR = "#00000000";
+		bool noLayer = false;	// (nativeLayerFailed)
+		void setGround(bool themed, const char* why = nullptr, bool clear = false);
 		void setSongMargins(const std::string& lrtb);
 		std::string layoutLogged;	// the last layout's log line, so each change is logged once
 		bool isAudio = false, isPhoto = false;
 		bool topCovered = false;	// setTopCovered
 		bool engineLoading = false;	// setEngineLoading
 		bool vizResting() const { return topCovered || engineLoading; }
+		// Native visualizers: the style is drawn by the player (a local song: the tap decodes the file itself; a
+		// network one keeps the graph style), unless this song's file couldn't be read by the tap
+		bool nativeViz() const;
+		bool nativeCanTap() const;	// the tap can read this song (local, not failed); else the style is drawn idle
+		bool nativeIdle = false;	// the style shown flat (a network song)
+		std::string nativeIdlePath, displayLogged;
+		void nativeStop(const char* why);
+		VizTap vizTap;
+		std::function<void()> nativeWake;
+		bool nativeFailed = false, nativeOverArt = false, nativeMoving = false;
+		int nativeStyleSent = -1;	// the style the tap measures for
+		VizRect linesBox{0, 0, 0, 0, 0};	// the song's lines over a visualizer alone (updateOverlay), in units
+		// Art + visualizer: the art's box and its lines' (updateOverlay), kept clear by the styles that take the whole
+		// panel there (Sparks, Starfield: vizFullPanel)
+		VizRect groupArtBox{0, 0, 0, 0, 0}, groupTextBox{0, 0, 0, 0, 0};
+		// the style drawn for this song: the chosen one, or Peaks' graph where the player can't draw it (a network song,
+		// a file the second decode can't read)
+		int drawnStyle() const;
+		std::string nativeFallbackLogged;	// (the log's line, once a song and style)
+		uint64_t nativeSeq = 0, nativeFrames = 0, nativeAt = 0, nativeLoggedAt = 0;
+		VizClock audioClock;	// mpv's audio-pts and when it came (observed: never read)
 		bool hidingVideo = false;	// hideVideo(true): a video's picture off (each video's loadfile says vid=no)
 		bool vidOff = false;		// the vid property itself is "no" (a song opened next needs it back first)
 		// photos: the size mpv shows (before any turn), the turn mpv makes of the file's own (rotation metadata) and

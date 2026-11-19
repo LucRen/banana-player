@@ -779,6 +779,12 @@ namespace bp
 		// a slider under a finger: which, and where the finger has it (what draws differently while held reads these)
 		if (slide.on) photo += "|sl" + std::to_string(slide.id) + "." + std::to_string(slide.sub) + ":" + std::to_string(slide.value);
 		if (playHoldAt) photo += "|phold" + std::to_string((SDL_GetTicks() - playHoldAt) / 50);
+		// the Title marquee moving: each of its steps (24 a second while it moves; nothing while it rests at its start)
+		if (marqUp && panel.on())
+		{
+			const lay::MarqueeAt m = marqNow();
+			photo += "|mq" + std::to_string(m.done ? -1 : m.step);
+		}
 		if (pageDrives(p)) photo += pagePlaying() ? "|pageplay" : "|pagepause";
 		if (p.playingPhoto())
 		{

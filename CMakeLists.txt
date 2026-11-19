@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(banana-player VERSION 0.7.32 LANGUAGES C CXX)
+project(banana-player VERSION 0.7.34 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -75,6 +75,17 @@ add_library(bpcore STATIC src/viz_led.cpp src/viz_synthwave.cpp src/viz_banana.c
 	src/webauth.cpp src/webpath.cpp src/json.cpp src/webmedia.cpp src/codepages.cpp src/webstate.cpp src/crashlog.cpp src/session.cpp src/durations.cpp src/picsubs.cpp src/manga_names.cpp src/mangafilters.cpp src/mangastore.cpp src/pagecache.cpp src/strip.cpp src/comicinfo.cpp src/cbz.cpp src/pagebook.cpp src/textdoc.cpp src/textsource.cpp src/epub.cpp src/mangalocal.cpp src/manganetfolders.cpp src/manga_ui_logic.cpp src/paged.cpp src/dlqueue.cpp src/mangarepo.cpp src/opds.cpp src/cbzwrite.cpp src/mangaservers.cpp src/htmldoc.cpp src/mangaremote.cpp src/readerfetchplan.cpp src/suwayomi.cpp src/mangajava.cpp src/doh.cpp src/tarx.cpp src/mangaseriescache.cpp src/imagesize.cpp src/bands.cpp src/treecopy.cpp)
 target_include_directories(bpcore PUBLIC src)
 target_sources(bpcore PRIVATE src/kitlayout_new.cpp)	# kit-new's layout (its own line: see target_sources(banana-player) below)
+# PFFFT (third_party/pffft, BSD-like): the native visualizers' spectrum (src/viznative.h); NEON on aarch64, SSE on x86
+add_library(pffft_static STATIC third_party/pffft/pffft.c)
+set_target_properties(pffft_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
+if(NOT MSVC)
+	target_compile_options(pffft_static PRIVATE -w)
+endif()
+if(UNIX)
+	target_link_libraries(pffft_static PRIVATE m)
+endif()
+target_sources(bpcore PRIVATE src/viznative.cpp)
+target_link_libraries(bpcore PRIVATE pffft_static)
 target_link_libraries(bpcore PUBLIC PkgConfig::MPV PkgConfig::ZLIB OpenSSL::Crypto ${CMAKE_DL_LIBS})
 # libavutil (FFmpeg, libmpv's own): av_expr, to work out the visualizers' lut2 tables as lut2 does (src/vizcache.h)
 pkg_check_modules(AVUTIL REQUIRED IMPORTED_TARGET libavutil)
@@ -144,6 +155,10 @@ target_include_directories(bpprobe PRIVATE ${PNG_INCLUDEDIR}/..)
 add_executable(banana-player src/main.cpp src/topscreen.cpp src/player.cpp src/ui.cpp src/ui_draw.cpp src/ui_menus.cpp src/ui_browse.cpp src/ui_forms.cpp src/ui_playlists.cpp src/ui_settings.cpp src/ui_main.cpp src/ui_kit.cpp src/ui_kit_variants.cpp src/ui_more.cpp src/ui_player.cpp src/ui_sound.cpp src/ui_web.cpp src/ui_home.cpp src/ui_ext.cpp src/input.cpp src/sleepwatch.cpp src/powerkey.cpp src/volumekey.cpp src/touch.cpp src/panel.cpp src/levelwatch.cpp src/ampwatch.cpp src/updater.cpp src/volume.cpp src/idlesleep_host.cpp src/networker.cpp src/netstream.cpp src/netresolve.cpp src/discovery.cpp src/session_host.cpp src/durworker.cpp src/coverworker.cpp src/pagerender.cpp src/levelcard.cpp src/supportqr.cpp src/reader_proto.cpp src/reader.cpp src/textreader.cpp src/readerfetch.cpp src/manganet.cpp src/javaext.cpp src/ui_manga.cpp src/ui_docs.cpp src/ui_reader.cpp src/ui_fileops.cpp src/ui_light.cpp src/ui_overlay.cpp src/ui_slider.cpp src/xfer.cpp src/mangarepos.cpp src/mangadownloader.cpp src/ui_manga_settings.cpp src/ui_manga_sources.cpp src/ui_manga_browse.cpp src/ui_manga_filters.cpp src/ui_manga_java.cpp src/ui_manga_servers.cpp src/ui_manga_downloads.cpp src/ui_manga_netfolders.cpp src/ui_manga_web.cpp src/mangalibworker.cpp src/ui_catalog.cpp src/lidsleep_host.cpp src/writequeue.cpp)
 # kit-new (docs/notes/2026-11-18-kit-new.md): its own line, so branches adding to the lists above merge cleanly
 target_sources(banana-player PRIVATE src/ui_kit_new.cpp src/previewpane.cpp)
+# the native visualizers' second decode of a song (src/viztap.h): libswresample (FFmpeg's, libmpv's own) for mono 32 kHz
+pkg_check_modules(SWR REQUIRED IMPORTED_TARGET libswresample)
+target_sources(banana-player PRIVATE src/viztap.cpp src/topviz.cpp)
+target_link_libraries(banana-player PRIVATE PkgConfig::SWR)
 # libcurl: the Java add-on's downloads (BananaOS's own, with OpenSSL: not bundled), and the network folders' FTP and
 # the manga reader's images when BP_NET is on
 pkg_check_modules(CURL REQUIRED IMPORTED_TARGET libcurl)

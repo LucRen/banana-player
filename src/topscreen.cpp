@@ -89,6 +89,8 @@ namespace bp
 		else if (paneUp && paneReady) drawPaneNow(w, h);	// the Preview pane
 		else if (reader.isOpen() && readerOnTop) reader.draw(w, h);	// a manga chapter's pages
 		else if (textReader.isOpen() && readerOnTop) textReader.draw(w, h);	// a document's text
+		else if (shown.nativeShown() && nativeUp) nativeFrame(shown, w, h, true, true);	// the native visualizer and mpv's layer over it
+		else if (shown.groundClear()) groundFrame(shown, w, h);	// a song's picture before its visualizer is up
 		else shown.render(w, h);	// a video, a photo, or the icon with nothing playing
 		std::vector<unsigned char> rgba((size_t)w * h * 4);
 		readPixels(0, 0, w, h, 0x1908 /* GL_RGBA */, 0x1401 /* GL_UNSIGNED_BYTE */, rgba.data());
@@ -435,6 +437,14 @@ namespace bp
 	void TopScreen::draw(Player& player, Player& photos, Player& shown, const Ui& ui, Uint32 now, bool refresh, Uint32 levelUntil,
 		std::atomic<bool>& renderPending)
 	{
+		// the native visualizer gone (another style, a pause of the song's display, the song's end): mpv's picture
+		// is drawn again at once, not at its next frame
+		nativeActive = false;	// (set again below if this pass draws the native style: the loop's wait follows it)
+		if (nativeUp && !shown.nativeShown())
+		{
+			nativeUp = false;
+			renderPending = true;
+		}
 		// About's support QR up: the panel is that picture (down again: its texture goes, in this context)
 		bool qrNow = ui.aboutQrUp();
 		if (!qrNow && qrUp)
@@ -520,6 +530,13 @@ namespace bp
 				SDL_GL_SwapWindow(top);
 			}
 		}
+		// the native visualizer (Mirror bars on a local song): the player's own bars over mpv's picture, at the tap's
+		// frame rate (src/topviz.cpp)
+		else if (shown.nativeShown() && !photos.playing())
+		{
+			nativeActive = true;
+			drawNative(shown, renderPending, refresh);
+		}
 		// (a photo is a still: mpv puts the level card on it later than the key's redraw, and asks for no frame
 		// after, so it's drawn again while the card is up, as with nothing playing)
 		else if (renderPending.exchange(false) || refresh || (!shown.playing() && (!topDark || levelUntil)) || (photos.playing() && levelUntil))
@@ -529,8 +546,11 @@ namespace bp
 			SDL_GL_GetDrawableSize(top, &w, &h);
 			if (!shown.playing())
 			{
-				// nothing playing: mpv draws its black with the icon (and a level card if one is up)
-				int r = player.render(w, h);
+				// nothing playing: mpv draws its black with the icon (and a level card if one is up); its ground still
+				// clear for a moment after a song's visualizer: on the theme's ground
+				int r = 0;
+				if (player.groundClear()) groundFrame(player, w, h);
+				else r = player.render(w, h);
 				if (r < 0 && topDraws < 5) fprintf(stderr, "top: mpv couldn't draw (%d) at %u ms\n", r, SDL_GetTicks());
 				SDL_GL_SwapWindow(top);
 				player.reportSwap();
@@ -545,7 +565,8 @@ namespace bp
 			// a new frame, or the same one again (paused, or a refresh); a photo's over what plays
 			else if (shown.frameDue() || refresh)
 			{
-				shown.render(w, h);
+				if (shown.groundClear()) groundFrame(shown, w, h);	// (a song's visualizer not up yet)
+				else shown.render(w, h);
 				SDL_GL_SwapWindow(top);
 				shown.reportSwap();
 			}

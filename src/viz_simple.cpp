@@ -89,7 +89,7 @@ namespace bp
 					   "[" + t + "p0s] [" + t + "ay] bplut2=c0='" + e(0, "x", "y") + "' [" + t + "Y]; "
 					   "[" + t + "p1] [" + t + "au] bplut2=c0='" + e(1, "x", "y") + "' [" + t + "U]; "
 					   "[" + t + "p2] [" + t + "av] bplut2=c0='" + e(2, "x", "y") + "' [" + t + "W]; "
-					   "[" + t + "Y] [" + t + "U] [" + t + "W] mergeplanes=0x001020:yuv420p [strip]; [top] [strip] vstack [vo]";
+					   "[" + t + "Y] [" + t + "U] [" + t + "W] mergeplanes=0x001020:yuv420p [strip]; [top] [strip] vstack=shortest=0 [vo]";
 			return c + "[" + t + "p0] bplut=c0='" + e(0, "val", n(bg.y)) + "',scale=640:480:flags=" + (smooth ? "bilinear" : "neighbor") +
 				   " [" + t + "Y]; "
 				   "[" + t + "p1] bplut=c0='" + e(1, "val", n(bg.u)) + "' [" + t + "U]; "
@@ -125,6 +125,12 @@ namespace bp
 		{
 			return "color=black:s=" + n(W) + "x" + n(H) + ":r=1:d=1,format=gray,geq=lum='" + lum + "'";
 		}
+
+		// A filter reading a still (one frame, then EOF) must repeat that frame and never end when it does: the
+		// visualizer branch shares the sound with [ao] through asplit, so a branch that stops pulling blocks the
+		// speakers (docs/notes/2026-11-19-viz-simple.md, "The stall"). The framesync defaults are these; saying them
+		// keeps the graphs safe if a build's defaults change (remap takes no framesync options: it holds its maps).
+		const char* STILL_REPEAT = ":eof_action=repeat:shortest=0:repeatlast=1";
 
 		const char* themeName() { return theme::themeId(theme::currentTheme()); }
 
@@ -178,7 +184,9 @@ namespace bp
 	}
 
 	// Mirror bars: the spectrum in 40 bars, each grown up and down from a centre line by the same height. Bars ACCENT,
-	// the centre line DIM (in the gaps, and under a bar that's quiet)
+	// the centre line DIM (in the gaps, and under a bar that's quiet). A local song's Mirror bars are drawn by the player
+	// (src/viznative.h, docs/notes/2026-11-19-viz-native.md); this graph is a network song's, and a file the tap can't read
+	// (so are this file's other five styles and Peaks: their graphs remain only as that fallback)
 	std::string mirrorGraph(bool overCover)
 	{
 		Timer tm;
@@ -192,7 +200,7 @@ namespace bp
 						"[" + t + "L] " + stretch(W, H, "neighbor") + " [" + t + "V]; " +
 						still(W, H, "if(" + gap + ",if(lt(" + D + ",1),254,253),if(gt(" + D + "," + n(MAXD) + "),253,1+floor(250*" + D + "/" + n(MAXD) + ")))") +
 						" [" + t + "R]; "
-						"[" + t + "V] [" + t + "R] bplut2=c0='if(eq(y,254),2,lt(y,253)*lte(y,x))' [" + t + "C]; ";
+						"[" + t + "V] [" + t + "R] bplut2=c0='if(eq(y,254),2,lt(y,253)*lte(y,x))'" + STILL_REPEAT + " [" + t + "C]; ";
 		g += paint(t, overCover, false, classes({yuvOf(theme::ACCENT), yuvOf(theme::DIM)}));
 		fprintf(stderr, "visualizer: Mirror bars in %s: bars #%s, line #%s on #%s; graph built in %.1f ms\n", themeName(),
 				hex(theme::ACCENT).c_str(), hex(theme::DIM).c_str(), hex(theme::BG).c_str(), tm.ms());
@@ -213,13 +221,13 @@ namespace bp
 		std::string g = "[aid1] asplit [ao] [a]; " + (overCover ? artIn(t) : std::string()) + spectrumRow(t, N) +
 						"[" + t + "L] scale=" + n(N) + ":" + n(S) + ":flags=neighbor,setsar=1 [" + t + "V]; " +
 						still(N, S, n(S - 1) + "-Y") + " [" + t + "R]; "
-						"[" + t + "V] [" + t + "R] bplut2=c0='1+gte(x,floor(252*(y+0.5)/" + n(S) + "))',"
+						"[" + t + "V] [" + t + "R] bplut2=c0='1+gte(x,floor(252*(y+0.5)/" + n(S) + "))'" + STILL_REPEAT + ","
 						// the dots' grid: each a 10 x 10 cell (the dot 8 x 8, its corners cut: round at this size)
 						"scale=" + n(N * CW) + ":" + n(S * CW) + ":flags=neighbor,pad=" + n(W) + ":" + n(H) + ":0:" + n(Y0) + ",setsar=1 [" + t + "G]; " +
 						still(W, H, "between(Y," + n(Y0) + "," + n(Y0 + S * CW - 1) + ")*between(mod(X,10),1,8)*between(mod(Y-" + n(Y0) +
 							",10),1,8)*(1-(eq(mod(X,10),1)+eq(mod(X,10),8))*(eq(mod(Y-" + n(Y0) + ",10),1)+eq(mod(Y-" + n(Y0) + ",10),8)))") +
 						" [" + t + "M]; "
-						"[" + t + "G] [" + t + "M] bplut2=c0='if(y,x,0)' [" + t + "C]; ";
+						"[" + t + "G] [" + t + "M] bplut2=c0='if(y,x,0)'" + STILL_REPEAT + " [" + t + "C]; ";
 		g += paint(t, overCover, false, classes({yuvOf(theme::BUTTON), yuvOf(theme::ACCENT)}));
 		fprintf(stderr, "visualizer: Dots in %s: lit #%s, unlit #%s on #%s; graph built in %.1f ms\n", themeName(),
 				hex(theme::ACCENT).c_str(), hex(theme::BUTTON).c_str(), hex(theme::BG).c_str(), tm.ms());
@@ -248,12 +256,12 @@ namespace bp
 						"[" + t + "lf] [" + t + "l2] hstack,format=gray," + stretch(W, SKY, "neighbor") + " [" + t + "V]; " +
 						still(W, SKY, h + "+128*lte(pow(X-" + n(SX) + ",2)+pow(Y-" + n(SY) + ",2)," + n(SR * SR) + ")") + " [" + t + "R]; "
 						// 1 the skyline, 2 the sun, 0 the sky
-						"[" + t + "V] [" + t + "R] bplut2=c0='if(lte(3*mod(y,128),x),1,if(gte(y,128),2,0))',split [" + t + "s1] [" + t + "s2]; "
+						"[" + t + "V] [" + t + "R] bplut2=c0='if(lte(3*mod(y,128),x),1,if(gte(y,128),2,0))'" + STILL_REPEAT + ",split [" + t + "s1] [" + t + "s2]; "
 						// the reflection: its first two rows the line (2 in the still), then every other row (1)
 						"[" + t + "s2] vflip,scale=" + n(W) + ":" + n(REF) + ":flags=neighbor,setsar=1 [" + t + "F]; " +
 						still(W, REF, "if(lt(Y,2),2,mod(Y,2))") + " [" + t + "M]; "
-						"[" + t + "F] [" + t + "M] bplut2=c0='if(eq(y,2),3,if(y*eq(x,1),3,0))' [" + t + "r]; "
-						"[" + t + "s1] [" + t + "r] vstack [" + t + "C]; ";
+						"[" + t + "F] [" + t + "M] bplut2=c0='if(eq(y,2),3,if(y*eq(x,1),3,0))'" + STILL_REPEAT + " [" + t + "r]; "
+						"[" + t + "s1] [" + t + "r] vstack=shortest=0 [" + t + "C]; ";
 		g += paint(t, overCover, false, classes({yuvOf(theme::ACCENT), yuvOf(theme::BUTTON), yuvOf(theme::DIM)}));
 		fprintf(stderr, "visualizer: Horizon in %s: skyline #%s, sun #%s, line and reflection #%s on #%s; graph built in %.1f ms\n",
 				themeName(), hex(theme::ACCENT).c_str(), hex(theme::BUTTON).c_str(), hex(theme::DIM).c_str(), hex(theme::BG).c_str(), tm.ms());
@@ -290,12 +298,12 @@ namespace bp
 						"[" + t + "l3] format=gray16le,lut=c0='65535*exp((val/257-252)/24)',lagfun=decay=0.95,"
 						"lut=c0='clip(257*(252+24*log(max(val,1)/65535)),0,257*252)',format=gray," + stretch(W, H, "neighbor") + " [" + t + "P]; " +
 						still(W, H, r + "+85*gte(X," + n(BW) + ")*lt(mod(X," + n(BW) + "),2)") + " [" + t + "R]; "
-						"[" + t + "Vl] [" + t + "R] bplut2=c0='if(gte(y,85),85+mod(y,85)+85*" + lit + ",y)' [" + t + "Q]; "
+						"[" + t + "Vl] [" + t + "R] bplut2=c0='if(gte(y,85),85+mod(y,85)+85*" + lit + ",y)'" + STILL_REPEAT + " [" + t + "Q]; "
 						// 1 the outline, 2 the fill, else the step (as class*85 + step: the peak's lut2 needs the step)
 						"[" + t + "V] [" + t + "Q] bplut2=c0='85*if(gt(3*mod(y,85),x-" + n(3 * E) + ")*" + lit + "+gte(y,85)*"
-						"(1-eq(" + lit + ",gte(y,170))),1,if(" + lit + ",2,0))+mod(y,85)' [" + t + "S]; "
+						"(1-eq(" + lit + ",gte(y,170))),1,if(" + lit + ",2,0))+mod(y,85)'" + STILL_REPEAT + " [" + t + "S]; "
 						// the peak's step: 3 (DIM) where not the outline
-						"[" + t + "P] [" + t + "S] bplut2=c0='if(eq(floor(y/85),1),1,if(gt(x,3)*" + peak + ",3,floor(y/85)))' [" + t + "C]; ";
+						"[" + t + "P] [" + t + "S] bplut2=c0='if(eq(floor(y/85),1),1,if(gt(x,3)*" + peak + ",3,floor(y/85)))'" + STILL_REPEAT + " [" + t + "C]; ";
 		g += paint(t, overCover, false, classes({yuvOf(theme::ACCENT), yuvOf(theme::BUTTON), yuvOf(theme::DIM)}));
 		fprintf(stderr, "visualizer: Steps in %s: outline #%s, fill #%s, peaks #%s on #%s; graph built in %.1f ms\n", themeName(),
 				hex(theme::ACCENT).c_str(), hex(theme::BUTTON).c_str(), hex(theme::DIM).c_str(), hex(theme::BG).c_str(), tm.ms());
@@ -313,7 +321,7 @@ namespace bp
 		std::string g = "[aid1] asplit [ao] [a]; " + (overCover ? artIn(t) : std::string()) + spectrumRow(t, N) +
 						"[" + t + "L] scale=" + n(W) + ":1:flags=neighbor,setsar=1 [" + t + "V]; " +
 						still(W, 1, "255*(eq(X,0)+lt(floor((X-1)*" + n(N) + "/" + n(W) + "),floor(X*" + n(N) + "/" + n(W) + ")))") + " [" + t + "M]; "
-						"[" + t + "V] [" + t + "M] bplut2=c0='if(y,1+floor(x*250/252),0)'," + stretch(W, H, "neighbor") + " [" + t + "C]; ";
+						"[" + t + "V] [" + t + "M] bplut2=c0='if(y,1+floor(x*250/252),0)'" + STILL_REPEAT + "," + stretch(W, H, "neighbor") + " [" + t + "C]; ";
 		g += paint(t, overCover, false, between(yuvOf(theme::BUTTON), yuvOf(theme::ACCENT)));
 		fprintf(stderr, "visualizer: Barcode in %s: lines #%s to #%s on #%s; graph built in %.1f ms\n", themeName(),
 				hex(theme::BUTTON).c_str(), hex(theme::ACCENT).c_str(), hex(theme::BG).c_str(), tm.ms());
@@ -339,7 +347,9 @@ namespace bp
 		std::string g = "[aid1] asplit [ao] [a]; " + (overCover ? artIn(t) : std::string()) + spectrumRow(t, RG_N) +
 						"[" + t + "L] pad=" + n(RG_N + 1) + ":1:0:0,format=gray," + stretch(RG_N + 1, RG_T, "neighbor") + " [" + t + "V]; " +
 						still(RG_N + 1, RG_T, "if(eq(X," + n(RG_N) + "),255,Y)") + " [" + t + "R]; "
-						"[" + t + "V] [" + t + "R] bplut2=c0='if(eq(y,255),3,if(gt(x,30+floor(222*y/" + n(RG_T) + ")),1,if(eq(y,0),2,0)))' [" + t + "P]; "
+						"[" + t + "V] [" + t + "R] bplut2=c0='if(eq(y,255),3,if(gt(x,30+floor(222*y/" + n(RG_T) + ")),1,if(eq(y,0),2,0)))'" + STILL_REPEAT + " [" + t + "P]; "
+						// (remap has no framesync options and needs none: its source [P] drives it; its one-frame maps are
+						// held, checked with ffmpeg)
 						"movie=" + xm + " [" + t + "xm]; movie=" + ym + " [" + t + "ym]; "
 						"[" + t + "P] [" + t + "xm] [" + t + "ym] remap,split [" + t + "q1] [" + t + "q2]; [" + t + "q2] hflip [" + t + "q3]; "
 						"[" + t + "q1] [" + t + "q3] hstack,split [" + t + "h1] [" + t + "h2]; [" + t + "h2] vflip [" + t + "h3]; "

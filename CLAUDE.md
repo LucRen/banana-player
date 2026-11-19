@@ -62,6 +62,8 @@ tools/make-sprite.py                                 # web/sprite.svg from the G
   and the views Docs and Manga share); `manga*.*` (store, sources, workers), `reader.*` (the top panel's MangaReader).
 - Network: `net*.cpp`, `netstore`, `networker`, `netstream`, `discovery`. Updater: `updater.*`, `update.cpp`.
   Durations: `durations.*`, `durprobe.*`, `durworker.*`.
+- Native visualizers (drawn by the player, no mpv graph: Peaks, Mirror bars, Dots, Steps, Barcode, Rings, Horizon; their
+  graphs are the network fallback): `viznative.*` (bpcore: PFFFT spectrum, each style's bands, easing, shapes), `viztap.*` (the worker's second decode, on mpv's `audio-pts`), `topviz.cpp` (the top panel's GL).
 
 ## Hard rules (the full text and the reasons: docs/architecture.md)
 

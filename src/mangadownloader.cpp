@@ -558,6 +558,7 @@ namespace bp
 		ci.pageCount = total_;
 		ci.sourceId = item_.source;
 		ci.seriesKey = item_.seriesId;
+		ci.chapterId = item_.chapterId;	// the online chapter's id: reading either copy keeps one place (issue #15)
 		const std::string xml = writeComicInfo(ci);
 
 		CbzWriter w;
@@ -616,6 +617,39 @@ namespace bp
 		// Running would be a state no next() ever picks again; the Downloads page resumes a Paused one
 		queue_.pause(id);
 		resetRun();
+		touch();
+	}
+
+	void MangaDownloader::remove(const std::string& id)
+	{
+		// A running chapter must stop before its folder goes: an answer still on its way would be dropped anyway,
+		// and the part file the fetcher cleans up is inside that folder.
+		if (running_ && item_.id == id)
+		{
+			dropFlights(false);
+			retries_.clear();
+			resetRun();
+		}
+		queue_.remove(id);
+		// A failed chapter's pages are this engine's work folder, not the queue's: they go with it, as a finished
+		// chapter's do (removeTree), so a later download starts clean.
+		std::string dir = itemDir(id);
+		if (!dir.empty()) removeTree(dir);
+		queue_.save();
+		touch();
+	}
+
+	void MangaDownloader::clearFailed()
+	{
+		// No request is in flight for a failed one, so only its work folder is left to delete
+		for (const DlItem& it : queue_.items())
+		{
+			if (it.state != DlItem::Failed) continue;
+			std::string dir = itemDir(it.id);
+			if (!dir.empty()) removeTree(dir);
+		}
+		queue_.clearFailed();
+		queue_.save();
 		touch();
 	}
 

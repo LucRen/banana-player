@@ -97,3 +97,53 @@ Jelly wobble, Washing machine, Tube man.
   become Wave / Levels), reads as Peaks (`visualizerReplacement`). Tube man is kept.
 - Checked: build, core-test (the order round, the 15-tile Display page, the replacements, Rings' tables, the dropped
   stills removed); one render of Barcode and Rings through the Mac's ffmpeg.
+
+## Logging for the freeze
+
+A switch of the visualizer on the handheld once stopped the music (Play did nothing; Stop and a fresh start helped).
+Not seen on the Mac, so `log.txt` now carries the lines that pin it (logging only, no behaviour changed; `player.cpp`,
+`SessionHost::submit`). After it happens again:
+
+```sh
+grep -E "mpv: (set|graph|core-idle|idle-active|eof|pause)|end-file|play pressed|music: graph" log.txt
+```
+
+- `music: graph for <style> (<mode>, theme N): <len> chars, #<hash>`: before each lavfi-complex set.
+- `mpv: graph set ok (...)` / `mpv: set <name> failed: <error> (<value>)`: mpv's answer to a set of lavfi-complex, aid,
+  vid, af, pause, background-color, video-margin-ratio-*, panscan; a failed graph is then written whole.
+- `player: end-file reason=... error=... entry=... current=... after a graph change N ms ago`.
+- `mpv: <core-idle|idle-active|eof-reached|pause|paused-for-cache|ao|audio-reconfig|playback-restart> -> v (+N ms after
+  graph)`: only for 10 s after a graph change.
+- `session: play pressed: session <state>, mpv pause=.., core-idle=.., ...`: the last values seen (never read).
+
+## The stall
+
+Switching a simple style then pausing, seeking or switching again stopped the handheld: every mpv thread on a futex, no
+sound, Play did nothing. These graphs split the sound (`[aid1] asplit [ao] [a]`) and feed the visualizer from the same
+branch. That branch reads one-frame stills (`color=…:r=1:d=1`, and Rings' `movie=` maps) inside `lut2` (and `vstack`
+in Horizon). A filter still waiting for, or ending with, its still stops pulling: the sound branch behind `asplit` then
+blocks `[ao]` too, so every thread waits on a frame that never comes.
+
+FFmpeg's framesync defaults already repeat a still's last frame; the graphs were relying on that silently. They now
+state it: every still-fed `lut2` says `:eof_action=repeat:shortest=0:repeatlast=1`, Horizon's stacks say `shortest=0`,
+and no still is looped (one frame, as the music-graph rules ask). `mergeplanes` takes no such option and is only fed
+moving frames here; `remap` has no framesync options either and holds its one-frame maps (checked with ffmpeg: a moving
+source and 1 fps maps made all 60 frames), so Rings needs nothing there. `testVizSimple` walks each graph: every
+one-frame source's label must reach a `lut2` with those options (or a stack with `shortest=0`).
+
+Checked on the Mac (FFmpeg 9.0.2): the twelve graphs render 135 frames each, and the player check (`music-show = both`,
+a fresh `--state-dir`, `A,info,A,info,Right,info,Right,info`) shows t advancing for Mirror bars, Dots, Barcode, Rings,
+Horizon and Steps. The Mac did not stall before this change either (the freeze is the handheld's mpv), so the options
+make the graph's contract explicit rather than change a frame; if it still stalls, the next suspect is mpv's graph
+flush on seek dropping the repeated still.
+
+## The stall, settled by test (2026-11-19)
+
+On the handheld the simple styles stalled mpv (every thread idle in `run_playloop` / `ao_thread` / `vo_wait_default`:
+mpv waiting on a filter graph that stopped giving frames; not a lock) only with Visualizer frame rate 45. The owner
+switched Mirror bars and Steps many times at 30 and it never froze; Peaks, which builds at a fixed `rate=30`, never
+did. The cause inside libavfilter is not pinned (likely the rate rewrite to 45 with 48 kHz sound: 1066.7 samples a
+frame). The simple styles are therefore built at 30 whatever the setting (`Player::graphFor`). The test steps
+`set:KEY=VALUE` and `flip:KEY=A|B:COUNT:MS` (main.cpp) drive such switches without the pages; a frozen player can be
+read with `gdbserver --attach` (a Debian arm64 gdbserver runs on BananaOS) and gdb with the bundle prefix's libmpv
+as build-id debug info.

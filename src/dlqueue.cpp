@@ -372,6 +372,15 @@ namespace bp
 		if (items_.size() != before) serial_++;
 	}
 
+	void DownloadQueue::clearFailed()
+	{
+		size_t before = items_.size();
+		items_.erase(std::remove_if(items_.begin(), items_.end(),
+						 [](const DlItem& it) { return it.state == DlItem::Failed; }),
+			items_.end());
+		if (items_.size() != before) serial_++;
+	}
+
 	std::vector<DlItem> DownloadQueue::items() const
 	{
 		return items_;

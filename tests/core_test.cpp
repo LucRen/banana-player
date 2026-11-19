@@ -1,6 +1,8 @@
 // The parts without a window: aspect modes, track labels, mpv's track-list, times.
 #include "kitlayout.h"
 #include "songlayout.h"
+#include "artph.h"
+#include "viznative.h"
 #include "slider.h"
 #include "filesave.h"
 #include "writequeue.h"	// the durable writer's one-slot queue
@@ -2017,6 +2019,78 @@ static void testDlQueue()
 	rmdir(root.c_str());
 }
 
+// removing queue items: a failed or a waiting chapter can leave, and Clear failed takes the failed ones only
+static void testMangaDlRemove()
+{
+	auto mk = [](const std::string& id) {
+		DlItem it;
+		it.id = id;
+		it.seriesId = "s";
+		it.chapterId = id;
+		it.chapterTitle = "Chapter " + id;
+		it.pageUrls = {"https://example.org/" + id + "/1.jpg"};
+		return it;
+	};
+
+	DownloadQueue q;
+	CHECK_EQ(q.load(""), false);	// no state folder: the queue still works in memory
+	q.add(mk("a"));
+	q.add(mk("b"));
+	q.add(mk("c"));
+	q.failed("b", "network gone");
+	CHECK_EQ(q.items().size(), size_t(3));
+
+	// the failed one goes; the others keep their order
+	uint64_t serial = q.serial();
+	q.remove("b");
+	CHECK_EQ(q.items().size(), size_t(2));
+	CHECK_EQ(q.serial() > serial, true);
+	CHECK_EQ(q.items()[0].id, std::string("a"));
+	CHECK_EQ(q.items()[1].id, std::string("c"));
+
+	// a queued (waiting) one goes the same way
+	serial = q.serial();
+	q.remove("a");
+	CHECK_EQ(q.items().size(), size_t(1));
+	CHECK_EQ(q.items()[0].id, std::string("c"));
+	CHECK_EQ(q.serial() > serial, true);
+
+	// an id that isn't there is no change, so nothing redraws
+	serial = q.serial();
+	q.remove("nope");
+	CHECK_EQ(q.items().size(), size_t(1));
+	CHECK_EQ(q.serial(), serial);
+
+	// Clear failed takes the failed ones only: the running, waiting and done ones stay
+	DownloadQueue q2;
+	q2.load("");
+	q2.add(mk("run"));
+	q2.add(mk("wait"));
+	q2.add(mk("bad1"));
+	q2.add(mk("done"));
+	q2.add(mk("bad2"));
+	q2.started("run");
+	q2.failed("bad1", "gone");
+	q2.finished("done");
+	q2.failed("bad2", "gone again");
+	CHECK_EQ(q2.items().size(), size_t(5));
+	serial = q2.serial();
+	q2.clearFailed();
+	CHECK_EQ(q2.items().size(), size_t(3));
+	CHECK_EQ(q2.serial() > serial, true);
+	CHECK_EQ(q2.items()[0].id, std::string("run"));
+	CHECK_EQ(q2.items()[0].state, DlItem::Running);
+	CHECK_EQ(q2.items()[1].id, std::string("wait"));
+	CHECK_EQ(q2.items()[1].state, DlItem::Waiting);
+	CHECK_EQ(q2.items()[2].id, std::string("done"));
+	CHECK_EQ(q2.items()[2].state, DlItem::Done);
+	// with none failed it changes nothing
+	serial = q2.serial();
+	q2.clearFailed();
+	CHECK_EQ(q2.items().size(), size_t(3));
+	CHECK_EQ(q2.serial(), serial);
+}
+
 // the repository index (design 5.3): reading it, validating its sources, checksums, versions, resolving file URLs
 static void testMangaRepo()
 {
@@ -3553,6 +3627,110 @@ static void testPaged()
 	CHECK_EQ(e.current(), 0);
 }
 
+// Issue #15: a downloaded chapter and its online chapter keep one place, under the source's ids
+static void testMangaStoreLinkedDownloads()
+{
+	const std::string path = "/sd/Manga/Ember/Chapter 3.cbz";
+	const std::string cid = "src:mangadex:ch-3", sid = "src:mangadex:ember";
+	const std::string local = "local:/sd/Manga/Ember";
+
+	// the canonical key: a linked file reads and writes the source chapter's place; an unlinked one keeps its own
+	{
+		MangaStore m;
+		CHECK_EQ(m.canonicalChapter(path), path);
+		CHECK_EQ((bool)(m.linkChapter(path, cid, sid) == MangaStore::Link::Linked), true);
+		CHECK_EQ((bool)(m.linkChapter(path, cid, sid) == MangaStore::Link::Same), true);
+		CHECK_EQ(m.canonicalChapter(path), cid);
+		CHECK_EQ(m.canonicalChapter("/sd/Manga/Ember/Extra.cbz"), std::string("/sd/Manga/Ember/Extra.cbz"));
+		MangaSeries ls;
+		ls.id = local;
+		m.putSeries(ls);
+		// the downloaded copy read (from On this handheld): its place is visible from the online id
+		ChapterProgress p;
+		p.seriesId = local;
+		p.chapterId = path;
+		p.page = 6;
+		p.pages = 20;
+		p.at = 1000;
+		m.setProgress(p);
+		const ChapterProgress* on = m.progress(cid);
+		CHECK_EQ((bool)(on != nullptr), true);
+		CHECK_EQ(on->page, 6);
+		CHECK_EQ(on->seriesId, sid);
+		CHECK_EQ((bool)(m.progress(path) == on), true);
+		CHECK_EQ(m.history(10).size(), (size_t)1);	// one row, not two
+		CHECK_EQ(m.series(local)->lastRead, (int64_t)1000);	// its folder's series still moves up the library
+		// read online further: the copy opens there too
+		p.seriesId = sid;
+		p.chapterId = cid;
+		p.page = 19;
+		p.at = 2000;
+		m.setProgress(p);
+		CHECK_EQ(m.progress(path)->page, 19);
+		CHECK_EQ(m.progress(path)->read, true);
+		// the folder's series counts it read, by its path; an unlinked chapter of it doesn't
+		CHECK_EQ(m.unread(local, {path, "/sd/Manga/Ember/Extra.cbz"}), 1);
+		// marked unread from the folder's page: the one place changes
+		m.markRead(local, {path}, false);
+		CHECK_EQ(m.progress(cid)->read, false);
+		CHECK_EQ(m.history(10).size(), (size_t)1);
+	}
+
+	// the migration: a place under the path and one under the source id merge into the source's, once
+	{
+		MangaStore m;
+		ChapterProgress a;	// read online first
+		a.seriesId = sid;
+		a.chapterId = cid;
+		a.page = 3;
+		a.pages = 20;
+		a.at = 100;
+		m.setProgress(a);
+		ChapterProgress b;	// then further in the downloaded copy, later
+		b.seriesId = local;
+		b.chapterId = path;
+		b.page = 12;
+		b.pages = 20;
+		b.at = 500;
+		m.setProgress(b);
+		m.markRead(sid, {cid}, true);	// and marked read online
+		CHECK_EQ(m.history(10).size(), (size_t)2);
+		CHECK_EQ((bool)(m.linkChapter(path, cid, sid) == MangaStore::Link::Merged), true);
+		std::vector<ChapterProgress> h = m.history(10);
+		CHECK_EQ(h.size(), (size_t)1);
+		CHECK_EQ(h[0].chapterId, cid);
+		CHECK_EQ(h[0].seriesId, sid);
+		CHECK_EQ(h[0].page, 12);	// the later place
+		CHECK_EQ(h[0].at, (int64_t)500);
+		CHECK_EQ(h[0].read, true);	// read in either
+		// linked again (the next scan): nothing moves
+		CHECK_EQ((bool)(m.linkChapter(path, cid, sid) == MangaStore::Link::Same), true);
+		CHECK_EQ(m.history(10).size(), (size_t)1);
+	}
+	// a place only under the path moves to the source id; the earlier one wins nothing when it is older
+	{
+		MangaStore m;
+		ChapterProgress b;
+		b.seriesId = local;
+		b.chapterId = path;
+		b.page = 4;
+		b.pages = 20;
+		b.at = 50;
+		m.setProgress(b);
+		ChapterProgress a;
+		a.seriesId = sid;
+		a.chapterId = "src:mangadex:ch-4";
+		a.page = 9;
+		a.at = 900;
+		m.setProgress(a);
+		CHECK_EQ((bool)(m.linkChapter(path, cid, sid) == MangaStore::Link::Moved), true);
+		CHECK_EQ(m.progress(cid)->page, 4);
+		CHECK_EQ(m.progress(cid)->seriesId, sid);
+		CHECK_EQ(m.progressOf(local).size(), (size_t)0);
+		CHECK_EQ(m.history(10).size(), (size_t)2);
+	}
+}
+
 static void testMangaStore()
 {
 	// an extension's series found again under a new id: its entry, heart and chapters' places move over
@@ -4094,6 +4272,34 @@ static void testMangaLocalLazy(const std::string& M, const std::vector<LocalSeri
 	CHECK_EQ(b.ciVolume, m.ciVolume);
 	CHECK_EQ(b.ciSeriesKey, m.ciSeriesKey);
 	unlink(file.c_str());
+	// a download's BPChapter survives the trip; a line written before it was kept (one field fewer) still reads
+	{
+		ChapterMetaCache withId;
+		ChapterFileMeta d = m;
+		d.ciChapterId = "src:mangadex:ch-7";
+		withId.put("/x/a.cbz", 1, 2, d);
+		ChapterMetaCache again;
+		again.parse(withId.text());
+		ChapterFileMeta g;
+		CHECK(again.get("/x/a.cbz", 1, 2, g));
+		CHECK_EQ(g.ciChapterId, std::string("src:mangadex:ch-7"));
+		// the same line without its last field, its checksum made again as the old writer made it
+		std::string t = withId.text();
+		size_t ln = t.find('\n') + 1;
+		std::string line = t.substr(ln, t.find('\n', ln) - ln);
+		line = line.substr(0, line.rfind('\t'));	// the checksum off
+		line = line.substr(0, line.rfind('\t'));	// and BPChapter
+		uint32_t h = 2166136261u;
+		for (unsigned char ch : line) h = (h ^ ch) * 16777619u;
+		char sum[16];
+		snprintf(sum, sizeof sum, "\t%08x", h);
+		ChapterMetaCache old;
+		old.parse("# bp manga files 1\n" + line + sum + "\n");
+		ChapterFileMeta o;
+		CHECK(old.get("/x/a.cbz", 1, 2, o));
+		CHECK_EQ(o.ciChapterId, std::string());
+		CHECK_EQ(o.ciSeriesKey, m.ciSeriesKey);
+	}
 	std::string text = cache.text();
 	size_t first = text.find('\n') + 1;	// (past the header)
 	std::string bad = text;
@@ -4510,6 +4716,17 @@ static void testComicInfo()
 	CHECK_EQ(parseComicInfo("<ComicInfo><BPSource>mangadex</BPSource><BPSeriesKey>abc-123</BPSeriesKey></ComicInfo>", c), true);
 	CHECK_EQ(c.sourceId, std::string("mangadex"));
 	CHECK_EQ(c.seriesKey, std::string("abc-123"));
+	// BPChapter: the source chapter a download is a copy of (issue #15), written and read back
+	{
+		ComicInfo w;
+		w.sourceId = "mangadex";
+		w.seriesKey = "src:mangadex:abc-123";
+		w.chapterId = "src:mangadex:ch-7";
+		ComicInfo r;
+		CHECK_EQ(parseComicInfo(writeComicInfo(w), r), true);
+		CHECK_EQ(r.chapterId, std::string("src:mangadex:ch-7"));
+		CHECK_EQ(r.seriesKey, std::string("src:mangadex:abc-123"));
+	}
 
 	// no ComicInfo element: false, and the struct is left as it was
 	c = ComicInfo();
@@ -5922,6 +6139,509 @@ static void testVizTheme()
 	CHECK_EQ(system(rm.c_str()), 0);
 }
 
+// Every filter that takes a still (one frame from color=...:r=1:d=1 or movie=) must keep that frame and not end with
+// it: a visualizer branch that stops pulling audio blocks [ao] behind the same asplit (the stall). Walks the graph: a
+// one-frame source's label is a still; a multi-input filter reading it must say repeat/eof. remap has no framesync
+// options and holds its maps (driven by its source); mergeplanes has none either and is never fed a still here.
+static void checkStillRepeats(const std::string& g)
+{
+	std::set<std::string> stills;
+	std::vector<std::string> segs;
+	for (size_t at = 0; at < g.size();)
+	{
+		size_t end = g.find(';', at);
+		if (end == std::string::npos) end = g.size();
+		segs.push_back(g.substr(at, end - at));
+		const std::string& s = segs.back();
+		if (s.find("r=1:d=1") != std::string::npos || s.find("movie=") != std::string::npos)
+		{
+			size_t open = s.rfind('[');
+			size_t close = open == std::string::npos ? std::string::npos : s.find(']', open);
+			if (close != std::string::npos) stills.insert(s.substr(open + 1, close - open - 1));
+		}
+		at = end + 1;
+	}
+	for (const std::string& s : segs)
+	{
+		static const char* FILTERS[] = {"lut2", "overlay", "blend", "mergeplanes", "vstack", "hstack", "remap"};
+		size_t f = std::string::npos;
+		const char* name = "";
+		for (const char* n : FILTERS)
+		{
+			size_t k = s.find(n);
+			if (k != std::string::npos && (k == 0 || !isalnum((unsigned char)s[k - 1])) && k < f) { f = k; name = n; }
+		}
+		if (f == std::string::npos) continue;
+		bool fromStill = false;
+		for (size_t open = s.find('['); open != std::string::npos && open < f; open = s.find('[', open + 1))
+		{
+			size_t close = s.find(']', open);
+			if (close == std::string::npos || close > f) break;
+			if (stills.count(s.substr(open + 1, close - open - 1))) fromStill = true;
+		}
+		if (!fromStill) continue;
+		if (std::string(name) == "remap") continue;	// (its maps are held; ffmpeg's remap takes no framesync options)
+		if (std::string(name) == "mergeplanes") continue;	// (never fed a still here: it takes no repeat option)
+		if (std::string(name) == "vstack" || std::string(name) == "hstack")
+			CHECK_EQ(s.find("shortest=0") != std::string::npos, true);
+		else
+			CHECK_EQ(s.find(":eof_action=repeat:shortest=0:repeatlast=1") != std::string::npos, true);
+	}
+}
+
+// The native visualizers' pure part (src/viznative.h): the bands, the spectrum's levels, the easing, Mirror bars'
+// shapes, the clock
+static void testTitleMarquee()
+{
+	// the timing (docs/redesign/components.md, Title marquee): 100 units over a 60-unit box in 28-px type (2 units a
+	// step): rests 1.5 s, moves 40 units in 20 steps (833 ms), rests 1.5 s at its end, fades out and in (300 ms), rests 3 s,
+	// again, then done at its start
+	using lay::marquee;
+	CHECK(marquee(0, 50, 60, 28).done && marquee(5000, 50, 60, 28).offset == 0);	// fits: never moves
+	lay::MarqueeAt m = marquee(0, 100, 60, 28);
+	CHECK(m.offset == 0 && !m.done && m.fadeRight && !m.fadeLeft && m.alpha == 1);
+	CHECK_EQ(marquee(1499, 100, 60, 28).offset, 0);
+	CHECK_EQ(marquee(1500, 100, 60, 28).offset, 2);
+	CHECK_EQ(marquee(1500 + 500, 100, 60, 28).offset, 2 * (500 * 24 / 1000 + 1));
+	m = marquee(1500 + 900, 100, 60, 28);
+	CHECK(m.offset == 40 && !m.fadeRight && m.fadeLeft);	// at its end: no right fade
+	const int moveMs = 20 * 1000 / 24, pass = 1500 + moveMs + 1500 + 300;
+	m = marquee(1500 + moveMs + 1500 + 75, 100, 60, 28);
+	CHECK(m.offset == 40 && m.alpha > 0.4f && m.alpha < 0.6f);	// fading out at its end
+	m = marquee(1500 + moveMs + 1500 + 225, 100, 60, 28);
+	CHECK(m.offset == 0 && m.alpha > 0.4f && m.alpha < 0.6f);	// fading in at its start
+	CHECK(!marquee(pass + 1000, 100, 60, 28).done && marquee(pass + 1000, 100, 60, 28).offset == 0);	// the 3 s rest
+	CHECK_EQ(marquee(pass + 3000 + 10, 100, 60, 28).offset, 2);	// the second pass moves 3 s after the fade
+	CHECK(marquee(2 * pass + 3000 - 1500 + 10, 100, 60, 28).done);	// then done, at its start
+	CHECK(marquee(pass + 10, 100, 60, 28, 1).done);	// a row's one pass
+	CHECK_EQ(marquee(1500 + 500, 100, 60, 16).offset, 500 * 24 / 1000 + 1);	// under 24: a unit a step
+	// steps change while it moves, not while it rests
+	CHECK(marquee(100, 100, 60, 28).step == marquee(1400, 100, 60, 28).step);
+	CHECK(marquee(1500, 100, 60, 28).step != marquee(1560, 100, 60, 28).step);
+
+	// Repeated start, the spec's table (fits: under 20 letters)
+	auto fits = [](const std::string& t) { return t.size() < 20; };
+	auto st = [](const std::string& artist, const std::string& album, const std::string& path) {
+		return titleStarts(artist, album, path, {});
+	};
+	CHECK_EQ(shownTitle("Yellow Album - 03 - Sunny Peel (Live at the Old Orchard Hall)", st("", "Yellow Album", "/m/x.flac"), fits),
+		std::string("03 - Sunny Peel (Live at the Old Orchard Hall)"));
+	CHECK_EQ(shownTitle("Big Buck Bunny - S01E03 - The Butterfly and the Apple Tree", st("", "", "/v/Big Buck Bunny/e3.mkv"), fits),
+		std::string("S01E03 - The Butterfly and the Apple Tree"));
+	CHECK_EQ(shownTitle("The Plantains - Yellow Album - 03 - Sunny Peel (Live)", st("The Plantains", "Yellow Album", "/m/x.flac"), fits),
+		std::string("03 - Sunny Peel (Live)"));
+	CHECK_EQ(shownTitle("Yellow Album - 03 - xx", st("", "Yellow Album", "/m/x.flac"), [](const std::string&) { return false; }),
+		std::string("Yellow Album - 03 - xx"));	// under three letters left
+	CHECK_EQ(shownTitle("Yellow Album Blues, Part Two (Extended Orchard Mix)", st("", "Yellow Album", "/m/x.flac"), fits),
+		std::string("Yellow Album Blues, Part Two (Extended Orchard Mix)"));	// no separator
+	CHECK_EQ(shownTitle("Sunny Peel", st("", "Sunny Peel", "/m/x.flac"), fits), std::string("Sunny Peel"));	// fits
+	CHECK_EQ(shownTitle("yellow album: Ripe by Friday and more", st("", "Yellow Album", "/m/x.flac"), fits),
+		std::string("Ripe by Friday and more"));	// case aside, ": "
+	// a list's shared start: three names or more, up to a separator, four letters or more
+	CHECK_EQ(sharedStart({"Show Name - 01 - Pilot.mkv", "Show Name - 02 - Two.mkv", "Show Name - 03 - Three.mkv"}), std::string("Show Name"));
+	CHECK_EQ(sharedStart({"Show Name - 01.mkv", "Show Name - 02.mkv"}), std::string(""));
+	CHECK_EQ(sharedStart({"Ab - 1", "Ab - 2", "Ab - 3"}), std::string(""));
+	CHECK_EQ(sharedStart({"Track one", "Track two", "Track three"}), std::string(""));
+	// the setting: on by default, kept by its key
+	CHECK(Settings{}.scrollTitles);
+	CHECK(!parseSettings("scroll-titles = no\n").scrollTitles);
+}
+
+static void testVizNative()
+{
+	const std::vector<int> e = vizBandEdges(VN_BARS, VN_FFT, VN_RATE, 40, 14000);
+	CHECK_EQ((int)e.size(), VN_BARS + 1);
+	bool rising = true;
+	for (size_t i = 1; i < e.size(); i++) rising = rising && e[i] > e[i - 1];
+	CHECK(rising);
+	CHECK_EQ(e[0], 1);	// 40 Hz: bin 1 (31.25 Hz a bin)
+	CHECK_EQ(e[1] - e[0], 1);	// the bass bands one bin each
+	CHECK(e[VN_BARS] <= VN_FFT / 2 && e[VN_BARS] >= 440);	// up to ~14 kHz
+	CHECK(e[VN_BARS] - e[VN_BARS - 1] > 10);	// the top bands wide (log spaced)
+
+	// a sine's tallest bar is the band holding its frequency; silence draws nothing
+	VizSpectrum sp;
+	CHECK(sp.ok());
+	std::vector<float> in(VN_FFT), mag(VN_FFT / 2);
+	float t[VN_BARS];
+	auto bandOf = [&](double hz) {
+		int bin = (int)std::lround(hz / ((double)VN_RATE / VN_FFT));
+		for (int i = 0; i < VN_BARS; i++)
+			if (bin >= e[i] && bin < e[i + 1]) return i;
+		return -1;
+	};
+	for (double hz : {100.0, 1000.0, 5000.0})
+	{
+		for (int i = 0; i < VN_FFT; i++) in[i] = (float)(0.5 * std::sin(2 * M_PI * hz * i / VN_RATE));
+		sp.magnitudes(in.data(), mag.data());
+		vizMirrorTargets(mag.data(), e, VN_RATE, VN_FFT, t);
+		int top = (int)(std::max_element(t, t + VN_BARS) - t);
+		CHECK_EQ(t[bandOf(hz)], t[top]);	// (its neighbours may reach the top too: the window's spread)
+		CHECK(t[top] > 200);
+		CHECK_EQ(t[0 == top ? VN_BARS - 1 : 0], 0.0f);	// far from it: nothing
+	}
+	std::fill(in.begin(), in.end(), 0.0f);
+	sp.magnitudes(in.data(), mag.data());
+	vizMirrorTargets(mag.data(), e, VN_RATE, VN_FFT, t);
+	CHECK_EQ(*std::max_element(t, t + VN_BARS), 0.0f);
+
+	// an LED meter: up at once, down by the whole height over 0.15 s
+	CHECK_EQ(vizEase(10, 200, 0.016), 200.0f);
+	CHECK(std::fabs(vizEase(252, 0, 0.075) - 126) < 0.5);
+	CHECK_EQ(vizEase(252, 0, 0.15), 0.0f);
+	CHECK_EQ(vizEase(252, 100, 1.0), 100.0f);
+
+	// Mirror bars: the line, then a bar for each level that shows; the graph's heights
+	float lv[VN_BARS] = {};
+	lv[0] = VN_TOP;
+	lv[39] = 1;
+	std::vector<VizRect> r;
+	mirrorBarsRects(lv, VN_BARS, false, r);
+	CHECK_EQ((int)r.size(), 3);
+	CHECK_EQ(r[0].ink, 1);
+	CHECK(r[0].y0 == 238 && r[0].y1 == 242 && r[0].x1 == 640);
+	CHECK(r[1].ink == 0 && r[1].x0 == 2 && r[1].x1 == 14 && r[1].y0 == 22 && r[1].y1 == 458);
+	CHECK(r[2].y0 == 238 && r[2].y1 == 242 && r[2].x1 == 638);
+	mirrorBarsRects(lv, VN_BARS, true, r);
+	CHECK(r[0].y0 == 378 && r[1].y0 == 286 && r[1].y1 == 474);	// the band: rows 280..480
+	// a card over the bars: cut round it (the line split in two, the bar's top and bottom kept)
+	vizCutOut(r, {0, 300, 100, 400, 0});
+	float area = 0;
+	for (auto& q : r) area += (q.x1 - q.x0) * (q.y1 - q.y0);
+	CHECK_EQ(area, 540.0f * 4 + 12 * (14 + 74) + 12 * 4);
+
+	// every native style: its band count, sound edges, and its shapes at silence and at full
+	const int styles[] = {VIS_MIRROR, VIS_PEAKS_BANANA, VIS_DOTS, VIS_STEPS, VIS_BARCODE, VIS_RINGS, VIS_HORIZON};
+	const int bars[] = {40, 64, 32, 20, 96, 10, 20};
+	for (int k = 0; k < 7; k++)
+	{
+		CHECK(vizNativeStyle(styles[k]));
+		CHECK_EQ(vizStyleBands(styles[k]).bars, bars[k]);
+		const std::vector<int> se = vizBandEdges(bars[k], VN_FFT, VN_RATE, 40, 14000);
+		bool up = se.front() >= 1 && se.back() <= VN_FFT / 2;
+		for (size_t i = 1; i < se.size(); i++) up = up && se[i] > se[i - 1];
+		CHECK(up);
+	}
+	CHECK(!vizNativeStyle(VIS_CITY));
+	CHECK(vizStyleBands(VIS_PEAKS_BANANA).plain && !vizStyleBands(VIS_DOTS).plain);
+	auto inksOf = [](const std::vector<VizRect>& rs, int ink) { int c = 0; for (auto& q : rs) c += q.ink == ink; return c; };
+	VizStyleState st;
+	// Peaks: silent, 64 caps on the foot and the four faint lines; caps fall 102 levels a second
+	st.reset(VIS_PEAKS_BANANA);
+	vizShapes(st, false, r);
+	CHECK_EQ(inksOf(r, VI_TEXT), 64);
+	CHECK_EQ(inksOf(r, VI_WHITE), 4);
+	CHECK_EQ(inksOf(r, VI_ACCENT), 0);
+	st.targets[0] = 250;
+	vizStep(st, 0.016);
+	CHECK_EQ(st.levels[0], 250.0f);
+	st.targets[0] = 0;
+	vizStep(st, 1.0);
+	CHECK(st.levels[0] == 0 && std::fabs(st.holds[0] - 148) < 0.01);
+	vizShapes(st, true, r);
+	CHECK_EQ(inksOf(r, VI_WHITE), 0);	// (no lines in the band)
+	// Dots: 32 x 17 dots (3 boxes each) from 120 down alone (75% of the height), all lit at full
+	st.reset(VIS_DOTS);
+	vizShapes(st, false, r);
+	CHECK_EQ((int)r.size(), 32 * 17 * 3);
+	CHECK_EQ(inksOf(r, VI_BUTTON), 32 * 17 * 3);
+	float topY = 480;
+	for (auto& q : r) topY = std::min(topY, q.y0);
+	CHECK_EQ(topY, 122.0f);
+	for (int i = 0; i < 32; i++) st.targets[i] = VN_TOP;
+	vizStep(st, 0.016);
+	vizShapes(st, false, r);
+	CHECK_EQ(inksOf(r, VI_ACCENT), 32 * 17 * 3);
+	vizShapes(st, true, r);
+	CHECK_EQ((int)r.size(), 32 * 9 * 3);
+	// Steps: at full, the fill reaches 120 alone (75%), 280 in the band; the peak line held 73.9 a second
+	st.reset(VIS_STEPS);
+	for (int i = 0; i < 20; i++) st.targets[i] = VN_TOP;
+	vizStep(st, 0.016);
+	vizShapes(st, false, r);
+	topY = 480;
+	for (auto& q : r) topY = std::min(topY, q.y0);
+	CHECK_EQ(topY, 120.0f);
+	vizShapes(st, true, r);
+	topY = 480;
+	for (auto& q : r) topY = std::min(topY, q.y0);
+	CHECK_EQ(topY, 280.0f);
+	for (int i = 0; i < 20; i++) st.targets[i] = 0;
+	vizStep(st, 1.0);
+	CHECK(std::fabs(st.holds[0] - (252 - 73.9f)) < 0.01);
+	vizShapes(st, false, r);
+	CHECK_EQ(inksOf(r, VI_DIM), 20);	// the peaks, still up
+	// Barcode: 96 hairlines, faint at silence, the accent at full
+	st.reset(VIS_BARCODE);
+	vizShapes(st, false, r);
+	CHECK_EQ((int)r.size(), 96);
+	CHECK(r[0].mix == 0 && r[0].x0 == 0 && r[95].x0 == 2 * 317 && r[0].y1 - r[0].y0 == 480);
+	// Rings: ten faint guides and the dot at silence; the first ring at its widest at full
+	st.reset(VIS_RINGS);
+	vizShapes(st, false, r);
+	CHECK_EQ(inksOf(r, VI_BUTTON), 10);
+	CHECK_EQ(inksOf(r, VI_TEXT), 1);
+	st.targets[0] = VN_TOP;
+	vizStep(st, 0.016);
+	vizShapes(st, false, r);
+	CHECK(r[0].ink == VI_ACCENT && std::fabs((r[0].y1 - r[0].x1) - 4 * 0.42f * 10.6f) < 0.01);
+	// Horizon: the skyline two thirds of the sky at full (107 of 160 rows), mirrored, with its striped reflection
+	st.reset(VIS_HORIZON);
+	for (int i = 0; i < 20; i++) st.targets[i] = VN_TOP;
+	vizStep(st, 0.016);
+	vizShapes(st, false, r);
+	int sky = 0, stripes = 0;
+	for (auto& q : r)
+	{
+		if (q.ink == VI_ACCENT) { sky++; CHECK_EQ(q.y1 - q.y0, 214.0f); }
+		if (q.ink == VI_DIM && q.y1 - q.y0 == 2) stripes++;
+	}
+	CHECK_EQ(sky, 40);
+	CHECK(stripes > 10);
+
+	// the final ten (2026-11-19): all drawn by the player; the new six's band counts
+	for (int v : VIS_SHOWN) CHECK(vizNativeStyle(v));
+	CHECK_EQ(vizStyleBands(VIS_RIBBON).bars, 48);
+	CHECK_EQ(vizStyleBands(VIS_POCKET).bars, 15);
+	CHECK(!vizStyleBands(VIS_POCKET).cut && vizStyleBands(VIS_RIBBON).cut);
+	CHECK(vizFullPanel(VIS_SPARKS) && vizFullPanel(VIS_STARFIELD) && !vizFullPanel(VIS_RIBBON) && !vizFullPanel(VIS_GRID));
+	auto inside = [](const std::vector<VizRect>& rs, float y0) {
+		bool ok = true;
+		for (auto& q : rs)
+			if (q.kind == 2) ok = ok && std::isfinite(q.x0) && std::isfinite(q.y3) && q.alpha >= 0 && q.alpha <= 1 && q.alpha2 >= 0 && q.alpha2 <= 1;
+			else if (q.kind == 0) ok = ok && q.y0 >= y0 - 1 && q.y1 <= 481;
+		return ok;
+	};
+	// the loudness: silence 0, a full-scale sine 1; the beat: a jump of the bass over its mean, at most four a second
+	{
+		std::vector<float> sil(VN_FFT, 0.0f), sine(VN_FFT);
+		for (int i = 0; i < VN_FFT; i++) sine[i] = (float)std::sin(2 * M_PI * 100 * i / VN_RATE);
+		CHECK_EQ(vizLoudness(sil.data(), VN_FFT), 0.0f);
+		CHECK_EQ(vizLoudness(sine.data(), VN_FFT), 1.0f);
+		VizSpectrum sp;
+		std::vector<float> m(VN_FFT / 2);
+		sp.magnitudes(sine.data(), m.data());
+		CHECK(vizBassEnergy(m.data(), VN_RATE, VN_FFT) > 0.1f);
+		VizBeat b;
+		int beats = 0;
+		for (int i = 0; i < 60; i++) beats += b.step(0.001f, 1 / 30.0);	// a steady bed: none
+		CHECK_EQ(beats, 0);
+		CHECK(b.step(0.2f, 1 / 30.0));	// a kick
+		CHECK(!b.step(0.4f, 1 / 30.0));	// (not again a frame later)
+		VizBeat q;
+		q.step(0, 1);
+		CHECK(!q.step(0.00005f, 1));	// (never in silence)
+	}
+	// Ribbon: the line, its glow and fade within the panel; a flat line at silence sits on the base (422 alone)
+	st.reset(VIS_RIBBON);
+	vizShapes(st, false, r);
+	CHECK(inside(r, 0) && r.size() > 200);
+	for (int i = 0; i < 48; i++) st.targets[i] = VN_TOP;
+	for (int f = 0; f < 30; f++) vizStep(st, 1 / 30.0);
+	CHECK(st.levels[0] > 250 && st.slow[0] > 0 && st.slow[0] < st.levels[0]);
+	vizShapes(st, true, r);
+	CHECK(inside(r, 280));
+	// Grid: a row every 0.1 s, never more than its 12
+	st.reset(VIS_GRID);
+	vizStep(st, 0.35);
+	CHECK_EQ(st.gridCount, 1);	// (a long gap: one row, not a burst)
+	for (int f = 0; f < 120; f++) vizStep(st, 1 / 30.0);
+	CHECK_EQ(st.gridCount, VizStyleState::GRID_ROWS);
+	vizShapes(st, false, r);
+	CHECK(inside(r, 0));
+	// (2026-11-19, the handheld slowed as the rows filled) a quiet grid hides nothing (no row's fill), and a loud one's
+	// fills stop at the foot of the row behind each: none reaches the front row's own foot
+	{
+		VizStyleState q;
+		q.reset(VIS_GRID);
+		for (int f = 0; f < 60; f++) vizStep(q, 1 / 30.0);
+		vizShapes(q, false, r);
+		CHECK_EQ(inksOf(r, VI_BG), 0);
+		for (int i = 0; i < VizStyleState::GRID_BANDS; i++) q.targets[i] = VN_TOP;
+		for (int f = 0; f < 60; f++) vizStep(q, 1 / 30.0);
+		vizShapes(q, false, r);
+		float lowest = 0;
+		for (auto& b : r) if (b.ink == VI_BG) lowest = std::max(lowest, std::max(b.y2, b.y3));
+		CHECK(inksOf(r, VI_BG) > 0 && lowest <= 480 * 0.95f + 0.01f);	// (the front row's foot, yb: it filled to yb + 1)
+		CHECK(r.size() < 1100);
+	}
+	// Sparks: the pool never past its 400 at full with a beat each frame, every live one alive; quiet, they die out
+	st.reset(VIS_SPARKS);
+	for (int i = 0; i < 32; i++) st.targets[i] = VN_TOP;
+	int most = 0;
+	for (int f = 0; f < 600; f++)
+	{
+		st.beats++;
+		vizStep(st, f % 7 ? 1 / 60.0 : 0.2);
+		most = std::max(most, st.sparkN);
+		CHECK(st.sparkN >= 0 && st.sparkN <= VizStyleState::SPARKS);
+	}
+	CHECK_EQ(most, VizStyleState::SPARKS);
+	bool alive = true;
+	for (int i = 0; i < st.sparkN; i++) alive = alive && st.sparks[i].life > 0;
+	CHECK(alive);
+	vizShapes(st, true, r);	// (the whole panel in the band too)
+	CHECK_EQ(inksOf(r, VI_TEXT) + inksOf(r, VI_ACCENT), st.sparkN);
+	for (int i = 0; i < 32; i++) st.targets[i] = 0;
+	for (int f = 0; f < 200; f++) vizStep(st, 1 / 30.0);
+	CHECK_EQ(st.sparkN, 0);
+	// Starfield: every star in its depth; louder, faster
+	st.reset(VIS_STARFIELD);
+	st.loud = 0;
+	for (int f = 0; f < 30; f++) vizStep(st, 1 / 30.0);
+	const float quiet = st.starV;
+	st.loud = 1;
+	for (int f = 0; f < 300; f++) vizStep(st, 1 / 30.0);
+	CHECK(st.starV > quiet * 5);
+	bool depth = true;
+	for (auto& p : st.stars) depth = depth && p.z >= 0.05f - 0.04f && p.z <= 1;
+	CHECK(depth);
+	vizShapes(st, false, r);
+	CHECK(inside(r, 0) && r.size() >= 100);
+	// Strings: eight alone (40 blur quads each), five in the band
+	st.reset(VIS_STRINGS);
+	vizShapes(st, false, r);
+	CHECK_EQ(inksOf(r, VI_BUTTON), 8 * 40);
+	vizShapes(st, true, r);
+	CHECK_EQ(inksOf(r, VI_BUTTON), 5 * 40);
+	CHECK(inside(r, 280));
+	// Helix: 32 rungs and 64 beads, a bead bigger as its band is louder
+	st.reset(VIS_HELIX);
+	vizShapes(st, false, r);
+	CHECK(inksOf(r, VI_BUTTON) >= 28);	// (a rung where the strands cross has no height)
+	CHECK_EQ(inksOf(r, VI_ACCENT) + inksOf(r, VI_DIM), 64);
+	float small = 0;
+	for (auto& q : r) if (q.kind == 1) small = std::max(small, q.y1);
+	for (int i = 0; i < 32; i++) st.targets[i] = VN_TOP;
+	vizStep(st, 1.0);
+	vizShapes(st, false, r);
+	float big = 0;
+	for (auto& q : r) if (q.kind == 1) big = std::max(big, q.y1);
+	CHECK(big > small * 2);
+	// Pocket console: the screen, the grid (80 + 60 lines alone), the floor; full, the bars' ink up to row 14
+	st.reset(VIS_POCKET);
+	vizShapes(st, false, r);
+	CHECK_EQ(inksOf(r, VI_P_SCREEN), 1);
+	CHECK_EQ(inksOf(r, VI_P_GRID), 80 + 60);
+	for (int i = 0; i < 15; i++) st.targets[i] = VN_TOP;
+	vizStep(st, 0.016);
+	vizShapes(st, false, r);
+	float inkTop = 480;
+	for (auto& q : r) if (q.ink == VI_P_MID && q.x0 == 16 && q.y1 < 470) inkTop = std::min(inkTop, q.y0);
+	CHECK_EQ(inkTop, 14 * 8.0f);
+	vizShapes(st, true, r);	// the band: no screen, the bright pair, the grid in BG
+	CHECK_EQ(inksOf(r, VI_P_SCREEN), 0);
+	CHECK(inksOf(r, VI_P_LIGHT) == 15 && inksOf(r, VI_BG) == 80 + 25);
+
+	// the five fun ones (2026-11-19): all native, Rain check and Sleepy moon over the whole panel
+	for (int v : {VIS_BOUNCY, VIS_ROCKET, VIS_RAIN, VIS_MOON, VIS_DANCE}) CHECK(vizNativeStyle(v));
+	CHECK(vizFullPanel(VIS_RAIN) && vizFullPanel(VIS_MOON) && !vizFullPanel(VIS_BOUNCY) && !vizFullPanel(VIS_ROCKET) && !vizFullPanel(VIS_DANCE));
+	// Bouncy keys: a beat lands the ball (its key lit) and sends it to another key within seven; the ball's hop is timed
+	// by the beat's interval
+	st.reset(VIS_BOUNCY);
+	for (int i = 0; i < 14; i++) st.targets[i] = i == 12 ? VN_TOP : 40;
+	vizStep(st, 0.5);
+	const int was = st.to;
+	st.beats++;
+	vizStep(st, 1 / 30.0);
+	CHECK(st.hit[was] > 0.9f && st.from == was && st.to != was && std::abs(st.to - was) <= 7);
+	float bx0, by0, br;
+	vizBouncyBall(st, bx0, by0, br);
+	for (int f = 0; f < 60; f++) vizStep(st, 1 / 30.0);	// (no beat: it waits on its key)
+	float bx1, by1;
+	vizBouncyBall(st, bx1, by1, br);
+	CHECK(std::fabs(bx1 - (st.to + 0.5f) * 640 / 14) < 0.01f && st.trailN == 9);
+	vizShapes(st, false, r);
+	CHECK(inside(r, 0) && inksOf(r, VI_ACCENT) > 0);
+	// Rocket: its 40 stars stay on the panel's width
+	st.reset(VIS_ROCKET);
+	st.loud = 1;
+	for (int f = 0; f < 200; f++) vizStep(st, 1 / 30.0);
+	bool onPanel = true;
+	for (auto& q : st.streaks) onPanel = onPanel && q.x >= -30 - 40 && q.x <= 670;
+	CHECK(onPanel);
+	vizShapes(st, true, r);
+	CHECK(r.size() > 40);
+	CHECK(vizBehindArt(VIS_ROCKET) && !vizFullPanel(VIS_ROCKET) && !vizBehindArt(VIS_DANCE));
+	float starTop = 480;
+	for (auto& q : r) if (q.kind == 2 && q.ink == VI_DIM_BG) starTop = std::min(starTop, std::min(q.y0, q.y3));
+	CHECK(starTop < 200);	// (in the band, its stars streak over the whole panel)
+	// Rain check: the pools never past their sizes; alone, drops hit the umbrella (splashes); with the art, its top
+	st.reset(VIS_RAIN);
+	for (int i = 0; i < 20; i++) st.targets[i] = VN_TOP;
+	int splashed = 0;
+	for (int f = 0; f < 300; f++)
+	{
+		vizStep(st, f % 5 ? 1 / 30.0 : 0.2);
+		CHECK(st.dropN <= VizStyleState::DROPS && st.splashN <= VizStyleState::SPLASHES && st.ringN <= VizStyleState::RINGS);
+		splashed = std::max(splashed, st.splashN);
+	}
+	CHECK(st.dropN == VizStyleState::DROPS || st.dropN > 100);
+	CHECK(splashed > 0);
+	vizShapes(st, false, r);
+	CHECK(inksOf(r, VI_TEXT) > 0);	// (the figure under the umbrella)
+	st.reset(VIS_RAIN);
+	st.band = true;
+	st.cover[0] = 98, st.cover[1] = 116, st.cover[2] = 342, st.cover[3] = 364;
+	for (int i = 0; i < 20; i++) st.targets[i] = VN_TOP;
+	bool under = false;
+	for (int f = 0; f < 120; f++)
+	{
+		vizStep(st, 1 / 30.0);
+		for (int i = 0; i < st.dropN; i++)
+			under = under || (st.drops[i].x > 120 && st.drops[i].x < 300 && st.drops[i].y > 200 && st.drops[i].y < 360);
+	}
+	CHECK(!under);	// (none falls through the cover; beside it they drift a little under its edge, as the proposal)
+	st.band = false;
+	// Sleepy moon: awake past its line on the loudness over a second, asleep again only under the lower one
+	st.reset(VIS_MOON);
+	st.avg = 0.3f;
+	vizStep(st, 1 / 30.0);
+	CHECK(!st.awake);
+	st.avg = 0.65f;
+	vizStep(st, 1 / 30.0);
+	CHECK(st.awake);
+	st.avg = 0.55f;
+	vizStep(st, 1 / 30.0);
+	CHECK(st.awake);
+	st.avg = 0.45f;
+	vizStep(st, 1 / 30.0);
+	CHECK(!st.awake);
+	vizShapes(st, false, r);
+	CHECK(inside(r, 0) && r.size() > 50);
+	// (2026-11-19, slow on the handheld) its clouds opaque, no disc (two filled banks), the stars' crosses 3 units thick
+	{
+		for (int i = 0; i < 20; i++) st.targets[i] = VN_TOP * (i % 3) / 2;
+		for (int f = 0; f < 30; f++) vizStep(st, 1 / 30.0);
+		vizShapes(st, false, r);
+		int clouds = 0, crossBars = 0;
+		bool opaque = true;
+		for (auto& q : r)
+		{
+			if ((q.ink == VI_DIM_BG || q.ink == VI_BUTTON) && q.y0 > 200) clouds++, opaque = opaque && q.alpha >= 1 && q.kind == 2;
+			if (q.kind == 0 && (q.ink == VI_DIM || q.ink == VI_TEXT) && (std::fabs(q.y1 - q.y0 - 3) < 0.01f || std::fabs(q.x1 - q.x0 - 3) < 0.01f)) crossBars++;
+		}
+		CHECK(clouds > 96 && opaque);
+		CHECK(crossBars > 20 && crossBars % 2 == 0);
+	}
+	// Dance line: twelve dancers, the line swaying a half turn a beat
+	st.reset(VIS_DANCE);
+	vizStep(st, 0.55);
+	CHECK(std::fabs(st.phase - M_PI) < 0.01);
+	vizShapes(st, true, r);
+	CHECK(inside(r, 280) && inksOf(r, VI_BUTTON) == 1 + 12);
+
+	// the clock: on at the speed while moving, held otherwise
+	VizClock c;
+	CHECK_EQ(c.at(5), -1.0);
+	c.pts = 10;
+	c.atNs = 1000000000ull;
+	c.speed = 2;
+	CHECK_EQ(c.at(1500000000ull), 10.0);
+	c.moving = true;
+	CHECK(std::fabs(c.at(1500000000ull) - 11) < 1e-9);
+}
+
 // The six simple styles (src/viz_simple.cpp): the graph rules, the theme's colours in them
 static void testVizSimple()
 {
@@ -5938,12 +6658,13 @@ static void testVizSimple()
 		{
 			std::string g = visualizerGraph(v, art, dir, 45);
 			yellow.push_back(g);
+			checkStillRepeats(g);
 			CHECK_EQ(g.find("aformat=sample_rates=44100|48000") != std::string::npos, true);
 			CHECK_EQ(g.find("loop=") == std::string::npos && g.find("rgb") == std::string::npos && g.find("colorkey") == std::string::npos, true);
 			CHECK_EQ(g.find("rate=45") != std::string::npos && g.find("rate=60") == std::string::npos, true);	// at the setting's rate
 			CHECK_EQ(g.find("mergeplanes=0x001020:yuv420p") != std::string::npos, true);
 			CHECK_EQ(g.find("[vid1]") != std::string::npos, art);
-			CHECK_EQ(g.find("vstack [vo]") != std::string::npos, art);
+			CHECK_EQ(g.find("vstack=shortest=0 [vo]") != std::string::npos, art);
 			CHECK_EQ(g.find("bplut"), std::string::npos);	// (the markers made plain)
 			// the song's band on the theme's ground: the art's input swapped for one frame of it, as every style's
 			if (art) CHECK_EQ(vizPlaceArt(g, 0, 0, 0, "0x101010", "0x101010").find("[vid1]"), std::string::npos);
@@ -5964,6 +6685,7 @@ static void testVizSimple()
 	CHECK_EQ(visualizerGraph(VIS_BARCODE, false).find("crop=96:256:0:0") != std::string::npos, true);
 	// Horizon: the row mirrored (bass in the middle), the reflection flipped; Area's and Radial's ids read as the new ones
 	CHECK_EQ(visualizerGraph(VIS_HORIZON, false).find("hflip") != std::string::npos && visualizerGraph(VIS_HORIZON, false).find("vflip") != std::string::npos, true);
+	CHECK_EQ(visualizerGraph(VIS_HORIZON, false).find("vstack=shortest=0") != std::string::npos, true);	// its reflection's still never ends the stack
 	CHECK_EQ(visualizerGraph(VIS_AREA, false) == visualizerGraph(VIS_HORIZON, false), true);
 	CHECK_EQ(visualizerGraph(VIS_RADIAL, true) == visualizerGraph(VIS_STEPS, true), true);
 	CHECK_EQ(visualizerGraph(VIS_STEPS, false).find("remap"), std::string::npos);
@@ -6256,10 +6978,10 @@ static void testSettings()
 	CHECK_EQ(d.loop, (int)LOOP_OFF);
 	Settings m;
 	m.musicShow = SHOW_BOTH;
-	m.visualizer = VIS_STEPS;
+	m.visualizer = VIS_HELIX;
 	m.loop = LOOP_ONE;
 	Settings mb = parseSettings(serializeSettings(m));
-	CHECK_EQ(mb.musicShow == SHOW_BOTH && mb.visualizer == VIS_STEPS && mb.loop == LOOP_ONE, true);
+	CHECK_EQ(mb.musicShow == SHOW_BOTH && mb.visualizer == VIS_HELIX && mb.loop == LOOP_ONE, true);
 	CHECK_EQ(visualizerGraph(VIS_WAVES, false).rfind("[aid1] asplit [ao] [v]; [v] aformat=sample_rates=44100|48000,showwaves", 0), (size_t)0);
 	CHECK_EQ(visualizerGraph(VIS_SPECTRUM, true).find("[vid1]") != std::string::npos, true);
 	CHECK_EQ(visualizerGraph(VIS_SPECTRUM, true).find("showspectrum=s=640x200") != std::string::npos, true);
@@ -6287,10 +7009,12 @@ static void testSettings()
 	CHECK_EQ(visualizerGraph(VIS_WAVES, false).find(":colors=0xC08A22|0xC08A22,format=rgb0 [vo]") != std::string::npos, true);
 	CHECK_EQ(visualizerGraph(VIS_SPECTRUM, false).find(",fps="), std::string::npos);	// its own fps= only
 	// the styles retired for the simple ones (2026-11-19): a saved one reads as its replacement, written back as it
+	// (a replacement since commented out of the final ten, Dots or Steps: Peaks)
 	{
-		const std::pair<const char*, int> retired[] = {{"circle", VIS_MIRROR}, {"bubble-tea", VIS_DOTS}, {"sound-garden", VIS_HORIZON},
-			{"area", VIS_HORIZON}, {"long-cat", VIS_STEPS}, {"radial", VIS_STEPS}};
-		const char* ids[] = {"mirror-bars", "dots", "horizon", "horizon", "steps", "steps"};
+		const std::pair<const char*, int> retired[] = {{"circle", VIS_MIRROR}, {"bubble-tea", VIS_PEAKS_BANANA}, {"sound-garden", VIS_HORIZON},
+			{"area", VIS_HORIZON}, {"long-cat", VIS_PEAKS_BANANA}, {"radial", VIS_PEAKS_BANANA}};
+		const int repl[] = {VIS_MIRROR, VIS_DOTS, VIS_HORIZON, VIS_HORIZON, VIS_STEPS, VIS_STEPS};
+		const char* ids[] = {"mirror-bars", "peaks-yellow", "horizon", "horizon", "peaks-yellow", "peaks-yellow"};
 		const int olds[] = {VIS_CIRCLE, VIS_BOBA, VIS_GARDEN, VIS_AREA, VIS_LONGCAT, VIS_RADIAL};
 		for (int i = 0; i < 6; i++)
 		{
@@ -6298,7 +7022,7 @@ static void testSettings()
 			CHECK_EQ(r.visualizer, retired[i].second);
 			CHECK_EQ(serializeSettings(r).find(std::string("visualizer = ") + ids[i] + "\n") != std::string::npos, true);
 			CHECK_EQ(parseSettings(std::string("visualizer = ") + ids[i] + "\n").visualizer, retired[i].second);
-			CHECK_EQ(visualizerReplacement(olds[i]), retired[i].second);
+			CHECK_EQ(visualizerReplacement(olds[i]), repl[i]);
 			CHECK_EQ(visualizerOnGround(retired[i].second), true);
 		}
 		for (int v : {VIS_BARCODE, VIS_RINGS}) CHECK_EQ(visualizerOnGround(v), true);
@@ -6311,8 +7035,8 @@ static void testSettings()
 		}
 		for (int v : {VIS_WAVE, VIS_LEVELS, VIS_FIRE, VIS_BUNNY, VIS_FISHBOWL, VIS_CAT, VIS_POPCORN})
 			CHECK_EQ(visualizerGraph(v, true, "/tmp/x") == visualizerGraph(VIS_PEAKS_BANANA, true, "/tmp/x"), true);
-		// Tube man stays
-		CHECK_EQ(parseSettings("visualizer = tube-man\n").visualizer, (int)VIS_TUBEMAN);
+		// Tube man: commented out of the final ten (its code kept): Peaks
+		CHECK_EQ(parseSettings("visualizer = tube-man\n").visualizer, (int)VIS_PEAKS_BANANA);
 	}
 	// Peaks: read and written back by its id; Timeline (its first form) reads as Peaks
 	CHECK_EQ(parseSettings("visualizer = peaks\n").visualizer, (int)VIS_PEAKS_BANANA);
@@ -6368,17 +7092,30 @@ static void testSettings()
 	CHECK_EQ(visualizerGraph(VIS_PEAKS_BANANA, false).find("lagfun=decay=") != std::string::npos, true);
 	// the cycle: the offered ones (VIS_SHOWN), Peaks first; from one not offered as from Peaks
 	{
-		// the owner's final list, in its order, round
-		const int order[] = {VIS_PEAKS_BANANA, VIS_MIRROR, VIS_POCKET, VIS_CITY, VIS_HORIZON, VIS_AURORA, VIS_DOTS, VIS_STEPS, VIS_BARCODE,
-			VIS_RINGS, VIS_DANCER, VIS_SEA, VIS_WOBBLE, VIS_WASHER, VIS_TUBEMAN};
+		// the owner's final ten (2026-11-19) and the five fun ones, in its order, round
+		const int order[] = {VIS_PEAKS_BANANA, VIS_RIBBON, VIS_MIRROR, VIS_POCKET, VIS_HORIZON, VIS_GRID, VIS_STARFIELD, VIS_STRINGS,
+			VIS_HELIX, VIS_SPARKS, VIS_BOUNCY, VIS_ROCKET, VIS_RAIN, VIS_MOON, VIS_DANCE};
 		for (int i = 0; i < 15; i++)
 		{
 			CHECK_EQ(stepVisualizer(order[i], 1), order[(i + 1) % 15]);
 			CHECK_EQ(stepVisualizer(order[(i + 1) % 15], -1), order[i]);
 		}
+		// the new ids, kept by their words
+		for (const char* id : {"ribbon", "grid", "starfield", "strings", "helix", "sparks", "bouncy-keys", "rocket", "rain-check", "sleepy-moon", "dance-line"})
+		{
+			const int v = parseSettings(std::string("visualizer = ") + id + "\n").visualizer;
+			CHECK(v >= VIS_RIBBON && v <= VIS_DANCE);
+			CHECK_EQ(parseSettings(serializeSettings(parseSettings(std::string("visualizer = ") + id + "\n"))).visualizer, v);
+		}
+		// the ones commented out of the list (their code kept) and the older retired ones read as Peaks
+		for (const char* id : {"night-city", "aurora", "dots", "steps", "barcode", "rings", "banana-dancer", "pixel-sea", "jelly-wobble",
+				 "washing-machine", "tube-man", "bubble-tea", "long-cat", "radial"})
+			CHECK_EQ(parseSettings(std::string("visualizer = ") + id + "\n").visualizer, (int)VIS_PEAKS_BANANA);
+		// a graph wanted for one of the six (no graph of its own): Peaks'
+		CHECK_EQ(visualizerGraph(VIS_SPARKS, false), visualizerGraph(VIS_PEAKS_BANANA, false));
 	}
-	CHECK_EQ(stepVisualizer(VIS_SPECTRUM, 1), (int)VIS_MIRROR);
-	CHECK_EQ(stepVisualizer(VIS_PEAKS, 1), (int)VIS_MIRROR);
+	CHECK_EQ(stepVisualizer(VIS_SPECTRUM, 1), (int)VIS_RIBBON);
+	CHECK_EQ(stepVisualizer(VIS_PEAKS, 1), (int)VIS_RIBBON);
 	// Lite (the player-drawn style) was removed for now: a saved choice of it reads as Peaks
 	CHECK_EQ(parseSettings("visualizer = lite\n").visualizer, (int)VIS_PEAKS_BANANA);
 	{
@@ -9436,7 +10173,7 @@ static void testKitLayout()
 		CHECK(b.code.h > 960 * 3 / 5);
 	}
 
-	// the Visualizer tab's style grid: 15 styles, five a row, inside its area, in rows that meet its edges
+	// the Visualizer tab's style grid: the styles, five a row, inside its area, in rows that meet its edges
 	Box grid{16, 300, 608, 3 * 46 + 2 * 6};
 	auto cells = gridCells(grid, VIS_SHOWN_COUNT, 5, 6);
 	CHECK_EQ((int)cells.size(), VIS_SHOWN_COUNT);
@@ -12115,7 +12852,7 @@ static void testKitDisplayPage()
 	// a finger: the tile under it, -1 between them
 	CHECK_EQ(displayAt(d, d.style[7].x + 5, d.style[7].y + 5), 11);
 	CHECK_EQ(displayAt(d, d.mode[0].x + d.mode[0].w + 3, d.mode[0].y + 10), -1);
-	// the final list: 15, three rows of five, inside the sheet over its hints
+	// the final fifteen: three rows of five, inside the sheet over its hints
 	DisplayPage f = displayPage(VIS_SHOWN_COUNT);
 	CHECK_EQ(f.count(), 4 + 15);
 	CHECK_EQ(f.style[10].y - (f.style[5].y + f.style[5].h), 6); CHECK_EQ(f.style[14].x, f.style[4].x);
@@ -12131,6 +12868,27 @@ static void testKitDisplayPage()
 }
 
 // the top panel's song layout (docs/redesign/components.md, Song layout): the drawings' numbers
+static void testArtPlaceholder()
+{
+	// the preview's four names land on its four placements
+	CHECK_EQ(artph::shape(240, "Yellow Album").variant, 0);
+	CHECK_EQ(artph::shape(240, "Red Room").variant, 1);
+	CHECK_EQ(artph::shape(240, "Wheel").variant, 2);
+	CHECK_EQ(artph::shape(240, "Field Recordings").variant, 3);
+	// whole: 72% centred; half out: 88%, centre on the edge's middle
+	artph::Shape w = artph::shape(240, "Yellow Album");
+	CHECK_EQ(w.record, 172); CHECK_EQ(w.band, 106); CHECK_EQ(w.label, 58); CHECK_EQ(w.hole, 12); CHECK_EQ(w.cx, 120); CHECK_EQ(w.cy, 120);
+	artph::Shape b = artph::shape(240, "Red Room");
+	CHECK_EQ(b.record, 212); CHECK_EQ(b.cx, 120); CHECK_EQ(b.cy, 240);
+	// small: always whole, no band; at 30 the record 22, the label 8, the hole 2
+	artph::Shape s = artph::shape(30, "Red Room");
+	CHECK_EQ(s.variant, 0); CHECK_EQ(s.band, 0); CHECK_EQ(s.record, 22); CHECK_EQ(s.label, 8); CHECK_EQ(s.hole, 2);
+	CHECK_EQ(artph::shape(63, "Wheel").variant, 0);
+	// the same key, the same drawing; every diameter even
+	CHECK_EQ(artph::shape(96, "x").variant == artph::shape(96, "x").variant, true);
+	CHECK_EQ(artph::shape(120, "abc").record % 2, 0);
+}
+
 static void testSongLayout()
 {
 	// the title lines are always on (no setting): Album art only, a long title: art 240 at the 40 margin, the text to 600
@@ -12187,8 +12945,11 @@ int main()
 {
 	testSlider();
 	testSongLayout();
+	testArtPlaceholder();
 	testVizTheme();
 	testVizSimple();
+	testVizNative();
+	testTitleMarquee();
 	testKitDisplayPage();
 	testFileSave();
 	testWriteQueue();
@@ -12253,6 +13014,7 @@ int main()
 	testPageCache();
 	testCoverCache();
 	testDlQueue();
+	testMangaDlRemove();
 	testMangaRepo();
 	testOpds();
 	testCbzWrite();
@@ -12270,6 +13032,7 @@ int main()
 	testMangaFilters();
 	testPaged();
 	testMangaStore();
+	testMangaStoreLinkedDownloads();
 	testMangaLocal();
 	testMangaNetFolders();
 	testComicInfo();

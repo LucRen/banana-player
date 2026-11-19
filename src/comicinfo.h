@@ -10,8 +10,9 @@ namespace bp
 	{
 		// the text fields are trimmed; "" is not set. number is text: "10.5", "Extra"
 		std::string series, title, number, summary, writer, web;
-		// Banana Player's own fields (BPSource, BPSeriesKey): where a downloaded chapter came from, so it links back
-		std::string sourceId, seriesKey;
+		// Banana Player's own fields (BPSource, BPSeriesKey, BPChapter): where a downloaded chapter came from, so it
+		// links back; chapterId is the source chapter's own id ("src:<source>:<key>"), so both copies share one place
+		std::string sourceId, seriesKey, chapterId;
 		int volume = -1, pageCount = -1;	// -1 is not set
 		bool rightToLeft = false;	// the Manga element's YesAndRightToLeft
 	};

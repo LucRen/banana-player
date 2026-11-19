@@ -1,4 +1,6 @@
 #include "songlayout.h"
+#include <cstring>
+#include <cctype>
 
 #include <algorithm>
 #include <cmath>
@@ -83,5 +85,93 @@ namespace bp
 			g.replace(at, end - at, in);
 		}
 		return g;
+	}
+
+	namespace
+	{
+		const char* const TITLE_SEPS[] = {" - ", " \xE2\x80\x93 ", " \xE2\x80\x94 ", ": ", " | ", "_"};
+
+		bool startsNoCase(const std::string& s, const std::string& start)
+		{
+			if (start.empty() || s.size() < start.size()) return false;
+			for (size_t i = 0; i < start.size(); i++)
+				if (std::tolower((unsigned char)s[i]) != std::tolower((unsigned char)start[i])) return false;
+			return true;
+		}
+
+		// letters (a byte that starts a non-ASCII character counts as one: a letter in another script)
+		int letters(const std::string& s)
+		{
+			int n = 0;
+			for (unsigned char c : s)
+				if (std::isalpha(c) || c >= 0xC0) n++;
+			return n;
+		}
+
+		// the length of the separator at s[at], 0 if none
+		size_t sepAt(const std::string& s, size_t at)
+		{
+			for (const char* sep : TITLE_SEPS)
+				if (s.compare(at, strlen(sep), sep) == 0) return strlen(sep);
+			return 0;
+		}
+	}
+
+	std::string shownTitle(const std::string& title, const std::vector<std::string>& starts, const std::function<bool(const std::string&)>& fits)
+	{
+		if (fits(title)) return title;
+		std::string t = title;
+		int dropped = 0;
+		for (const std::string& st : starts)
+		{
+			if (dropped >= 2) break;
+			if (!startsNoCase(t, st)) continue;
+			const size_t sep = sepAt(t, st.size());
+			if (!sep) continue;
+			std::string rest = t.substr(st.size() + sep);
+			if (letters(rest) < 3) continue;
+			t = rest;
+			dropped++;
+		}
+		return t;
+	}
+
+	std::string sharedStart(const std::vector<std::string>& names)
+	{
+		if (names.size() < 3) return "";
+		size_t n = names[0].size();
+		for (const std::string& s : names)
+		{
+			size_t k = 0;
+			while (k < n && k < s.size() && std::tolower((unsigned char)s[k]) == std::tolower((unsigned char)names[0][k])) k++;
+			n = k;
+		}
+		// back to the last separator inside it: the start is what comes before that separator
+		for (size_t at = n; at-- > 0;)
+			if (sepAt(names[0], at) && at + sepAt(names[0], at) <= n + 0)
+			{
+				std::string st = names[0].substr(0, at);
+				return letters(st) >= 4 ? st : "";
+			}
+		// (a separator that begins inside the shared part but ends after it: every name has it too only if shared)
+		return "";
+	}
+
+	std::vector<std::string> titleStarts(const std::string& artist, const std::string& album, const std::string& path,
+		const std::vector<std::string>& names)
+	{
+		std::vector<std::string> st;
+		if (!artist.empty()) st.push_back(artist);
+		if (!album.empty()) st.push_back(album);
+		const size_t slash = path.find_last_of('/');
+		if (slash != std::string::npos && slash > 0)
+		{
+			const size_t up = path.find_last_of('/', slash - 1);
+			std::string dir = path.substr(up == std::string::npos ? 0 : up + 1, slash - (up == std::string::npos ? 0 : up + 1));
+			if (!dir.empty()) st.push_back(dir);
+		}
+		const std::string shared = sharedStart(names);
+		if (!shared.empty()) st.push_back(shared);
+		return st;
 	}
 }

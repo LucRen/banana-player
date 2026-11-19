@@ -41,6 +41,10 @@ namespace bp
 		static SDL_Color off(SDL_Color c, bool isOff = true);	// c as an unavailable piece shows it
 		static SDL_Color edgeOf(SDL_Color fill);
 		void flat(Rect r, SDL_Color fill, int rad, SDL_Color edge);
+		// the art placeholder: a record in its sleeve in the theme's roles (artph.h), r a square; key: the album's name,
+		// else the title, else the file's name. rad: the art box's radius; edge: a 1-unit edgeOf(BUTTON) edge inside the
+		// square (where the art has no edge of its own; a Cover cell has none)
+		void artPlaceholder(Rect r, const std::string& key, int rad = 5, bool edge = true);
 
 		// ---- key caps and the hint bar ----
 		// keys: one name or several apart by '/' ("L2/R2"); LEFT, RIGHT, UP, DOWN are drawn as arrows. ground: what
@@ -62,6 +66,9 @@ namespace bp
 			bool back = true, backPressed = false, more = true, morePressed = false;
 			bool crumbEnd = false;	// keep the crumb's end (a folder's path), else cut its start (a playlist's name)
 			bool inlineTitle = false;	// the title beside the back key, the crumb under it (no title row)
+			// the player's title: the Title marquee, and the title as shown in the room it gets (Repeated start)
+			bool marquee = false;
+			std::function<std::string(int room)> titleFor;
 			// the title's right: "Playing", "Paused in Chrome" (a mark before it too)
 			std::string state;
 			const Glyph* stateMark = nullptr;

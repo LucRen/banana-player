@@ -76,6 +76,7 @@ namespace bp
 		std::string firstPage;
 		bool comicInfo = false;
 		std::string ciNumber, ciSeries, ciSeriesKey, ciSourceId, ciTitle;
+		std::string ciChapterId;	// a download's BPChapter: the source chapter it is a copy of ("" in one downloaded before 0.7.34)
 		int ciVolume = -1, ciPageCount = -1;
 	};
 	ChapterFileMeta readChapterFile(const std::string& path);	// opens it (openPageBook): slow, never on the main thread

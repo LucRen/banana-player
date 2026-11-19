@@ -12,6 +12,8 @@
 #include "netstream.h"
 #include "sidecar.h"
 #include "songlayout.h"
+#include "artph.h"
+#include "kitlayout.h"
 #include "soundfx.h"
 #include "playlist.h"
 #include "theme.h"
@@ -36,7 +38,7 @@
 namespace bp
 {
 	enum Observed : uint64_t { TIME_POS = 1, DURATION, PAUSE, TRACK_LIST, MEDIA_TITLE, AID, SID, SPEED, METADATA, PAUSED_FOR_CACHE, SEEKING, CHAPTER_LIST, CHAPTER,
-		AUDIO_IN, AUDIO_OUT, CURRENT_AO, AF_CHAIN, LAVFI_GRAPH, EOF_REACHED };
+		AUDIO_IN, AUDIO_OUT, CURRENT_AO, AF_CHAIN, LAVFI_GRAPH, EOF_REACHED, CORE_IDLE, IDLE_ACTIVE, AUDIO_PTS };
 
 	// the audio diagnostics (log.txt, "audio:" lines): an mpv node as "key=value key=value" (a map) or its value
 	static std::string nodeText(const mpv_node* n)
@@ -74,6 +76,19 @@ namespace bp
 	static const uint64_t LEVEL_REPLY = (1ull << 40) + (1ull << 32);
 	// the song art's overlay-add answers, plus its serial (above the level card's, below LOAD_REPLY)
 	static const uint64_t ART_REPLY = (1ull << 40) + (1ull << 39);
+	// the answers of prop() for the properties in SET_WATCHED (a failed set is in the log), plus the name's index
+	static const uint64_t SETP_REPLY = 1ull << 43;
+	static const char* const SET_WATCHED[] = {"lavfi-complex", "aid", "vid", "af", "pause", "background-color",
+		"video-margin-ratio-top", "video-margin-ratio-bottom", "video-margin-ratio-left", "video-margin-ratio-right", "panscan"};
+	static const int SET_WATCHED_N = (int)(sizeof(SET_WATCHED) / sizeof(SET_WATCHED[0]));
+	// (log.txt, for the freeze after a visualizer switch: grep "mpv: (set|graph|core-idle|..)|end-file|play pressed|music: graph")
+	static const uint64_t WATCH_MS = 10000;
+	static std::string shortHash(const std::string& v)
+	{
+		char b[24];
+		snprintf(b, sizeof b, "%08x", (unsigned)(std::hash<std::string>()(v) & 0xffffffffu));
+		return b;
+	}
 	// the panels' shape (both are 4:3)
 	static const double PANEL_ASPECT = 4.0 / 3;
 	// the thumbnail's largest size: the pan area's on the Plus's 1024x768 panel
@@ -221,6 +236,11 @@ namespace bp
 		mpv_observe_property(mpv, CURRENT_AO, "current-ao", MPV_FORMAT_STRING);
 		mpv_observe_property(mpv, AF_CHAIN, "af", MPV_FORMAT_NODE);
 		mpv_observe_property(mpv, LAVFI_GRAPH, "lavfi-complex", MPV_FORMAT_STRING);
+		mpv_observe_property(mpv, CORE_IDLE, "core-idle", MPV_FORMAT_FLAG);
+		mpv_observe_property(mpv, IDLE_ACTIVE, "idle-active", MPV_FORMAT_FLAG);
+		// the sound heard (mpv's output delay already taken off), for the native visualizers' clock (syncNative):
+		// time-pos follows a graph's picture (5 frames a second under the blank one)
+		mpv_observe_property(mpv, AUDIO_PTS, "audio-pts", MPV_FORMAT_DOUBLE);
 		if (o.net && !o.net->attach(mpv)) fprintf(stderr, "net: mpv has no stream callbacks: network files won't open\n");
 		mpv_set_wakeup_callback(mpv, wakeup, ctx);
 		setAspect(aspect);
@@ -262,7 +282,26 @@ namespace bp
 	void Player::prop(const char* name, const std::string& value)
 	{
 		const char* v = value.c_str();
-		mpv_set_property_async(mpv, 0, name, MPV_FORMAT_STRING, &v);
+		uint64_t reply = 0;
+		for (int k = 0; k < SET_WATCHED_N; k++)
+			if (!strcmp(name, SET_WATCHED[k]))
+			{
+				reply = SETP_REPLY + (uint64_t)k;
+				setValues[k] = value;
+			}
+		if (!strcmp(name, "lavfi-complex"))
+		{
+			static const char* const shows[] = {"art", "both", "visualizer", "none"};
+			char lab[160];
+			snprintf(lab, sizeof lab, "%s, %s, %d", visualizerLabel(settings.visualizer),
+				settings.musicShow >= 0 && settings.musicShow < SHOWS ? shows[settings.musicShow] : "?", settings.theme);
+			graphLabel = lab;
+			graphHash = shortHash(value);
+			graphChangeAt = ticks();
+			fprintf(stderr, "music: graph for %s (%s, theme %d): %zu chars, #%s\n", visualizerLabel(settings.visualizer),
+				shows[settings.musicShow >= 0 && settings.musicShow < SHOWS ? settings.musicShow : 0], settings.theme, value.size(), graphHash.c_str());
+		}
+		mpv_set_property_async(mpv, reply, name, MPV_FORMAT_STRING, &v);
 		if (!strcmp(name, "lavfi-complex")) graphSet = value;	// known here, not asked of mpv (a read waits)
 		else if (!strcmp(name, "af"))
 		{
@@ -522,34 +561,20 @@ namespace bp
 		thumbAsked = thumbTurnedByMpv = false;
 		photoW = photoH = fileTurn = exifTurn = 0;
 		displayDueAt = 0;	// the graph below is the display's as it is now
+		nativeFailed = false;	// (a new file: the tap tries it; syncNative starts it once it's loaded)
+		audioClock = VizClock{};
+		nativeStop("another file");
 
 		showIdle(false);
 		dropSongArt();
 		if (!isAudio) setSongMargins("");
-		// A song's picture is chosen before it opens, as far as it can be known: a filter graph changed (or taken off
-		// and put back) between songs closes and opens the sound output again, which takes the handheld a second or
-		// more. The art's graph ([vid1]) only where the art is sure (a cover file: a song without the track it names
-		// doesn't open at all); else the visualizer alone, or (Album art) a guess from the folder's last song, put right
-		// at FILE_LOADED (applyAudioDisplay)
-		std::string graph;
-		if (isAudio)
-		{
-			size_t slash = path.rfind('/');
-			std::string dir = slash == std::string::npos ? "." : path.substr(0, slash);
-			bool cover = isNet ? !coverFileFor(namesIn(netParent(path))).empty() : folderHasCover(path), guessArt = cover || (dir == lastArtDir && lastArt);
-			if (vizResting() && (settings.musicShow == SHOW_VIS || settings.musicShow == SHOW_BOTH)) graph = blankGround();
-			else if (settings.musicShow == SHOW_VIS) graph = graphFor(settings.visualizer, false);
-			else if (settings.musicShow == SHOW_NONE) graph = blankGround();
-			else if (settings.musicShow == SHOW_BOTH) graph = songGraph(SHOW_BOTH, cover);
-			else graph = guessArt ? "" : blankGround();
-		}
-		// the same graph as the last song's: kept. Else the last file's off first: under a graph mpv's tracks can't
-		// be chosen (aid, sid below)
-		bool keepGraph = !graph.empty() && graphSet == graph;
+		// A song has no filter graph (2026-11-19, docs/notes/2026-11-19-viz-native.md, No graph for songs): mpv plays
+		// its sound and nothing else is rendered by FFmpeg; the player draws the top panel (the native styles, the art
+		// as an image overlay, the lines as ASS). A network song alone shows its art as mpv's own picture (below)
+		const std::string graph;
 		// the equalizer and effect for this file (none on a video), before the loadfile rebuilds the chain from af: a
 		// song after a song with the same ones, nothing sent
 		syncEq(true);
-		if (!keepGraph) prop("lavfi-complex", "");
 
 		// what this file is remembered with, as the file's own options (loadfile's last argument: they hold for this
 		// file alone). Not set as properties beforehand: a property reaches the file still playing, and an aid it
@@ -569,6 +594,9 @@ namespace bp
 		// a video's picture: always on (one under a photo decodes on, unseen: hideVideo); the file's own option, so a
 		// vid set as a property by an older build never reaches the next file
 		if (!isAudio && !isPhoto) fileOpts += ",vid=auto";
+		// a song's picture: none (its art is the player's overlay), but a network song's art, which the overlay's decode
+		// can't read, is mpv's own (applyAudioDisplay: in the art's box by the video's margins)
+		else if (isAudio) fileOpts += isNet ? ",vid=auto" : ",vid=no";
 		else if (isAudio && vidOff)
 		{
 			// a song after a video hidden under a photo: its art or graph needs the picture back (the video still
@@ -599,7 +627,6 @@ namespace bp
 		if (settings.rememberSubs && !resume.lastSubLang.empty()) slang = resume.lastSubLang + (slang.empty() ? "" : "," + slang);
 		prop("slang", slang);
 
-		if (!graph.empty() && !keepGraph) prop("lavfi-complex", graph);
 		// a song that plays to its end stays loaded there (keep-open; its end is heard as eof-reached, above): the
 		// Session moves on to the next, or takes the list's last song back to its start, paused. A video's file ends
 		// as before (keep-open no)
@@ -876,6 +903,19 @@ namespace bp
 			case MPV_EVENT_PROPERTY_CHANGE:
 			{
 				auto* p = (mpv_event_property*)ev->data;
+				if (ev->reply_userdata == CORE_IDLE || ev->reply_userdata == IDLE_ACTIVE || ev->reply_userdata == EOF_REACHED ||
+					ev->reply_userdata == PAUSE || ev->reply_userdata == PAUSED_FOR_CACHE || ev->reply_userdata == CURRENT_AO)
+				{
+					std::string v = p->format == MPV_FORMAT_FLAG ? (*(int*)p->data ? "yes" : "no") : p->format == MPV_FORMAT_STRING ? *(char**)p->data : "-";
+					const char* nm = ev->reply_userdata == CORE_IDLE ? "core-idle" : ev->reply_userdata == IDLE_ACTIVE ? "idle-active"
+						: ev->reply_userdata == EOF_REACHED ? "eof-reached" : ev->reply_userdata == PAUSE ? "pause"
+						: ev->reply_userdata == PAUSED_FOR_CACHE ? "paused-for-cache" : "ao";
+					if (ev->reply_userdata == CORE_IDLE) seenCoreIdle = v;
+					else if (ev->reply_userdata == IDLE_ACTIVE) seenIdleActive = v;
+					else if (ev->reply_userdata == EOF_REACHED) seenEof = v;
+					else if (ev->reply_userdata == PAUSE) seenPause = v;
+					watchLog(nm, v.c_str());
+				}
 				switch (ev->reply_userdata)
 				{
 				case AUDIO_IN: case AUDIO_OUT: case CURRENT_AO: case AF_CHAIN: case LAVFI_GRAPH:
@@ -892,6 +932,11 @@ namespace bp
 					break;
 				}
 				case TIME_POS: position = p->format == MPV_FORMAT_DOUBLE ? *(double*)p->data : -1; break;
+				case AUDIO_PTS:
+					audioClock.pts = p->format == MPV_FORMAT_DOUBLE ? *(double*)p->data : -1;
+					audioClock.atNs = (uint64_t)std::chrono::duration_cast<std::chrono::nanoseconds>(
+						std::chrono::steady_clock::now().time_since_epoch()).count();
+					break;
 				case DURATION:
 				{
 					duration = p->format == MPV_FORMAT_DOUBLE ? *(double*)p->data : -1;
@@ -980,6 +1025,20 @@ namespace bp
 				startedEntry = ((mpv_event_start_file*)ev->data)->playlist_entry_id;
 				if (loadEntry >= 0 && startedEntry == loadEntry) tracksMine = true;
 				break;
+			case MPV_EVENT_SET_PROPERTY_REPLY:
+			{
+				int k = (int)(ev->reply_userdata - SETP_REPLY);
+				if (ev->reply_userdata < SETP_REPLY || k >= SET_WATCHED_N) break;
+				bool graph = k == 0;
+				if (ev->error < 0)
+				{
+					fprintf(stderr, "mpv: set %s failed: %s (%s)\n", SET_WATCHED[k], mpv_error_string(ev->error), setValues[k].substr(0, 200).c_str());
+					if (graph) fprintf(stderr, "mpv: the graph that failed (#%s, %s):\n%s\n", graphHash.c_str(), graphLabel.c_str(), setValues[k].c_str());
+				}
+				else if (graph)
+					fprintf(stderr, "mpv: graph set ok (%s, %zu chars, #%s)\n", graphLabel.c_str(), setValues[k].size(), shortHash(setValues[k]).c_str());
+				break;
+			}
 			case MPV_EVENT_COMMAND_REPLY:
 			{
 				if (ev->reply_userdata >= LOAD_REPLY)
@@ -1042,6 +1101,19 @@ namespace bp
 					wakeLoads--;	// wakeOutput's empty load, not a file of the person's
 					break;
 				}
+				{
+					auto* ef = (mpv_event_end_file*)ev->data;
+					const char* why = ef->reason == MPV_END_FILE_REASON_EOF ? "eof" : ef->reason == MPV_END_FILE_REASON_STOP ? "stop"
+						: ef->reason == MPV_END_FILE_REASON_QUIT ? "quit" : ef->reason == MPV_END_FILE_REASON_ERROR ? "error"
+						: ef->reason == MPV_END_FILE_REASON_REDIRECT ? "redirect" : "?";
+					uint64_t ago = graphChangeAt ? ticks() - graphChangeAt : WATCH_MS + 1;
+					char since[48];
+					if (ago <= WATCH_MS) snprintf(since, sizeof since, "a graph change %llu ms ago", (unsigned long long)ago);
+					else snprintf(since, sizeof since, "-");
+					fprintf(stderr, "player: end-file reason=%s error=%s entry=%lld current=%lld after %s\n", why,
+						ef->reason == MPV_END_FILE_REASON_ERROR ? mpv_error_string(ef->error) : "-", (long long)ef->playlist_entry_id,
+						(long long)startedEntry, since);
+				}
 				// the file before one waiting for its folder's listing, stopped (or ended): not the one to come
 				if (!netWait.dir.empty()) break;
 				auto* e = (mpv_event_end_file*)ev->data;
@@ -1074,6 +1146,7 @@ namespace bp
 			}
 			case MPV_EVENT_AUDIO_RECONFIG:
 			case MPV_EVENT_VIDEO_RECONFIG:
+				if (ev->event_id == MPV_EVENT_AUDIO_RECONFIG) watchLog("audio-reconfig", "");
 				if (graphAskedAt)
 				{
 					bool video = ev->event_id == MPV_EVENT_VIDEO_RECONFIG;
@@ -1083,6 +1156,7 @@ namespace bp
 				}
 				break;
 			case MPV_EVENT_PLAYBACK_RESTART:
+				watchLog("playback-restart", "");
 				// this file's (it comes after its FILE_LOADED): one left over from the last file's seek isn't
 				if (loaded && !started && netWait.dir.empty())
 				{
@@ -1149,7 +1223,7 @@ namespace bp
 		return rc && (mpv_render_context_update(rc) & MPV_RENDER_UPDATE_FRAME);
 	}
 
-	int Player::render(int w, int h, unsigned target, bool skip)
+	int Player::render(int w, int h, unsigned target, bool skip, bool noWait)
 	{
 		mpv_opengl_fbo fbo{(int)target, w, h, 0};
 		int flip = 1;
@@ -1159,7 +1233,7 @@ namespace bp
 		// and, skipped, not waited for: mpv's default holds the call till the frame's display time, which for a frame
 		// nobody sees (the music's resting visualizer under the manga reader or a photo) stalled the main loop up to
 		// a frame's span, five times a second: the reader's scroll stuttered only while music played
-		int block = skip ? 0 : 1;
+		int block = skip || noWait ? 0 : 1;
 		mpv_render_param params[] = {
 			{MPV_RENDER_PARAM_OPENGL_FBO, &fbo},
 			{MPV_RENDER_PARAM_FLIP_Y, &flip},
@@ -1218,29 +1292,10 @@ namespace bp
 		// try again by itself). Opened again, three times at most, each in the log
 		if (!loaded || !audioCheckAt || ticks() < audioCheckAt) return;
 		audioCheckAt = 0;
-		// a song's graph that mpv couldn't put up (its art's [vid1] on a song with none: "Pad vid1 is not connected"):
-		// mpv then drops every track, and the song sits silent at its first second. Drawn without the art, else none
-		if (!selected(TrackType::Audio) && !tracksOf(TrackType::Audio).empty() && !graphSet.empty())
-		{
-			if (audioChecks >= 3) return;
-			audioChecks++;
-			bool art = graphSet.find("[vid1]") != std::string::npos;
-			fprintf(stderr, "banana-player: %s: the music's graph failed (%s); %s (try %d)\n", baseName(currentPath()).c_str(),
-				art ? "with the art" : "without art", art ? "the visualizer alone" : "no graph", audioChecks);
-			syncEq(true);
-			if (art) prop("lavfi-complex", graphFor(settings.visualizer, false));
-			else
-			{
-				prop("lavfi-complex", "");
-				prop("aid", songAid(0));
-			}
-			audioCheckAt = ticks() + 1500;
-			return;
-		}
 		// a file with audio tracks and none chosen (not under a graph, which chooses its own): mpv dropped the track
 		// when the sound device wouldn't open (its error_on_track), and ao-reload does nothing with no device. The
 		// track chosen again opens the device anew. (The Audio page has no Off: this is never the person's choice)
-		if (!selected(TrackType::Audio) && !tracksOf(TrackType::Audio).empty() && graphSet.empty())
+		if (!selected(TrackType::Audio) && !tracksOf(TrackType::Audio).empty())
 		{
 			if (audioChecks >= 3) return;
 			audioChecks++;
@@ -1497,6 +1552,20 @@ namespace bp
 		prop("pause", "yes");
 	}
 
+	void Player::watchLog(const char* name, const char* value) const
+	{
+		if (!graphChangeAt) return;
+		uint64_t ago = ticks() - graphChangeAt;
+		if (ago > WATCH_MS) return;
+		fprintf(stderr, "mpv: %s -> %s (+%llu ms after graph)\n", name, *value ? value : "event", (unsigned long long)ago);
+	}
+
+	void Player::logPlayPressed(const char* sessionState) const
+	{
+		fprintf(stderr, "session: play pressed: session %s, mpv pause=%s, core-idle=%s, idle-active=%s, eof-reached=%s, graph #%s\n", sessionState,
+			seenPause.c_str(), seenCoreIdle.c_str(), seenIdleActive.c_str(), seenEof.c_str(), graphHash.empty() ? "-" : graphHash.c_str());
+	}
+
 	void Player::togglePause()
 	{
 		if (heldUnplayed && paused) { unpause(); return; }
@@ -1640,10 +1709,9 @@ namespace bp
 		settings = s;
 		if (displayChanged && isAudio && loaded)
 		{
-			// the title's place at once; the graph once the presses stop (each change of it reopens the sound output,
-			// a second on the handheld)
-			updateOverlay();
-			displayDueAt = ticks() + 500;
+			// at once: no graph to wait for (the song's sound chosen again, its picture off; the native style follows in
+			// syncNative)
+			applyAudioDisplay();
 		}
 		if (soundChanged) syncEq(false);
 		if (loopChanged && isAudio) prop("loop-file", s.loop == LOOP_ONE ? "inf" : "no");
@@ -1851,11 +1919,23 @@ namespace bp
 		levelPixels[serial] = px;
 		if (!shownSerial[id] || id != OV_LOAD) fprintf(stderr, "card: show overlay %d %dx%d at %d,%d\n", id, card.w, card.h, x, y);
 		shownSerial[id] = serial;
+		{
+			const float pw = topW > 0 ? topW : 960, ph = topH > 0 ? topH : 720;
+			cardAt[id] = {x * 640 / pw, y * 480 / ph, (x + card.w) * 640 / pw, (y + card.h) * 480 / ph, 0};
+		}
 		std::string ids = std::to_string(id), xs = std::to_string(x), ys = std::to_string(y), src = "&" + std::to_string((uintptr_t)px->data()),
 			ws = std::to_string(card.w), hs = std::to_string(card.h), st = std::to_string(card.w * 4);
 		const char* add[] = {"overlay-add", ids.c_str(), xs.c_str(), ys.c_str(), src.c_str(), "0", "bgra", ws.c_str(), hs.c_str(),
 			st.c_str(), nullptr};
 		mpv_command_async(mpv, LEVEL_REPLY + serial, add);
+	}
+
+	std::vector<VizRect> Player::cardsUp() const
+	{
+		std::vector<VizRect> r;
+		for (int id = 0; id < OV_COUNT; id++)
+			if (shownSerial[id]) r.push_back(cardAt[id]);
+		return r;
 	}
 
 	void Player::dropImage(int id)
@@ -1909,10 +1989,9 @@ namespace bp
 		if (idleShown) { showIdle(true); sent++; }
 		if (isAudio && loaded)
 		{
-			// the lines' colours and mpv's ground at once; a graph with the ground in it (None, no art, Art +
-			// visualizer) once the steps stop: each change of it reopens the sound output (a second on the handheld)
+			// the lines' colours and mpv's ground at once (no graph holds the ground; the native styles read the theme
+			// each frame)
 			updateOverlay();
-			displayDueAt = ticks() + 500;
 			sent++;
 		}
 		// (a Loading card is drawn again at its next step, every 100 ms; a level card lasts a second or two)
@@ -2141,11 +2220,13 @@ namespace bp
 	{
 		const int pw = topW > 0 ? topW : 960, ph = topH > 0 ? topH : 720;
 		LevelCardImage card = drawNoteCard(opts.fontsDir, ph, CardGlyph{rows, h}, line1, line2, danger);
+		const bool overVideo = !isAudio && !isPhoto && !playlist.empty();
 		int x, y;
-		noteCardPos(pw, ph, card, x, y);
+		noteCardPos(pw, ph, card, x, y, overVideo);	// a video: in the middle, off the subtitles and the level card
 		putImage(OV_NOTE, card, x, y);
-		noteUntil = ticks() + 3000;
-		cardMs = 3000;	// (the caller draws the panel while it is up)
+		// over a video it's in the middle of the picture: briefer
+		noteUntil = ticks() + (overVideo ? 1500 : 3000);
+		cardMs = overVideo ? 1500 : 3000;	// (the caller draws the panel while it is up)
 	}
 
 	void Player::hideLevel()
@@ -2159,10 +2240,12 @@ namespace bp
 		bool bad = text.find("ouldn't") != std::string::npos || text.find("an't ") != std::string::npos || text.find("ailed") != std::string::npos;
 		const int pw = topW > 0 ? topW : 960, ph = topH > 0 ? topH : 720;
 		LevelCardImage card = drawNoteCard(opts.fontsDir, ph, CardGlyph{}, text, "", bad);
+		const bool overVideo = !isAudio && !isPhoto && !playlist.empty();
 		int x, y;
-		noteCardPos(pw, ph, card, x, y);
+		noteCardPos(pw, ph, card, x, y, overVideo);	// a video: in the middle, off the subtitles and the level card
 		putImage(OV_NOTE, card, x, y);
-		ms = std::max(ms, 3000);
+		// over a video it's in the middle of the picture: briefer, except a note asked for longer (a browser signing in: 6 s)
+		ms = overVideo && ms <= 3000 ? 1500 : std::max(ms, 3000);
 		noteUntil = ticks() + ms;
 		cardMs = ms;
 	}
@@ -2211,7 +2294,6 @@ namespace bp
 		applyPhotoView();
 		updateOverlay();	// the title off the top panel
 		showIdle(true);
-		prop("lavfi-complex", "");
 	}
 
 	void Player::pathsMoved(const std::string& from, const std::string& to)
@@ -2308,125 +2390,229 @@ namespace bp
 		updateOverlay();	// (the line under the title, whatever the top panel shows)
 	}
 
-	std::string Player::graphFor(int vis, bool overCover)
-	{
-		// the styles' stills (src/viz_more.h: the scenes' pictures): made the first time one is
-		// wanted, beside the settings, else (none kept, or a folder a filter graph can't name) in /tmp. Tried again at
-		// the next song when they couldn't be written (a full card) (and the folder for the lut tables of a style with
-		// no stills, Peaks or Pocket console)
-		if (circleMaps.empty() && (visualizerNeedsMaps(vis) || visualizerGraphMarked(vis, overCover).find("bplut") != std::string::npos))
-		{
-			std::string dir = lavfiSafePath(opts.stateDir) ? opts.stateDir : "/tmp/banana-player";
-			if (writeVisualizerMaps(dir)) circleMaps = dir;
-			else fprintf(stderr, "banana-player: the visualizers' stills couldn't be written in %s: drawn as Bars or Peaks\n", dir.c_str());
-		}
-		// at the chosen frame rate; the lut and lut2 expressions as their lookups, read from their files
-		// (src/vizcache.h). Those not made yet keep their expressions this time and are made on a thread of their
-		// own, with every other style's the first time (so a change of style is quick from then on, this run and the
-		// next); files no style reads any more removed
-		// (and the measured copy of the sound evened out: src/vizcache.h)
-		std::string g = vizShapeInput(vizAtFps(visualizerGraphMarked(vis, overCover, circleMaps), settings.vizFps));
-		if (circleMaps.empty()) return vizPlainLuts(g);
-		std::vector<std::string> missing;
-		g = vizCacheLuts(g, circleMaps, &missing);
-		std::vector<std::string> graphs;
-		if (!lutsWarmed)
-		{
-			lutsWarmed = true;
-			for (int v : VIS_SHOWN)
-			{
-				for (int art = 0; art < 2; art++)
-				{
-					graphs.push_back(visualizerGraphMarked(v, art == 1, circleMaps));
-					for (const std::string& k : vizLutKeys(graphs.back())) missing.push_back(k);
-				}
-			}
-		}
-		if (!missing.empty())
-		{
-			std::string dir = circleMaps;
-			// (files only: the thread never touches the player)
-			std::thread([dir, missing, graphs] {
-#ifdef __linux__
-				setpriority(PRIO_PROCESS, 0, 10);	// (this thread alone, on Linux): the song's decoding first
-#endif
-				auto t0 = std::chrono::steady_clock::now();
-				vizWriteLuts(missing, dir);
-				if (!graphs.empty()) vizPruneLuts(dir, graphs);
-				fprintf(stderr, "music: %zu visualizer lookups checked or made in %.1f s\n", missing.size(),
-						std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count());
-			}).detach();
-		}
-		return g;
-	}
-
-	std::string Player::songGraph(int show, bool hasArt)
-	{
-		if (show == SHOW_VIS) return graphFor(settings.visualizer, false);
-		if (show == SHOW_NONE) return blankGround();
-		// Album art only: mpv shows the art itself (no graph: mpv's background-color is the ground round it); without
-		// art, the theme's ground under the placeholder
-		if (show == SHOW_ART) return hasArt ? "" : blankGround();
-		// Art + visualizer: the band (black, the style's own ground) under the theme's ground, the art laid over it
-		// (updateOverlay): the same graph with art or without, so an album that mixes them never reopens the sound.
-		// A style that uses the art its own way (Turntable's label) keeps it, and without art is drawn alone
-		std::string g = graphFor(settings.visualizer, true), ground = groundColour();
-		if (vizPlaceArt(g, 0, 0, 0).find("[vid1]") != std::string::npos) return hasArt ? g : graphFor(settings.visualizer, false);
-		// a network song's art from mpv (the overlay's decode reads local files only), placed once by the graph
-		// where a long title puts it: the title's own width can't move it without a new graph
-		if (isNet && hasArt)
-		{
-			SongLayout l = songLayout(false, 9999);
-			return vizPlaceArt(g, l.artX, l.artY, l.artS, ground, vizColours().ground);
-		}
-		return vizPlaceArt(g, 0, 0, 0, ground, vizColours().ground);
-	}
-
 	void Player::applyAudioDisplay()
 	{
 		// for the next song's guess (load): an album's songs mostly all have art, or none
 		size_t slash = currentPath().rfind('/');
 		lastArtDir = slash == std::string::npos ? "." : currentPath().substr(0, slash);
 		lastArt = hasCover(tracks);
-		int show = shownMusic();
-		std::string graph = songGraph(show, hasCover(tracks));
-		// Album art only on a playing song with art, from a graph: the art passed through a graph of its own, never
-		// the graph cleared. Cleared, mpv drops the tracks it fed and, for a moment, nothing is selected: the file
-		// ended (EOF) and the Session played the next song. Graph to graph, the tracks stay taken
-		if (graph.empty() && !graphSet.empty() && show == SHOW_ART && hasCover(tracks))
+		const int show = shownMusic();
+		// no graph, whatever the mode: the song's sound chosen by its id every time (a song must never be left with no
+		// audio track: it would read as ended and the Session would play the next), and its picture off, but for a
+		// network song's art shown as mpv's own (Album art only, Art + visualizer)
+		prop("aid", songAid(seenAid));
+		int64_t art = 0;
+		if (isNet && (show == SHOW_ART || show == SHOW_BOTH))
+			for (auto& t : tracks)
+				if (t.type == TrackType::Video && !art) art = t.id;
+		prop("vid", art ? std::to_string(art) : "no");
+		const std::string why = std::string(show == SHOW_ART ? "Album art only" : show == SHOW_BOTH ? "Art + visualizer" : show == SHOW_VIS ? "Visualizer only" : "None") +
+								(art ? ", the art mpv's" : "");
+		if (why != displayLogged)
 		{
-			graph = artPassGraph();
-			fprintf(stderr, "music: %s: Album art only from a graph: the art through a graph of its own (never no track)\n",
-				baseName(currentPath()).c_str());
+			displayLogged = why;
+			fprintf(stderr, "music: %s: %s, no graph (the player draws the top panel)\n", baseName(currentPath()).c_str(), why.c_str());
 		}
-		if (graphSet != graph)
+		updateOverlay();
+	}
+
+	void Player::nativeLayerFailed()
+	{
+		if (noLayer) return;
+		noLayer = true;
+		setGround(true, "the theme's: no layer to compose");
+	}
+
+	bool Player::nativeViz() const
+	{
+		return vizNativeStyle(settings.visualizer) && isAudio;
+	}
+
+	bool Player::nativeCanTap() const
+	{
+		// a network song: the tap's second decode opens local files only (bpnet:// goes through mpv's stream callbacks,
+		// and a second read of a remote file would double its traffic), so its style is drawn idle (flat); the same for a
+		// file the tap couldn't read
+		return !isNet && currentPath().find("://") == std::string::npos && !nativeFailed;
+	}
+
+	static uint64_t steadyNs()
+	{
+		return (uint64_t)std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+	}
+
+	void Player::nativeStop(const char* why)
+	{
+		if (!vizTap.running()) return;
+		VizTap::Stats st = vizTap.stats();
+		fprintf(stderr, "viz-native: off for %s after %llu frames drawn, %llu spectra, %llu seeks (%s)\n", baseName(vizTap.path()).c_str(),
+			(unsigned long long)nativeFrames, (unsigned long long)st.spectra, (unsigned long long)st.seeks, why);
+		vizTap.stop();
+		nativeMoving = false;
+		nativeStyleSent = -1;
+	}
+
+	std::vector<VizRect> Player::nativeKeepClear() const
+	{
+		// (the lines and the art aren't kept clear: mpv's layer is composed over the shapes, the lines with their
+		// outline and no box round them; with no layer, as before: the lines' and the art's boxes too)
+		std::vector<VizRect> r = cardsUp();
+		if (!noLayer) return r;
+		if (shownMusic() == SHOW_VIS && linesBox.x1 > linesBox.x0) r.push_back(linesBox);
+		if (shownMusic() == SHOW_BOTH && vizBehindArt(settings.visualizer))
 		{
-			// (in the log: a graph changed as a song starts, by the art its track list says it has)
-			fprintf(stderr, "music: %s: %s art, %d tracks; graph %s\n", baseName(currentPath()).c_str(),
-				hasCover(tracks) ? "has" : "no", (int)tracks.size(), graph.empty() ? "off" : graph == artPassGraph() ? "passing the art through"
-				: graph.find("[vid1]") != std::string::npos ? "with the art" : "without art");
-			syncEq(true);	// the graph's change rebuilds the chain from af
-			prop("lavfi-complex", graph);
-			// (in the log: how long a style takes to come up, the sound's restart and the picture's, on the handheld)
-			graphAskedAt = ticks();
-			graphFrameLogged = false;
-			// the art's box and the lines for the picture the new graph makes (mpv's art in the margins, or the whole
-			// panel the graph's): a mode's change set them for the old graph, half a second before
-			updateOverlay();
+			if (groupArtBox.x1 > groupArtBox.x0) r.push_back(groupArtBox);
+			if (groupTextBox.x1 > groupTextBox.x0) r.push_back(groupTextBox);
 		}
-		if (graph.empty())
+		return r;
+	}
+
+	int Player::drawnStyle() const
+	{
+		return settings.visualizer;
+	}
+
+	void Player::syncNative()
+	{
+		const int show = shownMusic();
+		// what the top panel shows is the native style: a song, a visualizer shown (no graph: mpv's picture is the
+		// theme's ground and the lines)
+		const bool want = isAudio && loaded && playing() && nativeViz() && (show == SHOW_VIS || show == SHOW_BOTH);
+		const std::string path = currentPath();
+		if (!want)
 		{
-			// the song's sound (the graph taken off leaves the track unselected)
-			prop("aid", songAid(seenAid));
-			if (show == SHOW_ART)
+			nativeIdle = false;
+			nativeStop(!playing() || !isAudio ? "nothing plays" : !nativeViz() ? "another style" : "the display shows no visualizer");
+			return;
+		}
+		nativeOverArt = show == SHOW_BOTH;
+		if (!nativeCanTap())
+		{
+			// a network song (or a file the tap couldn't read): the style drawn idle, flat, no tap
+			nativeStop("no tap for this song");
+			if (!nativeIdle || nativeIdlePath != path)
 			{
-				// by its id: "auto" while playing doesn't pick the art again
-				int64_t art = 0;
-				for (auto& t : tracks)
-					if (t.type == TrackType::Video && !art) art = t.id;
-				prop("vid", art ? std::to_string(art) : "auto");
+				nativeIdle = true;
+				nativeIdlePath = path;
+				fprintf(stderr, "viz-native: %s: %s drawn idle (flat): %s\n", baseName(path).c_str(), visualizerLabel(settings.visualizer),
+					nativeFailed ? "the second decode couldn't read it" : "a network song (the tap reads local files only)");
 			}
+			return;
 		}
+		nativeIdle = false;
+		if (!vizTap.running() || vizTap.path() != path)
+		{
+			nativeStop("another file");
+			nativeSeq = nativeFrames = 0;
+			nativeAt = ticks();
+			nativeLoggedAt = 0;
+			std::function<void()> wake = nativeWake;
+			vizTap.start(path, settings.vizFps, settings.visualizer, wake);
+			nativeStyleSent = settings.visualizer;
+			fprintf(stderr, "viz-native: %s for %s (%s), %d fps: a second decode, mono %d Hz, FFT %d (PFFFT), on mpv's audio-pts "
+				"(the sound heard: mpv's output delay already off), drawn a frame ahead\n", visualizerLabel(settings.visualizer), baseName(path).c_str(),
+				nativeOverArt ? "Art + visualizer: the band" : "Visualizer only", settings.vizFps, VN_RATE, VN_FFT);
+		}
+		if (vizTap.failed())
+		{
+			// the tap couldn't read the file: the style idle for this song (next pass)
+			nativeStop("the second decode failed");
+			nativeFailed = true;
+			return;
+		}
+		vizTap.setFps(settings.vizFps);
+		if (settings.visualizer != nativeStyleSent)
+		{
+			// a native style to another: the same tap, the same blank graph (no sound reopen), its own bands
+			if (nativeStyleSent >= 0) fprintf(stderr, "viz-native: %s now (the same tap, no graph change)\n", visualizerLabel(settings.visualizer));
+			nativeStyleSent = settings.visualizer;
+			vizTap.setStyle(settings.visualizer);
+		}
+		VizClock c = audioClock;
+		c.speed = speed > 0 ? speed : 1;
+		c.moving = !paused && !pausedForCache && !seekingSince && c.pts >= 0;
+		// started again (play after a pause, a seek done): the time runs on from now, not from the last update
+		if (c.moving && !nativeMoving) audioClock.atNs = c.atNs = steadyNs();
+		nativeMoving = c.moving;
+		vizTap.setClock(c);
+		// once, 5 s in: the frames a second drawn, the spectra taken, how often mpv told the time
+		uint64_t now = ticks();
+		if (!nativeLoggedAt && now - nativeAt >= 5000)
+		{
+			nativeLoggedAt = now;
+			VizTap::Stats st = vizTap.stats();
+			double s = (now - nativeAt) / 1000.0;
+			fprintf(stderr, "viz-native: %s: in %.1f s %.1f frames drawn a second, %.1f spectra a second (the worker %.2f ms a look, at most %.1f, "
+				"%llu behind), audio-pts told %.1f a second, %llu seeks; decoding %s\n", baseName(path).c_str(), s, nativeFrames / s, st.spectra / s,
+				st.spectra ? st.workMs / st.spectra : 0.0, st.workMax, (unsigned long long)st.behind, st.clockTold / s, (unsigned long long)st.seeks,
+				vizTap.info().c_str());
+		}
+	}
+
+	static std::string assText(std::string s);
+
+	void Player::setTopMarquee(const std::string& text, const std::string& style, int an, double x, double y, double boxW, int fs, int textW, bool fade)
+	{
+		const std::string key = text + "|" + style + "|" + std::to_string((int)x) + "," + std::to_string((int)y) + "," + std::to_string((int)boxW);
+		if (key != topMarq.key)
+		{
+			// a new title or place: from its start, its rest first
+			if (topMarq.text != text) fprintf(stderr, "music: title marquee: %s (%d units in %d)\n", text.c_str(), textW, (int)boxW);
+			topMarq.start = ticks();
+			topMarq.key = key;
+		}
+		topMarq.on = true;
+		topMarq.text = text, topMarq.style = style;
+		topMarq.an = an, topMarq.x = x, topMarq.y = y, topMarq.boxW = boxW, topMarq.fs = fs, topMarq.textW = textW, topMarq.fade = fade;
+		topMarq.lastStep = -1;	// (sent again: the look may have changed)
+	}
+
+	bool Player::marqueeMoving() const
+	{
+		return topMarq.on && !lay::marquee((int)(ticks() - topMarq.start), topMarq.textW, (int)topMarq.boxW, topMarq.fs).done;
+	}
+
+	void Player::tickMarquee()
+	{
+		if (!topMarq.on) return;
+		const lay::MarqueeAt m = lay::marquee((int)(ticks() - topMarq.start), topMarq.textW, (int)topMarq.boxW, topMarq.fs);
+		// while it moves: smoothly, its place sent at most every ~16 ms (about 60 a second) with a fractional \pos (libass
+		// places text to 1/8 of a pixel); before, it moved in the spec's whole-unit steps, 24 a second, and looked choppy
+		const bool sliding = m.offsetF > 0 && m.offsetF < topMarq.textW - topMarq.boxW && m.alpha >= 1;
+		const uint64_t now = ticks();
+		const int key = sliding ? 1000000 + (int)(m.offsetF * 8) : m.step;
+		if (key == topMarq.lastStep) return;
+		if (sliding && now - topMarq.sentAt < 16) return;
+		topMarq.lastStep = key;
+		topMarq.sentAt = now;
+		const double off = sliding ? m.offsetF : m.offset;
+		// on the 960x720 canvas: the box's clip, the text moved left by whole units (1.5 canvas units each)
+		const double K = 1.5;
+		auto n = [](double v) { return std::to_string((long)std::lround(v)); };
+		auto f2 = [](double v) { char b[32]; snprintf(b, sizeof b, "%.2f", v); return std::string(b); };
+		const double top = topMarq.an == 4 ? topMarq.y - topMarq.fs * 0.8 : topMarq.y - 2, bot = topMarq.an == 4 ? topMarq.y + topMarq.fs * 0.8 : topMarq.y + topMarq.fs * 1.35;
+		const double x0 = topMarq.x, x1 = topMarq.x + topMarq.boxW;
+		// the text, clipped to (cx0, cx1), seen at vis (0..1)
+		std::string ev;
+		auto part = [&](double cx0, double cx1, float vis) {
+			char a[8];
+			snprintf(a, sizeof a, "%02X", (int)std::lround(255 * (1 - std::clamp(vis, 0.0f, 1.0f))));
+			ev += "{\\an" + std::to_string(topMarq.an) + "\\pos(" + f2((topMarq.x - off) * K) + "," + n(topMarq.y * K) + ")\\clip(" + n(cx0 * K) +
+				  "," + n(top * K) + "," + n(cx1 * K) + "," + n(bot * K) + ")" + topMarq.style + "\\alpha&H" + a + "&}" + assText(topMarq.text) + "\n";
+		};
+		const bool fadeL = topMarq.fade && m.fadeLeft, fadeR = topMarq.fade && m.fadeRight;
+		// the fades: the text itself fainter in four 4-unit strips (80, 60, 40, 20% seen) at an edge it goes on past
+		// (not strips of the ground over it: no band of BG over a visualizer under the lines)
+		const double W = lay::MARQ_FADE_W;
+		part(x0 + (fadeL ? W : 0), x1 - (fadeR ? W : 0), m.alpha);
+		for (int k = 0; k < 4; k++)
+		{
+			const float vis = m.alpha * (1 - (k + 1) / 5.0f);
+			if (fadeR) part(x1 - W + k * 4, x1 - W + k * 4 + 4, vis);
+			if (fadeL) part(x0 + (3 - k) * 4, x0 + (3 - k) * 4 + 4, vis);
+		}
+		const char* cmd[] = {"osd-overlay", "2", "ass-events", ev.c_str(), "960", "720", "0", "no", "no", nullptr};
+		mpv_command_async(mpv, 0, cmd);
 	}
 
 	// ASS text: braces and backslashes would be its codes
@@ -2458,6 +2644,21 @@ namespace bp
 		return d;
 	}
 
+	bool Player::songArtMissing() const
+	{
+		if (!isAudio) return false;
+		return isNet ? !tracks.empty() && !hasCover(tracks) : artState == ArtState::None;
+	}
+
+	std::string Player::artPlaceholderKey() const
+	{
+		if (!tagAlbum.empty()) return tagAlbum;
+		if (!title.empty()) return title;
+		std::string f = currentPath();
+		size_t k = f.find_last_of('/');
+		return k == std::string::npos ? f : f.substr(k + 1);
+	}
+
 	void Player::setSongMargins(const std::string& lrtb)
 	{
 		if (lrtb == marginsSet) return;
@@ -2474,29 +2675,16 @@ namespace bp
 		fprintf(stderr, "music: top panel margins %s, panscan %g\n", lrtb.empty() ? "none (the whole panel)" : lrtb.c_str(), pan);
 	}
 
-	std::string Player::groundColour()
-	{
-		char c[16];
-		snprintf(c, sizeof c, "0x%02X%02X%02X", theme::BG.r, theme::BG.g, theme::BG.b);
-		return c;
-	}
-
-	Player::VizColours Player::vizColours()
-	{
-		// the band over the theme's ground, as the styles were laid over the art before (their strips draw over
-		// their slice of the input: no ground of their own, but those that paint a scene); inks the styles' own for now
-		VizColours c;
-		c.ground = groundColour();
-		return c;
-	}
-
-	void Player::setGround(bool themed, const char* why)
+	void Player::setGround(bool themed, const char* why, bool clear)
 	{
 		// mpv's own ground, round its picture where none is drawn: Album art only's margins (a graph's picture fills
-		// the panel, so there it is the graph's). Set on a change only: a property, no per-frame work
+		// the panel, so there it is the graph's). Set on a change only: a property, no per-frame work. Clear under a
+		// native visualizer: the top panel draws the ground and the shapes, mpv's picture goes over them
 		char c[16];
 		const theme::Rgb g = themed ? theme::BG : theme::Rgb{0, 0, 0};
-		snprintf(c, sizeof c, "#%02X%02X%02X", g.r, g.g, g.b);
+		if (clear) snprintf(c, sizeof c, "%s", GROUND_CLEAR);
+		else snprintf(c, sizeof c, "#%02X%02X%02X", g.r, g.g, g.b);
+		if (clear && !why) why = "clear: the visualizer under mpv's art and lines";
 		if (groundSet == c) return;
 		groundSet = c;
 		const char* v = groundSet.c_str();	// (copied by mpv before it returns)
@@ -2586,11 +2774,18 @@ namespace bp
 		{
 			const char* cmd[] = {"osd-overlay", "1", "none", "", nullptr};
 			mpv_command_async(mpv, 0, cmd);
+			if (topMarq.on)
+			{
+				topMarq = TopMarq{};
+				const char* none[] = {"osd-overlay", "2", "none", "", nullptr};
+				mpv_command_async(mpv, 0, none);
+			}
 			setSongMargins("");
 			setGround(false);
 			dropSongArt();
 			return;
 		}
+		linesBox = groupArtBox = groupTextBox = {0, 0, 0, 0, 0};
 		// the song's lines (docs/redesign/components.md, Song layout); the ASS canvas is 960x720, 1.5x the units
 		const double K = 1.5;
 		auto u = [&](double v) { return (int)std::lround(v * K); };
@@ -2606,7 +2801,8 @@ namespace bp
 		if (c >= 0 && c < (int)chapters.size())
 			chapter = chapterUntitled(chapters[c].title) ? "Chapter " + std::to_string(c + 1) + " of " + std::to_string(chapters.size())
 				: chapters[c].title;
-		bool ownsArt = show == SHOW_BOTH && settings.visualizer == VIS_VINYL;
+		const int style = drawnStyle();
+		bool ownsArt = show == SHOW_BOTH && style == VIS_VINYL;
 		bool group = (show == SHOW_ART || show == SHOW_BOTH) && !ownsArt;
 		// the theme's ground (Album art only, Art + visualizer, None: app UI, docs/redesign Themes › The top screen):
 		// the lines TEXT, DIM_ON, DIM, the art's edge edgeOf(SURFACE); a visualizer alone keeps its picture
@@ -2614,18 +2810,23 @@ namespace bp
 		// simple ones (src/viz_simple.cpp), so their lines are the theme's; the other styles alone keep their picture
 		// and the white lines with a shadow
 		// (and Night city alone in a theme but Yellow: its sky is the theme's BG, docs/notes/2026-11-19-viz-theme.md)
-		const bool peaksAlone = show == SHOW_VIS && (visualizerOnGround(settings.visualizer) ||
-			(settings.visualizer == VIS_CITY && theme::currentTheme() != 0));
+		const bool peaksAlone = show == SHOW_VIS && (visualizerOnGround(style) || (style == VIS_CITY && theme::currentTheme() != 0));
 		const bool themed = group || show == SHOW_NONE || peaksAlone;
-		setGround(themed);
+		// (a song with a native style shown: mpv's picture composed over the shapes, its ground clear)
+		setGround(themed, nullptr, themed && isAudio && nativeViz() && (show == SHOW_VIS || show == SHOW_BOTH) && !noLayer);
+		const std::string artKeyText = artPlaceholderKey();
 		const std::string INK = ass(TEXT), INK2 = ass(DIM_ON), INK3 = ass(DIM), MARK = ass(ACCENT), EDGE = ass(edgeOf(SURFACE)),
 			GROUND = ass(BG);
+		// the lines over a visualizer: no box round them (the shapes pass under them: mpv's layer, topviz.cpp), kept
+		// readable by an outline and a shadow in the ground's colour (libass draws them once a change; nothing a frame)
+		const std::string OUTLINE = "\\bord3\\3c" + GROUND + "\\shad2\\4c" + GROUND;
+		const std::string groupEdge = show == SHOW_BOTH ? OUTLINE : "\\bord0\\shad0";
 		std::string ev;
 		std::string why;	// for the log: what the art box holds
 
-		// the art shown as mpv's own video (Album art only, no graph): put in the art's box by the video's margins,
-		// in the layout of the mode it is shown in (a mode just changed: the graph comes half a second later)
-		bool videoArt = (graphSet.empty() || graphSet == artPassGraph()) && hasCover(tracks);
+		// the art shown as mpv's own video (a network song's: the overlay's decode reads local files only): put in the
+		// art's box by the video's margins, in the layout of the mode it is shown in
+		bool videoArt = isNet && (show == SHOW_ART || show == SHOW_BOTH) && hasCover(tracks);
 		// the lines' widths as libass will draw them: measured in the bundle's Inter (what libass uses on the handheld),
 		// \fs being the font's ascent + descent; the letter estimate (songTextWidth) where the fonts can't be read. The
 		// estimate ran ~8% wide, and the group (art + lines) centred on it sat left of the middle
@@ -2662,25 +2863,34 @@ namespace bp
 		const int widest = std::max({lineW(title, SONG_TITLE_FS, true), lineW(chapter, SONG_ARTIST_FS, false),
 									 lineW(artist, SONG_ARTIST_FS, false), lineW(album, SONG_ALBUM_FS, false)});
 		SongLayout artOnly = songLayout(true, widest);
+		// the title as shown in a box (Repeated start: a start it shares with its artist, album, folder or list left out
+		// when it doesn't fit) and whether it moves there (the Title marquee: it doesn't fit, Scroll long titles on)
+		std::vector<std::string> listNames;
+		for (const std::string& path : playlist) listNames.push_back(baseName(path));
+		const std::vector<std::string> starts = titleStarts(tagArtist, tagAlbum, currentPath(), listNames);
+		auto titleIn = [&](int fs, bool bold, int box) {
+			return shownTitle(title, starts, [&](const std::string& t) { return lineW(t, fs, bold) <= box; });
+		};
+		bool marq = false;	// the title is the marquee's overlay, not in ev
+		// a style over the whole panel in Art + visualizer (vizFullPanel: Sparks, Starfield...): the art and its lines
+		// as Album art only lays them out, centred both ways (the owner's word), not lifted over a band
+		const bool fullGroup = show == SHOW_BOTH && vizFullPanel(style);
 		if (videoArt)
 		{
+			const SongLayout v = show == SHOW_ART || fullGroup ? artOnly : songLayout(false, widest);
 			char m[96];
-			snprintf(m, sizeof m, "%.5f %.5f %.5f %.5f", artOnly.artX / 640.0, (640 - artOnly.artX - artOnly.artS) / 640.0,
-					 artOnly.artY / 480.0, (480 - artOnly.artY - artOnly.artS) / 480.0);
+			snprintf(m, sizeof m, "%.5f %.5f %.5f %.5f", v.artX / 640.0, (640 - v.artX - v.artS) / 640.0, v.artY / 480.0,
+					 (480 - v.artY - v.artS) / 480.0);
 			setSongMargins(m);
 		}
 		else setSongMargins("");
 
 		if (group)
 		{
-			// a network song's art placed by the graph: the layout of a long title, as the graph was made with
-			bool graphArt = show == SHOW_BOTH && isNet && graphSet.find("[vid1]") != std::string::npos;
-			SongLayout l = show == SHOW_ART ? artOnly : songLayout(false, graphArt ? 9999 : widest);
-			// the art: mpv's (Album art only), the graph's (a network song), or the overlay's (decoded here)
+			SongLayout l = show == SHOW_ART || fullGroup ? artOnly : songLayout(false, widest);
+			// the art: mpv's (a network song), or the overlay's (decoded here, both modes)
 			enum { NOTHING, ART, OVERLAY, PLACEHOLDER } box = NOTHING;
-			// (a song with art whose graph hasn't switched yet: nothing for that half second, not the placeholder)
-			if (show == SHOW_ART) box = tracks.empty() ? NOTHING : videoArt ? ART : hasCover(tracks) ? NOTHING : PLACEHOLDER;
-			else if (isNet) box = tracks.empty() ? NOTHING : graphArt ? ART : PLACEHOLDER;
+			if (isNet) box = tracks.empty() ? NOTHING : videoArt ? ART : PLACEHOLDER;
 			else
 			{
 				const int pw = topW > 0 ? topW : 960, ph = topH > 0 ? topH : 720;
@@ -2744,6 +2954,11 @@ namespace bp
 				artOverlayX = artOverlayY = -1;
 			}
 			const int X = u(l.artX), Y = u(l.artY), S = u(l.artS), R = u(SONG_ART_RADIUS), E = u(SONG_ART_EDGE);
+			if (show == SHOW_BOTH && l.art)
+			{
+				const float m = SONG_ART_EDGE + 2;
+				groupArtBox = {l.artX - m, l.artY - m, l.artX + l.artS + m, l.artY + l.artS + m, 0};
+			}
 			if (box == ART || box == OVERLAY)
 			{
 				// mpv's art has square corners: rounded by the ground laid over them (the overlay's are its
@@ -2769,54 +2984,25 @@ namespace bp
 			}
 			else if (box == PLACEHOLDER)
 			{
-				// no art: the colour wheel (wedges round a point a little below the middle, clipped to the box), a dark
-				// rounded square on it at 38%, and the note
-				static const int WHEEL[][3] = {{0xff, 0xd2, 0x3f}, {0xff, 0x9f, 0x43}, {0xf0, 0x64, 0x5a}, {0x7a, 0x3b, 0x8f},
-											   {0x2f, 0x6f, 0xb0}, {0x2f, 0x8f, 0x6a}, {0xff, 0xd2, 0x3f}};
-				const int N = 72;
-				const double cx = X + S * 0.5, cy = Y + S * 0.55, far = S * 1.5;
-				std::string clip = "\\clip(" + roundPath(X, Y, S, S, R, false) + ")";
+				// no art: the Art placeholder (artph.h): a record in its sleeve, in the theme's roles, the discs cut to the box
+				// and the same 2-unit edge as the art's own. Drawn as vector shapes: no picture to load or scale
+				const artph::Shape a = artph::shape(S, artKeyText);
+				auto disc = [&](int dia, const std::string& col) {
+					const int cx = X + a.cx, cy = Y + a.cy, h = dia / 2, k = (int)std::lround(h * 0.5523);
+					char d[320];
+					snprintf(d, sizeof d, "m %d %d b %d %d %d %d %d %d b %d %d %d %d %d %d b %d %d %d %d %d %d b %d %d %d %d %d %d ", cx + h, cy,
+						cx + h, cy + k, cx + k, cy + h, cx, cy + h, cx - k, cy + h, cx - h, cy + k, cx - h, cy, cx - h, cy - k, cx - k, cy - h, cx, cy - h,
+						cx + k, cy - h, cx + h, cy - k, cx + h, cy);
+					ev += "{\\an7\\pos(0,0)\\bord0\\shad0\\clip(" + roundPath(X, Y, S, S, R, false) + ")\\1c" + col + "\\p1}" + d + "{\\p0}\n";
+				};
 				ev += "{\\an7\\pos(0,0)\\bord0\\shad0\\1c" + EDGE + "\\p1}" + roundPath(X - E, Y - E, S + 2 * E, S + 2 * E, R + E, false) + "{\\p0}\n";
-				for (int i = 0; i < N; i++)
-				{
-					double t = (i + 0.5) / N * 6;
-					int k = std::min(5, (int)t);
-					double f = t - k;
-					int rgb[3];
-					for (int j = 0; j < 3; j++) rgb[j] = (int)std::lround(WHEEL[k][j] + (WHEEL[k + 1][j] - WHEEL[k][j]) * f);
-					// from 210 degrees, clockwise (CSS's conic-gradient: 0 is up)
-					double a0 = (210 + 360.0 * i / N) * M_PI / 180, a1 = (210 + 360.0 * (i + 1.05) / N) * M_PI / 180;
-					char w[256], col[16];
-					snprintf(w, sizeof w, "m %d %d l %d %d %d %d", (int)cx, (int)cy, (int)std::lround(cx + far * std::sin(a0)),
-						(int)std::lround(cy - far * std::cos(a0)), (int)std::lround(cx + far * std::sin(a1)), (int)std::lround(cy - far * std::cos(a1)));
-					snprintf(col, sizeof col, "&H%02X%02X%02X&", rgb[2], rgb[1], rgb[0]);
-					ev += "{\\an7\\pos(0,0)\\bord0\\shad0" + clip + "\\1c" + col + "\\p1}" + w + "{\\p0}\n";
-				}
-				const int in = (int)std::lround(S * 0.38), ix = X + (S - in) / 2, iy = Y + (S - in) / 2;
-				ev += "{\\an7\\pos(0,0)\\bord0\\shad0\\1c&H000000&\\1a&H61&\\p1}" + roundPath(ix, iy, in, in, (int)std::lround(S * 0.08), false) + "{\\p0}\n";
-				// the note (G_NOTE's cells) at 22% of the box
-				const Ui::Glyph& g = G_NOTE;
-				int gw = 0;
-				for (int y = 0; y < g.h; y++) gw = std::max(gw, (int)strlen(g.rows[y]));
-				const double cell = S * 0.22 / std::max(gw, g.h);
-				const double gx = X + S / 2.0 - gw * cell / 2, gy = Y + S / 2.0 - g.h * cell / 2;
-				std::string path;
-				for (int y = 0; y < g.h; y++)
-					for (int x = 0; g.rows[y][x];)
-					{
-						if (g.rows[y][x] != '#') { x++; continue; }
-						int e = x;
-						while (g.rows[y][e] == '#') e++;
-						char r[128];
-						int x0 = (int)std::lround(gx + x * cell), x1 = (int)std::lround(gx + e * cell), y0 = (int)std::lround(gy + y * cell),
-							y1 = (int)std::lround(gy + (y + 1) * cell);
-						snprintf(r, sizeof r, "m %d %d l %d %d %d %d %d %d ", x0, y0, x1, y0, x1, y1, x0, y1);
-						path += r;
-						x = e;
-					}
-				ev += "{\\an7\\pos(0,0)\\bord0\\shad0\\1c&HFFFFFF&\\p1}" + path + "{\\p0}\n";
+				ev += "{\\an7\\pos(0,0)\\bord0\\shad0\\1c" + ass(BUTTON) + "\\p1}" + roundPath(X, Y, S, S, R, false) + "{\\p0}\n";
+				disc(a.record, GROUND);
+				if (a.band) disc(a.band, ass(SURFACE));
+				disc(a.label, MARK);
+				disc(a.hole, GROUND);
 			}
-			why = box == ART ? (show == SHOW_ART ? "mpv's art in the margins" : "the graph's art") : box == OVERLAY ? "the decoded art"
+			why = box == ART ? "mpv's art in the margins" : box == OVERLAY ? "the decoded art"
 				: box == PLACEHOLDER ? "the placeholder" : "nothing yet";
 			char lg[320];
 			const int pw = topW > 0 ? topW : 960, ph = topH > 0 ? topH : 720;
@@ -2837,11 +3023,28 @@ namespace bp
 				double h = 0;
 				for (auto& ln : lines) h += ln.gap + ln.fs * 1.2;
 				double y = l.midY - h / 2;
+				if (show == SHOW_BOTH)
+					groupTextBox = {(float)l.textX - 8, (float)(l.midY - h / 2 - 8), (float)(l.textX + std::min(widest, l.textW) + 8),
+						(float)(l.midY + h / 2 + 8), 0};
 				for (auto& ln : lines)
 				{
 					y += ln.gap;
 					double mid = y + ln.fs * 0.6;
-					ev += "{\\an4\\pos(" + num(u(l.textX)) + "," + num(u(mid)) + ")\\bord0\\shad0\\q2\\fs" + num(u(ln.fs)) +
+					if (&ln == &lines[0])
+					{
+						// the title: the Title marquee in the text's column when it doesn't fit
+						const std::string shown = titleIn(ln.fs, true, l.textW);
+						const int tw = lineW(shown, ln.fs, true);
+						if (settings.scrollTitles && tw > l.textW)
+						{
+							marq = true;
+							setTopMarquee(shown, groupEdge + "\\q2\\fs" + num(u(ln.fs)) + "\\b1\\1c" + ln.colour, 4, l.textX, mid, l.textW, ln.fs, tw, true);
+							y += ln.fs * 1.2;
+							continue;
+						}
+						ln.text = shown;
+					}
+					ev += "{\\an4\\pos(" + num(u(l.textX)) + "," + num(u(mid)) + ")" + groupEdge + "\\q2\\fs" + num(u(ln.fs)) +
 						  (ln.bold ? "\\b1" : "\\b0") + "\\1c" + ln.colour + "}" + assText(fitLine(ln.text, ln.fs, l.textW, ln.bold)) + "\n";
 					y += ln.fs * 1.2;
 				}
@@ -2857,9 +3060,29 @@ namespace bp
 		{
 			// the title alone, in the middle: 30 semibold, then "artist · album" 17
 			std::string sub = artist + (artist.empty() || tagAlbum.empty() ? "" : " \xC2\xB7 ") + tagAlbum;
-			std::string t = "{\\an5\\pos(480,360)\\bord0\\shad0\\q2\\fs" + num(u(30)) + "\\b1\\1c" + INK + "}" + assText(songFitText(title, 30, 560, true));
-			if (!chapter.empty()) t += "\\N{\\b0\\fs" + num(u(17)) + "\\1c" + MARK + "}" + assText(songFitText(chapter, 17, 560));
-			if (!sub.empty()) t += "\\N{\\b0\\fs" + num(u(8)) + "}\\h\\N{\\fs" + num(u(17)) + "\\1c" + INK3 + "}" + assText(songFitText(sub, 17, 560));
+			const std::string shown = titleIn(30, true, 560);
+			const int tw = lineW(shown, 30, true);
+			marq = settings.scrollTitles && tw > 560;
+			std::string t;
+			if (marq)
+			{
+				// moving: the title from the box's left edge, the rest under it as before (heights as libass sets them,
+				// about 1.2 the size a line)
+				double h = 30 * 1.2 + (chapter.empty() ? 0 : 17 * 1.2) + (sub.empty() ? 0 : (8 + 17) * 1.2);
+				const double top = 240 - h / 2;
+				setTopMarquee(shown, "\\bord0\\shad0\\q2\\fs" + num(u(30)) + "\\b1\\1c" + INK, 4, 40, top + 18, 560, 30, tw, true);
+				t = "{\\an8\\pos(480," + num(u(top + 36)) + ")\\bord0\\shad0\\q2}";
+				bool any = false;
+				if (!chapter.empty()) { t += "{\\b0\\fs" + num(u(17)) + "\\1c" + MARK + "}" + assText(songFitText(chapter, 17, 560)); any = true; }
+				if (!sub.empty()) { t += std::string(any ? "\\N" : "") + "{\\b0\\fs" + num(u(8)) + "}\\h\\N{\\fs" + num(u(17)) + "\\1c" + INK3 + "}" + assText(songFitText(sub, 17, 560)); any = true; }
+				if (!any) t += "\\h";
+			}
+			else
+			{
+				t = "{\\an5\\pos(480,360)\\bord0\\shad0\\q2\\fs" + num(u(30)) + "\\b1\\1c" + INK + "}" + assText(songFitText(shown, 30, 560, true));
+				if (!chapter.empty()) t += "\\N{\\b0\\fs" + num(u(17)) + "\\1c" + MARK + "}" + assText(songFitText(chapter, 17, 560));
+				if (!sub.empty()) t += "\\N{\\b0\\fs" + num(u(8)) + "}\\h\\N{\\fs" + num(u(17)) + "\\1c" + INK3 + "}" + assText(songFitText(sub, 17, 560));
+			}
 			// why the visualizer has stopped for now, in the accent's yellow (a blank line first: right under the
 			// song's lines it read as part of them)
 			if (engineLoading)
@@ -2870,13 +3093,37 @@ namespace bp
 		{
 			// over a visualizer: top left, with a shadow. Pocket console alone: the screen's own ink, dark green in the
 			// pixel font, no shadow (the album line its mid green)
-			bool pocket = show == SHOW_VIS && settings.visualizer == VIS_POCKET;
-			std::string look = pocket ? "\\q2\\fnPixelify Sans\\bord0\\shad0" : peaksAlone ? "\\q2\\bord0\\shad0"
+			bool pocket = show == SHOW_VIS && style == VIS_POCKET;
+			// (the native styles: the theme's lines with the ground's outline, the visualizer passing under them;
+			// Pocket console's outline its screen's colour, crisp for the pixel font)
+			std::string look = pocket ? "\\q2\\fnPixelify Sans\\bord3\\3c" + ass(pocketInks().screen) + "\\shad0"
+				: peaksAlone ? "\\q2" + OUTLINE
 				: "\\q2\\bord2\\blur4\\3c&H000000&\\shad3\\4c&H000000&";
 			// a line each, from the top (22, 18): title 26, then 5 down the artist 17, 3 down the album 14
 			double y = 18;
+			int linesW = 0;
 			auto line = [&](const std::string& s, int fs, bool bold, const std::string& colour, int gap) {
 				y += gap;
+				if (&s == &title)
+				{
+					// the title: the Title marquee when it doesn't fit (its box the whole line, 596)
+					const std::string shown = titleIn(fs, bold, 596);
+					const int tw = lineW(shown, fs, bold);
+					if (settings.scrollTitles && tw > 596)
+					{
+						marq = true;
+						setTopMarquee(shown, look + "\\fs" + num(u(fs)) + (bold ? "\\b1" : "\\b0") + "\\1c" + colour, 7, 22, y, 596, fs, tw, peaksAlone);
+						linesW = 596;
+						y += fs * 1.2;
+						return;
+					}
+					linesW = std::max(linesW, lineW(songFitText(shown, fs, 596, bold), fs, bold));
+					ev += "{\\an7\\pos(" + num(u(22)) + "," + num(u(y)) + ")" + look + "\\fs" + num(u(fs)) + (bold ? "\\b1" : "\\b0") + "\\1c" + colour + "}" +
+						  assText(songFitText(shown, fs, 596, bold)) + "\n";
+					y += fs * 1.2;
+					return;
+				}
+				linesW = std::max(linesW, lineW(songFitText(s, fs, 596, bold), fs, bold));
 				ev += "{\\an7\\pos(" + num(u(22)) + "," + num(u(y)) + ")" + look + "\\fs" + num(u(fs)) + (bold ? "\\b1" : "\\b0") + "\\1c" + colour + "}" +
 					  assText(songFitText(s, fs, 596, bold)) + "\n";
 				y += fs * 1.2;
@@ -2888,11 +3135,20 @@ namespace bp
 			if (!chapter.empty()) line(chapter, 17, false, pocket ? PMID : peaksAlone ? MARK : ass(TOP_TITLE), 4);
 			if (!artist.empty()) line(artist, 17, false, pocket ? PINK : peaksAlone ? INK2 : CREAM, 5);
 			if (!album.empty()) line(album, 14, false, pocket ? PMID : peaksAlone ? INK3 : GREY, 3);
+			// the lines' box (only kept clear with no layer to compose: nativeKeepClear)
+			linesBox = {22 - 8, 18 - 8, 22 + (float)linesW * (pocket ? 1.2f : 1) + 8, (float)y + 6, 0};
 		}
 		// the manga engine starting over Album art only (the visualizers rest as None): its note at the foot
 		if (engineLoading && show != SHOW_NONE)
 			ev += "{\\an2\\pos(480,696)\\bord0\\shad0\\fs" + num(u(14)) + "\\1c" + (themed ? MARK : ass(TOP_TITLE)) + "}" + assText("Loading manga engine\xE2\x80\xA6") + "\n";
 
+		if (!marq && topMarq.on)
+		{
+			topMarq = TopMarq{};
+			const char* none[] = {"osd-overlay", "2", "none", "", nullptr};
+			mpv_command_async(mpv, 0, none);
+		}
+		else if (marq) tickMarquee();
 		std::string logLine = std::string(show == SHOW_ART ? "Album art only" : show == SHOW_BOTH ? "Art + visualizer" : show == SHOW_VIS ? "Visualizer only" : "None") +
 							  ", ground " + (themed ? groundSet : std::string("the picture's")) + ": " + why;
 		if (logLine != layoutLogged)
@@ -3010,15 +3266,12 @@ namespace bp
 		header("Audio");
 		if (isAudio)
 		{
-			// what the top panel shows, as mpv has it now
-			std::string graph = get("lavfi-complex");
-			// (the style by its setting: fifteen graphs can't be told apart by a filter's name)
-			std::string vis = visualizerLabel(visualizerReplacement(settings.visualizer));
-			row("Top screen", graph == artPassGraph() ? std::string("Album art") : graph == blankGround() ? (shownMusic() == SHOW_ART ? "Album art (none: the placeholder)" : "Title only")
-				: graph.find("[vid1]") != std::string::npos || graph.find(":s=640x480:r=1:d=1") != std::string::npos ? "Album art + " + vis
-				: !graph.empty() ? "Visualizer: " + vis
-				: shownMusic() == SHOW_NONE ? "Title only"
-				: hasCover(tracks) ? "Album art" : "Title");
+			// what the top panel shows (no graph: all of it the player's)
+			std::string vis = visualizerLabel(settings.visualizer);
+			const int show = shownMusic();
+			row("Top screen", nativeShown() ? (show == SHOW_BOTH ? "Album art + " : "Visualizer: ") + vis + (nativeIdle ? " (idle: no tap for this song)" : " (drawn by the player)")
+				: show == SHOW_NONE ? std::string("Title only") : show == SHOW_ART ? (artState == ArtState::None && !isNet ? "Album art (none: the placeholder)" : "Album art")
+				: "Title");
 		}
 		if (a)
 		{

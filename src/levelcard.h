@@ -56,7 +56,9 @@ namespace bp
 	// where a card goes on a panel pw x ph: the level, label and chapter cards top right (20 units from the edges), the
 	// note at the bottom centre (26 up)
 	void levelCardPos(int pw, int ph, const LevelCardImage& card, int& x, int& y);
-	void noteCardPos(int pw, int ph, const LevelCardImage& card, int& x, int& y);
+	// centre: in the panel's middle (over a video: the bottom is the subtitles', the top right the level card's), else
+	// bottom centre
+	void noteCardPos(int pw, int ph, const LevelCardImage& card, int& x, int& y, bool centre = false);
 	// mpv's overlay-add takes premultiplied BGRA
 	std::vector<uint8_t> premultipliedBgra(const LevelCardImage& card);
 }

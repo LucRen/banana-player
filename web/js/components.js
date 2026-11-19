@@ -95,7 +95,26 @@ function hashOf(s) { let h = 5381; s = s || ''; for (let i = 0; i < s.length; i+
 export const palOf = s => PAL[hashOf(s) % PAL.length];
 // (a book, a PDF, a comic: its own glyph, as in Files)
 const DOC_MOTIF = { epub: 'epub', pdf: 'pdf', comic: 'comic', text: 'page' };
+// the Art placeholder (docs/redesign/components.md): a record in its sleeve, five shapes in the theme's own variables,
+// so a theme change recolours it. The same sum as src/artph.h: FNV-1a over the key's UTF-8 bytes, its top two bits the placement
+const phEven = x => Math.max(2, 2 * Math.round(x / 2));
+function phHash(s) { let h = 2166136261; for (const c of unescape(encodeURIComponent(s))) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; }
+export function phShape(s, key) {
+	const big = s >= 64, v = big ? phHash(key) >>> 30 : 0, D = phEven(s * (v ? .88 : .72));
+	return { D, band: big ? phEven(D * .62) : 0, label: phEven(D * .34), hole: phEven(D * .07), cx: [s / 2, s / 2, s, s / 2][v], cy: [s / 2, s, s / 2, 0][v] };
+}
+// what a file is called without its folder (its name is the key when no album is known here)
+const nameOf = p => String(p || '').split('/').pop();
+function Placeholder({ seed, r }) {
+	const [s, setS] = useState(96), box = useRef(null);
+	// small ones (a row's thumbnail) are drawn whole with no band: its size is read once mounted
+	useEffect(() => { const w = box.current && box.current.offsetWidth; if (w) setS(w); }, []);
+	const a = phShape(s, nameOf(seed)), d = (dia, c) => html`<circle cx=${a.cx} cy=${a.cy} r=${dia / 2} fill=${'var(--' + c + ')'} />`;
+	return html`<span class="gc ph" ref=${el => { box.current = el; if (r) r.current = el; }}><svg viewBox=${'0 0 ' + s + ' ' + s} width="100%" height="100%" aria-hidden="true">
+		${d(a.D, 'bg')}${a.band > 0 && d(a.band, 'surface')}${d(a.label, 'yellow')}${d(a.hole, 'bg')}</svg></span>`;
+}
 function GenCover({ seed, kind, k, r }) {
+	if (kind === 'audio') return html`<${Placeholder} seed=${seed} r=${r} />`;
 	const h = hashOf(seed), [a, b] = PAL[h % PAL.length];
 	const n = kind === 'video' ? 'film' : kind === 'photo' ? 'picture' : DOC_MOTIF[kind] || MOTIFS[(h >>> 5) % MOTIFS.length];
 	return html`<span class="gc" ref=${r} style=${`background:linear-gradient(135deg,${a},${b})`}><${Icon} n=${n} k=${k || 2} /></span>`;

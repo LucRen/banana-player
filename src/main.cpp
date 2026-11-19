@@ -82,7 +82,7 @@ namespace bp
 }
 #endif
 
-static Uint32 evMpv, evRender, evTouch, evLevel, evNet, evFound, evWeb, evDur, evCover, evAmp, evMangaLib, evUnplug, evPower, evVolKey, evLidIncognito;
+static Uint32 evMpv, evRender, evTouch, evLevel, evNet, evFound, evWeb, evDur, evCover, evAmp, evMangaLib, evUnplug, evPower, evVolKey, evLidIncognito, evViz;
 #ifdef BP_WEB
 // the dashboard's server for the sleep watch's thread (made on the main thread, never destroyed)
 static std::atomic<bp::WebServer*> webForWatch{nullptr};
@@ -201,6 +201,10 @@ static void holdIdleSleep()
 }
 #endif
 
+static std::string flipKey, flipVals[2];
+static int flipLeft = 0;
+static Uint32 flipAt = 0, flipMs = 300;
+
 int main(int argc, char** argv)
 {
 #ifdef __GLIBC__
@@ -249,7 +253,7 @@ int main(int argc, char** argv)
 				// BUTTON~MS: held MS ms, then let go
 				std::string::size_type tilde = step.find('~');
 				bool held = tilde != std::string::npos && buttonFromName(step.substr(0, tilde)) != Button::None && atoi(step.c_str() + tilde + 1) > 0;
-				bool ok = burst || held || buttonFromName(step) != Button::None || step == "info" || step == "page" || step == "update" || step == "web" || step == "F" || step == "rows" || step == "screenshot" || step == "volup" || step == "voldown" || step.rfind("prop:", 0) == 0 || step.rfind("shot:", 0) == 0 || step.rfind("level:", 0) == 0 || step.rfind("card:", 0) == 0 || step.rfind("gallery:", 0) == 0 ||
+				bool ok = burst || held || buttonFromName(step) != Button::None || step == "info" || step == "page" || step == "update" || step == "web" || step == "F" || step == "rows" || step == "screenshot" || step == "volup" || step == "voldown" || step.rfind("prop:", 0) == 0 || step.rfind("shot:", 0) == 0 || step.rfind("level:", 0) == 0 || step.rfind("set:", 0) == 0 || step.rfind("flip:", 0) == 0 || step.rfind("card:", 0) == 0 || step.rfind("gallery:", 0) == 0 ||
 					(sscanf(step.c_str(), "tap:%f:%f%n", &v[0], &v[1], &n) == 2 && n == (int)step.size()) ||
 					(sscanf(step.c_str(), "dtap:%f:%f%n", &v[0], &v[1], &n) == 2 && n == (int)step.size()) ||
 					(sscanf(step.c_str(), "hold:%f:%f%n", &v[0], &v[1], &n) == 2 && n == (int)step.size()) ||
@@ -307,9 +311,9 @@ int main(int argc, char** argv)
 		fprintf(stderr, "SDL: %s\n", SDL_GetError());
 		return 1;
 	}
-	// 15: evMpv itself and the 14 event types below it. One short once handed the manga's two registrations the
+	// 16: evMpv itself and the 15 event types below it. One short once handed the manga's two registrations the
 	// numbers of evVolKey and evLidIncognito, so a manga worker's wake closed everything as if the lid had shut
-	evMpv = SDL_RegisterEvents(15);
+	evMpv = SDL_RegisterEvents(16);
 	evRender = evMpv + 1;
 	evTouch = evMpv + 2;
 	evLevel = evMpv + 3;
@@ -324,6 +328,7 @@ int main(int argc, char** argv)
 	evPower = evMpv + 12;	// a short press of the power key with the lid shut (PowerKey): play/pause
 	evVolKey = evMpv + 13;	// a volume key with the lid shut (VolumeKey): one step, or next / previous on a hold
 	evLidIncognito = evMpv + 14;	// the lid closed in incognito with Close all or Quit (SleepWatch): main closes or quits
+	evViz = evMpv + 15;	// the native visualizer's new bars (VizTap's worker): the top panel draws a frame
 
 	// On the handheld (SDL's KMSDRM) each panel is a display and each window fills one; elsewhere, two windows
 	if (windowed < 0) windowed = strcmp(SDL_GetCurrentVideoDriver(), "KMSDRM") != 0;
@@ -437,6 +442,12 @@ int main(int argc, char** argv)
 			fprintf(stderr, "mpv could not start\n");
 			return 1;
 		}
+		// the native visualizer's worker: new bars ready (once until the top panel takes them: VizTap coalesces)
+		player.setNativeWake([] {
+			SDL_Event e{};
+			e.type = evViz;
+			SDL_PushEvent(&e);
+		});
 		// the file lists' lengths kept from the last run: loaded before the prober or the dashboard starts (both probe
 		// through the same cache), so a folder opened before is known without opening its files again
 		if (!opts.stateDir.empty())
@@ -983,7 +994,13 @@ int main(int argc, char** argv)
 			};
 			auto lidShoulderUp = [&](int i) { lidShoulderAt[i] = 0; lidShoulderDone[i] = lidShoulderStuck[i] = false; };
 			SDL_Event e;
-			bool got = SDL_WaitEventTimeout(&e, (reader.isOpen() && reader.busy()) || (textReader.isOpen() && textReader.busy()) ? 1 : reader.isOpen() && reader.seekPending() ? 16 : reader.spinning() ? MangaReader::SPIN_MS / 2 : ui.animating() ? 16 : ui.typing() ? 50 : held != Button::None || player.loading() ? 20 : SDL_GetTicks() < freshUntil || levelUntil ? 50 : ui.markMoving() ? 80 : 250);
+			int waitMs = (reader.isOpen() && reader.busy()) || (textReader.isOpen() && textReader.busy()) ? 1 : reader.isOpen() && reader.seekPending() ? 16 : reader.spinning() ? MangaReader::SPIN_MS / 2 : ui.animating() || player.marqueeMoving() ? 16 : ui.typing() ? 50 : held != Button::None || player.loading() ? 20 : SDL_GetTicks() < freshUntil || levelUntil ? 50 : ui.markMoving() ? 80 : 250;
+			// the native visualizer's next frame (its own rate: the tap's levels are taken as it's drawn)
+			{
+				const int nw = ts.nativeWaitMs(shown());
+				if (nw >= 0) waitMs = std::min(waitMs, nw);
+			}
+			bool got = SDL_WaitEventTimeout(&e, waitMs);
 			// the pass starts after the wait (the wait isn't a frame's work) and ends after both panels are drawn
 			FrameWatch::begin(SDL_GetTicks());
 			Uint32 eventsAt = SDL_GetTicks();
@@ -1415,9 +1432,22 @@ int main(int argc, char** argv)
 				if (ui.repeats(held, shown()) && ui.press(held, shown())) leave();
 			}
 
+			// flip: (a test step) a setting alternated on a timer, each change applied at once (no debounce)
+			if (flipLeft > 0 && SDL_GetTicks() >= flipAt)
+			{
+				std::string v = flipVals[flipLeft % 2];
+				Settings s = parseSettings(serializeSettings(player.settings) + flipKey + " = " + v + "\n");
+				player.setSettings(s);
+				player.displayNow();
+				fprintf(stderr, "press: flip %s = %s (%d left)\n", flipKey.c_str(), v.c_str(), flipLeft - 1);
+				flipLeft--;
+				flipAt = SDL_GetTicks() + flipMs;
+			}
 			player.pollEvents();
 			player.checkAudio();
 			player.checkSongArt();
+			player.syncNative();
+			player.tickMarquee();
 			player.checkSongEnd();
 			player.checkDisplay();
 			player.flushWrites();
@@ -1647,6 +1677,35 @@ int main(int argc, char** argv)
 							ev.key.keysym.scancode = step == "volup" ? SDL_SCANCODE_VOLUMEUP : SDL_SCANCODE_VOLUMEDOWN;
 							ev.key.keysym.sym = step == "volup" ? SDLK_VOLUMEUP : SDLK_VOLUMEDOWN;
 							SDL_PushEvent(&ev);
+						}
+						else if (step.rfind("flip:", 0) == 0)
+						{
+							// flip:KEY=A|B:COUNT:MS: KEY set to A and B in turn COUNT times, MS apart, each applied at once
+							std::string r = step.substr(5);
+							size_t eq = r.find('='), bar = r.find('|'), c1 = r.find(':', bar), c2 = r.find(':', c1 + 1);
+							if (eq != std::string::npos && bar != std::string::npos && c1 != std::string::npos && c2 != std::string::npos)
+							{
+								flipKey = r.substr(0, eq);
+								flipVals[1] = r.substr(eq + 1, bar - eq - 1);
+								flipVals[0] = r.substr(bar + 1, c1 - bar - 1);
+								flipLeft = atoi(r.c_str() + c1 + 1);
+								flipMs = (Uint32)atoi(r.c_str() + c2 + 1);
+								flipAt = SDL_GetTicks();
+							}
+						}
+						else if (step.rfind("set:", 0) == 0)
+						{
+							// set:KEY=VALUE: one setting changed as Settings would (a test's way to flip, e.g. the
+							// visualizer, without driving the pages)
+							std::string kv = step.substr(4);
+							size_t eq = kv.find('=');
+							if (eq != std::string::npos)
+							{
+								Settings s = parseSettings(serializeSettings(player.settings) + kv.substr(0, eq) + " = " + kv.substr(eq + 1) + "\n");
+								player.setSettings(s);
+								fprintf(stderr, "press: set %s\n", kv.c_str());
+							}
+							renderPending = true;
 						}
 						else if (step.rfind("level:", 0) == 0)
 						{

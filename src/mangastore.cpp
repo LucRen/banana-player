@@ -365,6 +365,8 @@ namespace bp
 		}
 		for (auto& p : progress_)
 			if (p.seriesId == from) p.seriesId = to;
+		for (auto& kv : links_)	// (a downloaded copy's link follows its series)
+			if (kv.second.seriesId == from) kv.second.seriesId = to;
 		serial_++;
 	}
 
@@ -381,6 +383,11 @@ namespace bp
 			if (taken) p.chapterId.clear();
 			else p.chapterId = it->second;
 		}
+		for (auto& kv : links_)
+		{
+			auto it = ids.find(kv.second.chapterId);
+			if (it != ids.end()) kv.second.chapterId = it->second;
+		}
 		progress_.erase(std::remove_if(progress_.begin(), progress_.end(),
 						   [](const ChapterProgress& p) { return p.chapterId.empty(); }),
 			progress_.end());
@@ -396,8 +403,16 @@ namespace bp
 		return out;
 	}
 
-	void MangaStore::setProgress(const ChapterProgress& p, bool history)
+	void MangaStore::setProgress(const ChapterProgress& in, bool history)
 	{
+		// a downloaded copy's place is its source chapter's: the series the reader had it open from (its folder's)
+		// still moves up the library, the place is kept under the source's ids
+		ChapterProgress p = in;
+		if (const LinkTo* l = linkOf(in.chapterId))
+		{
+			p.chapterId = l->chapterId;
+			p.seriesId = l->seriesId;
+		}
 		ChapterProgress* e = nullptr;
 		for (auto& o : progress_)
 			if (o.chapterId == p.chapterId)
@@ -433,7 +448,7 @@ namespace bp
 			e->hidden = false;
 			// the series was read now
 			for (auto& s : series_)
-				if (s.id == p.seriesId) s.lastRead = p.at;
+				if (s.id == p.seriesId || s.id == in.seriesId) s.lastRead = p.at;
 		}
 		trimProgress();
 		serial_++;
@@ -450,8 +465,63 @@ namespace bp
 			for (size_t i = 0; i < progress_.size(); i++) progIdx_.emplace(progress_[i].chapterId, i);
 			progIdxDirty_ = false;
 		}
-		auto it = progIdx_.find(chapterId);
+		auto it = progIdx_.find(canonicalChapter(chapterId));
 		return it == progIdx_.end() ? nullptr : &progress_[it->second];
+	}
+
+	const MangaStore::LinkTo* MangaStore::linkOf(const std::string& chapterId) const
+	{
+		if (links_.empty()) return nullptr;
+		auto it = links_.find(chapterId);
+		return it == links_.end() ? nullptr : &it->second;
+	}
+
+	const std::string& MangaStore::canonicalChapter(const std::string& chapterId) const
+	{
+		const LinkTo* l = linkOf(chapterId);
+		return l ? l->chapterId : chapterId;
+	}
+
+	MangaStore::Link MangaStore::linkChapter(const std::string& path, const std::string& chapterId, const std::string& seriesId)
+	{
+		if (path.empty() || chapterId.empty() || seriesId.empty() || path == chapterId) return Link::Same;
+		auto it = links_.find(path);
+		if (it != links_.end() && it->second.chapterId == chapterId && it->second.seriesId == seriesId) return Link::Same;
+		if (it == links_.end() && links_.size() >= MAX_PROGRESS) return Link::Same;	// (bounded, as the files are)
+		links_[path] = LinkTo{chapterId, seriesId};
+		serial_++;
+		// a place kept under the path (read before the link was known): it becomes the source chapter's
+		auto pi = std::find_if(progress_.begin(), progress_.end(), [&](const ChapterProgress& o) { return o.chapterId == path; });
+		if (pi == progress_.end()) return Link::Linked;
+		auto ci = std::find_if(progress_.begin(), progress_.end(), [&](const ChapterProgress& o) { return o.chapterId == chapterId; });
+		progIdxDirty_ = true;
+		if (ci == progress_.end())
+		{
+			pi->chapterId = chapterId;
+			pi->seriesId = seriesId;
+			return Link::Moved;
+		}
+		// both: the later place wins, a read mark from either stays, and the row stays in the History while either is
+		ChapterProgress& a = *ci;
+		const ChapterProgress& b = *pi;
+		if (b.at > a.at)
+		{
+			a.page = b.page;
+			a.within = b.within;
+			a.at = b.at;
+			if (b.pages > 0) a.pages = b.pages;
+			if (!b.chapterTitle.empty()) a.chapterTitle = b.chapterTitle;
+		}
+		else
+		{
+			if (a.pages <= 0) a.pages = b.pages;
+			if (a.chapterTitle.empty()) a.chapterTitle = b.chapterTitle;
+		}
+		a.read = a.read || b.read;
+		a.hidden = a.hidden && b.hidden;
+		a.seriesId = seriesId;
+		progress_.erase(pi);
+		return Link::Merged;
 	}
 
 	std::vector<ChapterProgress> MangaStore::continueReading(int max) const
@@ -521,9 +591,11 @@ namespace bp
 
 	void MangaStore::markRead(const std::string& seriesId, const std::vector<std::string>& chapterIds, bool read)
 	{
-		for (const auto& id : chapterIds)
+		for (const auto& given : chapterIds)
 		{
-			if (id.empty()) continue;
+			if (given.empty()) continue;
+			const LinkTo* l = linkOf(given);
+			const std::string& id = l ? l->chapterId : given;
 			ChapterProgress* e = nullptr;
 			for (auto& o : progress_)
 				if (o.chapterId == id)
@@ -535,7 +607,7 @@ namespace bp
 			{
 				// a chapter never opened becomes a record of, so it counts as unread until it is marked read
 				ChapterProgress p;
-				p.seriesId = seriesId;
+				p.seriesId = l ? l->seriesId : seriesId;
 				p.chapterId = id;
 				p.read = read;
 				progress_.push_back(p);
@@ -574,16 +646,24 @@ namespace bp
 	{
 		if (chapterIds.empty()) return 0;
 		// one pass over the chapters, so a long chapter list doesn't walk the whole store for every id
-		std::unordered_set<std::string> want(chapterIds.begin(), chapterIds.end());
+		// a downloaded copy's own place is its source chapter's, kept under that series: it counts for this one too
+		std::unordered_set<std::string> want, linked;
+		for (const auto& id : chapterIds)
+		{
+			const LinkTo* l = linkOf(id);
+			want.insert(l ? l->chapterId : id);
+			if (l) linked.insert(l->chapterId);
+		}
 		std::unordered_set<std::string> read;
 		for (const auto& p : progress_)
 		{
 			// a chapter of another series isn't this one's, so it isn't read for this series either
-			if (p.read && want.count(p.chapterId) && (p.seriesId.empty() || p.seriesId == seriesId)) read.insert(p.chapterId);
+			if (p.read && want.count(p.chapterId) && (p.seriesId.empty() || p.seriesId == seriesId || linked.count(p.chapterId)))
+				read.insert(p.chapterId);
 		}
 		int n = 0;
 		for (const auto& id : chapterIds)
-			if (!read.count(id)) n++;
+			if (!read.count(canonicalChapter(id))) n++;
 		return n;
 	}
 

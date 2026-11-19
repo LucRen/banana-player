@@ -533,36 +533,48 @@ Songs show their title, artist and album on the top screen. While a song plays:
   grid of tiles (the same fifteen, in the same order, on Settings' Visualizer style row). The tile in use is filled in
   the theme's accent; the cursor is an accent edge. The styles: **Peaks** (default: 64 bars in the theme's accent,
   bass on the left, each with a cap in the theme's text colour that stays at the bar's highest point and slowly falls
-  back, over a faint grid), **Mirror bars** (the spectrum's bars growing up and down from a faint centre line),
-  **Pocket console** (Peaks on an old handheld's screen: 15 bars of chunky dots in four shades, with falling caps;
-  alone, the title is in the same ink in pixel type. In Yellow the old handheld's greens; in another theme four shades
-  of its accent on a screen tinted with it), **Night city** (a skyline whose windows light up with the music; in a
-  theme but Yellow its sky, buildings, windows and moon take the theme's colours), **Horizon** (the spectrum as a
+  back, over a faint grid), **Ribbon** (the spectrum as one smooth glowing line, bass to treble, a soft fade beneath
+  it and a slower line behind showing where the song has been sitting), **Mirror bars** (the spectrum's bars growing
+  up and down from a faint centre line), **Pocket console** (Peaks on an old handheld's screen: 15 bars of chunky dots
+  in four shades, with falling caps; alone, the title is in the same ink in pixel type. In Yellow the old handheld's
+  greens; in another theme four shades of its accent on a screen tinted with it), **Horizon** (the spectrum as a
   mirrored skyline, the bass in the middle, on a horizon line with a low sun behind and a striped reflection below),
-  **Aurora** (northern lights over a snowy ridge), **Dots** (a dot-matrix spectrum: columns of round dots lit from
-  the bottom over a faint grid of unlit ones), **Steps** (the spectrum as a 20-step staircase outline, faintly filled
-  beneath, with a slow line holding each step's peak), **Barcode** (96 full-height hairlines, each lighting from faint
-  to the full accent with its band), **Rings** (ten rings round a dot, the bass at the centre and the treble at the
-  rim, each thickening with its band; a quiet one leaves its faint guide), **Banana dancer** (a pixel banana dancing
-  on a disco floor whose colours keep running round the rainbow: bass bounces it, the mids wave its arms), **Pixel
-  sea** (moonlit waves and a little sailboat), **Jelly wobble** (a worried jelly squashing on the bass), **Washing
-  machine** (shaking and walking on the bass, socks and a duck tumbling) or **Tube man** (an inflatable tube man
-  dancing faster with the music). The bar styles' bars stand out from their neighbours, so the spectrum has peaks and
-  valleys. Every style measures the music evened out (only for the picture: the sound is untouched), so a quiet song
-  moves it about as much as a loud one, the treble side is lively too, and silence stays still. With Art +
-  visualizer, every style is drawn along the bottom of the screen, under the art, which it never covers, on the
-  theme's ground. Peaks, Mirror bars, Horizon, Dots, Steps, Barcode and Rings are drawn in the theme's colours
-  (accent, text, dim and button) on its ground, and the song's lines over them alone are in the theme's colours too.
-  Earlier styles no longer offered: Circle, Sound garden, Bubble tea and Long cat (and Area and Radial, offered for a
-  day) read as the style in their place (Mirror bars, Horizon, Dots, Steps); Wave, Levels, Campfire, Bunny hop,
-  Fishbowl, Vibing cat, Popcorn machine, Jellyfish, Music box, coral Peaks, Hi-fi LED, Synthwave, Banana stack,
-  Heartbeat, Oscilloscope, Turntable, Disco ball, Bars, Waves, Spectrum and Lite read as Peaks. The **D-pad** moves over both groups (DOWN from a mode to the style under
+  **Grid** (a floor in perspective: the front ridge is the spectrum now, bass in the middle, and each ridge behind it
+  a moment ago, rolling to the horizon and fading), **Starfield** (stars streaming out of the middle: quiet passages
+  drift, loud ones rush, each star stretching into a streak), **Strings** (eight strings across the screen, the thick
+  bass one at the foot, each vibrating as wide as its band is loud, the blur of its swing behind it), **Helix** (two
+  strands of beads twisting round each other, bass at the left: a bead swells with its band and the twist turns faster
+  as the song gets louder), **Sparks** (small lights lifting off the foot where the music is, a louder band sending
+  more and higher, and a brighter handful on each beat), **Bouncy keys** (a keyboard whose keys rise with their
+  bands, and a ball hopping from key to key, a hop a beat, toward a loud key, which dips and lights as it lands),
+  **Rocket** (a little rocket flying right, its flame growing with the bass, its smoke trail the spectrum, the stars
+  streaking past faster as the song gets louder; with Art + visualizer the rocket stays in the band and its stars
+  streak over the whole screen behind the art), **Rain check** (rain falling where the music is, heavier under the
+  loud bands; alone someone waits it out under an umbrella that bobs with the bass, with the art the rain bounces off
+  the cover), **Sleepy moon** (a moon that dozes through quiet passages breathing out Zs and wakes when the song gets
+  loud, rays out, stars twinkling with the treble over a cloud bank that is the spectrum; with the art a smaller moon
+  at the top right) or **Dance line** (twelve tiny dancers, one a band, jumping as high as their band is loud, the
+  line swaying in time). The bar styles' bars stand out from their neighbours, so the
+  spectrum has peaks and valleys; silence stays still. With Art + visualizer, every style is drawn along the bottom of
+  the screen, under the art, on the theme's ground, except **Sparks**, **Starfield**, **Rain check** and **Sleepy moon**, which fill the whole screen
+  behind the art and the song's lines (they pass behind them, never over them; so does Rocket's starfield), the art and lines then centred on
+  the screen as on Album art only. All fifteen are drawn by the player, not
+  mpv, at the Visualizer frame rate setting, in the theme's colours (a theme change recolours them at once):
+  switching among them, or to None and back, never interrupts the sound. The song's lines are drawn over the
+  visualizer with no box behind them (the shapes pass under the text, which keeps an outline in the theme's
+  background colour so it stays readable); only a volume or other card keeps the shapes off its place. A song from a network folder shows its style still (flat: the
+  player reads only local files for the visualizer). Nothing on the top screen is drawn by a filter graph any more:
+  mpv only plays the song's sound, so changing the mode or the style never reopens it. Earlier styles no longer offered (Night city, Aurora, Dots, Steps, Barcode, Rings, Banana
+  dancer, Pixel sea, Jelly wobble, Washing machine, Tube man, and the older Circle, Sound garden, Bubble tea, Long
+  cat, Area, Radial, Wave, Levels, Campfire, Bunny hop, Fishbowl, Vibing cat, Popcorn machine, Jellyfish, Music box,
+  coral Peaks, Hi-fi LED, Synthwave, Banana stack, Heartbeat, Oscilloscope, Turntable, Disco ball, Bars, Waves,
+  Spectrum and Lite) read as Peaks. The **D-pad** moves over both groups (DOWN from a mode to the style under
   it, UP back), and moving changes nothing: **A** (or a tap) sets the mode or the style, and the top screen follows at
   once. **SELECT** steps the mode (Album art only → Art + visualizer → Visualizer only → None), **L** / **R** the tabs,
   **B** closes. The art is a square with rounded corners and a thin edge: 240 units on Album art only, 224 above the
   visualizer on Art + visualizer. A song without art shows a placeholder in the art's place (a colour wheel with a note on it), in
   the same layout: the mode you chose is the mode you see. Album art can be inside the song file or a `cover.jpg` in
-  the same folder.
+  the same folder. A song with no cover shows a flat **record in its sleeve** in the theme's colours (on the top screen, by the artist line on the player page and on the dashboard's covers), placed one of four ways by the album's name so a grid of them is not one drawing repeated.
 - **Y: List**, as on a video: **Up next**, and **Chapters** when the song or audiobook has them (**L2** / **R2** jump
   from either tab); a tap on the chapter line above the progress bar opens its **Chapters** tab. **Shuffle**'s switch
   and **Repeat** Off / All / One are in the sheet's header, and the song's fourth chip is a **Shuffle** switch of its own.
@@ -576,19 +588,29 @@ Songs show their title, artist and album on the top screen. While a song plays:
   from the web, and after a restart. The web sets them separately. They apply to videos as to songs, from the same
   List sheet (a video's **Repeat** chip opens it; a song's **Shuffle** chip turns Shuffle on or off).
 
+**Long titles move** (the Title marquee): a title too long for its place is drawn from its start, its end fading
+into the ground, and after 1.5 s moves left until its end shows, rests, fades back to its start and, 3 s later, does
+it once more; then it rests at its start. It does this for the player's title (a song or a video), the song's title on the top screen (every Show mode; artist and album stay cut with "…") and the focused row
+of a list (one pass, once the cursor has rested on it). The mini bar's title stays still, cut with "…". One title moves at a time on a screen; a sheet or menu over it
+holds it at its start, and it starts again on a new title, when the page opens or the screen wakes. A title that
+doesn't fit also leaves out a start it shares with its artist, album, folder or playing list ("Yellow Album - 03 -
+Sunny Peel" shows "03 - Sunny Peel") when that start ends at " - ", ": ", " | " or "_" and three letters or more are
+left; lists, Search and Info keep the whole name. **Settings › Power & screens › Scroll long titles** (On by default):
+Off cuts long titles with "…" as before.
+
 Settings › Music has the same two choices as **Music display** and **Visualizer style**. The song's title, artist and
 album (with its year) are always on the top screen (there is no setting), each line cut with "…" if it's too long.
 With Album art only, Art + visualizer and None the top screen takes the theme: its ground is the theme's background (light
-in a light theme) and the lines are in its text colours; Peaks alone (Visualizer only) is drawn on it too. The other
-styles alone keep their own picture, with the lines in white with a shadow. With the art (Album art only, Art + visualizer) the art moves left (240 units; 224 above the band) and the three
+in a light theme) and the lines are in its text colours; every style alone (Visualizer only) is drawn on it too. With the art (Album art only, Art + visualizer) the art moves left (240 units; 224 above the band) and the three
 lines sit to its right, centred on the art's middle; the art and the lines are centred together on their real width, so
 a short title doesn't leave them hugging the left, and nothing is ever written over the art. Over Visualizer only the
-lines are at the top left, with a shadow (Pocket console: in its own green pixel type). An audiobook's or a song's
+lines are at the top left, outlined in the theme's background colour (Pocket console: in its own green pixel type,
+outlined in its screen's colour), with the visualizer passing under them; a long title's moving line fades at its
+edges by the text itself fading, not by a band of background over the visualizer. An audiobook's or a song's
 chapter is a line in the accent under the title. **None** shows the title in the middle (then "artist · album"). **Visualizer frame
-rate** (30, 45 or 60 fps; 45 by default) is how often the styles drawn at 60 (Pocket console and the pixel-art scenes)
-draw: everything moves at the same speed at any rate, only less smoothly at 30, which leaves the handheld more time
-for the sound. Peaks draws 30 a second at any setting. A style comes up quicker from the second time it's
-used: its lookup tables are worked out once in the background and kept beside the settings.
+rate** (30, 45 or 60 fps; 45 by default) is how often the styles draw (each frame on a steady beat of its own,
+not when the sound's analysis happens to be ready): everything moves at the same speed at any rate, only less
+smoothly at 30, which leaves the handheld more time for the sound.
 
 ## Sound: equalizer and effects
 
@@ -977,7 +999,8 @@ pick up. It is the handheld's Home Recent strip, in the browser.
   installed sources stay), and the handheld's note under the card — then **Installed** (**Update** when there's one,
   the bin to uninstall, which asks first) and **Available** (**Install**). Adult sources are left out unless **Adult
   sources** is **Shown**.
-- **Downloads**: the queue — each chapter with its pages done, pause or resume one, delete one, **Pause all** /
+- **Downloads**: the queue — each chapter with its pages done, pause or resume one, **Y** removes a failed or queued
+  one (again to confirm), **Clear failed** removes every failed chapter and its partial pages, **Pause all** /
   **Resume all**, and a **Low on card space** note when the card is nearly full. Downloads are started here too, from
   a series' chapter list in **Library**; with none queued the page reads **Queue chapters from a series page**.
 
@@ -1179,11 +1202,15 @@ card**.
 
 **Downloads.** The storage line says what the downloads take and the card's free space. While something is queued, the
 queue comes next: each chapter's series, chapter and pages done of total over a progress line, **X** pauses or resumes
-the one under the cursor, and a **Pause all / Resume all** row stops or starts the queue. With nothing queued that room
+the one under the cursor, **Y** removes a failed or queued chapter after a second press, and a **Pause all / Resume all**
+row stops or starts the queue; its right end, **Clear failed**, takes every failed chapter and the partial pages it
+left (offered while one has failed). With nothing queued that room
 collapses to one dim **Nothing queued** line, and **On the card · N series** and its rows rise right under it, as many
 series as fit above the hints line. What is on the card is listed by series, with its chapters and size; **A** lists a
 series' chapters (and **A** on one reads it), **X** deletes a chapter or a series after a second press. Downloads need
-the network and resume where they stopped after a pause, a lost connection or a quit.
+the network and resume where they stopped after a pause, a lost connection or a quit. A downloaded chapter and its
+online chapter share one place, read mark and History row, whichever way it is opened (Browse, Downloads or *On this
+handheld*).
 
 **Reading.** A chapter opens on the top screen; the bottom screen holds the controls: the chapter and the series, the
 page number, the slider, the two chapter buttons and the mode. The big area says *Swipe here to turn the page* (or *Drag
@@ -1345,7 +1372,7 @@ combination instead.)
 - **Chapter and Equalizer cards:** the same spot and body, a small label over the value in yellow ("Chapter 3 of 8" over
   its title, with a segment bar of the chapters; "Equalizer" over "Rock · On").
 - **Notes:** the short messages ("Added to Liked", "Speed 1.5×", "This is the first one", ...) are one card at the
-  bottom centre of the top screen: a line in yellow (red for a failure), an optional icon and dim second line; 3 s.
+  bottom centre of the top screen (over a video in the middle instead, for 1.5 s, off the subtitles and the level card): a line in yellow (red for a failure), an optional icon and dim second line; 3 s.
 - **Playing in a browser, Loading, Buffering:** one state card: a tile with an icon (the spinner while loading), a
   title, a line, and a hint with its key cap.
 - **Loading:** a file that takes a moment to open (a big photo, a slow card) shows a spinner on the top screen.

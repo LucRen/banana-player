@@ -15,14 +15,14 @@
 
 <table>
   <tr>
-    <td align="center" width="33%"><img src="docs/img/screen-browser.png?v=0.7.11b" alt="The Movies folder on the bottom screen, showing where you left off in a film"><br><sub><b>Your files</b>, and where you left off</sub></td>
-    <td align="center" width="33%"><img src="docs/img/screen-playing.png?v=0.7.11b" alt="Big Buck Bunny playing on the top screen with a subtitle, the controls on the bottom"><br><sub><b>Movies</b> with chapters, subtitles and audio tracks</sub></td>
-    <td align="center" width="33%"><img src="docs/img/screen-music.png?v=0.7.11b" alt="A song with its album art inside the Circle visualizer"><br><sub><b>Music</b> with album art and a visualizer</sub></td>
+    <td align="center" width="33%"><img src="docs/img/screen-browser.png?v=0.7.34" alt="The Movies folder in the Dark theme, a film marked with where you left off"><br><sub><b>Your files</b>, and where you left off</sub></td>
+    <td align="center" width="33%"><img src="docs/img/screen-playing.png?v=0.7.34" alt="Big Buck Bunny playing in the Midnight blue theme, a subtitle on the top screen and the redesigned player with chapters and track buttons below"><br><sub><b>Movies</b> with chapters, subtitles and audio tracks</sub></td>
+    <td align="center" width="33%"><img src="docs/img/screen-music.png?v=0.7.34" alt="A song in the light Sakura theme: its album art with the Ribbon visualizer under it on the top screen"><br><sub><b>Music</b> with album art and a visualizer</sub></td>
   </tr>
   <tr>
-    <td align="center"><img src="docs/img/screen-sound.png?v=0.7.11b" alt="The 10-band equalizer on the bottom screen, set to Rock, under a song with the Circle visualizer"><br><sub><b>A 10-band equalizer</b> and room effects</sub></td>
-    <td align="center"><img src="docs/img/screen-photo.png?v=0.7.11b" alt="A Big Buck Bunny still zoomed in on the top screen, the pan area on the bottom"><br><sub><b>Photos</b> you can zoom and explore</sub></td>
-    <td align="center"><img src="docs/img/screen-manga.png?v=0.7.11b" alt="A colour manga page across both screens: a late night at the desk, tea brought in, and a moment to rest"><br><sub><b>Manga</b> across both screens</sub></td>
+    <td align="center"><img src="docs/img/screen-sound.png?v=0.7.34" alt="The 10-band equalizer in the Dark purple theme, set to Rock, under a song with the Peaks visualizer"><br><sub><b>A 10-band equalizer</b> and room effects</sub></td>
+    <td align="center"><img src="docs/img/screen-photo.png?v=0.7.34" alt="A Big Buck Bunny still zoomed in on the top screen in the Light theme, the pan area on the bottom"><br><sub><b>Photos</b> you can zoom and explore</sub></td>
+    <td align="center"><img src="docs/img/screen-manga.png?v=0.7.34" alt="A colour manga page across both screens in the Yellow theme: a late night at the desk, tea brought in, and a moment to rest"><br><sub><b>Manga</b> across both screens</sub></td>
   </tr>
 </table>
 
@@ -41,36 +41,29 @@
 
 ## Visualizers
 
-Twenty looks for your music, picked with **SELECT** while a song plays. Each one also works over the album art.
+Fifteen looks for your music, drawn in your theme's colours, picked on **View › Display** (**SELECT**) while a song plays. Each one also works with the album art.
 
 <table>
   <tr>
-    <td align="center" width="20%"><img src="docs/img/viz/peaks-yellow.jpg?v=0.7.14" alt="The Peaks visualizer"><br><sub>Peaks</sub></td>
-    <td align="center" width="20%"><img src="docs/img/viz/circle.jpg?v=0.7.14" alt="The Circle visualizer"><br><sub>Circle</sub></td>
-    <td align="center" width="20%"><img src="docs/img/viz/pocket.jpg?v=0.7.14" alt="The Pocket console visualizer"><br><sub>Pocket console</sub></td>
-    <td align="center" width="20%"><img src="docs/img/viz/night-city.jpg?v=0.7.14" alt="The Night city visualizer"><br><sub>Night city</sub></td>
-    <td align="center" width="20%"><img src="docs/img/viz/banana-dancer.jpg?v=0.7.14" alt="The Banana dancer visualizer"><br><sub>Banana dancer</sub></td>
+    <td align="center" width="20%"><img src="docs/img/viz/peaks-yellow.jpg?v=0.7.34" alt="The Peaks visualizer in the Yellow theme"><br><sub>Peaks</sub></td>
+    <td align="center" width="20%"><img src="docs/img/viz/ribbon.jpg?v=0.7.34" alt="The Ribbon visualizer in the Sakura theme"><br><sub>Ribbon</sub></td>
+    <td align="center" width="20%"><img src="docs/img/viz/mirror-bars.jpg?v=0.7.34" alt="The Mirror bars visualizer in the Midnight blue theme"><br><sub>Mirror bars</sub></td>
+    <td align="center" width="20%"><img src="docs/img/viz/pocket.jpg?v=0.7.34" alt="The Pocket console visualizer in the Retro green theme"><br><sub>Pocket console</sub></td>
+    <td align="center" width="20%"><img src="docs/img/viz/horizon.jpg?v=0.7.34" alt="The Horizon visualizer in the Sunset theme"><br><sub>Horizon</sub></td>
   </tr>
   <tr>
-    <td align="center" width="20%"><img src="docs/img/viz/campfire.jpg?v=0.7.14" alt="The Campfire visualizer"><br><sub>Campfire</sub></td>
-    <td align="center" width="20%"><img src="docs/img/viz/aurora.jpg?v=0.7.14" alt="The Aurora visualizer"><br><sub>Aurora</sub></td>
-    <td align="center" width="20%"><img src="docs/img/viz/sound-garden.jpg?v=0.7.14" alt="The Sound garden visualizer"><br><sub>Sound garden</sub></td>
-    <td align="center" width="20%"><img src="docs/img/viz/pixel-sea.jpg?v=0.7.14" alt="The Pixel sea visualizer"><br><sub>Pixel sea</sub></td>
-    <td align="center" width="20%"><img src="docs/img/viz/bunny-hop.jpg?v=0.7.14" alt="The Bunny hop visualizer"><br><sub>Bunny hop</sub></td>
+    <td align="center" width="20%"><img src="docs/img/viz/grid.jpg?v=0.7.34" alt="The Grid visualizer in the Dark purple theme"><br><sub>Grid</sub></td>
+    <td align="center" width="20%"><img src="docs/img/viz/starfield.jpg?v=0.7.34" alt="The Starfield visualizer in the Dark theme"><br><sub>Starfield</sub></td>
+    <td align="center" width="20%"><img src="docs/img/viz/strings.jpg?v=0.7.34" alt="The Strings visualizer in the Light theme"><br><sub>Strings</sub></td>
+    <td align="center" width="20%"><img src="docs/img/viz/helix.jpg?v=0.7.34" alt="The Helix visualizer in the Mint theme"><br><sub>Helix</sub></td>
+    <td align="center" width="20%"><img src="docs/img/viz/sparks.jpg?v=0.7.34" alt="The Sparks visualizer in the Coffee theme"><br><sub>Sparks</sub></td>
   </tr>
   <tr>
-    <td align="center" width="20%"><img src="docs/img/viz/bubble-tea.jpg?v=0.7.14" alt="The Bubble tea visualizer"><br><sub>Bubble tea</sub></td>
-    <td align="center" width="20%"><img src="docs/img/viz/jellyfish.jpg?v=0.7.14" alt="The Jellyfish visualizer"><br><sub>Jellyfish</sub></td>
-    <td align="center" width="20%"><img src="docs/img/viz/music-box.jpg?v=0.7.14" alt="The Music box visualizer"><br><sub>Music box</sub></td>
-    <td align="center" width="20%"><img src="docs/img/viz/fishbowl.jpg?v=0.7.14" alt="The Fishbowl visualizer"><br><sub>Fishbowl</sub></td>
-    <td align="center" width="20%"><img src="docs/img/viz/vibing-cat.jpg?v=0.7.14" alt="The Vibing cat visualizer"><br><sub>Vibing cat</sub></td>
-  </tr>
-  <tr>
-    <td align="center" width="20%"><img src="docs/img/viz/popcorn-machine.jpg?v=0.7.14" alt="The Popcorn machine visualizer"><br><sub>Popcorn machine</sub></td>
-    <td align="center" width="20%"><img src="docs/img/viz/jelly-wobble.jpg?v=0.7.14" alt="The Jelly wobble visualizer"><br><sub>Jelly wobble</sub></td>
-    <td align="center" width="20%"><img src="docs/img/viz/tube-man.jpg?v=0.7.14" alt="The Tube man visualizer"><br><sub>Tube man</sub></td>
-    <td align="center" width="20%"><img src="docs/img/viz/long-cat.jpg?v=0.7.14" alt="The Long cat visualizer"><br><sub>Long cat</sub></td>
-    <td align="center" width="20%"><img src="docs/img/viz/washing-machine.jpg?v=0.7.14" alt="The Washing machine visualizer"><br><sub>Washing machine</sub></td>
+    <td align="center" width="20%"><img src="docs/img/viz/bouncy-keys.jpg?v=0.7.34" alt="The Bouncy keys visualizer in the 16-bit theme"><br><sub>Bouncy keys</sub></td>
+    <td align="center" width="20%"><img src="docs/img/viz/rocket.jpg?v=0.7.34" alt="The Rocket visualizer in the Midnight blue theme"><br><sub>Rocket</sub></td>
+    <td align="center" width="20%"><img src="docs/img/viz/rain-check.jpg?v=0.7.34" alt="The Rain check visualizer in the 32-bit theme"><br><sub>Rain check</sub></td>
+    <td align="center" width="20%"><img src="docs/img/viz/sleepy-moon.jpg?v=0.7.34" alt="The Sleepy moon visualizer in the Dark red theme"><br><sub>Sleepy moon</sub></td>
+    <td align="center" width="20%"><img src="docs/img/viz/dance-line.jpg?v=0.7.34" alt="The Dance line visualizer in the Pink theme"><br><sub>Dance line</sub></td>
   </tr>
 </table>
 
@@ -81,7 +74,7 @@ Store keeps it up to date with each release.
 
 **Or by hand, on the Ports shelf:**
 
-1. **Download** `BananaPlayer-0.7.32-aarch64.zip` from the [latest release](https://github.com/tonywei92/banana-player/releases/tag/v0.7.32).
+1. **Download** `BananaPlayer-0.7.34-aarch64.zip` from the [latest release](https://github.com/tonywei92/banana-player/releases/tag/v0.7.34).
 2. **Unzip it into `roms/ports`** on your SD card. You should see `Banana Player.sh`, a `BananaPlayer` folder and a
    `media` folder there.
 3. **Open the Ports shelf** on the handheld and choose **Banana Player**.

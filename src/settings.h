@@ -24,8 +24,8 @@ namespace bp
 	// the page cache's cap as its row offers it (100 MB, 300 MB, 1 GB), the default, and the bytes of one
 	constexpr int MANGA_CACHES = 3, MANGA_CACHE_DEFAULT = 2;	// 1 GB: the least recently read pages go past it
 	uint64_t mangaCacheBytes(int v);
-	// Music on the top panel: its album art (embedded, or cover.jpg beside it), a visualizer drawn from the sound by
-	// FFmpeg's filters, or the art with the visualizer over its lower part; a song with no art shows the visualizer
+	// Music on the top panel: its album art (embedded, or cover.jpg beside it), a visualizer drawn by the player
+	// (src/viznative.h; no filter graph since 2026-11-19), or the art with the visualizer along its foot; a song with no art shows the visualizer
 	// whatever this says. The title, artist and album over either.
 	// None: neither, the title alone on black (the lightest)
 	enum MusicShow { SHOW_ART, SHOW_BOTH, SHOW_VIS, SHOW_NONE, SHOWS };
@@ -50,10 +50,14 @@ namespace bp
 		VIS_SYNTHWAVE, VIS_BANANA_STACK, VIS_CITY, VIS_SCOPE, VIS_HEART, VIS_FIRE, VIS_AURORA, VIS_GARDEN, VIS_VINYL, VIS_SEA, VIS_BUNNY, VIS_BOBA,
 		VIS_JELLY, VIS_MUSICBOX, VIS_FISHBOWL, VIS_DISCO, VIS_DANCER, VIS_CAT, VIS_POPCORN, VIS_WOBBLE, VIS_TUBEMAN,
 		VIS_LONGCAT, VIS_WASHER, VIS_MIRROR, VIS_WAVE, VIS_DOTS, VIS_LEVELS, VIS_AREA, VIS_RADIAL, VIS_HORIZON,
-		VIS_STEPS, VIS_BARCODE, VIS_RINGS, VISUALIZERS };
-	// the owner's final list (2026-11-19), in its order
-	constexpr int VIS_SHOWN[] = {VIS_PEAKS_BANANA, VIS_MIRROR, VIS_POCKET, VIS_CITY, VIS_HORIZON, VIS_AURORA, VIS_DOTS, VIS_STEPS,
-		VIS_BARCODE, VIS_RINGS, VIS_DANCER, VIS_SEA, VIS_WOBBLE, VIS_WASHER, VIS_TUBEMAN};
+		VIS_STEPS, VIS_BARCODE, VIS_RINGS, VIS_RIBBON, VIS_GRID, VIS_STARFIELD, VIS_STRINGS, VIS_HELIX, VIS_SPARKS,
+		VIS_BOUNCY, VIS_ROCKET, VIS_RAIN, VIS_MOON, VIS_DANCE, VISUALIZERS };
+	// the owner's final ten (2026-11-19) and the five fun ones after them, in its order, all drawn by the player
+	// (src/viznative.h, no mpv graph). The others are commented out of the list, their code kept so they can come
+	// back: a setting naming one reads as Peaks
+	constexpr int VIS_SHOWN[] = {VIS_PEAKS_BANANA, VIS_RIBBON, VIS_MIRROR, VIS_POCKET, VIS_HORIZON, VIS_GRID, VIS_STARFIELD, VIS_STRINGS,
+		VIS_HELIX, VIS_SPARKS, VIS_BOUNCY, VIS_ROCKET, VIS_RAIN, VIS_MOON, VIS_DANCE /* , VIS_CITY, VIS_AURORA, VIS_DOTS, VIS_STEPS, VIS_BARCODE, VIS_RINGS, VIS_DANCER, VIS_SEA, VIS_WOBBLE,
+		VIS_WASHER, VIS_TUBEMAN */};
 	constexpr int VIS_SHOWN_COUNT = (int)(sizeof(VIS_SHOWN) / sizeof(VIS_SHOWN[0]));
 	// a visualizer's place in VIS_SHOWN (a hidden one: the first offered, Peaks, at 0)
 	int visualizerSlot(int v);
@@ -145,6 +149,7 @@ namespace bp
 		bool showHiddenFolders = false;
 		// the battery's percent beside its icon on the bottom panel (the icon is always there)
 		bool batteryPercent = false;
+		bool scrollTitles = true;	// a title too long for its place moves along (the Title marquee); off: cut with "…"
 		// closing the lid while something plays: pause (false), or keep playing (BananaOS's lid sleep switched off while
 		// it plays: lidsleep_host.h)
 		bool lidKeepPlaying = false;

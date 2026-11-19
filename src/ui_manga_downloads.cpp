@@ -7,6 +7,7 @@
 #include "ui_manga.h"
 #include "cbz.h"
 #include "comicinfo.h"
+#include "mangaseriescache.h"
 #include "format.h"
 #include "playlist.h"
 #include <algorithm>
@@ -43,6 +44,11 @@ namespace bp
 			}
 			return "Chapter";
 		}
+
+		// a chapter the card holds is this one of the source's list: the number is the download's own (ComicInfo's),
+		// the title is what writeChapter put there; either can be the one that matches when a source numbers its
+		// chapters its own way
+		bool dlNumberMatches(double cardNumber, const MangaChapter& c) { return cardNumber >= 0 && c.number > 0 && cardNumber == c.number; }
 
 		std::string baseNoExt(const std::string& path)
 		{
@@ -153,6 +159,7 @@ namespace bp
 					ch.title = meta.ciTitle.empty() ? baseNoExt(name) : meta.ciTitle;
 					ch.sourceId = meta.ciSourceId;
 					ch.seriesKey = meta.ciSeriesKey;
+					ch.chapterId = meta.ciChapterId;
 					ch.number = infoNumber(meta.ciNumber);
 					if (ch.number < 0) ch.number = chapterNumber(ch.title);
 					ch.pages = meta.ciPageCount > 0 ? meta.ciPageCount : std::max(0, meta.pages);
@@ -188,6 +195,52 @@ namespace bp
 			mdlLocal++;
 		}
 		mdlCard = std::move(found);
+		mangaDlLinkCard();
+	}
+
+	void Ui::Manga::mangaDlLinkCard()
+	{
+		if (!mangaStore) return;
+		bool changed = false;
+		for (const auto& s : mdlCard)
+			for (const auto& ch : s.chapters)
+			{
+				if (!isSourceId(ch.seriesKey) || ch.sourceId.empty()) continue;	// no source to link to: its own place
+				std::string chapterId = ch.chapterId;
+				if (chapterId.empty())
+				{
+					// an older download: its source chapter found in the series' list (the page's own when it is
+					// open, else the list cached on the card), by title first, then by number
+					const std::vector<MangaChapter>* list = nullptr;
+					if (ch.seriesKey == mangaSeriesId && mangaSrcChaptersOn) list = &mangaSrcChapters;
+					else
+					{
+						auto it = mdlLinkLists.find(ch.seriesKey);
+						if (it == mdlLinkLists.end())
+						{
+							MangaSeriesCache c;
+							if (!mangaSeriesCacheRead(ui.stateDirPath, ch.seriesKey, c)) c.chapters.clear();
+							it = mdlLinkLists.emplace(ch.seriesKey, std::move(c.chapters)).first;
+						}
+						list = &it->second;
+					}
+					const MangaChapter* hit = nullptr;
+					for (const auto& c : *list)
+						if (dlChapterName(c) == ch.title) { hit = &c; break; }
+					if (!hit)
+						for (const auto& c : *list)
+							if (dlNumberMatches(ch.number, c)) { hit = &c; break; }
+					if (!hit) continue;	// not found (yet): the path keeps its own place
+					chapterId = sourceItemId(ch.sourceId, hit->key);
+				}
+				MangaStore::Link l = mangaStore->linkChapter(ch.path, chapterId, ch.seriesKey);
+				if (l == MangaStore::Link::Same || l == MangaStore::Link::Linked) continue;
+				// (logged: a place that moved between ids is otherwise invisible until a tick is missing)
+				fprintf(stderr, "manga: %s the downloaded copy's place %s into %s\n",
+					l == MangaStore::Link::Merged ? "merged" : "moved", ch.path.c_str(), chapterId.c_str());
+				changed = true;
+			}
+		if (changed) mangaDirty = true;
 	}
 
 	uint64_t Ui::Manga::mangaDlCardBytes() const
@@ -211,6 +264,15 @@ namespace bp
 		return n;
 	}
 
+	int Ui::Manga::mangaDlFailedCount() const
+	{
+		if (!mangaNet || !mangaNet->started()) return 0;
+		int n = 0;
+		for (const auto& it : mangaNet->queue().items())
+			if (it.state == DlItem::Failed) n++;
+		return n;
+	}
+
 	const Ui::Manga::MangaDlCardChapter* Ui::Manga::mangaDlCardFor(const std::string& sourceId, const std::string& seriesId,
 		const MangaChapter& c) const
 	{
@@ -220,9 +282,7 @@ namespace bp
 			for (const auto& ch : s.chapters)
 			{
 				if (ch.sourceId != sourceId || ch.seriesKey != seriesId) continue;
-				// the number is the download's own (ComicInfo's), and the title is what writeChapter put there;
-				// either can be the one that matches when a source numbers its chapters its own way
-				if (ch.number >= 0 && c.number > 0 && ch.number == c.number) return &ch;
+				if (dlNumberMatches(ch.number, c)) return &ch;
 				if (ch.title == title) return &ch;
 			}
 		return nullptr;
@@ -376,6 +436,8 @@ namespace bp
 		mdlCardCursor = mdlCardScroll = 0;
 		mdlDeletePath.clear();
 		mdlDeleteAt = 0;
+		mdlRemoveId.clear();
+		mdlRemoveAt = 0;
 		mangaDlEnsureCard(true);
 		// a chapter that finished is on the card now: its memory item would only hide a later re-download
 		if (mangaNet && mangaNet->started())
@@ -406,6 +468,8 @@ namespace bp
 		mdlCursor = mdlScroll = 0;
 		mdlDeletePath.clear();
 		mdlDeleteAt = 0;
+		mdlRemoveId.clear();
+		mdlRemoveAt = 0;
 		mdlLocal++;
 	}
 
@@ -417,6 +481,12 @@ namespace bp
 		{
 			mdlDeleteAt = 0;
 			mdlDeletePath.clear();
+			mdlLocal++;
+		}
+		if (mdlRemoveAt && now - mdlRemoveAt >= QUIT_WINDOW_MS)
+		{
+			mdlRemoveAt = 0;
+			mdlRemoveId.clear();
 			mdlLocal++;
 		}
 		if (mdlNoteUntil && now >= mdlNoteUntil) mdlNote.clear();
@@ -439,6 +509,8 @@ namespace bp
 		mdlCardCursor = mdlCardScroll = 0;
 		mdlDeletePath.clear();
 		mdlDeleteAt = 0;
+		mdlRemoveId.clear();
+		mdlRemoveAt = 0;
 		mdlLocal++;
 		return true;
 	}
@@ -514,6 +586,9 @@ namespace bp
 				{
 					if (it.state == DlItem::Done) continue;
 					if (at++ != mdlCursor) continue;
+					// the item's state is about to change: an armed Y no longer describes it
+					mdlRemoveId.clear();
+					mdlRemoveAt = 0;
 					if (it.state == DlItem::Paused) mangaNet->queue().resume(it.id);
 					else if (it.state == DlItem::Failed) mangaNet->queue().retry(it.id);
 					else if (mangaNet->downloader().status().runningId == it.id) mangaNet->downloader().cancel(it.id);
@@ -547,6 +622,8 @@ namespace bp
 				mdlCardCursor = mdlCardScroll = 0;
 				mdlDeletePath.clear();
 				mdlDeleteAt = 0;
+				mdlRemoveId.clear();
+				mdlRemoveAt = 0;
 				mdlLocal++;
 			}
 			return false;
@@ -562,6 +639,9 @@ namespace bp
 				{
 					if (it.state == DlItem::Done) continue;
 					if (at++ != mdlCursor) continue;
+					// the item's state is about to change: an armed Y no longer describes it
+					mdlRemoveId.clear();
+					mdlRemoveAt = 0;
 					if (it.state == DlItem::Paused) mangaNet->queue().resume(it.id);
 					else if (it.state == DlItem::Failed) mangaNet->queue().retry(it.id);
 					else if (mangaNet->downloader().status().runningId == it.id) mangaNet->downloader().cancel(it.id);
@@ -614,6 +694,62 @@ namespace bp
 					mdlDeleteAt = now;
 					mdlLocal++;
 				}
+			}
+			return false;
+		}
+		if (b == Button::Y)
+		{
+			if (!mangaNet || !mangaNet->started()) return false;
+			int failed = mangaDlFailedCount();
+			if (mdlCursor < q)
+			{
+				// Remove, for a failed or waiting item: two presses, as the card's delete is. A running or paused
+				// one keeps its state's action (X); its place is not lost to a stray Y.
+				auto items = mangaNet->queue().items();
+				int at = 0;
+				for (auto& it : items)
+				{
+					if (it.state == DlItem::Done) continue;
+					if (at++ != mdlCursor) continue;
+					if (it.state != DlItem::Failed && it.state != DlItem::Waiting) break;
+					Uint32 now = SDL_GetTicks();
+					if (mdlRemoveId == it.id && mdlRemoveAt && now - mdlRemoveAt < QUIT_WINDOW_MS)
+					{
+						std::string name = it.chapterTitle.empty() ? it.chapterId : it.chapterTitle;
+						mangaNet->downloader().remove(it.id);
+						p.osd("Removed " + name, 1800);
+						mdlRemoveId.clear();
+						mdlRemoveAt = 0;
+						int afterQ = mangaDlQueueCount();
+						int after = afterQ + (afterQ > 0 ? 1 : 0) + c;
+						if (mdlCursor >= after) mdlCursor = std::max(0, after - 1);
+						if (mdlScroll > std::max(0, afterQ - MDL_QSHOWN)) mdlScroll = std::max(0, afterQ - MDL_QSHOWN);
+						mdlLocal++;
+					}
+					else
+					{
+						mdlRemoveId = it.id;
+						mdlRemoveAt = now;
+						mdlLocal++;
+					}
+					break;
+				}
+				return false;
+			}
+			// Anywhere else Y clears the failed ones (the page's action, offered while one is failed)
+			if (failed)
+			{
+				mangaNet->downloader().clearFailed();
+				p.osd(failed == 1 ? "Removed the failed download"
+								  : "Removed " + std::to_string(failed) + " failed downloads",
+					1800);
+				mdlRemoveId.clear();
+				mdlRemoveAt = 0;
+				int afterQ = mangaDlQueueCount();
+				int after = afterQ + (afterQ > 0 ? 1 : 0) + c;
+				if (mdlCursor >= after) mdlCursor = std::max(0, after - 1);
+				if (mdlScroll > std::max(0, afterQ - MDL_QSHOWN)) mdlScroll = std::max(0, afterQ - MDL_QSHOWN);
+				mdlLocal++;
 			}
 			return false;
 		}
@@ -675,6 +811,28 @@ namespace bp
 		{
 			int i = mdlScroll + (y - MDL_TOP) / MDL_QROW;
 			if (i < q && (y - MDL_TOP) % MDL_QROW >= MDL_QROW - 4) i = -1;
+			// the end of a failed or queued row is its Remove (the rest of the row is still A, or a drag)
+			if (i >= 0 && i < q)
+			{
+				Rect row{16, MDL_TOP + (i - mdlScroll) * MDL_QROW, 608, MDL_QROW - 4};
+				if (mdlRemoveRect(row).hit(x, y))
+				{
+					auto items = mangaNet && mangaNet->started() ? mangaNet->queue().items() : std::vector<DlItem>();
+					int at = 0;
+					for (auto& it : items)
+					{
+						if (it.state == DlItem::Done) continue;
+						if (at++ != i) continue;
+						if (it.state == DlItem::Failed || it.state == DlItem::Waiting)
+						{
+							mdlCursor = i;
+							mangaDownloadsKey(Button::Y, p);
+							return false;
+						}
+						break;
+					}
+				}
+			}
 			ui.pageReader->mangaListBegin(x, y, mdlScroll, MDL_QROW, i < q ? i : -1, [this](int want) {
 				int q = mangaDlQueueCount();
 				mdlScroll = std::clamp(want, 0, std::max(0, q - MDL_QSHOWN));
@@ -690,7 +848,9 @@ namespace bp
 		if (q > 0 && Rect{16, MDL_ALL_Y, 608, 32}.hit(x, y))
 		{
 			mdlCursor = q;
-			mangaDownloadsKey(Button::A, p);
+			// the row's right end is Clear failed, while something has failed
+			if (mangaDlFailedCount() > 0 && mdlClearFailedRect().hit(x, y)) mangaDownloadsKey(Button::Y, p);
+			else mangaDownloadsKey(Button::A, p);
 			return false;
 		}
 		// the card's rows: right under the summary line when nothing is queued, their number following the room
@@ -1260,6 +1420,8 @@ namespace bp
 				0, DIM, 16, MDL_NOTE_Y);
 		// the queue: series, chapter, pages done of total, a progress line
 		auto items = mangaNet && mangaNet->started() ? mangaNet->queue().items() : std::vector<DlItem>();
+		int failed = mangaDlFailedCount();
+		bool atRemovable = false;
 		int shown = 0;
 		for (const auto& it : items)
 		{
@@ -1272,10 +1434,17 @@ namespace bp
 			int mid = r.y + r.h / 2;
 			std::string title = it.seriesTitle.empty() ? it.seriesId : it.seriesTitle;
 			int totalPages = (int)it.pageUrls.size();
+			bool removable = it.state == DlItem::Failed || it.state == DlItem::Waiting;
+			if (at) atRemovable = removable;
 			std::string state = it.state == DlItem::Paused ? "Paused"
 				: it.state == DlItem::Failed ? (it.error.empty() ? "Failed" : it.error)
 				: it.state == DlItem::Running ? "Downloading" : "Queued";
-			ui.drawTextMid(title, 1, at ? ACCENT : TEXT, 32, mid - 10, 520);
+			ui.drawTextMid(title, 1, at ? ACCENT : TEXT, 32, mid - 10, removable ? 470 : 520);
+			if (removable)
+			{
+				Rect rr = mdlRemoveRect(r);
+				ui.drawTextMid("Remove", 0, at ? DIM_ON : DIM, rr.x + rr.w - 8, mid - 10, rr.w - 8, 1);
+			}
 			ui.drawTextMid(it.chapterTitle + " \xC2\xB7 " + std::to_string(it.done) + "/" + std::to_string(totalPages) +
 				" pages \xC2\xB7 " + state, 0, it.state == DlItem::Failed ? DANGER : at ? DIM_ON : DIM,
 				32, mid + 10, 556);
@@ -1293,7 +1462,9 @@ namespace bp
 			if (onAll) ui.drawFocus(all);
 			ui.drawGlyphMid(paused ? G_PLAY : G_PAUSE, 40, all.y + all.h / 2, onAll ? ACCENT : DIM);
 			ui.drawTextMid(paused ? "Resume all" : "Pause all", 1, onAll ? ACCENT : TEXT, 62, all.y + all.h / 2, 400);
-			ui.drawTextMid(paused ? "all paused" : "one at a time", 0, onAll ? DIM_ON : DIM, 608, all.y + all.h / 2, 0, 1);
+			// its right end is Clear failed while one has failed, else what the queue is doing
+			if (failed) ui.drawTextMid("Clear failed", 0, onAll ? ACCENT : DIM, 608, all.y + all.h / 2, 0, 1);
+			else ui.drawTextMid(paused ? "all paused" : "one at a time", 0, onAll ? DIM_ON : DIM, 608, all.y + all.h / 2, 0, 1);
 		}
 		// what is on the card, by series: right under the summary when nothing is queued, as many rows as fit
 		ui.drawTextMid("On the card" + (c ? " \xC2\xB7 " + std::to_string(c) + " series" : ""),
@@ -1312,10 +1483,22 @@ namespace bp
 				formatBytes((long long)s.bytes), 0, at ? DIM_ON : DIM, 608, mid, 180, 1);
 		}
 		ui.drawScrollBar(cardTop, cardRows * MDL_CROW - 4, mdlCardScroll, cardRows, c);
-		if (mdlDeleteAt && mdlDeletePath.find('/') != std::string::npos)
+		if (mdlRemoveAt) ui.drawFooterText("Press Y again to remove it", ACCENT);
+		else if (mdlDeleteAt && mdlDeletePath.find('/') != std::string::npos)
 			ui.drawFooterText("Press X again to delete it", ACCENT);
-		else if (mdlCursor < q) ui.drawHints({{"X", "Pause / resume"}, {"B", "Back"}});
-		else if (q > 0 && mdlCursor == q) ui.drawHints({{"A", paused ? "Resume all" : "Pause all"}, {"B", "Back"}});
+		else if (mdlCursor < q)
+		{
+			if (atRemovable) ui.drawHints({{"X", "Pause / resume"}, {"Y", "Remove"}, {"B", "Back"}});
+			else if (failed) ui.drawHints({{"X", "Pause / resume"}, {"Y", "Clear failed"}, {"B", "Back"}});
+			else ui.drawHints({{"X", "Pause / resume"}, {"B", "Back"}});
+		}
+		else if (q > 0 && mdlCursor == q)
+		{
+			if (failed)
+				ui.drawHints({{"A", paused ? "Resume all" : "Pause all"}, {"Y", "Clear failed"}, {"B", "Back"}});
+			else ui.drawHints({{"A", paused ? "Resume all" : "Pause all"}, {"B", "Back"}});
+		}
+		else if (failed) ui.drawHints({{"A", "Chapters"}, {"X", "Delete"}, {"Y", "Clear failed"}, {"B", "Back"}});
 		else ui.drawHints({{"A", "Chapters"}, {"X", "Delete"}, {"B", "Back"}});
 	}
 
@@ -1363,6 +1546,7 @@ namespace bp
 			mdlCard.size(), (int)mdlAskOn, mdlDeleteAt != 0, mdlCardOn, (int)mdlCardStamp);
 		std::string s = buf;
 		s += "|" + mdlDeletePath + "|" + mdlNote;
+		s += "|rm" + mdlRemoveId + (mdlRemoveAt ? "1" : "0");
 		s += "|q" + std::to_string(mangaDlQueueCount());	// (the collapsed queue's room follows it)
 		s += "|a" + mdlAsk.chapterId + " " + std::to_string((unsigned long long)mdlPagesSerial) + " " +
 			std::to_string((unsigned long long)mdlImageSerial);

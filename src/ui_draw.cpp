@@ -16,6 +16,7 @@
 #include <qrcodegen.hpp>
 #endif
 #include "ui_internal.h"
+#include "songlayout.h"
 #include "ui_browse.h"
 #include "ui_playlists.h"
 #include "ui_home.h"
@@ -251,6 +252,71 @@ namespace bp
 		SDL_RenderCopy(ren, t, nullptr, &dst);
 	}
 
+	std::string Ui::playingTitle(const Player& p, const std::string& title, int size, int boxW) const
+	{
+		const int limit = (int)(boxW * sx);
+		std::vector<std::string> names;
+		for (const std::string& path : p.paths()) names.push_back(baseName(path));
+		return shownTitle(title, titleStarts(p.artist(), p.album(), p.currentPath(), names),
+			[&](const std::string& t) { return textWidth(t, size) <= limit; });
+	}
+
+	lay::MarqueeAt Ui::marqNow() const
+	{
+		return lay::marquee((int)(SDL_GetTicks() - marqMover.start), marqMover.textW, marqMover.boxW, marqMover.size, marqMover.passes);
+	}
+
+	bool Ui::marqueeMoving() const { return marqUp && panel.on() && !marqNow().done; }
+
+	void Ui::drawMarquee(const std::string& s, int size, SDL_Color c, int x, int cy, int boxW, SDL_Color ground, int passes)
+	{
+		const int textW = (int)std::ceil(textWidth(s, size) / sx);
+		if (!scrollTitles || textW <= boxW || boxW <= 16)
+		{
+			drawTextMid(s, size, c, x, cy, boxW);
+			return;
+		}
+		const int px = (int)std::lround(FONT_DEFS[size].units);
+		// held at its start under a sheet, a menu, the keyboard (and from the start again once they're gone)
+		const bool held = !overlays.empty() || ctxOpen || kbOpen || browse->playlists->pickerOpen;
+		if (held) marqStarts.clear();
+		lay::MarqueeAt m = lay::marquee(0, textW, boxW, px, passes);
+		if (!held && marqClaim != marqFrame)
+		{
+			const std::string key = std::to_string(size) + "|" + std::to_string(boxW) + "|" + std::to_string(passes) + "|" + s;
+			if (marqStarts.size() > 64) marqStarts.clear();
+			auto it = marqStarts.find(key);
+			if (it == marqStarts.end()) it = marqStarts.emplace(key, SDL_GetTicks()).first;
+			m = lay::marquee((int)(SDL_GetTicks() - it->second), textW, boxW, px, passes);
+			if (!m.done)
+			{
+				marqClaim = marqFrame;
+				marqMover = {key, textW, boxW, px, passes, it->second};
+				marqUp = true;
+			}
+		}
+		// the text in its box, moved; its fades over it in the ground's colour (4 strips of 4 units, 20..80%)
+		const int lh = (int)std::lround(FONT_DEFS[size].units);
+		const Rect box{x, cy - lh, boxW, 2 * lh};
+		SDL_Rect oldClip;
+		const bool clipped = SDL_RenderIsClipEnabled(ren);
+		SDL_RenderGetClipRect(ren, &oldClip);
+		SDL_Rect d = devRect(box);
+		SDL_RenderSetClipRect(ren, &d);
+		SDL_Texture* t = text(s, size, c);
+		if (t) SDL_SetTextureAlphaMod(t, (Uint8)std::lround(255 * std::clamp(m.alpha, 0.0f, 1.0f)));
+		drawTextAt(s, size, c, x - m.offset, cy, 0, 0, true);
+		if (t) SDL_SetTextureAlphaMod(t, 255);
+		for (int k = 0; k < 4; k++)
+		{
+			const Uint8 a = (Uint8)(255 * (k + 1) / 5);
+			SDL_Color g{ground.r, ground.g, ground.b, a};
+			if (m.fadeRight) fill({x + boxW - lay::MARQ_FADE_W + k * 4, box.y, 4, box.h}, g);
+			if (m.fadeLeft) fill({x + (3 - k) * 4, box.y, 4, box.h}, g);
+		}
+		SDL_RenderSetClipRect(ren, clipped ? &oldClip : nullptr);
+	}
+
 	void Ui::fill(Rect r, SDL_Color c)
 	{
 		SDL_SetRenderDrawBlendMode(ren, c.a < 255 ? SDL_BLENDMODE_BLEND : SDL_BLENDMODE_NONE);
@@ -433,6 +499,7 @@ namespace bp
 		if (!panel.on())
 		{
 			// black once (a computer has no backlight to switch off), then nothing drawn till it is on again
+			marqStarts.clear();	// (the Title marquee: from its start again when the panel wakes)
 			if (drawn != "off")
 			{
 				SDL_SetRenderDrawColor(ren, 0, 0, 0, 255);
@@ -505,6 +572,15 @@ namespace bp
 
 	void Ui::renderPage(const Player& p)
 	{
+		// the Title marquee: a new frame (the first title drawn claims the panel); another page: titles start again
+		marqFrame++;
+		marqUp = false;
+		if ((int)page != marqPage)
+		{
+			marqPage = (int)page;
+			marqStarts.clear();
+		}
+		scrollTitles = p.settings.scrollTitles;
 		showHidden = p.settings.showHiddenFolders;
 		SDL_SetRenderDrawColor(ren, BG.r, BG.g, BG.b, 255);
 		SDL_RenderClear(ren);

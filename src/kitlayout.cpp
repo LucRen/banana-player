@@ -610,5 +610,59 @@ namespace bp
 			c.text = {c.box.x + 14, c.box.y, c.key[0].x - 10 - (c.box.x + 14), CLIPBAR_H};
 			return c;
 		}
+
+		MarqueeAt marquee(int ms, int textW, int boxW, int fontSize, int passes)
+		{
+			MarqueeAt m;
+			const int dist = textW - boxW;
+			if (dist <= 0 || boxW <= 0)
+			{
+				m.done = true;
+				return m;
+			}
+			const int per = fontSize >= 24 ? 2 : 1;	// units a step
+			const int moveSteps = (dist + per - 1) / per, moveMs = moveSteps * 1000 / MARQ_STEPS;
+			const int pass = MARQ_REST + moveMs + MARQ_END_REST + 2 * MARQ_FADE;	// (then the gap before the next)
+			ms = std::max(0, ms);
+			int p = 0;
+			while (p < passes - 1 && ms >= pass + MARQ_GAP - MARQ_REST)
+			{
+				// (the next pass's first rest is the gap's last 1.5 s: the 3 s rest counts from the fade's end)
+				ms -= pass + MARQ_GAP - MARQ_REST;
+				p++;
+			}
+			m.fadeRight = true;
+			if (ms >= pass)
+			{
+				m.done = p >= passes - 1;
+				m.step = (p + 1) * 100000;
+				return m;	// at its start, resting (or done)
+			}
+			int t = ms - MARQ_REST;
+			int step = 0;
+			if (t >= 0)
+			{
+				step = std::min(moveSteps, t * MARQ_STEPS / 1000 + 1);
+				m.offset = std::min(dist, step * per);
+				m.offsetF = std::min((float)dist, (float)t * per * MARQ_STEPS / 1000.0f);
+				if (t >= moveMs + MARQ_END_REST)
+				{
+					// the fade back: out at its end, in at its start
+					const int f = t - moveMs - MARQ_END_REST;
+					if (f < MARQ_FADE) m.alpha = 1 - (float)f / MARQ_FADE, m.offsetF = (float)dist;
+					else
+					{
+						m.offset = 0;
+						m.offsetF = 0;
+						m.alpha = (float)(f - MARQ_FADE) / MARQ_FADE;
+					}
+					step = moveSteps + 1 + f / 25;	// (the fades in 25 ms steps)
+				}
+			}
+			m.fadeLeft = m.offset > 0;
+			m.fadeRight = m.offset < dist;
+			m.step = p * 100000 + step;
+			return m;
+		}
 	}
 }

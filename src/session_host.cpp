@@ -81,6 +81,7 @@ namespace bp
 	{
 		uint32_t now = SDL_GetTicks();
 		Intent i = in;
+		if (i.type == IntentType::Play && player) player->logPlayPressed(s.playing ? "playing" : s.index >= 0 ? "paused" : "stopped");
 		Result r = apply(s, i, now);
 		// a new item routed to the browser that the browser can't have (not served, a format it doesn't play, its tab
 		// not there): again, with the host's word (the reducer can't know, §5)
