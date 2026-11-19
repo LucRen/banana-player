@@ -81,6 +81,10 @@ namespace bp
 	// the styles drawn over the whole panel in Art + visualizer too (behind the art and the lines, kept off them by
 	// the keep-clear boxes), not in the band: Sparks and Starfield (the owner's word, 2026-11-19)
 	bool vizFullPanel(int vis);
+	// the styles that draw behind the art and its lines in Art + visualizer (kept off their boxes, not stopped at the
+	// band): the full-panel ones, and Rocket, whose stars streak across the whole panel while the rocket and its smoke
+	// stay in the band (the owner's word); the art and lines keep the band's layout for Rocket
+	bool vizBehindArt(int vis);
 	inline void vizMirrorTargets(const float* mag, const std::vector<int>& edges, int rate, int fft, float* out)
 	{
 		vizBandTargets(mag, edges, rate, fft, false, out);

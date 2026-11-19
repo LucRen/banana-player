@@ -297,7 +297,7 @@ namespace bp
 		for (const VizRect& keep : shown.nativeKeepClear()) vizCutOut(free, keep);
 		// in the band, nothing over the art's part (Grid's far ridges, Ribbon's glow reach up); Sparks and Starfield
 		// take the whole panel there, kept off the art and the lines by their boxes (nativeKeepClear)
-		if (shown.nativeBand() && !vizFullPanel(nativeState.vis)) vizCutOut(free, {0, 0, 640, 280, 0});
+		if (shown.nativeBand() && !vizBehindArt(nativeState.vis)) vizCutOut(free, {0, 0, 640, 280, 0});
 		g.Viewport(0, 0, w, h);
 		g.Disable(GL_DEPTH_TEST_);
 		g.Disable(GL_CULL_FACE_);

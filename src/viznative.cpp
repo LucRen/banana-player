@@ -146,6 +146,7 @@ namespace bp
 	}
 
 	bool vizFullPanel(int vis) { return vis == VIS_SPARKS || vis == VIS_STARFIELD || vis == VIS_RAIN || vis == VIS_MOON; }
+	bool vizBehindArt(int vis) { return vizFullPanel(vis) || vis == VIS_ROCKET; }
 
 	float vizLoudness(const float* samples, int n)
 	{
@@ -1137,9 +1138,10 @@ namespace bp
 			const float S = band ? 0.8f : 1.25f, t = (float)s.time, bass = s.bass;
 			const float rx = 640 * 0.76f, cy = y0 + h * 0.54f + std::sin(t * 2.2f) * h * 0.05f;
 			const float v = 1.5f + 16 * s.loudShown;
+			// (the stars over the whole panel in Art + visualizer too, behind the art and its lines)
 			for (const auto& q : s.streaks)
 			{
-				const float yy = y0 + 8 + q.y * (h - 16);
+				const float yy = band ? 8 + q.y * (480 - 16) : y0 + 8 + q.y * (h - 16);
 				std::vector<float> p = {q.x, yy, q.x + 2 + v * q.sp * 1.6f, yy};
 				polyline(out, p, 1.5f + q.sp, VI_DIM, 0.35f + 0.4f * std::min(q.sp, 1.0f));
 			}

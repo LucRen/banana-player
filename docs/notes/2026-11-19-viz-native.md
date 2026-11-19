@@ -191,7 +191,8 @@ rocket's body as fans, round-ended lines, arcs as polylines.
 - **Whole panel:** Rain check and Sleepy moon (`vizFullPanel`), the art group centred as Album art only; Rain check's
   drops splash on the art's top edge (`VizStyleState::cover` = `Player::nativeArtBox`, told before each step), Sleepy
   moon is smaller at the top right (R 46 at 578,62: it may pass behind a long title's box). Bouncy keys, Rocket and
-  Dance line keep the band.
+  Dance line keep the band; Rocket's stars streak over the whole panel there (`vizBehindArt`: no band cut, kept off
+  the art's and lines' boxes instead), its rocket and smoke in the band, the art and lines in the band's layout.
 
 Checked on the Mac: the five switched alone and with the art, a seek, a pause, `flip:visualizer=rocket|sleepy-moon:6:300`:
 "now (the same tap, no graph change)" each time, 46.3 frames a second at 45 fps. What may differ on the handheld:

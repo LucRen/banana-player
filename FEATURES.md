@@ -548,7 +548,8 @@ Songs show their title, artist and album on the top screen. While a song plays:
   more and higher, and a brighter handful on each beat), **Bouncy keys** (a keyboard whose keys rise with their
   bands, and a ball hopping from key to key, a hop a beat, toward a loud key, which dips and lights as it lands),
   **Rocket** (a little rocket flying right, its flame growing with the bass, its smoke trail the spectrum, the stars
-  streaking past faster as the song gets louder), **Rain check** (rain falling where the music is, heavier under the
+  streaking past faster as the song gets louder; with Art + visualizer the rocket stays in the band and its stars
+  streak over the whole screen behind the art), **Rain check** (rain falling where the music is, heavier under the
   loud bands; alone someone waits it out under an umbrella that bobs with the bass, with the art the rain bounces off
   the cover), **Sleepy moon** (a moon that dozes through quiet passages breathing out Zs and wakes when the song gets
   loud, rays out, stars twinkling with the treble over a cloud bank that is the spectrum; with the art a smaller moon

@@ -2444,8 +2444,9 @@ namespace bp
 	{
 		std::vector<VizRect> r = cardsUp();
 		if (shownMusic() == SHOW_VIS && linesBox.x1 > linesBox.x0) r.push_back(linesBox);
-		// Sparks and Starfield over the whole panel in Art + visualizer: off the art and its lines (drawn by mpv under them)
-		if (shownMusic() == SHOW_BOTH && vizFullPanel(settings.visualizer))
+		// the styles behind the art in Art + visualizer (vizBehindArt: the full-panel ones, Rocket's stars): off the art and its
+		// lines (drawn by mpv under them)
+		if (shownMusic() == SHOW_BOTH && vizBehindArt(settings.visualizer))
 		{
 			if (groupArtBox.x1 > groupArtBox.x0) r.push_back(groupArtBox);
 			if (groupTextBox.x1 > groupTextBox.x0) r.push_back(groupTextBox);
