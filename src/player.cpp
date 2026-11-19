@@ -36,7 +36,7 @@
 namespace bp
 {
 	enum Observed : uint64_t { TIME_POS = 1, DURATION, PAUSE, TRACK_LIST, MEDIA_TITLE, AID, SID, SPEED, METADATA, PAUSED_FOR_CACHE, SEEKING, CHAPTER_LIST, CHAPTER,
-		AUDIO_IN, AUDIO_OUT, CURRENT_AO, AF_CHAIN, LAVFI_GRAPH, EOF_REACHED, CORE_IDLE, IDLE_ACTIVE };
+		AUDIO_IN, AUDIO_OUT, CURRENT_AO, AF_CHAIN, LAVFI_GRAPH, EOF_REACHED, CORE_IDLE, IDLE_ACTIVE, AUDIO_PTS };
 
 	// the audio diagnostics (log.txt, "audio:" lines): an mpv node as "key=value key=value" (a map) or its value
 	static std::string nodeText(const mpv_node* n)
@@ -236,6 +236,9 @@ namespace bp
 		mpv_observe_property(mpv, LAVFI_GRAPH, "lavfi-complex", MPV_FORMAT_STRING);
 		mpv_observe_property(mpv, CORE_IDLE, "core-idle", MPV_FORMAT_FLAG);
 		mpv_observe_property(mpv, IDLE_ACTIVE, "idle-active", MPV_FORMAT_FLAG);
+		// the sound heard (mpv's output delay already taken off), for the native visualizers' clock (syncNative):
+		// time-pos follows a graph's picture (5 frames a second under the blank one)
+		mpv_observe_property(mpv, AUDIO_PTS, "audio-pts", MPV_FORMAT_DOUBLE);
 		if (o.net && !o.net->attach(mpv)) fprintf(stderr, "net: mpv has no stream callbacks: network files won't open\n");
 		mpv_set_wakeup_callback(mpv, wakeup, ctx);
 		setAspect(aspect);
@@ -556,6 +559,9 @@ namespace bp
 		thumbAsked = thumbTurnedByMpv = false;
 		photoW = photoH = fileTurn = exifTurn = 0;
 		displayDueAt = 0;	// the graph below is the display's as it is now
+		nativeFailed = false;	// (a new file: the tap tries it; syncNative starts it once it's loaded)
+		audioClock = VizClock{};
+		nativeStop("another file");
 
 		showIdle(false);
 		dropSongArt();
@@ -572,7 +578,7 @@ namespace bp
 			std::string dir = slash == std::string::npos ? "." : path.substr(0, slash);
 			bool cover = isNet ? !coverFileFor(namesIn(netParent(path))).empty() : folderHasCover(path), guessArt = cover || (dir == lastArtDir && lastArt);
 			if (vizResting() && (settings.musicShow == SHOW_VIS || settings.musicShow == SHOW_BOTH)) graph = blankGround();
-			else if (settings.musicShow == SHOW_VIS) graph = graphFor(settings.visualizer, false);
+			else if (settings.musicShow == SHOW_VIS) graph = songGraph(SHOW_VIS, cover);
 			else if (settings.musicShow == SHOW_NONE) graph = blankGround();
 			else if (settings.musicShow == SHOW_BOTH) graph = songGraph(SHOW_BOTH, cover);
 			else graph = guessArt ? "" : blankGround();
@@ -939,6 +945,11 @@ namespace bp
 					break;
 				}
 				case TIME_POS: position = p->format == MPV_FORMAT_DOUBLE ? *(double*)p->data : -1; break;
+				case AUDIO_PTS:
+					audioClock.pts = p->format == MPV_FORMAT_DOUBLE ? *(double*)p->data : -1;
+					audioClock.atNs = (uint64_t)std::chrono::duration_cast<std::chrono::nanoseconds>(
+						std::chrono::steady_clock::now().time_since_epoch()).count();
+					break;
 				case DURATION:
 				{
 					duration = p->format == MPV_FORMAT_DOUBLE ? *(double*)p->data : -1;
@@ -1225,7 +1236,7 @@ namespace bp
 		return rc && (mpv_render_context_update(rc) & MPV_RENDER_UPDATE_FRAME);
 	}
 
-	int Player::render(int w, int h, unsigned target, bool skip)
+	int Player::render(int w, int h, unsigned target, bool skip, bool noWait)
 	{
 		mpv_opengl_fbo fbo{(int)target, w, h, 0};
 		int flip = 1;
@@ -1235,7 +1246,7 @@ namespace bp
 		// and, skipped, not waited for: mpv's default holds the call till the frame's display time, which for a frame
 		// nobody sees (the music's resting visualizer under the manga reader or a photo) stalled the main loop up to
 		// a frame's span, five times a second: the reader's scroll stuttered only while music played
-		int block = skip ? 0 : 1;
+		int block = skip || noWait ? 0 : 1;
 		mpv_render_param params[] = {
 			{MPV_RENDER_PARAM_OPENGL_FBO, &fbo},
 			{MPV_RENDER_PARAM_FLIP_Y, &flip},
@@ -1941,11 +1952,23 @@ namespace bp
 		levelPixels[serial] = px;
 		if (!shownSerial[id] || id != OV_LOAD) fprintf(stderr, "card: show overlay %d %dx%d at %d,%d\n", id, card.w, card.h, x, y);
 		shownSerial[id] = serial;
+		{
+			const float pw = topW > 0 ? topW : 960, ph = topH > 0 ? topH : 720;
+			cardAt[id] = {x * 640 / pw, y * 480 / ph, (x + card.w) * 640 / pw, (y + card.h) * 480 / ph, 0};
+		}
 		std::string ids = std::to_string(id), xs = std::to_string(x), ys = std::to_string(y), src = "&" + std::to_string((uintptr_t)px->data()),
 			ws = std::to_string(card.w), hs = std::to_string(card.h), st = std::to_string(card.w * 4);
 		const char* add[] = {"overlay-add", ids.c_str(), xs.c_str(), ys.c_str(), src.c_str(), "0", "bgra", ws.c_str(), hs.c_str(),
 			st.c_str(), nullptr};
 		mpv_command_async(mpv, LEVEL_REPLY + serial, add);
+	}
+
+	std::vector<VizRect> Player::cardsUp() const
+	{
+		std::vector<VizRect> r;
+		for (int id = 0; id < OV_COUNT; id++)
+			if (shownSerial[id]) r.push_back(cardAt[id]);
+		return r;
 	}
 
 	void Player::dropImage(int id)
@@ -2456,6 +2479,9 @@ namespace bp
 
 	std::string Player::songGraph(int show, bool hasArt)
 	{
+		// a native style (Mirror bars on a local song): the player draws it over the theme's ground, mpv only plays the
+		// sound under the blank graph (as None: the same graph, so None and the style switch without a sound reopen)
+		if ((show == SHOW_VIS || show == SHOW_BOTH) && nativeViz()) return blankGround();
 		if (show == SHOW_VIS) return graphFor(settings.visualizer, false);
 		if (show == SHOW_NONE) return blankGround();
 		// Album art only: mpv shows the art itself (no graph: mpv's background-color is the ground round it); without
@@ -2520,6 +2546,86 @@ namespace bp
 					if (t.type == TrackType::Video && !art) art = t.id;
 				prop("vid", art ? std::to_string(art) : "auto");
 			}
+		}
+	}
+
+	bool Player::nativeViz() const
+	{
+		// a network song keeps the graph style: the tap's second decode opens local files only (bpnet:// goes through
+		// mpv's stream callbacks), and a second read of a remote file would double its traffic
+		return settings.visualizer == VIS_MIRROR && isAudio && !isNet && currentPath().find("://") == std::string::npos && !nativeFailed;
+	}
+
+	static uint64_t steadyNs()
+	{
+		return (uint64_t)std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+	}
+
+	void Player::nativeStop(const char* why)
+	{
+		if (!vizTap.running()) return;
+		VizTap::Stats st = vizTap.stats();
+		fprintf(stderr, "viz-native: off for %s after %llu frames drawn, %llu spectra, %llu seeks (%s)\n", baseName(vizTap.path()).c_str(),
+			(unsigned long long)nativeFrames, (unsigned long long)st.spectra, (unsigned long long)st.seeks, why);
+		vizTap.stop();
+		nativeMoving = false;
+	}
+
+	void Player::syncNative()
+	{
+		const int show = shownMusic();
+		// what the top panel shows is the native style: a local song, a visualizer shown, mpv's blank graph up (its
+		// ground; until then the last style's picture is still mpv's)
+		static const std::string blank = blankGraph("").substr(0, blankGraph("").find("drawbox=c="));	// (any ground's colour)
+		const bool blankUp = graphSet.compare(0, blank.size(), blank) == 0;
+		const bool want = isAudio && loaded && playing() && nativeViz() && (show == SHOW_VIS || show == SHOW_BOTH) && blankUp;
+		const std::string path = currentPath();
+		if (!want)
+		{
+			nativeStop(!playing() || !isAudio ? "nothing plays" : !nativeViz() ? "another style" : show == SHOW_VIS || show == SHOW_BOTH ? "the graph isn't the blank one"
+				: "the display shows no visualizer");
+			return;
+		}
+		nativeOverArt = show == SHOW_BOTH;
+		if (!vizTap.running() || vizTap.path() != path)
+		{
+			nativeStop("another file");
+			nativeSeq = nativeFrames = 0;
+			nativeAt = ticks();
+			nativeLoggedAt = 0;
+			std::function<void()> wake = nativeWake;
+			vizTap.start(path, settings.vizFps, wake);
+			fprintf(stderr, "viz-native: Mirror bars for %s (%s), %d fps: a second decode, mono %d Hz, FFT %d (PFFFT), on mpv's audio-pts "
+				"(the sound heard: mpv's output delay already off), drawn a frame ahead\n", baseName(path).c_str(),
+				nativeOverArt ? "Art + visualizer: the band" : "Visualizer only", settings.vizFps, VN_RATE, VN_FFT);
+		}
+		if (vizTap.failed())
+		{
+			// the tap couldn't read the file: the graph style for this song
+			nativeStop("the second decode failed");
+			nativeFailed = true;
+			fprintf(stderr, "viz-native: %s: the graph style instead\n", baseName(path).c_str());
+			applyAudioDisplay();
+			return;
+		}
+		vizTap.setFps(settings.vizFps);
+		VizClock c = audioClock;
+		c.speed = speed > 0 ? speed : 1;
+		c.moving = !paused && !pausedForCache && !seekingSince && c.pts >= 0;
+		// started again (play after a pause, a seek done): the time runs on from now, not from the last update
+		if (c.moving && !nativeMoving) audioClock.atNs = c.atNs = steadyNs();
+		nativeMoving = c.moving;
+		vizTap.setClock(c);
+		// once, 5 s in: the frames a second drawn, the spectra taken, how often mpv told the time
+		uint64_t now = ticks();
+		if (!nativeLoggedAt && now - nativeAt >= 5000)
+		{
+			nativeLoggedAt = now;
+			VizTap::Stats st = vizTap.stats();
+			double s = (now - nativeAt) / 1000.0;
+			fprintf(stderr, "viz-native: %s: in %.1f s %.1f frames drawn a second, %.1f spectra a second, audio-pts told %.1f a second, %llu seeks; "
+				"decoding %s\n", baseName(path).c_str(), s, nativeFrames / s, st.spectra / s, st.clockTold / s, (unsigned long long)st.seeks,
+				vizTap.info().c_str());
 		}
 	}
 
@@ -3108,7 +3214,8 @@ namespace bp
 			std::string graph = get("lavfi-complex");
 			// (the style by its setting: fifteen graphs can't be told apart by a filter's name)
 			std::string vis = visualizerLabel(visualizerReplacement(settings.visualizer));
-			row("Top screen", graph == artPassGraph() ? std::string("Album art") : graph == blankGround() ? (shownMusic() == SHOW_ART ? "Album art (none: the placeholder)" : "Title only")
+			row("Top screen", graph == artPassGraph() ? std::string("Album art") : graph == blankGround() ? (shownMusic() == SHOW_ART ? "Album art (none: the placeholder)"
+				: nativeShown() ? (shownMusic() == SHOW_BOTH ? "Album art + " : "Visualizer: ") + vis + " (drawn by the player)" : "Title only")
 				: graph.find("[vid1]") != std::string::npos || graph.find(":s=640x480:r=1:d=1") != std::string::npos ? "Album art + " + vis
 				: !graph.empty() ? "Visualizer: " + vis
 				: shownMusic() == SHOW_NONE ? "Title only"

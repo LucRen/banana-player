@@ -7,8 +7,10 @@
 #include "resume.h"
 #include "settings.h"
 #include "tracks.h"
+#include "viztap.h"
 #include <mpv/client.h>
 #include <mpv/render_gl.h>
+#include <functional>
 #include <map>
 #include <mutex>
 #include <memory>
@@ -104,6 +106,20 @@ namespace bp
 		void checkAudio();
 		// called each pass: the song's art, decoded on a thread of its own for Art + visualizer, laid over once it's in
 		void checkSongArt();
+		// Native visualizers (src/viznative.h: Mirror bars, drawn by the player, not mpv; docs/notes/2026-11-19-viz-native.md).
+		// Called each pass: the tap started or stopped with what the top panel shows, mpv's clock told to it, a file
+		// it couldn't read put back on the graph style
+		void syncNative();
+		// the top panel draws the native style now (a local song, its display a visualizer, not resting)
+		bool nativeShown() const { return vizTap.running() && !vizTap.failed(); }
+		bool nativeBand() const { return nativeOverArt; }	// Art + visualizer: the band along the foot
+		// the bars' newest targets, if new since the last take
+		bool nativeTake(float* out) { return vizTap.take(out, nativeSeq); }
+		void nativeDrew() { nativeFrames++; }	// (the log's frames a second)
+		// the cards up now (mpv's image overlays: level, state, note...), in 640x480 units: the bars are drawn round them
+		std::vector<VizRect> cardsUp() const;
+		// the tap's wake (from its thread): main pushes an SDL event
+		void setNativeWake(std::function<void()> w) { nativeWake = std::move(w); }
 		// called now and then: a song with a visualizer (or None's picture) at its end. The filter graph's picture
 		// never ends, so mpv never ends the file: the clock runs on past the song. Ended here instead (or, Loop one,
 		// started again)
@@ -124,7 +140,9 @@ namespace bp
 		bool frameDue();
 		// mpv's result: < 0 when it couldn't draw (in the log, the first few times: a black top panel's cause)
 		// fbo: the target (0 the window's; main's small one for what plays under a photo)
-		int render(int w, int h, unsigned fbo = 0, bool skip = false);	// skip: take the frame, draw nothing
+		// skip: take the frame, draw nothing; noWait: never held till the frame's display time (the native visualizer
+		// draws at its own rate over mpv's 5 fps ground: a wait there stalled its bars up to 60 ms, five times a second)
+		int render(int w, int h, unsigned fbo = 0, bool skip = false, bool noWait = false);
 		void reportSwap();
 
 		// a photo is up over what plays (on the photo viewer's own mpv): a video's picture is neither decoded nor drawn
@@ -361,6 +379,7 @@ namespace bp
 		static constexpr int OV_LOAD = 2, OV_STATE = 3, OV_LEVEL = 4, OV_NOTE = 5, OV_COUNT = 6;	// 1: the song art (ART_OVERLAY), under every card
 		std::map<uint64_t, std::shared_ptr<std::vector<uint8_t>>> levelPixels;
 		uint64_t levelSerial = 0, shownSerial[OV_COUNT] = {};
+		VizRect cardAt[OV_COUNT] = {};	// each card's box while it's up, in 640x480 units (the native bars leave it clear)
 		uint64_t noteUntil = 0;	// the note's time (ticks), 0: none up
 		void levelReplied(uint64_t serial);
 		void putImage(int id, const LevelCardImage& card, int x, int y);	// a card as overlay `id`
@@ -479,6 +498,15 @@ namespace bp
 		bool topCovered = false;	// setTopCovered
 		bool engineLoading = false;	// setEngineLoading
 		bool vizResting() const { return topCovered || engineLoading; }
+		// Native visualizers: the style is drawn by the player (a local song: the tap decodes the file itself; a
+		// network one keeps the graph style), unless this song's file couldn't be read by the tap
+		bool nativeViz() const;
+		void nativeStop(const char* why);
+		VizTap vizTap;
+		std::function<void()> nativeWake;
+		bool nativeFailed = false, nativeOverArt = false, nativeMoving = false;
+		uint64_t nativeSeq = 0, nativeFrames = 0, nativeAt = 0, nativeLoggedAt = 0;
+		VizClock audioClock;	// mpv's audio-pts and when it came (observed: never read)
 		bool hidingVideo = false;	// hideVideo(true): a video's picture off (each video's loadfile says vid=no)
 		bool vidOff = false;		// the vid property itself is "no" (a song opened next needs it back first)
 		// photos: the size mpv shows (before any turn), the turn mpv makes of the file's own (rotation metadata) and

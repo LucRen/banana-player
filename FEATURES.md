@@ -533,7 +533,7 @@ Songs show their title, artist and album on the top screen. While a song plays:
   grid of tiles (the same fifteen, in the same order, on Settings' Visualizer style row). The tile in use is filled in
   the theme's accent; the cursor is an accent edge. The styles: **Peaks** (default: 64 bars in the theme's accent,
   bass on the left, each with a cap in the theme's text colour that stays at the bar's highest point and slowly falls
-  back, over a faint grid), **Mirror bars** (the spectrum's bars growing up and down from a faint centre line),
+  back, over a faint grid), **Mirror bars** (the spectrum's bars growing up and down from a faint centre line; drawn by the player, not mpv, at the Visualizer frame rate setting, so switching to it from None and back never interrupts the sound; a song from a network folder keeps the older mpv-drawn version),
   **Pocket console** (Peaks on an old handheld's screen: 15 bars of chunky dots in four shades, with falling caps;
   alone, the title is in the same ink in pixel type. In Yellow the old handheld's greens; in another theme four shades
   of its accent on a screen tinted with it), **Night city** (a skyline whose windows light up with the music; in a

@@ -5,6 +5,7 @@
 #include "reader.h"
 #include "readerfetch.h"
 #include "textreader.h"
+#include "viznative.h"
 #include <SDL.h>
 #include <atomic>
 #include <cstdint>
@@ -70,6 +71,10 @@ namespace bp
 		int paneW = 0, paneH = 0;
 		CardOverlay paneCard;	// the level card over the pane (mpv's is under it): cardOnReader puts it there
 		bool paneCardNew = false;
+		// the native visualizer (Mirror bars, src/topviz.cpp): its bars' eased levels and newest targets, when it last drew
+		float nativeLevels[VN_BARS] = {}, nativeTargets[VN_BARS] = {};
+		Uint32 nativeAt = 0;
+		bool nativeUp = false;
 
 	private:
 		// the QR drawn 1:1 into the top window (the context made current here); false when it couldn't be composed
@@ -77,6 +82,9 @@ namespace bp
 		// the pane drawn 1:1 (composed first when it changed); false when it couldn't be
 		bool drawPane(const PaneSpec& spec, const std::string& key, int w, int h);
 		void drawPaneNow(int w, int h);	// the composed pane and the card over it
+		// the native visualizer's frame: drawn when the tap has new bars or mpv a new frame, then swapped (topviz.cpp)
+		void drawNative(Player& shown, std::atomic<bool>& renderPending, bool refresh);
+		void nativeFrame(Player& shown, int w, int h);	// mpv's picture and the bars over it, not swapped (screenshots too)
 		// the text viewer's look (Settings: the Text viewer's rows)
 		TextReader::Style textStyle(const Settings& s) const;
 		Uint32 slowLogged = 0;	// when a take under the pages was last logged (once per 5 s)

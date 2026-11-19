@@ -254,6 +254,8 @@ cp /src/assets/fonts/licenses/Inter-LICENSE.txt "$L/Inter-LICENSE.txt"
 # IJG and BSD licences)
 cp /src/third_party/lua/LICENSE "$L/Lua-LICENSE.txt"
 cp /src/third_party/lexbor/LICENSE "$L/lexbor-LICENSE.txt"
+# PFFFT (compiled in: the native visualizers' spectrum; FFTPACK's BSD-like licence)
+cp /src/third_party/pffft/LICENSE "$L/pffft-LICENSE.txt"
 cp /usr/share/doc/libjpeg62-turbo/copyright "$L/libjpeg-turbo-COPYRIGHT.txt"
 # uchardet (bundled: MPL 1.1, or GPL 2+ / LGPL 2.1+)
 cp /cache/src/uchardet-$UCHARDET_VERSION/COPYING "$L/uchardet-COPYING.txt"

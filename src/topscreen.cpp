@@ -89,6 +89,7 @@ namespace bp
 		else if (paneUp && paneReady) drawPaneNow(w, h);	// the Preview pane
 		else if (reader.isOpen() && readerOnTop) reader.draw(w, h);	// a manga chapter's pages
 		else if (textReader.isOpen() && readerOnTop) textReader.draw(w, h);	// a document's text
+		else if (shown.nativeShown() && nativeUp) nativeFrame(shown, w, h);	// the native visualizer's bars over mpv's picture
 		else shown.render(w, h);	// a video, a photo, or the icon with nothing playing
 		std::vector<unsigned char> rgba((size_t)w * h * 4);
 		readPixels(0, 0, w, h, 0x1908 /* GL_RGBA */, 0x1401 /* GL_UNSIGNED_BYTE */, rgba.data());
@@ -435,6 +436,13 @@ namespace bp
 	void TopScreen::draw(Player& player, Player& photos, Player& shown, const Ui& ui, Uint32 now, bool refresh, Uint32 levelUntil,
 		std::atomic<bool>& renderPending)
 	{
+		// the native visualizer gone (another style, a pause of the song's display, the song's end): mpv's picture
+		// is drawn again at once, not at its next frame
+		if (nativeUp && !shown.nativeShown())
+		{
+			nativeUp = false;
+			renderPending = true;
+		}
 		// About's support QR up: the panel is that picture (down again: its texture goes, in this context)
 		bool qrNow = ui.aboutQrUp();
 		if (!qrNow && qrUp)
@@ -520,6 +528,9 @@ namespace bp
 				SDL_GL_SwapWindow(top);
 			}
 		}
+		// the native visualizer (Mirror bars on a local song): the player's own bars over mpv's picture, at the tap's
+		// frame rate (src/topviz.cpp)
+		else if (shown.nativeShown() && !photos.playing()) drawNative(shown, renderPending, refresh);
 		// (a photo is a still: mpv puts the level card on it later than the key's redraw, and asks for no frame
 		// after, so it's drawn again while the card is up, as with nothing playing)
 		else if (renderPending.exchange(false) || refresh || (!shown.playing() && (!topDark || levelUntil)) || (photos.playing() && levelUntil))

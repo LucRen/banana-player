@@ -1,6 +1,7 @@
 // The parts without a window: aspect modes, track labels, mpv's track-list, times.
 #include "kitlayout.h"
 #include "songlayout.h"
+#include "viznative.h"
 #include "slider.h"
 #include "filesave.h"
 #include "writequeue.h"	// the durable writer's one-slot queue
@@ -5994,6 +5995,82 @@ static void checkStillRepeats(const std::string& g)
 		else
 			CHECK_EQ(s.find(":eof_action=repeat:shortest=0:repeatlast=1") != std::string::npos, true);
 	}
+}
+
+// The native visualizers' pure part (src/viznative.h): the bands, the spectrum's levels, the easing, Mirror bars'
+// shapes, the clock
+static void testVizNative()
+{
+	const std::vector<int> e = vizBandEdges(VN_BARS, VN_FFT, VN_RATE, 40, 14000);
+	CHECK_EQ((int)e.size(), VN_BARS + 1);
+	bool rising = true;
+	for (size_t i = 1; i < e.size(); i++) rising = rising && e[i] > e[i - 1];
+	CHECK(rising);
+	CHECK_EQ(e[0], 1);	// 40 Hz: bin 1 (31.25 Hz a bin)
+	CHECK_EQ(e[1] - e[0], 1);	// the bass bands one bin each
+	CHECK(e[VN_BARS] <= VN_FFT / 2 && e[VN_BARS] >= 440);	// up to ~14 kHz
+	CHECK(e[VN_BARS] - e[VN_BARS - 1] > 10);	// the top bands wide (log spaced)
+
+	// a sine's tallest bar is the band holding its frequency; silence draws nothing
+	VizSpectrum sp;
+	CHECK(sp.ok());
+	std::vector<float> in(VN_FFT), mag(VN_FFT / 2);
+	float t[VN_BARS];
+	auto bandOf = [&](double hz) {
+		int bin = (int)std::lround(hz / ((double)VN_RATE / VN_FFT));
+		for (int i = 0; i < VN_BARS; i++)
+			if (bin >= e[i] && bin < e[i + 1]) return i;
+		return -1;
+	};
+	for (double hz : {100.0, 1000.0, 5000.0})
+	{
+		for (int i = 0; i < VN_FFT; i++) in[i] = (float)(0.5 * std::sin(2 * M_PI * hz * i / VN_RATE));
+		sp.magnitudes(in.data(), mag.data());
+		vizMirrorTargets(mag.data(), e, VN_RATE, VN_FFT, t);
+		int top = (int)(std::max_element(t, t + VN_BARS) - t);
+		CHECK_EQ(t[bandOf(hz)], t[top]);	// (its neighbours may reach the top too: the window's spread)
+		CHECK(t[top] > 200);
+		CHECK_EQ(t[0 == top ? VN_BARS - 1 : 0], 0.0f);	// far from it: nothing
+	}
+	std::fill(in.begin(), in.end(), 0.0f);
+	sp.magnitudes(in.data(), mag.data());
+	vizMirrorTargets(mag.data(), e, VN_RATE, VN_FFT, t);
+	CHECK_EQ(*std::max_element(t, t + VN_BARS), 0.0f);
+
+	// an LED meter: up at once, down by the whole height over 0.15 s
+	CHECK_EQ(vizEase(10, 200, 0.016), 200.0f);
+	CHECK(std::fabs(vizEase(252, 0, 0.075) - 126) < 0.5);
+	CHECK_EQ(vizEase(252, 0, 0.15), 0.0f);
+	CHECK_EQ(vizEase(252, 100, 1.0), 100.0f);
+
+	// Mirror bars: the line, then a bar for each level that shows; the graph's heights
+	float lv[VN_BARS] = {};
+	lv[0] = VN_TOP;
+	lv[39] = 1;
+	std::vector<VizRect> r;
+	mirrorBarsRects(lv, VN_BARS, false, r);
+	CHECK_EQ((int)r.size(), 3);
+	CHECK_EQ(r[0].ink, 1);
+	CHECK(r[0].y0 == 238 && r[0].y1 == 242 && r[0].x1 == 640);
+	CHECK(r[1].ink == 0 && r[1].x0 == 2 && r[1].x1 == 14 && r[1].y0 == 22 && r[1].y1 == 458);
+	CHECK(r[2].y0 == 238 && r[2].y1 == 242 && r[2].x1 == 638);
+	mirrorBarsRects(lv, VN_BARS, true, r);
+	CHECK(r[0].y0 == 378 && r[1].y0 == 286 && r[1].y1 == 474);	// the band: rows 280..480
+	// a card over the bars: cut round it (the line split in two, the bar's top and bottom kept)
+	vizCutOut(r, {0, 300, 100, 400, 0});
+	float area = 0;
+	for (auto& q : r) area += (q.x1 - q.x0) * (q.y1 - q.y0);
+	CHECK_EQ(area, 540.0f * 4 + 12 * (14 + 74) + 12 * 4);
+
+	// the clock: on at the speed while moving, held otherwise
+	VizClock c;
+	CHECK_EQ(c.at(5), -1.0);
+	c.pts = 10;
+	c.atNs = 1000000000ull;
+	c.speed = 2;
+	CHECK_EQ(c.at(1500000000ull), 10.0);
+	c.moving = true;
+	CHECK(std::fabs(c.at(1500000000ull) - 11) < 1e-9);
 }
 
 // The six simple styles (src/viz_simple.cpp): the graph rules, the theme's colours in them
@@ -12265,6 +12342,7 @@ int main()
 	testSongLayout();
 	testVizTheme();
 	testVizSimple();
+	testVizNative();
 	testKitDisplayPage();
 	testFileSave();
 	testWriteQueue();
