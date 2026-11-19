@@ -6249,14 +6249,30 @@ static void testVizNative()
 	CHECK(st.levels[0] > 250 && st.slow[0] > 0 && st.slow[0] < st.levels[0]);
 	vizShapes(st, true, r);
 	CHECK(inside(r, 280));
-	// Grid: a row every 0.1 s, never more than its 17
+	// Grid: a row every 0.1 s, never more than its 12
 	st.reset(VIS_GRID);
 	vizStep(st, 0.35);
 	CHECK_EQ(st.gridCount, 1);	// (a long gap: one row, not a burst)
 	for (int f = 0; f < 120; f++) vizStep(st, 1 / 30.0);
 	CHECK_EQ(st.gridCount, VizStyleState::GRID_ROWS);
 	vizShapes(st, false, r);
-	CHECK(inside(r, 0) && inksOf(r, VI_BG) > 0);
+	CHECK(inside(r, 0));
+	// (2026-11-19, the handheld slowed as the rows filled) a quiet grid hides nothing (no row's fill), and a loud one's
+	// fills stop at the foot of the row behind each: none reaches the front row's own foot
+	{
+		VizStyleState q;
+		q.reset(VIS_GRID);
+		for (int f = 0; f < 60; f++) vizStep(q, 1 / 30.0);
+		vizShapes(q, false, r);
+		CHECK_EQ(inksOf(r, VI_BG), 0);
+		for (int i = 0; i < VizStyleState::GRID_BANDS; i++) q.targets[i] = VN_TOP;
+		for (int f = 0; f < 60; f++) vizStep(q, 1 / 30.0);
+		vizShapes(q, false, r);
+		float lowest = 0;
+		for (auto& b : r) if (b.ink == VI_BG) lowest = std::max(lowest, std::max(b.y2, b.y3));
+		CHECK(inksOf(r, VI_BG) > 0 && lowest <= 480 * 0.95f + 0.01f);	// (the front row's foot, yb: it filled to yb + 1)
+		CHECK(r.size() < 1100);
+	}
 	// Sparks: the pool never past its 400 at full with a beat each frame, every live one alive; quiet, they die out
 	st.reset(VIS_SPARKS);
 	for (int i = 0; i < 32; i++) st.targets[i] = VN_TOP;
@@ -6356,7 +6372,7 @@ static void testVizNative()
 	CHECK(r.size() > 40);
 	CHECK(vizBehindArt(VIS_ROCKET) && !vizFullPanel(VIS_ROCKET) && !vizBehindArt(VIS_DANCE));
 	float starTop = 480;
-	for (auto& q : r) if (q.kind == 2 && q.ink == VI_DIM) starTop = std::min(starTop, std::min(q.y0, q.y3));
+	for (auto& q : r) if (q.kind == 2 && q.ink == VI_DIM_BG) starTop = std::min(starTop, std::min(q.y0, q.y3));
 	CHECK(starTop < 200);	// (in the band, its stars streak over the whole panel)
 	// Rain check: the pools never past their sizes; alone, drops hit the umbrella (splashes); with the art, its top
 	st.reset(VIS_RAIN);
@@ -6401,6 +6417,21 @@ static void testVizNative()
 	CHECK(!st.awake);
 	vizShapes(st, false, r);
 	CHECK(inside(r, 0) && r.size() > 50);
+	// (2026-11-19, slow on the handheld) its clouds opaque, no disc (two filled banks), the stars' crosses 3 units thick
+	{
+		for (int i = 0; i < 20; i++) st.targets[i] = VN_TOP * (i % 3) / 2;
+		for (int f = 0; f < 30; f++) vizStep(st, 1 / 30.0);
+		vizShapes(st, false, r);
+		int clouds = 0, crossBars = 0;
+		bool opaque = true;
+		for (auto& q : r)
+		{
+			if ((q.ink == VI_DIM_BG || q.ink == VI_BUTTON) && q.y0 > 200) clouds++, opaque = opaque && q.alpha >= 1 && q.kind == 2;
+			if (q.kind == 0 && (q.ink == VI_DIM || q.ink == VI_TEXT) && (std::fabs(q.y1 - q.y0 - 3) < 0.01f || std::fabs(q.x1 - q.x0 - 3) < 0.01f)) crossBars++;
+		}
+		CHECK(clouds > 96 && opaque);
+		CHECK(crossBars > 20 && crossBars % 2 == 0);
+	}
 	// Dance line: twelve dancers, the line swaying a half turn a beat
 	st.reset(VIS_DANCE);
 	vizStep(st, 0.55);

@@ -814,17 +814,29 @@ namespace bp
 				if (d >= 1) continue;
 				const float* a = j ? s.gridRows[(s.gridHead - (j - 1) + VizStyleState::GRID_ROWS) % VizStyleState::GRID_ROWS] : nullptr;
 				const float k = sc(d), by = fy(d);
-				for (int i = -16; i <= 16; i++)
+				// (the far half of the rows every other band: a few pixels apart there)
+				const int step = d > 0.45f ? 2 : 1;
+				int np = 0;
+				for (int i = -16; i <= 16; i += step)
 				{
 					const int b = std::abs(i);
 					const float v = a ? a[b] : (b < s.n ? s.levels[b] / VN_TOP : 0);
-					p[2 * (i + 16)] = cx + i / 16.0f * NW * k;
-					p[2 * (i + 16) + 1] = by - v * amp * k;
+					p[2 * np] = cx + i / 16.0f * NW * k;
+					p[2 * np + 1] = by - v * amp * k;
+					np++;
 				}
 				// (the front ridge smoothed; the rows behind are small enough as they are)
-				if (j == 0) smooth(p, 33, pts);
-				else pts.assign(p, p + 66);
-				fillUnder(out, pts, by + 1, VI_BG, 1, false);
+				if (j == 0) smooth(p, np, pts);
+				else pts.assign(p, p + 2 * np);
+				// what hides the rows behind: the ridge filled down only to the next row's foot (everything behind it is
+				// above that line), not to its own: a quiet row fills nothing, and the fills don't stack up row on row
+				const float hide = std::min(by, fy(std::min(1.0f, (j + frac) / R)) + 1);	// (far rows: under a pixel apart)
+				for (size_t i = 0; i + 3 < pts.size(); i += 2)
+				{
+					const float ax = pts[i], ay = pts[i + 1], bx2 = pts[i + 2], by2 = pts[i + 3];
+					if (ay >= hide && by2 >= hide) continue;
+					quad(out, ax, ay, bx2, by2, bx2, std::max(by2, hide), ax, std::max(ay, hide), VI_BG, 1, 1);
+				}
 				polyline(out, pts, j ? 1 + 1.2f * k : 3, VI_ACCENT, std::pow(1 - d, 1.4f));
 			}
 		}
@@ -1139,18 +1151,22 @@ namespace bp
 			const float rx = 640 * 0.76f, cy = y0 + h * 0.54f + std::sin(t * 2.2f) * h * 0.05f;
 			const float v = 1.5f + 16 * s.loudShown;
 			// (the stars over the whole panel in Art + visualizer too, behind the art and its lines)
+			// (each a flat quad, opaque in DIM laid over the ground: the stars pass under the smoke, no blending)
 			for (const auto& q : s.streaks)
 			{
-				const float yy = band ? 8 + q.y * (480 - 16) : y0 + 8 + q.y * (h - 16);
-				std::vector<float> p = {q.x, yy, q.x + 2 + v * q.sp * 1.6f, yy};
-				polyline(out, p, 1.5f + q.sp, VI_DIM, 0.35f + 0.4f * std::min(q.sp, 1.0f));
+				const float yy = band ? 8 + q.y * (480 - 16) : y0 + 8 + q.y * (h - 16), hw = (1.5f + q.sp) / 2, x1 = q.x + 2 + v * q.sp * 1.6f;
+				VizRect r{q.x, yy - hw, x1, yy - hw, VI_DIM_BG, 0.35f + 0.4f * std::min(q.sp, 1.0f), 1, 2};
+				r.x2 = x1, r.y2 = yy + hw, r.x3 = q.x, r.y3 = yy + hw;
+				out.push_back(r);
 			}
 			const int n = std::min(16, s.n);
 			const float x0 = rx - 96 * S, stepx = (x0 - 10) / 16;
 			for (int i = n - 1; i >= 0; i--)
 			{
 				const float lv = s.levels[i] / VN_TOP;
-				disc(out, x0 - i * stepx, cy + std::sin(t * 3.2f - i * 0.7f) * (3 + i * 1.3f) * S, 5 * S + lv * h * 0.115f, VI_DIM, 0.3f + 0.5f * lv);
+				// (opaque: DIM laid over the ground as the puff's faintness, the nearer puffs over the farther; the
+				// translucent puffs overlapped five deep)
+				out.push_back({x0 - i * stepx, cy + std::sin(t * 3.2f - i * 0.7f) * (3 + i * 1.3f) * S, 0, 5 * S + lv * h * 0.115f, VI_DIM_BG, 0.3f + 0.5f * lv, 1, 1});
 			}
 			// the rocket, shaken a little by the bass
 			const float jx = (hash01((int)(t * 30), 1) - 0.5f) * 3 * bass, jy = (hash01((int)(t * 30), 2) - 0.5f) * 3 * bass;
@@ -1234,13 +1250,42 @@ namespace bp
 				const int b = 10 + i % 10;
 				const float v = b < s.n ? s.levels[b] / VN_TOP : 0, sz = 2.5f + v * 16 * (0.5f + hash01(i, 13)) + std::sin(t * 3 + i) * 0.8f;
 				const int ink = i % 3 ? VI_DIM : VI_TEXT;
-				std::vector<float> a = {sx - sz, sy, sx + sz, sy}, b2 = {sx, sy - sz, sx, sy + sz};
-				polyline(out, a, 2, ink, 1);
-				polyline(out, b2, 2, ink, 1);
+				// a bold cross: two bars 3 units thick on whole pixels (crisp; 2-unit lines were lost on the handheld)
+				const float arm = sz + 1.5f;
+				box(out, sx - arm, sy - 1.5f, sx + arm, sy + 1.5f, ink);
+				box(out, sx - 1.5f, sy - arm, sx + 1.5f, sy + arm, ink);
 			}
+			// the clouds: two banks, each the outline of its discs (the far ones round the slow levels, DIM at 45% on the
+			// ground; the near ones the levels, BUTTON) filled down, opaque: each pixel drawn once, the far bank only
+			// where it shows over the near one (were 40 overlapping discs, the far ones blended: the panel's foot
+			// filled several times over)
 			const int n = std::min(20, s.n);
-			for (int i = 0; i < n; i++) disc(out, (i + 0.5f) / n * W + 14, H + 2, 30 + s.slow[i] / VN_TOP * H * 0.42f, VI_DIM, 0.45f);
-			for (int i = 0; i < n; i++) disc(out, (i + 0.5f) / n * W, H + 6, 24 + s.levels[i] / VN_TOP * H * 0.24f, VI_BUTTON, 1);
+			constexpr int COLS = 96;
+			float far[COLS + 1], near[COLS + 1];
+			for (int c = 0; c <= COLS; c++)
+			{
+				const float x = c * W / COLS;
+				float yf = H, yn = H;
+				for (int i = 0; i < n; i++)
+				{
+					const float fx = x - ((i + 0.5f) / n * W + 14), fr = 30 + s.slow[i] / VN_TOP * H * 0.42f;
+					if (std::fabs(fx) < fr) yf = std::min(yf, H + 2 - std::sqrt(fr * fr - fx * fx));
+					const float nx = x - (i + 0.5f) / n * W, nr = 24 + s.levels[i] / VN_TOP * H * 0.24f;
+					if (std::fabs(nx) < nr) yn = std::min(yn, H + 6 - std::sqrt(nr * nr - nx * nx));
+				}
+				far[c] = yf, near[c] = yn;
+			}
+			for (int c = 0; c < COLS; c++)
+			{
+				const float xa = c * W / COLS, xb = (c + 1) * W / COLS;
+				if (far[c] < near[c] || far[c + 1] < near[c + 1])
+				{
+					VizRect r{xa, far[c], xb, far[c + 1], VI_DIM_BG, 0.45f, 1, 2};
+					r.x2 = xb, r.y2 = std::max(far[c + 1], near[c + 1]), r.x3 = xa, r.y3 = std::max(far[c], near[c]);
+					out.push_back(r);
+				}
+				if (near[c] < H || near[c + 1] < H) quad(out, xa, near[c], xb, near[c + 1], xb, H, xa, H, VI_BUTTON, 1, 1);
+			}
 			if (aw > 0.03f)
 				for (int r = 0; r < 12; r++)
 				{

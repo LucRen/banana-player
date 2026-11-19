@@ -2411,6 +2411,13 @@ namespace bp
 		updateOverlay();
 	}
 
+	void Player::nativeLayerFailed()
+	{
+		if (noLayer) return;
+		noLayer = true;
+		setGround(true, "the theme's: no layer to compose");
+	}
+
 	bool Player::nativeViz() const
 	{
 		return vizNativeStyle(settings.visualizer) && isAudio;
@@ -2442,10 +2449,11 @@ namespace bp
 
 	std::vector<VizRect> Player::nativeKeepClear() const
 	{
+		// (the lines and the art aren't kept clear: mpv's layer is composed over the shapes, the lines with their
+		// outline and no box round them; with no layer, as before: the lines' and the art's boxes too)
 		std::vector<VizRect> r = cardsUp();
+		if (!noLayer) return r;
 		if (shownMusic() == SHOW_VIS && linesBox.x1 > linesBox.x0) r.push_back(linesBox);
-		// the styles behind the art in Art + visualizer (vizBehindArt: the full-panel ones, Rocket's stars): off the art and its
-		// lines (drawn by mpv under them)
 		if (shownMusic() == SHOW_BOTH && vizBehindArt(settings.visualizer))
 		{
 			if (groupArtBox.x1 > groupArtBox.x0) r.push_back(groupArtBox);
@@ -2529,8 +2537,9 @@ namespace bp
 			nativeLoggedAt = now;
 			VizTap::Stats st = vizTap.stats();
 			double s = (now - nativeAt) / 1000.0;
-			fprintf(stderr, "viz-native: %s: in %.1f s %.1f frames drawn a second, %.1f spectra a second, audio-pts told %.1f a second, %llu seeks; "
-				"decoding %s\n", baseName(path).c_str(), s, nativeFrames / s, st.spectra / s, st.clockTold / s, (unsigned long long)st.seeks,
+			fprintf(stderr, "viz-native: %s: in %.1f s %.1f frames drawn a second, %.1f spectra a second (the worker %.2f ms a look, at most %.1f, "
+				"%llu behind), audio-pts told %.1f a second, %llu seeks; decoding %s\n", baseName(path).c_str(), s, nativeFrames / s, st.spectra / s,
+				st.spectra ? st.workMs / st.spectra : 0.0, st.workMax, (unsigned long long)st.behind, st.clockTold / s, (unsigned long long)st.seeks,
 				vizTap.info().c_str());
 		}
 	}
@@ -2569,25 +2578,24 @@ namespace bp
 		auto n = [](double v) { return std::to_string((long)std::lround(v)); };
 		const double top = topMarq.an == 4 ? topMarq.y - topMarq.fs * 0.8 : topMarq.y - 2, bot = topMarq.an == 4 ? topMarq.y + topMarq.fs * 0.8 : topMarq.y + topMarq.fs * 1.35;
 		const double x0 = topMarq.x, x1 = topMarq.x + topMarq.boxW;
-		char a[8];
-		snprintf(a, sizeof a, "%02X", (int)std::lround(255 * (1 - std::clamp(m.alpha, 0.0f, 1.0f))));
-		std::string ev = "{\\an" + std::to_string(topMarq.an) + "\\pos(" + n((topMarq.x - m.offset) * K) + "," + n(topMarq.y * K) + ")\\clip(" + n(x0 * K) + "," +
-						 n(top * K) + "," + n(x1 * K) + "," + n(bot * K) + ")" + topMarq.style + "\\alpha&H" + a + "&}" + assText(topMarq.text) + "\n";
-		if (topMarq.fade)
+		// the text, clipped to (cx0, cx1), seen at vis (0..1)
+		std::string ev;
+		auto part = [&](double cx0, double cx1, float vis) {
+			char a[8];
+			snprintf(a, sizeof a, "%02X", (int)std::lround(255 * (1 - std::clamp(vis, 0.0f, 1.0f))));
+			ev += "{\\an" + std::to_string(topMarq.an) + "\\pos(" + n((topMarq.x - m.offset) * K) + "," + n(topMarq.y * K) + ")\\clip(" + n(cx0 * K) +
+				  "," + n(top * K) + "," + n(cx1 * K) + "," + n(bot * K) + ")" + topMarq.style + "\\alpha&H" + a + "&}" + assText(topMarq.text) + "\n";
+		};
+		const bool fadeL = topMarq.fade && m.fadeLeft, fadeR = topMarq.fade && m.fadeRight;
+		// the fades: the text itself fainter in four 4-unit strips (80, 60, 40, 20% seen) at an edge it goes on past
+		// (not strips of the ground over it: no band of BG over a visualizer under the lines)
+		const double W = lay::MARQ_FADE_W;
+		part(x0 + (fadeL ? W : 0), x1 - (fadeR ? W : 0), m.alpha);
+		for (int k = 0; k < 4; k++)
 		{
-			// the fades: four 4-unit strips of the ground at 20, 40, 60, 80% at an edge the text goes on past
-			const std::string G = ass(theme::BG);
-			for (int k = 0; k < 4; k++)
-			{
-				char al[8];
-				snprintf(al, sizeof al, "%02X", 255 - 255 * (k + 1) / 5);
-				auto strip = [&](double sx) {
-					ev += "{\\an7\\pos(0,0)\\bord0\\shad0\\1c" + G + "\\1a&H" + al + "&\\p1}m " + n(sx * K) + " " + n(top * K) + " l " + n((sx + 4) * K) + " " +
-						  n(top * K) + " " + n((sx + 4) * K) + " " + n(bot * K) + " " + n(sx * K) + " " + n(bot * K) + "{\\p0}\n";
-				};
-				if (m.fadeRight) strip(x1 - lay::MARQ_FADE_W + k * 4);
-				if (m.fadeLeft) strip(x0 + (3 - k) * 4);
-			}
+			const float vis = m.alpha * (1 - (k + 1) / 5.0f);
+			if (fadeR) part(x1 - W + k * 4, x1 - W + k * 4 + 4, vis);
+			if (fadeL) part(x0 + (3 - k) * 4, x0 + (3 - k) * 4 + 4, vis);
 		}
 		const char* cmd[] = {"osd-overlay", "2", "ass-events", ev.c_str(), "960", "720", "0", "no", "no", nullptr};
 		mpv_command_async(mpv, 0, cmd);
@@ -2638,13 +2646,16 @@ namespace bp
 		fprintf(stderr, "music: top panel margins %s, panscan %g\n", lrtb.empty() ? "none (the whole panel)" : lrtb.c_str(), pan);
 	}
 
-	void Player::setGround(bool themed, const char* why)
+	void Player::setGround(bool themed, const char* why, bool clear)
 	{
 		// mpv's own ground, round its picture where none is drawn: Album art only's margins (a graph's picture fills
-		// the panel, so there it is the graph's). Set on a change only: a property, no per-frame work
+		// the panel, so there it is the graph's). Set on a change only: a property, no per-frame work. Clear under a
+		// native visualizer: the top panel draws the ground and the shapes, mpv's picture goes over them
 		char c[16];
 		const theme::Rgb g = themed ? theme::BG : theme::Rgb{0, 0, 0};
-		snprintf(c, sizeof c, "#%02X%02X%02X", g.r, g.g, g.b);
+		if (clear) snprintf(c, sizeof c, "%s", GROUND_CLEAR);
+		else snprintf(c, sizeof c, "#%02X%02X%02X", g.r, g.g, g.b);
+		if (clear && !why) why = "clear: the visualizer under mpv's art and lines";
 		if (groundSet == c) return;
 		groundSet = c;
 		const char* v = groundSet.c_str();	// (copied by mpv before it returns)
@@ -2772,9 +2783,14 @@ namespace bp
 		// (and Night city alone in a theme but Yellow: its sky is the theme's BG, docs/notes/2026-11-19-viz-theme.md)
 		const bool peaksAlone = show == SHOW_VIS && (visualizerOnGround(style) || (style == VIS_CITY && theme::currentTheme() != 0));
 		const bool themed = group || show == SHOW_NONE || peaksAlone;
-		setGround(themed);
+		// (a song with a native style shown: mpv's picture composed over the shapes, its ground clear)
+		setGround(themed, nullptr, themed && isAudio && nativeViz() && (show == SHOW_VIS || show == SHOW_BOTH) && !noLayer);
 		const std::string INK = ass(TEXT), INK2 = ass(DIM_ON), INK3 = ass(DIM), MARK = ass(ACCENT), EDGE = ass(edgeOf(SURFACE)),
 			GROUND = ass(BG);
+		// the lines over a visualizer: no box round them (the shapes pass under them: mpv's layer, topviz.cpp), kept
+		// readable by an outline and a shadow in the ground's colour (libass draws them once a change; nothing a frame)
+		const std::string OUTLINE = "\\bord3\\3c" + GROUND + "\\shad2\\4c" + GROUND;
+		const std::string groupEdge = show == SHOW_BOTH ? OUTLINE : "\\bord0\\shad0";
 		std::string ev;
 		std::string why;	// for the log: what the art box holds
 
@@ -3021,13 +3037,13 @@ namespace bp
 						if (settings.scrollTitles && tw > l.textW)
 						{
 							marq = true;
-							setTopMarquee(shown, "\\bord0\\shad0\\q2\\fs" + num(u(ln.fs)) + "\\b1\\1c" + ln.colour, 4, l.textX, mid, l.textW, ln.fs, tw, true);
+							setTopMarquee(shown, groupEdge + "\\q2\\fs" + num(u(ln.fs)) + "\\b1\\1c" + ln.colour, 4, l.textX, mid, l.textW, ln.fs, tw, true);
 							y += ln.fs * 1.2;
 							continue;
 						}
 						ln.text = shown;
 					}
-					ev += "{\\an4\\pos(" + num(u(l.textX)) + "," + num(u(mid)) + ")\\bord0\\shad0\\q2\\fs" + num(u(ln.fs)) +
+					ev += "{\\an4\\pos(" + num(u(l.textX)) + "," + num(u(mid)) + ")" + groupEdge + "\\q2\\fs" + num(u(ln.fs)) +
 						  (ln.bold ? "\\b1" : "\\b0") + "\\1c" + ln.colour + "}" + assText(fitLine(ln.text, ln.fs, l.textW, ln.bold)) + "\n";
 					y += ln.fs * 1.2;
 				}
@@ -3077,7 +3093,10 @@ namespace bp
 			// over a visualizer: top left, with a shadow. Pocket console alone: the screen's own ink, dark green in the
 			// pixel font, no shadow (the album line its mid green)
 			bool pocket = show == SHOW_VIS && style == VIS_POCKET;
-			std::string look = pocket ? "\\q2\\fnPixelify Sans\\bord0\\shad0" : peaksAlone ? "\\q2\\bord0\\shad0"
+			// (the native styles: the theme's lines with the ground's outline, the visualizer passing under them;
+			// Pocket console's outline its screen's colour, crisp for the pixel font)
+			std::string look = pocket ? "\\q2\\fnPixelify Sans\\bord3\\3c" + ass(pocketInks().screen) + "\\shad0"
+				: peaksAlone ? "\\q2" + OUTLINE
 				: "\\q2\\bord2\\blur4\\3c&H000000&\\shad3\\4c&H000000&";
 			// a line each, from the top (22, 18): title 26, then 5 down the artist 17, 3 down the album 14
 			double y = 18;
@@ -3115,18 +3134,8 @@ namespace bp
 			if (!chapter.empty()) line(chapter, 17, false, pocket ? PMID : peaksAlone ? MARK : ass(TOP_TITLE), 4);
 			if (!artist.empty()) line(artist, 17, false, pocket ? PINK : peaksAlone ? INK2 : CREAM, 5);
 			if (!album.empty()) line(album, 14, false, pocket ? PMID : peaksAlone ? INK3 : GREY, 3);
-			// the native styles are drawn after mpv's picture: they keep off the lines' box (8 units round them; Pocket
-			// console's pixel font a little wider than the Inter they're measured in)
+			// the lines' box (only kept clear with no layer to compose: nativeKeepClear)
 			linesBox = {22 - 8, 18 - 8, 22 + (float)linesW * (pocket ? 1.2f : 1) + 8, (float)y + 6, 0};
-			// Pocket console drawn by the player: its LCD's screen colour behind the lines (the shapes keep off their box,
-			// so mpv's picture shows there: this box, the screen's colour, under the lines)
-			if (pocket && nativeViz())
-			{
-				const int bx = u(linesBox.x0), by = u(linesBox.y0), bw = u(linesBox.x1) - bx, bh = u(linesBox.y1) - by;
-				char d[160];
-				snprintf(d, sizeof d, "m %d %d l %d %d %d %d %d %d", bx, by, bx + bw, by, bx + bw, by + bh, bx, by + bh);
-				ev = "{\\an7\\pos(0,0)\\bord0\\shad0\\1c" + ass(pocketInks().screen) + "\\p1}" + d + "{\\p0}\n" + ev;
-			}
 		}
 		// the manga engine starting over Album art only (the visualizers rest as None): its note at the foot
 		if (engineLoading && show != SHOW_NONE)

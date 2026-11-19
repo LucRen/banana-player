@@ -250,6 +250,7 @@ namespace bp
 				continue;
 			}
 			const int fps = std::clamp(j->fps.load(), 30, 60);
+			const auto w0 = std::chrono::steady_clock::now();
 			// where the sound will be when this frame is on the glass: a frame on (the main thread's draw, the swap)
 			const double t = c.at(nowNs()) + 1.0 / fps;
 			d->window(t, win.data(), VN_FFT, seeks);
@@ -287,11 +288,19 @@ namespace bp
 				j->seq++;
 				j->stats.spectra = spectra;
 				j->stats.seeks = seeks;
+				const double ms = std::chrono::duration<double, std::milli>(now - w0).count();
+				j->stats.workMs += ms;
+				j->stats.workMax = std::max(j->stats.workMax, ms);
 			}
 			// silent for half a second (the bars have fallen): no more wakes till there's sound again
 			if (now - loudAt < std::chrono::milliseconds(500) && j->wake && !j->woken.exchange(true)) j->wake();
 			next += std::chrono::microseconds(1000000 / fps);
-			if (next < now) next = now;	// (behind: no burst to catch up)
+			if (next < now)
+			{
+				next = now;	// (behind: no burst to catch up)
+				std::lock_guard<std::mutex> g(j->m);
+				j->stats.behind++;
+			}
 			std::unique_lock<std::mutex> g(j->m);
 			j->cv.wait_until(g, next, [&] { return j->stop.load(); });
 		}

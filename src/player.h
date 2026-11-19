@@ -116,8 +116,14 @@ namespace bp
 		// the newest targets (VN_MAX_BARS room), with the style and band count they're for, if new since the last take
 		bool nativeTake(float* out, int& vis, int& n, VizHint& hint) { return vizTap.take(out, nativeSeq, vis, n, hint); }
 		int nativeStyle() const { return settings.visualizer; }
-		// where the shapes mustn't go (640x480 units): mpv's cards, and alone the song's lines (drawn by mpv under them)
+		// where the shapes mustn't go (640x480 units): mpv's cards (the song's lines and the art are drawn over them:
+		// mpv's layer, topviz.cpp)
 		std::vector<VizRect> nativeKeepClear() const;
+		// mpv's ground clear (0 0 0 0) under a song's native visualizer: the top panel composes mpv's picture (the art,
+		// the lines, the cards) over the style's shapes, so the lines have no box round them
+		bool groundClear() const { return groundSet == GROUND_CLEAR; }
+		// the top panel can't compose (no framebuffers): mpv's ground the theme's again, its picture under the shapes
+		void nativeLayerFailed();
 		// Art + visualizer: the art's box (Rain check's drops bounce off it); empty otherwise
 		VizRect nativeArtBox() const { return shownMusic() == SHOW_BOTH ? groupArtBox : VizRect{0, 0, 0, 0, 0}; }
 		void nativeDrew() { nativeFrames++; }	// (the log's frames a second)
@@ -497,7 +503,9 @@ namespace bp
 		// a song's top panel on the theme's ground (Album art only, Art + visualizer, None: docs/redesign, Song layout):
 		// mpv's background-color (themed: BG; else black) as last sent. No graph draws any of it (2026-11-19)
 		std::string groundSet;
-		void setGround(bool themed, const char* why = nullptr);
+		static constexpr const char* GROUND_CLEAR = "#00000000";
+		bool noLayer = false;	// (nativeLayerFailed)
+		void setGround(bool themed, const char* why = nullptr, bool clear = false);
 		void setSongMargins(const std::string& lrtb);
 		std::string layoutLogged;	// the last layout's log line, so each change is logged once
 		bool isAudio = false, isPhoto = false;

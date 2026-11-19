@@ -557,11 +557,12 @@ Songs show their title, artist and album on the top screen. While a song plays:
   line swaying in time). The bar styles' bars stand out from their neighbours, so the
   spectrum has peaks and valleys; silence stays still. With Art + visualizer, every style is drawn along the bottom of
   the screen, under the art, on the theme's ground, except **Sparks**, **Starfield**, **Rain check** and **Sleepy moon**, which fill the whole screen
-  behind the art and the song's lines (they pass behind them, never over them), the art and lines then centred on
+  behind the art and the song's lines (they pass behind them, never over them; so does Rocket's starfield), the art and lines then centred on
   the screen as on Album art only. All fifteen are drawn by the player, not
   mpv, at the Visualizer frame rate setting, in the theme's colours (a theme change recolours them at once):
-  switching among them, or to None and back, never interrupts the sound, and with Visualizer only they keep clear of
-  the song's lines and of a volume or other card. A song from a network folder shows its style still (flat: the
+  switching among them, or to None and back, never interrupts the sound. The song's lines are drawn over the
+  visualizer with no box behind them (the shapes pass under the text, which keeps an outline in the theme's
+  background colour so it stays readable); only a volume or other card keeps the shapes off its place. A song from a network folder shows its style still (flat: the
   player reads only local files for the visualizer). Nothing on the top screen is drawn by a filter graph any more:
   mpv only plays the song's sound, so changing the mode or the style never reopens it. Earlier styles no longer offered (Night city, Aurora, Dots, Steps, Barcode, Rings, Banana
   dancer, Pixel sea, Jelly wobble, Washing machine, Tube man, and the older Circle, Sound garden, Bubble tea, Long
@@ -604,10 +605,13 @@ With Album art only, Art + visualizer and None the top screen takes the theme: i
 in a light theme) and the lines are in its text colours; every style alone (Visualizer only) is drawn on it too. With the art (Album art only, Art + visualizer) the art moves left (240 units; 224 above the band) and the three
 lines sit to its right, centred on the art's middle; the art and the lines are centred together on their real width, so
 a short title doesn't leave them hugging the left, and nothing is ever written over the art. Over Visualizer only the
-lines are at the top left, with a shadow (Pocket console: in its own green pixel type). An audiobook's or a song's
+lines are at the top left, outlined in the theme's background colour (Pocket console: in its own green pixel type,
+outlined in its screen's colour), with the visualizer passing under them; a long title's moving line fades at its
+edges by the text itself fading, not by a band of background over the visualizer. An audiobook's or a song's
 chapter is a line in the accent under the title. **None** shows the title in the middle (then "artist · album"). **Visualizer frame
-rate** (30, 45 or 60 fps; 45 by default) is how often the styles draw: everything moves at the same speed at any
-rate, only less smoothly at 30, which leaves the handheld more time for the sound.
+rate** (30, 45 or 60 fps; 45 by default) is how often the styles draw (each frame on a steady beat of its own,
+not when the sound's analysis happens to be ready): everything moves at the same speed at any rate, only less
+smoothly at 30, which leaves the handheld more time for the sound.
 
 ## Sound: equalizer and effects
 

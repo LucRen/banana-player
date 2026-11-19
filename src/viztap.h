@@ -25,6 +25,9 @@ namespace bp
 		struct Stats
 		{
 			uint64_t spectra = 0, seeks = 0, clockTold = 0;
+			// the worker's own time a look (decode, FFT, bands), its longest, and the looks it fell a frame behind
+			double workMs = 0, workMax = 0;
+			uint64_t behind = 0;
 		};
 
 		// a song's tap: its path (local), the frame rate (30, 45, 60), wake: called from the worker when new targets

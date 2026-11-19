@@ -198,3 +198,65 @@ Checked on the Mac: the five switched alone and with the art, a seek, a pause, `
 "now (the same tap, no graph change)" each time, 46.3 frames a second at 45 fps. What may differ on the handheld:
 Rain check at a full pool (260 drops as quads, ~1.6k vertices, plus the rings' arcs) and Sleepy moon's 40 overlapping
 cloud discs (blended fill at the foot); the moon may stay asleep on quiet masters (the line above).
+
+## Performance, and the lines over the shapes (same day)
+
+The owner on the handheld (Visualizer frame rate 60): Sleepy moon, Rocket and Sparks felt under 45; Grid started at 60
+and slowed as its rows filled; even Mirror bars missed 60 in the band (49.7–52.4), Rocket alone 35.6–42.8 with the
+worker at 47.8 spectra a second. The main thread used only 16% of a core under Sleepy moon: the frames were lost to
+the GPU's fill and to the cadence, not to the CPU alone.
+
+- **Cadence.** A frame was drawn per worker spectrum (`evViz`) or mpv frame, so the frame rate could never beat the
+  worker's, and two clocks (the worker's timer, the panel's refresh) beat against each other. Now the top panel draws
+  on its own grid of due times at the setting's rate (`TopScreen::nativeWaitMs` sets the loop's wait; a due time is
+  the last one plus a frame, so a late wake doesn't shift the rest), taking the tap's newest levels as it draws; an
+  mpv frame (the marquee's step, a card) goes into the next due frame instead of an extra one (paused: at once).
+- **mpv's layer.** mpv rendered its whole picture (ground, art, lines) every frame under the shapes, and the shapes
+  were kept off the lines' box: the visible "box" round the title. Now mpv's ground is clear (`background-color`
+  `#00000000`, `Player::groundClear`, set by `updateOverlay` for a song with a native style shown) and mpv renders
+  into a texture of ours (`layerFor`) **only when it has a new frame**; a frame is: clear to BG, the shapes, the layer
+  composed over them (premultiplied: mpv's OSD blending keeps alpha). So the lines sit over the visualizer with no
+  plate and no scissor hole; only mpv's cards are still kept clear. The lines (all modes over a visualizer, Pocket
+  console's too) carry `\bord3\shad2` in BG (Pocket: its screen colour); the marquee's edge fades are the text's own
+  alpha in four clipped strips (were BG strips over the picture). A song's picture while its style isn't up yet (or
+  just after) goes through the same composition on BG (`groundFrame`), never on black. With no framebuffers the old
+  way comes back (`nativeLayerFailed`: the ground opaque, the lines' and art's boxes kept clear).
+- **Discs** had `r * 2.1` sides (a 230-px cloud: 256 thin triangles). Now the sides keep the edge within ~0.35 px of
+  the circle (`circleSides`: 6 to 64; a spark 6, the moon ~45), small ones fanned from the rim, the cosines by a
+  rotation step. Vertices are 12 bytes (colour as bytes), built into buffers kept from frame to frame, one upload.
+- **Blending:** runs of opaque shapes draw with blending off (a large opaque shape starts a run; small ones ride
+  along), so the GPU can drop covered fragments.
+- **Sleepy moon:** 40 overlapping discs (the far 20 at 45% alpha) filled the foot several times over. Now two banks,
+  each the upper outline of its discs at 96 columns, filled down, opaque (`VI_DIM_BG`: DIM laid over BG); the far
+  bank only where it shows above the near one. The stars' crosses are two 3-unit bars on whole pixels (were 2-unit
+  lines: lost on the handheld).
+- **Rocket:** its smoke puffs opaque (`VI_DIM_BG` at the puff's faintness, the nearer over the farther) and its stars
+  plain quads in the same ink (were 40 polylines blended, a vector each).
+- **Grid:** 12 rows (was 17), the far half every other band, and each ridge's fill only down to the foot of the row
+  behind it (everything behind lies above that line), not to its own: a quiet row fills nothing, and the fills no
+  longer stack row on row as the history fills.
+
+Measured on the Mac (Visualizer only, 60 fps, a 1280x960 drawable: four times the handheld's pixels), from the new
+draw line's 5 s averages, before → after:
+
+| style | shapes + vertices (ms) | vertices | px filled (blended) | mpv renders / 5 s |
+|---|---|---|---|---|
+| Sleepy moon | 4.09 → 0.31 | 28.7k → 2.0k | 4.16M (2.79M) → 0.55M (14k) | 304 → 49 |
+| Sleepy moon, band | 4.22 → 0.40 | 26.2k → 2.1k | 3.53M (2.37M) → 0.43M (4k) | 321 → 89 |
+| Rocket | 1.41 → 0.21 | 5.9k → 1.7k | 253k (213k) → 254k (0) | 301 → 3 |
+| Sparks | 1.91 → 0.78 | 10.9k → 6.9k | 112k (12k) → 114k (13k) | 301 → 3 |
+| Grid | 1.53 → 0.56 | 6.0k → 3.5k | 1.97M (85k) → 0.93M (56k) | 302 → 3 |
+| Rain check | 1.99 → 1.25 | 7.3k → 5.7k | 190k → 192k | 302 → 3 |
+
+All fifteen alone stay under 1.3 ms of our own work a frame on the Mac (the heaviest: Rain check, Sparks, Strings,
+Dance line), 60.0–60.6 frames a second at 60 (a 120 Hz display here; the handheld's rate is in the GL ready line).
+
+**The draw line** (once 5 s after a style starts or changes, then every 5 s up to four times: a style that slows as it
+fills shows): `viz-native: draw <style> (alone|band) WxH: N frames a second; a frame X ms ours (shapes, GL[, GPU]), mpv
+X ms (N renders), swap X ms (max), the longest gap X ms; N vertices (max), N draws, Nk px filled (Nk blended)`.
+`BP_VIZ_GPU=1` adds the GPU's time (a glFinish before and after our pass: a debug run only, it stalls the pipeline).
+The 5 s tap line now has the worker's own time a look, its longest, and how often it fell a frame behind.
+
+What may differ on the handheld: the swap's wait (KMSDRM waits for the last page flip: the swap ms says how long);
+whether the Mali composes the layer (one full-panel blended texture a frame, ~0.3 MP) as cheaply as it should; the
+panel's refresh (the GL ready line). Not checked here: the arm64 bundle on the device.
