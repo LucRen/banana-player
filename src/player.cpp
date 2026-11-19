@@ -2220,11 +2220,13 @@ namespace bp
 	{
 		const int pw = topW > 0 ? topW : 960, ph = topH > 0 ? topH : 720;
 		LevelCardImage card = drawNoteCard(opts.fontsDir, ph, CardGlyph{rows, h}, line1, line2, danger);
+		const bool overVideo = !isAudio && !isPhoto && !playlist.empty();
 		int x, y;
-		noteCardPos(pw, ph, card, x, y, !isAudio && !isPhoto && !playlist.empty());	// a video: at the top, off the subtitles
+		noteCardPos(pw, ph, card, x, y, overVideo);	// a video: in the middle, off the subtitles and the level card
 		putImage(OV_NOTE, card, x, y);
-		noteUntil = ticks() + 3000;
-		cardMs = 3000;	// (the caller draws the panel while it is up)
+		// over a video it's in the middle of the picture: briefer
+		noteUntil = ticks() + (overVideo ? 1500 : 3000);
+		cardMs = overVideo ? 1500 : 3000;	// (the caller draws the panel while it is up)
 	}
 
 	void Player::hideLevel()
@@ -2238,10 +2240,11 @@ namespace bp
 		bool bad = text.find("ouldn't") != std::string::npos || text.find("an't ") != std::string::npos || text.find("ailed") != std::string::npos;
 		const int pw = topW > 0 ? topW : 960, ph = topH > 0 ? topH : 720;
 		LevelCardImage card = drawNoteCard(opts.fontsDir, ph, CardGlyph{}, text, "", bad);
+		const bool overVideo = !isAudio && !isPhoto && !playlist.empty();
 		int x, y;
-		noteCardPos(pw, ph, card, x, y, !isAudio && !isPhoto && !playlist.empty());	// a video: at the top, off the subtitles
+		noteCardPos(pw, ph, card, x, y, overVideo);	// a video: in the middle, off the subtitles and the level card
 		putImage(OV_NOTE, card, x, y);
-		ms = std::max(ms, 3000);
+		ms = overVideo ? 1500 : std::max(ms, 3000);	// (over a video it's in the middle of the picture: briefer)
 		noteUntil = ticks() + ms;
 		cardMs = ms;
 	}

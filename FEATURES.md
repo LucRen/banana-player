@@ -1352,7 +1352,7 @@ combination instead.)
 - **Chapter and Equalizer cards:** the same spot and body, a small label over the value in yellow ("Chapter 3 of 8" over
   its title, with a segment bar of the chapters; "Equalizer" over "Rock · On").
 - **Notes:** the short messages ("Added to Liked", "Speed 1.5×", "This is the first one", ...) are one card at the
-  bottom centre of the top screen (over a video at the top centre instead, off the subtitles): a line in yellow (red for a failure), an optional icon and dim second line; 3 s.
+  bottom centre of the top screen (over a video in the middle instead, for 1.5 s, off the subtitles and the level card): a line in yellow (red for a failure), an optional icon and dim second line; 3 s.
 - **Playing in a browser, Loading, Buffering:** one state card: a tile with an icon (the spinner while loading), a
   title, a line, and a hint with its key cap.
 - **Loading:** a file that takes a moment to open (a big photo, a slow card) shows a spinner on the top screen.
