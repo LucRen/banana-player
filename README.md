@@ -15,14 +15,14 @@
 
 <table>
   <tr>
-    <td align="center" width="33%"><img src="docs/img/screen-browser.png?v=0.7.11b" alt="The Movies folder on the bottom screen, showing where you left off in a film"><br><sub><b>Your files</b>, and where you left off</sub></td>
-    <td align="center" width="33%"><img src="docs/img/screen-playing.png?v=0.7.11b" alt="Big Buck Bunny playing on the top screen with a subtitle, the controls on the bottom"><br><sub><b>Movies</b> with chapters, subtitles and audio tracks</sub></td>
-    <td align="center" width="33%"><img src="docs/img/screen-music.png?v=0.7.11b" alt="A song with its album art inside the Circle visualizer"><br><sub><b>Music</b> with album art and a visualizer</sub></td>
+    <td align="center" width="33%"><img src="docs/img/screen-browser.png?v=0.7.34" alt="The Movies folder in the Dark theme, a film marked with where you left off"><br><sub><b>Your files</b>, and where you left off</sub></td>
+    <td align="center" width="33%"><img src="docs/img/screen-playing.png?v=0.7.34" alt="Big Buck Bunny playing in the Midnight blue theme, a subtitle on the top screen and the redesigned player with chapters and track buttons below"><br><sub><b>Movies</b> with chapters, subtitles and audio tracks</sub></td>
+    <td align="center" width="33%"><img src="docs/img/screen-music.png?v=0.7.34" alt="A song in the light Sakura theme: its album art with the Ribbon visualizer under it on the top screen"><br><sub><b>Music</b> with album art and a visualizer</sub></td>
   </tr>
   <tr>
-    <td align="center"><img src="docs/img/screen-sound.png?v=0.7.11b" alt="The 10-band equalizer on the bottom screen, set to Rock, under a song with the Circle visualizer"><br><sub><b>A 10-band equalizer</b> and room effects</sub></td>
-    <td align="center"><img src="docs/img/screen-photo.png?v=0.7.11b" alt="A Big Buck Bunny still zoomed in on the top screen, the pan area on the bottom"><br><sub><b>Photos</b> you can zoom and explore</sub></td>
-    <td align="center"><img src="docs/img/screen-manga.png?v=0.7.11b" alt="A colour manga page across both screens: a late night at the desk, tea brought in, and a moment to rest"><br><sub><b>Manga</b> across both screens</sub></td>
+    <td align="center"><img src="docs/img/screen-sound.png?v=0.7.34" alt="The 10-band equalizer in the Dark purple theme, set to Rock, under a song with the Peaks visualizer"><br><sub><b>A 10-band equalizer</b> and room effects</sub></td>
+    <td align="center"><img src="docs/img/screen-photo.png?v=0.7.34" alt="A Big Buck Bunny still zoomed in on the top screen in the Light theme, the pan area on the bottom"><br><sub><b>Photos</b> you can zoom and explore</sub></td>
+    <td align="center"><img src="docs/img/screen-manga.png?v=0.7.34" alt="A colour manga page across both screens in the Yellow theme: a late night at the desk, tea brought in, and a moment to rest"><br><sub><b>Manga</b> across both screens</sub></td>
   </tr>
 </table>
 
