@@ -558,6 +558,7 @@ namespace bp
 		ci.pageCount = total_;
 		ci.sourceId = item_.source;
 		ci.seriesKey = item_.seriesId;
+		ci.chapterId = item_.chapterId;	// the online chapter's id: reading either copy keeps one place (issue #15)
 		const std::string xml = writeComicInfo(ci);
 
 		CbzWriter w;

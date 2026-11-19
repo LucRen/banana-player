@@ -13,7 +13,7 @@ namespace bp
 
 		// the direct children of ComicInfo we keep; any other element is skipped with its contents
 		const char* const kFields[] = {"Series", "Title", "Number", "Volume", "Summary", "Writer", "Web", "PageCount",
-		                               "Manga", "BPSource", "BPSeriesKey"};
+		                               "Manga", "BPSource", "BPSeriesKey", "BPChapter"};
 
 		bool isSpace(char c)
 		{
@@ -272,6 +272,7 @@ namespace bp
 		r.rightToLeft = get("Manga") == "YesAndRightToLeft";
 		r.sourceId = get("BPSource");
 		r.seriesKey = get("BPSeriesKey");
+		r.chapterId = get("BPChapter");
 		out = r;
 		return true;
 	}
@@ -299,6 +300,7 @@ namespace bp
 		if (in.rightToLeft) o += "  <Manga>YesAndRightToLeft</Manga>\n";
 		text("BPSource", in.sourceId);
 		text("BPSeriesKey", in.seriesKey);
+		text("BPChapter", in.chapterId);
 		o += "</ComicInfo>\n";
 		return o;
 	}

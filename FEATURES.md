@@ -1188,7 +1188,9 @@ left (offered while one has failed). With nothing queued that room
 collapses to one dim **Nothing queued** line, and **On the card · N series** and its rows rise right under it, as many
 series as fit above the hints line. What is on the card is listed by series, with its chapters and size; **A** lists a
 series' chapters (and **A** on one reads it), **X** deletes a chapter or a series after a second press. Downloads need
-the network and resume where they stopped after a pause, a lost connection or a quit.
+the network and resume where they stopped after a pause, a lost connection or a quit. A downloaded chapter and its
+online chapter share one place, read mark and History row, whichever way it is opened (Browse, Downloads or *On this
+handheld*).
 
 **Reading.** A chapter opens on the top screen; the bottom screen holds the controls: the chapter and the series, the
 page number, the slider, the two chapter buttons and the mode. The big area says *Swipe here to turn the page* (or *Drag

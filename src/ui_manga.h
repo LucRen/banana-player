@@ -1017,6 +1017,7 @@ namespace bp
 		{
 			std::string title, path;	// the .cbz, its title as ComicInfo has it (else its name)
 			std::string sourceId, seriesKey;	// what the download wrote (ComicInfo BPSource / BPSeriesKey)
+			std::string chapterId;	// its BPChapter: the source chapter's id ("" in an older download)
 			int pages = 0;
 			uint64_t bytes = 0;
 			double number = -1;	// ComicInfo's Number, when it is one
@@ -1040,6 +1041,10 @@ namespace bp
 		};
 		enum MangaDlSheet { MDLS_NONE, MDLS_MENU, MDLS_CHOOSE };
 		mutable std::vector<MangaDlCardSeries> mdlCard;	// the card's downloads, scanned when the page or tab needs them
+		// the source chapter lists an older download (no BPChapter) is matched in to link its place to the source's
+		// (issue #15): read once per series from its cache file, the series page's own list when it is open
+		std::unordered_map<std::string, std::vector<MangaChapter>> mdlLinkLists;
+		void mangaDlLinkCard();	// every chapter on the card linked to its source chapter in the store
 		uint64_t mdlCardStamp = 0;	// what the last scan found, so an unchanged card doesn't redraw every frame
 		Uint32 mdlScanAt = 0;		// the scan is slow enough to be worth throttling
 		bool mdlCardOn = false;

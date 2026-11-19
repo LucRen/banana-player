@@ -95,6 +95,17 @@ namespace bp
 		// How many of the chapters given aren't read.
 		int unread(const std::string& seriesId, const std::vector<std::string>& chapterIds) const;
 
+		// A downloaded chapter's file linked to the source chapter it is a copy of (issue #15): one place for both.
+		// Every call above that takes a chapter id takes the file's path as that chapter's id from then on, and
+		// keeps the place under the source's ids (chapterId, seriesId). A place already kept under the path moves
+		// there; one kept under both is merged (the later place, read when either is). Not saved: the links come
+		// from the files each run (ComicInfo's BPChapter, or a match in the source's chapter list), at most
+		// MAX_PROGRESS of them.
+		enum class Link { Same, Linked, Moved, Merged };
+		Link linkChapter(const std::string& path, const std::string& chapterId, const std::string& seriesId);
+		// the id a chapter's place is kept under: the source's for a linked file, else the id as given
+		const std::string& canonicalChapter(const std::string& chapterId) const;
+
 		uint64_t serial() const { return serial_; }	// grows with every change: the UI redraws on it
 
 	private:
@@ -111,6 +122,9 @@ namespace bp
 		// chapterId -> its place in progress_, rebuilt after any add or removal (the vector's order changes then)
 		mutable std::unordered_map<std::string, size_t> progIdx_;
 		mutable bool progIdxDirty_ = true;
+		struct LinkTo { std::string chapterId, seriesId; };
+		std::unordered_map<std::string, LinkTo> links_;	// a downloaded file's path -> its source chapter
+		const LinkTo* linkOf(const std::string& chapterId) const;
 		uint64_t serial_ = 0;
 	};
 }

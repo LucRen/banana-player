@@ -280,7 +280,8 @@ namespace bp
 		}
 
 		const char* const CACHE_HEAD = "# bp manga files 1";
-		constexpr size_t CACHE_FIELDS = 13;	// before the checksum
+		// before the checksum; a line written before BPChapter was kept has one fewer (its file had none to keep)
+		constexpr size_t CACHE_FIELDS = 14;
 	}
 
 	ChapterFileMeta readChapterFile(const std::string& path)
@@ -304,6 +305,7 @@ namespace bp
 			m.ciSeries = ci.series;
 			m.ciSeriesKey = ci.seriesKey;
 			m.ciSourceId = ci.sourceId;
+			m.ciChapterId = ci.chapterId;
 			m.ciTitle = ci.title;
 		}
 		return m;
@@ -545,7 +547,7 @@ namespace bp
 			line += c.comicInfo ? "\t1\t" : "\t0\t";
 			escapeTo(line, c.ciNumber);
 			line += "\t" + std::to_string(c.ciVolume) + "\t" + std::to_string(c.ciPageCount);
-			for (const std::string* f : {&c.ciSeries, &c.ciSeriesKey, &c.ciSourceId, &c.ciTitle})
+			for (const std::string* f : {&c.ciSeries, &c.ciSeriesKey, &c.ciSourceId, &c.ciTitle, &c.ciChapterId})
 			{
 				line += "\t";
 				escapeTo(line, *f);
@@ -582,7 +584,7 @@ namespace bp
 				f.push_back(line.substr(s, t - s));
 				s = t + 1;
 			}
-			if (f.size() != CACHE_FIELDS) continue;
+			if (f.size() != CACHE_FIELDS && f.size() != CACHE_FIELDS - 1) continue;
 			Entry e;
 			int64_t pages = 0, vol = 0, pc = 0;
 			if (!toInt(f[1], e.size) || !toInt(f[2], e.mtime) || !toInt(f[3], pages) || !toInt(f[7], vol) || !toInt(f[8], pc)) continue;
@@ -598,6 +600,7 @@ namespace bp
 			e.meta.ciSeriesKey = unescape(f[10]);
 			e.meta.ciSourceId = unescape(f[11]);
 			e.meta.ciTitle = unescape(f[12]);
+			if (f.size() > 13) e.meta.ciChapterId = unescape(f[13]);
 			got[path] = std::move(e);
 		}
 		std::lock_guard<std::mutex> g(m);
