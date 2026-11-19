@@ -41,36 +41,29 @@
 
 ## Visualizers
 
-Twenty looks for your music, picked with **SELECT** while a song plays. Each one also works over the album art.
+Fifteen looks for your music, drawn in your theme's colours, picked on **View › Display** (**SELECT**) while a song plays. Each one also works with the album art.
 
 <table>
   <tr>
-    <td align="center" width="20%"><img src="docs/img/viz/peaks-yellow.jpg?v=0.7.14" alt="The Peaks visualizer"><br><sub>Peaks</sub></td>
-    <td align="center" width="20%"><img src="docs/img/viz/circle.jpg?v=0.7.14" alt="The Circle visualizer"><br><sub>Circle</sub></td>
-    <td align="center" width="20%"><img src="docs/img/viz/pocket.jpg?v=0.7.14" alt="The Pocket console visualizer"><br><sub>Pocket console</sub></td>
-    <td align="center" width="20%"><img src="docs/img/viz/night-city.jpg?v=0.7.14" alt="The Night city visualizer"><br><sub>Night city</sub></td>
-    <td align="center" width="20%"><img src="docs/img/viz/banana-dancer.jpg?v=0.7.14" alt="The Banana dancer visualizer"><br><sub>Banana dancer</sub></td>
+    <td align="center" width="20%"><img src="docs/img/viz/peaks-yellow.jpg?v=0.7.34" alt="The Peaks visualizer in the Yellow theme"><br><sub>Peaks</sub></td>
+    <td align="center" width="20%"><img src="docs/img/viz/ribbon.jpg?v=0.7.34" alt="The Ribbon visualizer in the Sakura theme"><br><sub>Ribbon</sub></td>
+    <td align="center" width="20%"><img src="docs/img/viz/mirror-bars.jpg?v=0.7.34" alt="The Mirror bars visualizer in the Midnight blue theme"><br><sub>Mirror bars</sub></td>
+    <td align="center" width="20%"><img src="docs/img/viz/pocket.jpg?v=0.7.34" alt="The Pocket console visualizer in the Retro green theme"><br><sub>Pocket console</sub></td>
+    <td align="center" width="20%"><img src="docs/img/viz/horizon.jpg?v=0.7.34" alt="The Horizon visualizer in the Sunset theme"><br><sub>Horizon</sub></td>
   </tr>
   <tr>
-    <td align="center" width="20%"><img src="docs/img/viz/campfire.jpg?v=0.7.14" alt="The Campfire visualizer"><br><sub>Campfire</sub></td>
-    <td align="center" width="20%"><img src="docs/img/viz/aurora.jpg?v=0.7.14" alt="The Aurora visualizer"><br><sub>Aurora</sub></td>
-    <td align="center" width="20%"><img src="docs/img/viz/sound-garden.jpg?v=0.7.14" alt="The Sound garden visualizer"><br><sub>Sound garden</sub></td>
-    <td align="center" width="20%"><img src="docs/img/viz/pixel-sea.jpg?v=0.7.14" alt="The Pixel sea visualizer"><br><sub>Pixel sea</sub></td>
-    <td align="center" width="20%"><img src="docs/img/viz/bunny-hop.jpg?v=0.7.14" alt="The Bunny hop visualizer"><br><sub>Bunny hop</sub></td>
+    <td align="center" width="20%"><img src="docs/img/viz/grid.jpg?v=0.7.34" alt="The Grid visualizer in the Dark purple theme"><br><sub>Grid</sub></td>
+    <td align="center" width="20%"><img src="docs/img/viz/starfield.jpg?v=0.7.34" alt="The Starfield visualizer in the Dark theme"><br><sub>Starfield</sub></td>
+    <td align="center" width="20%"><img src="docs/img/viz/strings.jpg?v=0.7.34" alt="The Strings visualizer in the Light theme"><br><sub>Strings</sub></td>
+    <td align="center" width="20%"><img src="docs/img/viz/helix.jpg?v=0.7.34" alt="The Helix visualizer in the Mint theme"><br><sub>Helix</sub></td>
+    <td align="center" width="20%"><img src="docs/img/viz/sparks.jpg?v=0.7.34" alt="The Sparks visualizer in the Coffee theme"><br><sub>Sparks</sub></td>
   </tr>
   <tr>
-    <td align="center" width="20%"><img src="docs/img/viz/bubble-tea.jpg?v=0.7.14" alt="The Bubble tea visualizer"><br><sub>Bubble tea</sub></td>
-    <td align="center" width="20%"><img src="docs/img/viz/jellyfish.jpg?v=0.7.14" alt="The Jellyfish visualizer"><br><sub>Jellyfish</sub></td>
-    <td align="center" width="20%"><img src="docs/img/viz/music-box.jpg?v=0.7.14" alt="The Music box visualizer"><br><sub>Music box</sub></td>
-    <td align="center" width="20%"><img src="docs/img/viz/fishbowl.jpg?v=0.7.14" alt="The Fishbowl visualizer"><br><sub>Fishbowl</sub></td>
-    <td align="center" width="20%"><img src="docs/img/viz/vibing-cat.jpg?v=0.7.14" alt="The Vibing cat visualizer"><br><sub>Vibing cat</sub></td>
-  </tr>
-  <tr>
-    <td align="center" width="20%"><img src="docs/img/viz/popcorn-machine.jpg?v=0.7.14" alt="The Popcorn machine visualizer"><br><sub>Popcorn machine</sub></td>
-    <td align="center" width="20%"><img src="docs/img/viz/jelly-wobble.jpg?v=0.7.14" alt="The Jelly wobble visualizer"><br><sub>Jelly wobble</sub></td>
-    <td align="center" width="20%"><img src="docs/img/viz/tube-man.jpg?v=0.7.14" alt="The Tube man visualizer"><br><sub>Tube man</sub></td>
-    <td align="center" width="20%"><img src="docs/img/viz/long-cat.jpg?v=0.7.14" alt="The Long cat visualizer"><br><sub>Long cat</sub></td>
-    <td align="center" width="20%"><img src="docs/img/viz/washing-machine.jpg?v=0.7.14" alt="The Washing machine visualizer"><br><sub>Washing machine</sub></td>
+    <td align="center" width="20%"><img src="docs/img/viz/bouncy-keys.jpg?v=0.7.34" alt="The Bouncy keys visualizer in the 16-bit theme"><br><sub>Bouncy keys</sub></td>
+    <td align="center" width="20%"><img src="docs/img/viz/rocket.jpg?v=0.7.34" alt="The Rocket visualizer in the Midnight blue theme"><br><sub>Rocket</sub></td>
+    <td align="center" width="20%"><img src="docs/img/viz/rain-check.jpg?v=0.7.34" alt="The Rain check visualizer in the 32-bit theme"><br><sub>Rain check</sub></td>
+    <td align="center" width="20%"><img src="docs/img/viz/sleepy-moon.jpg?v=0.7.34" alt="The Sleepy moon visualizer in the Dark red theme"><br><sub>Sleepy moon</sub></td>
+    <td align="center" width="20%"><img src="docs/img/viz/dance-line.jpg?v=0.7.34" alt="The Dance line visualizer in the Pink theme"><br><sub>Dance line</sub></td>
   </tr>
 </table>
 
