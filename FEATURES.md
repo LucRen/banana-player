@@ -548,7 +548,8 @@ Songs show their title, artist and album on the top screen. While a song plays:
   more and higher, and a brighter handful on each beat). The bar styles' bars stand out from their neighbours, so the
   spectrum has peaks and valleys; silence stays still. With Art + visualizer, every style is drawn along the bottom of
   the screen, under the art, on the theme's ground, except **Sparks** and **Starfield**, which fill the whole screen
-  behind the art and the song's lines (they pass behind them, never over them). All ten are drawn by the player, not
+  behind the art and the song's lines (they pass behind them, never over them), the art and lines then centred on
+  the screen as on Album art only. All ten are drawn by the player, not
   mpv, at the Visualizer frame rate setting, in the theme's colours (a theme change recolours them at once):
   switching among them, or to None and back, never interrupts the sound, and with Visualizer only they keep clear of
   the song's lines and of a volume or other card. A song from a network folder shows its style still (flat: the

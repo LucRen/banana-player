@@ -2751,9 +2751,12 @@ namespace bp
 		const int widest = std::max({lineW(title, SONG_TITLE_FS, true), lineW(chapter, SONG_ARTIST_FS, false),
 									 lineW(artist, SONG_ARTIST_FS, false), lineW(album, SONG_ALBUM_FS, false)});
 		SongLayout artOnly = songLayout(true, widest);
+		// a style over the whole panel in Art + visualizer (vizFullPanel: Sparks, Starfield...): the art and its lines
+		// as Album art only lays them out, centred both ways (the owner's word), not lifted over a band
+		const bool fullGroup = show == SHOW_BOTH && vizFullPanel(style);
 		if (videoArt)
 		{
-			const SongLayout v = show == SHOW_ART ? artOnly : songLayout(false, widest);
+			const SongLayout v = show == SHOW_ART || fullGroup ? artOnly : songLayout(false, widest);
 			char m[96];
 			snprintf(m, sizeof m, "%.5f %.5f %.5f %.5f", v.artX / 640.0, (640 - v.artX - v.artS) / 640.0, v.artY / 480.0,
 					 (480 - v.artY - v.artS) / 480.0);
@@ -2763,7 +2766,7 @@ namespace bp
 
 		if (group)
 		{
-			SongLayout l = show == SHOW_ART ? artOnly : songLayout(false, widest);
+			SongLayout l = show == SHOW_ART || fullGroup ? artOnly : songLayout(false, widest);
 			// the art: mpv's (a network song), or the overlay's (decoded here, both modes)
 			enum { NOTHING, ART, OVERLAY, PLACEHOLDER } box = NOTHING;
 			if (isNet) box = tracks.empty() ? NOTHING : videoArt ? ART : PLACEHOLDER;
