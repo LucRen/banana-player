@@ -144,7 +144,7 @@ namespace bp
 		// the title over the time
 		int room = std::max(40, x - l.textX);
 		if (m.err) ui.drawTextMid(m.title, F_P14, DANGER, l.textX, l.cy - 9, room);
-		else ui.drawMarquee(m.title, F_P14, TEXT, l.textX, l.cy - 9, room, m.pressed ? PRESSED : SURFACE);	// (the Title marquee)
+		else ui.drawTextMid(m.title, F_P14, TEXT, l.textX, l.cy - 9, room);	// static: the mini bar takes no Title marquee
 		ui.drawTextMid(m.time, F_I12, m.err ? DANGER : DIM, l.textX, l.cy + 9, room);
 	}
 
