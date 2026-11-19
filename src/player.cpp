@@ -2221,7 +2221,7 @@ namespace bp
 		const int pw = topW > 0 ? topW : 960, ph = topH > 0 ? topH : 720;
 		LevelCardImage card = drawNoteCard(opts.fontsDir, ph, CardGlyph{rows, h}, line1, line2, danger);
 		int x, y;
-		noteCardPos(pw, ph, card, x, y);
+		noteCardPos(pw, ph, card, x, y, !isAudio && !isPhoto && !playlist.empty());	// a video: at the top, off the subtitles
 		putImage(OV_NOTE, card, x, y);
 		noteUntil = ticks() + 3000;
 		cardMs = 3000;	// (the caller draws the panel while it is up)
@@ -2239,7 +2239,7 @@ namespace bp
 		const int pw = topW > 0 ? topW : 960, ph = topH > 0 ? topH : 720;
 		LevelCardImage card = drawNoteCard(opts.fontsDir, ph, CardGlyph{}, text, "", bad);
 		int x, y;
-		noteCardPos(pw, ph, card, x, y);
+		noteCardPos(pw, ph, card, x, y, !isAudio && !isPhoto && !playlist.empty());	// a video: at the top, off the subtitles
 		putImage(OV_NOTE, card, x, y);
 		ms = std::max(ms, 3000);
 		noteUntil = ticks() + ms;

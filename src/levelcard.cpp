@@ -28,10 +28,10 @@ namespace bp
 		y = m;
 	}
 
-	void noteCardPos(int pw, int ph, const LevelCardImage& card, int& x, int& y)
+	void noteCardPos(int pw, int ph, const LevelCardImage& card, int& x, int& y, bool top)
 	{
 		x = (pw - card.w) / 2;
-		y = ph - (int)std::lround(26 * ph / 480.0) - card.h;
+		y = top ? (int)std::lround(20 * ph / 480.0) : ph - (int)std::lround(26 * ph / 480.0) - card.h;
 	}
 
 	namespace
