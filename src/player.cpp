@@ -2244,7 +2244,8 @@ namespace bp
 		int x, y;
 		noteCardPos(pw, ph, card, x, y, overVideo);	// a video: in the middle, off the subtitles and the level card
 		putImage(OV_NOTE, card, x, y);
-		ms = overVideo ? 1500 : std::max(ms, 3000);	// (over a video it's in the middle of the picture: briefer)
+		// over a video it's in the middle of the picture: briefer, except a note asked for longer (a browser signing in: 6 s)
+		ms = overVideo && ms <= 3000 ? 1500 : std::max(ms, 3000);
 		noteUntil = ticks() + ms;
 		cardMs = ms;
 	}
