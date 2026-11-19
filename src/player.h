@@ -450,6 +450,25 @@ namespace bp
 		std::string lastArtDir;
 		int shownMusic() const;	// MusicShow as it comes out now (None while the visualizer rests)
 		void updateOverlay();
+		// The song's title on the top panel as a Title marquee (docs/redesign/components.md): when it doesn't fit its
+		// line's box it is its own ASS overlay (id 2), sent again with a new \pos inside a \clip at each step
+		struct TopMarq
+		{
+			bool on = false;
+			std::string key, text, style;	// its text and its look (font, size, colour) as ASS tags
+			double x = 0, y = 0, boxW = 0;	// units: the box's left, the line's anchor (an: 4 its middle, 7 its top)
+			int textW = 0, fs = 0, an = 4;
+			bool fade = true;	// fades in the ground's colour (BG); none over a picture
+			uint64_t start = 0;
+			int lastStep = -1;
+		};
+		TopMarq topMarq;
+		void setTopMarquee(const std::string& text, const std::string& style, int an, double x, double y, double boxW, int fs, int textW, bool fade);
+	public:
+		void tickMarquee();	// each loop pass: the title's next step sent when it is due
+		bool marqueeMoving() const;	// (the loop wakes at the steps' rate)
+		void marqueeRestart() { topMarq.key.clear(); if (topMarq.on) updateOverlay(); }	// the panel woke
+	private:
 		// The song's art on the top panel (src/songlayout.h). The art is an image overlay (Album art only and Art + visualizer), decoded here once (a
 		// thread of its own) at the panel's pixels, its corners rounded. A network song's art is mpv's own video
 		// instead (the decode reads local files only), put in the art's box by the video's margins

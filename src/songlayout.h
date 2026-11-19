@@ -1,4 +1,6 @@
 #pragma once
+#include <functional>
+#include <vector>
 // The top panel's song layout (docs/redesign/components.md, Top screen › Song layout): where the art box and the
 // title lines go in each Show mode, in the panel's 640x480 units. Pure maths, no window: Player places the art (mpv's
 // video margins, an image overlay, or the graph's still) and writes the ASS text from it.
@@ -42,4 +44,16 @@ namespace bp
 	// left as they are; the graph then still names [vid1]
 	std::string vizPlaceArt(const std::string& graph, int x, int y, int art, const std::string& ground = "black",
 		const std::string& band = "black");
+
+	// Repeated start (docs/redesign/components.md, Title marquee): what plays, shown in a box it doesn't fit, leaves out
+	// a start that is one of `starts` (the artist, the album, the folder, the playing list's shared start: in that order,
+	// case aside) when it ends at a separator (" - ", " – ", " — ", ": ", " | ", "_"; the separator goes with it) and three
+	// letters or more are left (digits and marks aside). Two starts at most; a title that fits is never changed
+	std::string shownTitle(const std::string& title, const std::vector<std::string>& starts, const std::function<bool(const std::string&)>& fits);
+	// the start every name shares (three names or more), up to a separator, four letters or more; "" if none
+	std::string sharedStart(const std::vector<std::string>& names);
+	// what shownTitle may leave out, in its order: the artist, the album, the file's folder, the list's shared start
+	// (names: the playing list's file names)
+	std::vector<std::string> titleStarts(const std::string& artist, const std::string& album, const std::string& path,
+		const std::vector<std::string>& names);
 }

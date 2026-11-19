@@ -702,6 +702,8 @@ namespace bp
 				.page(SG_FILES, 20, "Show hidden folders", "Shows the folders you've hidden (X on a folder), so you can unhide them."),
 			D::flag("battery-percent", &Settings::batteryPercent)
 				.page(SG_SCREEN, 120, "Battery percentage", "Shows the battery's percent beside its icon."),
+			D::flag("scroll-titles", &Settings::scrollTitles)
+				.page(SG_SCREEN, 125, "Scroll long titles", "A title too long for its place moves along after a moment, twice, then rests at its start. Off: it is cut with \u201c\u2026\u201d."),
 			D::flag("keep-photo-zoom", &Settings::keepPhotoZoom)
 				.page(SG_PHOTOS, 10, "Keep zoom between photos", "The next photo opens at the same zoom and place. Off: each opens whole."),
 			D::flag("check-updates", &Settings::checkUpdates)

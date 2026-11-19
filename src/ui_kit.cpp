@@ -128,7 +128,13 @@ namespace bp
 			ui.drawGlyphMid(*h.stateMark, titleRight - stW - 7 - gw / 2, titleY, h.stateInk);
 			stW += 7 + gw;
 		}
-		if (!h.title.empty()) ui.drawTextMid(h.title, F_P28, TEXT, l.title.x, titleY, l.title.w - stW - 14);
+		if (!h.title.empty())
+		{
+			// the player's title (a song, a video): the Title marquee; another page's: cut with "…"
+			const int room = l.title.w - stW - 14;
+			if (h.marquee) ui.drawMarquee(h.titleFor ? h.titleFor(room) : h.title, F_P28, TEXT, l.title.x, titleY, room, BG);
+			else ui.drawTextMid(h.title, F_P28, TEXT, l.title.x, titleY, room);
+		}
 	}
 
 	// ---- keys ----
@@ -436,7 +442,9 @@ namespace bp
 			right -= w + 9;
 		}
 		if (!row.pill.empty()) right -= pill(right, cy, row.pill, row.tone) + 9;
-		ui.drawTextMid(row.name, row.font, ink, x, cy, std::max(1, right - x));
+		// the focused row's name: the Title marquee, one pass (the cursor rested 1.5 s first: its rest)
+		if (row.focused && !row.off) ui.drawMarquee(row.name, row.font, ink, x, cy, std::max(1, right - x), BUTTON, 1);
+		else ui.drawTextMid(row.name, row.font, ink, x, cy, std::max(1, right - x));
 	}
 
 	// ---- the Settings page's pieces ----

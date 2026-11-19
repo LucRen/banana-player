@@ -876,7 +876,9 @@ namespace bp
 		int x0 = b.x + 78, room = keyX - 14 - x0;
 		int sw = std::min(room / 2, (int)std::lround(textWidth(sub, 0) / sx));
 		int tmax = std::max(40, room - sw - 12);
-		drawTextMid(title, 0, TEXT, x0, mid, tmax);
+		// the Title marquee (it waits while a focused row's name moves), the title as shown there (Repeated start)
+		if (live) title = playingTitle(bp, title, 0, tmax);
+		drawMarquee(title, 0, TEXT, x0, mid, tmax, pressedBtn == MINI_BAR ? PRESSED : SURFACE);
 		int tw = std::min(tmax, (int)std::lround(textWidth(title, 0) / sx));
 		int sx0 = x0 + tw + 12;
 		if (held)

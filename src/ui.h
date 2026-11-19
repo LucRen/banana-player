@@ -738,6 +738,29 @@ namespace bp
 		// the same, the line's middle (its capitals') on cy: labels centred in their boxes at any panel size
 		void drawTextMid(const std::string& s, int size, SDL_Color c, int x, int cy, int maxW = 0, int align = 0);
 		void drawTextAt(const std::string& s, int size, SDL_Color c, int x, int y, int maxW, int align, bool middle);
+		// The Title marquee (docs/redesign/components.md; lay::marquee): a title too long for its box, drawn from its
+		// start with its last 16 units fading into `ground`, moving along twice (passes: 1 in a focused row), then
+		// resting at its start. One moves per panel at a time (the first drawn in a frame: a focused row before the mini
+		// bar); a sheet or menu over the page holds it at its start, and it starts again when it's gone, when the page
+		// changes or the panel wakes. Scroll long titles off: cut with "…" as before
+		void drawMarquee(const std::string& s, int size, SDL_Color c, int x, int cy, int boxW, SDL_Color ground, int passes = 2);
+		// the title of what plays as shown in a box boxW wide (Repeated start: shownTitle)
+		std::string playingTitle(const Player& p, const std::string& title, int size, int boxW) const;
+		bool scrollTitles = true;
+		struct MarqMover
+		{
+			std::string key;
+			int textW = 0, boxW = 0, size = 0, passes = 2;
+			uint32_t start = 0;
+		};
+		std::map<std::string, uint32_t> marqStarts;	// each title's start, this page (cleared: they start again)
+		MarqMover marqMover;	// the one moving, as last drawn
+		bool marqUp = false;	// one claimed the panel in the last drawing
+		uint32_t marqFrame = 0, marqClaim = 0;
+		int marqPage = -1;
+		lay::MarqueeAt marqNow() const;	// where the moving one is now
+		bool marqueeMoving() const;
+		void marqueeRestart() { marqStarts.clear(); }	// the panel woke
 		mutable int capHeight[FONT_COUNT] = {};	// in pixels
 		void fill(Rect r, SDL_Color c);
 		// rounded corners (theme.h's radii, in 640x480 units): corners a mask of ROUND_TL, _TR, _BL, _BR. SDL_Renderer

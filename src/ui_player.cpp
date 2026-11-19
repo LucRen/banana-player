@@ -2034,6 +2034,8 @@ namespace bp
 		head.crumb = crumb(p, head.mark);
 		head.crumbEnd = p.source().kind != SourceKind::Playlist;
 		head.title = !p.title.empty() ? p.title : err ? name : "Opening...";
+		head.marquee = !p.title.empty();
+		head.titleFor = [&](int room) { return ui.playingTitle(p, head.title, F_P28, room); };
 		head.state = state;
 		head.stateMark = stMark;
 		head.stateInk = stInk;

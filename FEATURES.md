@@ -578,6 +578,17 @@ Songs show their title, artist and album on the top screen. While a song plays:
   from the web, and after a restart. The web sets them separately. They apply to videos as to songs, from the same
   List sheet (a video's **Repeat** chip opens it; a song's **Shuffle** chip turns Shuffle on or off).
 
+**Long titles move** (the Title marquee): a title too long for its place is drawn from its start, its end fading
+into the ground, and after 1.5 s moves left until its end shows, rests, fades back to its start and, 3 s later, does
+it once more; then it rests at its start. It does this for the player's title (a song or a video), the mini bar's
+title, the song's title on the top screen (every Show mode; artist and album stay cut with "…") and the focused row
+of a list (one pass, once the cursor has rested on it). One title moves at a time on a screen; a sheet or menu over it
+holds it at its start, and it starts again on a new title, when the page opens or the screen wakes. A title that
+doesn't fit also leaves out a start it shares with its artist, album, folder or playing list ("Yellow Album - 03 -
+Sunny Peel" shows "03 - Sunny Peel") when that start ends at " - ", ": ", " | " or "_" and three letters or more are
+left; lists, Search and Info keep the whole name. **Settings › Power & screens › Scroll long titles** (On by default):
+Off cuts long titles with "…" as before.
+
 Settings › Music has the same two choices as **Music display** and **Visualizer style**. The song's title, artist and
 album (with its year) are always on the top screen (there is no setting), each line cut with "…" if it's too long.
 With Album art only, Art + visualizer and None the top screen takes the theme: its ground is the theme's background (light

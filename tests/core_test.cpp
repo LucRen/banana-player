@@ -5999,6 +5999,62 @@ static void checkStillRepeats(const std::string& g)
 
 // The native visualizers' pure part (src/viznative.h): the bands, the spectrum's levels, the easing, Mirror bars'
 // shapes, the clock
+static void testTitleMarquee()
+{
+	// the timing (docs/redesign/components.md, Title marquee): 100 units over a 60-unit box in 28-px type (2 units a
+	// step): rests 1.5 s, moves 40 units in 20 steps (833 ms), rests 1.5 s at its end, fades out and in (300 ms), rests 3 s,
+	// again, then done at its start
+	using lay::marquee;
+	CHECK(marquee(0, 50, 60, 28).done && marquee(5000, 50, 60, 28).offset == 0);	// fits: never moves
+	lay::MarqueeAt m = marquee(0, 100, 60, 28);
+	CHECK(m.offset == 0 && !m.done && m.fadeRight && !m.fadeLeft && m.alpha == 1);
+	CHECK_EQ(marquee(1499, 100, 60, 28).offset, 0);
+	CHECK_EQ(marquee(1500, 100, 60, 28).offset, 2);
+	CHECK_EQ(marquee(1500 + 500, 100, 60, 28).offset, 2 * (500 * 24 / 1000 + 1));
+	m = marquee(1500 + 900, 100, 60, 28);
+	CHECK(m.offset == 40 && !m.fadeRight && m.fadeLeft);	// at its end: no right fade
+	const int moveMs = 20 * 1000 / 24, pass = 1500 + moveMs + 1500 + 300;
+	m = marquee(1500 + moveMs + 1500 + 75, 100, 60, 28);
+	CHECK(m.offset == 40 && m.alpha > 0.4f && m.alpha < 0.6f);	// fading out at its end
+	m = marquee(1500 + moveMs + 1500 + 225, 100, 60, 28);
+	CHECK(m.offset == 0 && m.alpha > 0.4f && m.alpha < 0.6f);	// fading in at its start
+	CHECK(!marquee(pass + 1000, 100, 60, 28).done && marquee(pass + 1000, 100, 60, 28).offset == 0);	// the 3 s rest
+	CHECK_EQ(marquee(pass + 3000 + 10, 100, 60, 28).offset, 2);	// the second pass moves 3 s after the fade
+	CHECK(marquee(2 * pass + 3000 - 1500 + 10, 100, 60, 28).done);	// then done, at its start
+	CHECK(marquee(pass + 10, 100, 60, 28, 1).done);	// a row's one pass
+	CHECK_EQ(marquee(1500 + 500, 100, 60, 16).offset, 500 * 24 / 1000 + 1);	// under 24: a unit a step
+	// steps change while it moves, not while it rests
+	CHECK(marquee(100, 100, 60, 28).step == marquee(1400, 100, 60, 28).step);
+	CHECK(marquee(1500, 100, 60, 28).step != marquee(1560, 100, 60, 28).step);
+
+	// Repeated start, the spec's table (fits: under 20 letters)
+	auto fits = [](const std::string& t) { return t.size() < 20; };
+	auto st = [](const std::string& artist, const std::string& album, const std::string& path) {
+		return titleStarts(artist, album, path, {});
+	};
+	CHECK_EQ(shownTitle("Yellow Album - 03 - Sunny Peel (Live at the Old Orchard Hall)", st("", "Yellow Album", "/m/x.flac"), fits),
+		std::string("03 - Sunny Peel (Live at the Old Orchard Hall)"));
+	CHECK_EQ(shownTitle("Big Buck Bunny - S01E03 - The Butterfly and the Apple Tree", st("", "", "/v/Big Buck Bunny/e3.mkv"), fits),
+		std::string("S01E03 - The Butterfly and the Apple Tree"));
+	CHECK_EQ(shownTitle("The Plantains - Yellow Album - 03 - Sunny Peel (Live)", st("The Plantains", "Yellow Album", "/m/x.flac"), fits),
+		std::string("03 - Sunny Peel (Live)"));
+	CHECK_EQ(shownTitle("Yellow Album - 03 - xx", st("", "Yellow Album", "/m/x.flac"), [](const std::string&) { return false; }),
+		std::string("Yellow Album - 03 - xx"));	// under three letters left
+	CHECK_EQ(shownTitle("Yellow Album Blues, Part Two (Extended Orchard Mix)", st("", "Yellow Album", "/m/x.flac"), fits),
+		std::string("Yellow Album Blues, Part Two (Extended Orchard Mix)"));	// no separator
+	CHECK_EQ(shownTitle("Sunny Peel", st("", "Sunny Peel", "/m/x.flac"), fits), std::string("Sunny Peel"));	// fits
+	CHECK_EQ(shownTitle("yellow album: Ripe by Friday and more", st("", "Yellow Album", "/m/x.flac"), fits),
+		std::string("Ripe by Friday and more"));	// case aside, ": "
+	// a list's shared start: three names or more, up to a separator, four letters or more
+	CHECK_EQ(sharedStart({"Show Name - 01 - Pilot.mkv", "Show Name - 02 - Two.mkv", "Show Name - 03 - Three.mkv"}), std::string("Show Name"));
+	CHECK_EQ(sharedStart({"Show Name - 01.mkv", "Show Name - 02.mkv"}), std::string(""));
+	CHECK_EQ(sharedStart({"Ab - 1", "Ab - 2", "Ab - 3"}), std::string(""));
+	CHECK_EQ(sharedStart({"Track one", "Track two", "Track three"}), std::string(""));
+	// the setting: on by default, kept by its key
+	CHECK(Settings{}.scrollTitles);
+	CHECK(!parseSettings("scroll-titles = no\n").scrollTitles);
+}
+
 static void testVizNative()
 {
 	const std::vector<int> e = vizBandEdges(VN_BARS, VN_FFT, VN_RATE, 40, 14000);
@@ -12565,6 +12621,7 @@ int main()
 	testVizTheme();
 	testVizSimple();
 	testVizNative();
+	testTitleMarquee();
 	testKitDisplayPage();
 	testFileSave();
 	testWriteQueue();

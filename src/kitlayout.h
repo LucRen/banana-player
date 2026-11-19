@@ -381,5 +381,22 @@ namespace bp
 		ScreenOffWarn screenOffWarn(Box panel = {0, 0, PANEL_W, PANEL_H});
 		// "Screen off in 4 s": the seconds left, rounded up (ms: what is left), at least 1
 		std::string screenOffWords(int msLeft);
+
+		// ---- Title marquee: a title that doesn't fit its box moves along, twice, then rests at its start ----
+		// (docs/redesign/components.md, Title marquee) rest 1.5 s; move left 24 steps a second (2 units a step for type of
+		// 24 and more, 1 under) till its end shows; rest 1.5 s; fade out 150 ms and in 150 ms at its start; rest 3 s;
+		// again; then still at its start. One pass in a focused row
+		constexpr int MARQ_REST = 1500, MARQ_END_REST = 1500, MARQ_FADE = 150, MARQ_GAP = 3000, MARQ_STEPS = 24, MARQ_FADE_W = 16;
+		struct MarqueeAt
+		{
+			int offset = 0;	// units the text is moved left
+			float alpha = 1;	// the text's (the fade back to its start)
+			bool fadeLeft = false, fadeRight = false;	// the ground's fades at the box's edges (the text goes on there)
+			bool done = false;	// its passes over: still at its start from now on
+			int step = 0;	// changes whenever what is drawn changes (a redraw's key)
+		};
+		// ms since it started; the text's and the box's widths (units); the type's size; passes (2, or 1 in a row).
+		// A text that fits: nothing moves (done, no fades)
+		MarqueeAt marquee(int ms, int textW, int boxW, int fontSize, int passes = 2);
 	}
 }

@@ -143,7 +143,8 @@ namespace bp
 		}
 		// the title over the time
 		int room = std::max(40, x - l.textX);
-		ui.drawTextMid(m.title, F_P14, m.err ? DANGER : TEXT, l.textX, l.cy - 9, room);
+		if (m.err) ui.drawTextMid(m.title, F_P14, DANGER, l.textX, l.cy - 9, room);
+		else ui.drawMarquee(m.title, F_P14, TEXT, l.textX, l.cy - 9, room, m.pressed ? PRESSED : SURFACE);	// (the Title marquee)
 		ui.drawTextMid(m.time, F_I12, m.err ? DANGER : DIM, l.textX, l.cy + 9, room);
 	}
 

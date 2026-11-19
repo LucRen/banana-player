@@ -62,6 +62,9 @@ namespace bp
 			bool back = true, backPressed = false, more = true, morePressed = false;
 			bool crumbEnd = false;	// keep the crumb's end (a folder's path), else cut its start (a playlist's name)
 			bool inlineTitle = false;	// the title beside the back key, the crumb under it (no title row)
+			// the player's title: the Title marquee, and the title as shown in the room it gets (Repeated start)
+			bool marquee = false;
+			std::function<std::string(int room)> titleFor;
 			// the title's right: "Playing", "Paused in Chrome" (a mark before it too)
 			std::string state;
 			const Glyph* stateMark = nullptr;

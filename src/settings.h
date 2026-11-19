@@ -147,6 +147,7 @@ namespace bp
 		bool showHiddenFolders = false;
 		// the battery's percent beside its icon on the bottom panel (the icon is always there)
 		bool batteryPercent = false;
+		bool scrollTitles = true;	// a title too long for its place moves along (the Title marquee); off: cut with "…"
 		// closing the lid while something plays: pause (false), or keep playing (BananaOS's lid sleep switched off while
 		// it plays: lidsleep_host.h)
 		bool lidKeepPlaying = false;

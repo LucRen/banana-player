@@ -12,6 +12,7 @@
 #include "netstream.h"
 #include "sidecar.h"
 #include "songlayout.h"
+#include "kitlayout.h"
 #include "soundfx.h"
 #include "playlist.h"
 #include "theme.h"
@@ -2533,6 +2534,64 @@ namespace bp
 		}
 	}
 
+	static std::string assText(std::string s);
+
+	void Player::setTopMarquee(const std::string& text, const std::string& style, int an, double x, double y, double boxW, int fs, int textW, bool fade)
+	{
+		const std::string key = text + "|" + style + "|" + std::to_string((int)x) + "," + std::to_string((int)y) + "," + std::to_string((int)boxW);
+		if (key != topMarq.key)
+		{
+			// a new title or place: from its start, its rest first
+			if (topMarq.text != text) fprintf(stderr, "music: title marquee: %s (%d units in %d)\n", text.c_str(), textW, (int)boxW);
+			topMarq.start = ticks();
+			topMarq.key = key;
+		}
+		topMarq.on = true;
+		topMarq.text = text, topMarq.style = style;
+		topMarq.an = an, topMarq.x = x, topMarq.y = y, topMarq.boxW = boxW, topMarq.fs = fs, topMarq.textW = textW, topMarq.fade = fade;
+		topMarq.lastStep = -1;	// (sent again: the look may have changed)
+	}
+
+	bool Player::marqueeMoving() const
+	{
+		return topMarq.on && !lay::marquee((int)(ticks() - topMarq.start), topMarq.textW, (int)topMarq.boxW, topMarq.fs).done;
+	}
+
+	void Player::tickMarquee()
+	{
+		if (!topMarq.on) return;
+		const lay::MarqueeAt m = lay::marquee((int)(ticks() - topMarq.start), topMarq.textW, (int)topMarq.boxW, topMarq.fs);
+		if (m.step == topMarq.lastStep) return;
+		topMarq.lastStep = m.step;
+		// on the 960x720 canvas: the box's clip, the text moved left by whole units (1.5 canvas units each)
+		const double K = 1.5;
+		auto n = [](double v) { return std::to_string((long)std::lround(v)); };
+		const double top = topMarq.an == 4 ? topMarq.y - topMarq.fs * 0.8 : topMarq.y - 2, bot = topMarq.an == 4 ? topMarq.y + topMarq.fs * 0.8 : topMarq.y + topMarq.fs * 1.35;
+		const double x0 = topMarq.x, x1 = topMarq.x + topMarq.boxW;
+		char a[8];
+		snprintf(a, sizeof a, "%02X", (int)std::lround(255 * (1 - std::clamp(m.alpha, 0.0f, 1.0f))));
+		std::string ev = "{\\an" + std::to_string(topMarq.an) + "\\pos(" + n((topMarq.x - m.offset) * K) + "," + n(topMarq.y * K) + ")\\clip(" + n(x0 * K) + "," +
+						 n(top * K) + "," + n(x1 * K) + "," + n(bot * K) + ")" + topMarq.style + "\\alpha&H" + a + "&}" + assText(topMarq.text) + "\n";
+		if (topMarq.fade)
+		{
+			// the fades: four 4-unit strips of the ground at 20, 40, 60, 80% at an edge the text goes on past
+			const std::string G = ass(theme::BG);
+			for (int k = 0; k < 4; k++)
+			{
+				char al[8];
+				snprintf(al, sizeof al, "%02X", 255 - 255 * (k + 1) / 5);
+				auto strip = [&](double sx) {
+					ev += "{\\an7\\pos(0,0)\\bord0\\shad0\\1c" + G + "\\1a&H" + al + "&\\p1}m " + n(sx * K) + " " + n(top * K) + " l " + n((sx + 4) * K) + " " +
+						  n(top * K) + " " + n((sx + 4) * K) + " " + n(bot * K) + " " + n(sx * K) + " " + n(bot * K) + "{\\p0}\n";
+				};
+				if (m.fadeRight) strip(x1 - lay::MARQ_FADE_W + k * 4);
+				if (m.fadeLeft) strip(x0 + (3 - k) * 4);
+			}
+		}
+		const char* cmd[] = {"osd-overlay", "2", "ass-events", ev.c_str(), "960", "720", "0", "no", "no", nullptr};
+		mpv_command_async(mpv, 0, cmd);
+	}
+
 	// ASS text: braces and backslashes would be its codes
 	static std::string assText(std::string s)
 	{
@@ -2674,6 +2733,12 @@ namespace bp
 		{
 			const char* cmd[] = {"osd-overlay", "1", "none", "", nullptr};
 			mpv_command_async(mpv, 0, cmd);
+			if (topMarq.on)
+			{
+				topMarq = TopMarq{};
+				const char* none[] = {"osd-overlay", "2", "none", "", nullptr};
+				mpv_command_async(mpv, 0, none);
+			}
 			setSongMargins("");
 			setGround(false);
 			dropSongArt();
@@ -2751,6 +2816,15 @@ namespace bp
 		const int widest = std::max({lineW(title, SONG_TITLE_FS, true), lineW(chapter, SONG_ARTIST_FS, false),
 									 lineW(artist, SONG_ARTIST_FS, false), lineW(album, SONG_ALBUM_FS, false)});
 		SongLayout artOnly = songLayout(true, widest);
+		// the title as shown in a box (Repeated start: a start it shares with its artist, album, folder or list left out
+		// when it doesn't fit) and whether it moves there (the Title marquee: it doesn't fit, Scroll long titles on)
+		std::vector<std::string> listNames;
+		for (const std::string& path : playlist) listNames.push_back(baseName(path));
+		const std::vector<std::string> starts = titleStarts(tagArtist, tagAlbum, currentPath(), listNames);
+		auto titleIn = [&](int fs, bool bold, int box) {
+			return shownTitle(title, starts, [&](const std::string& t) { return lineW(t, fs, bold) <= box; });
+		};
+		bool marq = false;	// the title is the marquee's overlay, not in ev
 		// a style over the whole panel in Art + visualizer (vizFullPanel: Sparks, Starfield...): the art and its lines
 		// as Album art only lays them out, centred both ways (the owner's word), not lifted over a band
 		const bool fullGroup = show == SHOW_BOTH && vizFullPanel(style);
@@ -2938,6 +3012,20 @@ namespace bp
 				{
 					y += ln.gap;
 					double mid = y + ln.fs * 0.6;
+					if (&ln == &lines[0])
+					{
+						// the title: the Title marquee in the text's column when it doesn't fit
+						const std::string shown = titleIn(ln.fs, true, l.textW);
+						const int tw = lineW(shown, ln.fs, true);
+						if (settings.scrollTitles && tw > l.textW)
+						{
+							marq = true;
+							setTopMarquee(shown, "\\bord0\\shad0\\q2\\fs" + num(u(ln.fs)) + "\\b1\\1c" + ln.colour, 4, l.textX, mid, l.textW, ln.fs, tw, true);
+							y += ln.fs * 1.2;
+							continue;
+						}
+						ln.text = shown;
+					}
 					ev += "{\\an4\\pos(" + num(u(l.textX)) + "," + num(u(mid)) + ")\\bord0\\shad0\\q2\\fs" + num(u(ln.fs)) +
 						  (ln.bold ? "\\b1" : "\\b0") + "\\1c" + ln.colour + "}" + assText(fitLine(ln.text, ln.fs, l.textW, ln.bold)) + "\n";
 					y += ln.fs * 1.2;
@@ -2954,9 +3042,29 @@ namespace bp
 		{
 			// the title alone, in the middle: 30 semibold, then "artist · album" 17
 			std::string sub = artist + (artist.empty() || tagAlbum.empty() ? "" : " \xC2\xB7 ") + tagAlbum;
-			std::string t = "{\\an5\\pos(480,360)\\bord0\\shad0\\q2\\fs" + num(u(30)) + "\\b1\\1c" + INK + "}" + assText(songFitText(title, 30, 560, true));
-			if (!chapter.empty()) t += "\\N{\\b0\\fs" + num(u(17)) + "\\1c" + MARK + "}" + assText(songFitText(chapter, 17, 560));
-			if (!sub.empty()) t += "\\N{\\b0\\fs" + num(u(8)) + "}\\h\\N{\\fs" + num(u(17)) + "\\1c" + INK3 + "}" + assText(songFitText(sub, 17, 560));
+			const std::string shown = titleIn(30, true, 560);
+			const int tw = lineW(shown, 30, true);
+			marq = settings.scrollTitles && tw > 560;
+			std::string t;
+			if (marq)
+			{
+				// moving: the title from the box's left edge, the rest under it as before (heights as libass sets them,
+				// about 1.2 the size a line)
+				double h = 30 * 1.2 + (chapter.empty() ? 0 : 17 * 1.2) + (sub.empty() ? 0 : (8 + 17) * 1.2);
+				const double top = 240 - h / 2;
+				setTopMarquee(shown, "\\bord0\\shad0\\q2\\fs" + num(u(30)) + "\\b1\\1c" + INK, 4, 40, top + 18, 560, 30, tw, true);
+				t = "{\\an8\\pos(480," + num(u(top + 36)) + ")\\bord0\\shad0\\q2}";
+				bool any = false;
+				if (!chapter.empty()) { t += "{\\b0\\fs" + num(u(17)) + "\\1c" + MARK + "}" + assText(songFitText(chapter, 17, 560)); any = true; }
+				if (!sub.empty()) { t += std::string(any ? "\\N" : "") + "{\\b0\\fs" + num(u(8)) + "}\\h\\N{\\fs" + num(u(17)) + "\\1c" + INK3 + "}" + assText(songFitText(sub, 17, 560)); any = true; }
+				if (!any) t += "\\h";
+			}
+			else
+			{
+				t = "{\\an5\\pos(480,360)\\bord0\\shad0\\q2\\fs" + num(u(30)) + "\\b1\\1c" + INK + "}" + assText(songFitText(shown, 30, 560, true));
+				if (!chapter.empty()) t += "\\N{\\b0\\fs" + num(u(17)) + "\\1c" + MARK + "}" + assText(songFitText(chapter, 17, 560));
+				if (!sub.empty()) t += "\\N{\\b0\\fs" + num(u(8)) + "}\\h\\N{\\fs" + num(u(17)) + "\\1c" + INK3 + "}" + assText(songFitText(sub, 17, 560));
+			}
 			// why the visualizer has stopped for now, in the accent's yellow (a blank line first: right under the
 			// song's lines it read as part of them)
 			if (engineLoading)
@@ -2975,6 +3083,25 @@ namespace bp
 			int linesW = 0;
 			auto line = [&](const std::string& s, int fs, bool bold, const std::string& colour, int gap) {
 				y += gap;
+				if (&s == &title)
+				{
+					// the title: the Title marquee when it doesn't fit (its box the whole line, 596)
+					const std::string shown = titleIn(fs, bold, 596);
+					const int tw = lineW(shown, fs, bold);
+					if (settings.scrollTitles && tw > 596)
+					{
+						marq = true;
+						setTopMarquee(shown, look + "\\fs" + num(u(fs)) + (bold ? "\\b1" : "\\b0") + "\\1c" + colour, 7, 22, y, 596, fs, tw, peaksAlone);
+						linesW = 596;
+						y += fs * 1.2;
+						return;
+					}
+					linesW = std::max(linesW, lineW(songFitText(shown, fs, 596, bold), fs, bold));
+					ev += "{\\an7\\pos(" + num(u(22)) + "," + num(u(y)) + ")" + look + "\\fs" + num(u(fs)) + (bold ? "\\b1" : "\\b0") + "\\1c" + colour + "}" +
+						  assText(songFitText(shown, fs, 596, bold)) + "\n";
+					y += fs * 1.2;
+					return;
+				}
 				linesW = std::max(linesW, lineW(songFitText(s, fs, 596, bold), fs, bold));
 				ev += "{\\an7\\pos(" + num(u(22)) + "," + num(u(y)) + ")" + look + "\\fs" + num(u(fs)) + (bold ? "\\b1" : "\\b0") + "\\1c" + colour + "}" +
 					  assText(songFitText(s, fs, 596, bold)) + "\n";
@@ -3004,6 +3131,13 @@ namespace bp
 		if (engineLoading && show != SHOW_NONE)
 			ev += "{\\an2\\pos(480,696)\\bord0\\shad0\\fs" + num(u(14)) + "\\1c" + (themed ? MARK : ass(TOP_TITLE)) + "}" + assText("Loading manga engine\xE2\x80\xA6") + "\n";
 
+		if (!marq && topMarq.on)
+		{
+			topMarq = TopMarq{};
+			const char* none[] = {"osd-overlay", "2", "none", "", nullptr};
+			mpv_command_async(mpv, 0, none);
+		}
+		else if (marq) tickMarquee();
 		std::string logLine = std::string(show == SHOW_ART ? "Album art only" : show == SHOW_BOTH ? "Art + visualizer" : show == SHOW_VIS ? "Visualizer only" : "None") +
 							  ", ground " + (themed ? groundSet : std::string("the picture's")) + ": " + why;
 		if (logLine != layoutLogged)
