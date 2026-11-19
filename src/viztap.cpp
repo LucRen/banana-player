@@ -196,6 +196,7 @@ namespace bp
 		VizClock clock;	// (m)
 		float targets[VN_MAX_BARS] = {};	// (m)
 		int targetsVis = 0, targetsN = 0;	// (m) the style they were measured for
+		VizHint hint;	// (m) the loudness and the beats so far
 		uint64_t seq = 0;	// (m)
 		bool failed = false;	// (m)
 		std::string info;	// (m)
@@ -227,6 +228,9 @@ namespace bp
 		std::vector<float> win(VN_FFT), mag(VN_FFT / 2);
 		float targets[VN_MAX_BARS];
 		uint64_t seeks = 0, spectra = 0;
+		VizBeat beat;
+		uint32_t beats = 0;
+		auto beatAt = std::chrono::steady_clock::now();
 		auto loudAt = std::chrono::steady_clock::now();
 		auto next = std::chrono::steady_clock::now();
 		while (!j->stop)
@@ -251,13 +255,21 @@ namespace bp
 			spectrum.magnitudes(win.data(), mag.data());
 			if (j->vis != vis)
 			{
+				if (vis < 0) beat = VizBeat{};
 				// another native style: its own band count (the same 40 Hz..14 kHz, log spaced)
 				vis = j->vis;
 				bands = vizStyleBands(vis);
-				edges = vizBandEdges(bands.bars, VN_FFT, VN_RATE, 40, 14000);
+				edges = vizBandEdges(bands.bars, VN_FFT, VN_RATE, 40, bands.hi);
 			}
-			vizBandTargets(mag.data(), edges, VN_RATE, VN_FFT, bands.plain, targets);
+			vizBandTargets(mag.data(), edges, VN_RATE, VN_FFT, bands.plain, targets, bands.cut);
 			spectra++;
+			// the loudness and the beat (Starfield, Helix, Sparks): from the same window, by the real time between looks
+			const float loudness = vizLoudness(win.data(), VN_FFT);
+			{
+				auto t1 = std::chrono::steady_clock::now();
+				if (beat.step(vizBassEnergy(mag.data(), VN_RATE, VN_FFT), std::chrono::duration<double>(t1 - beatAt).count())) beats++;
+				beatAt = t1;
+			}
 			bool loud = false;
 			for (int i = 0; i < bands.bars; i++) loud = loud || targets[i] > 0;
 			auto now = std::chrono::steady_clock::now();
@@ -267,6 +279,7 @@ namespace bp
 				std::copy(targets, targets + bands.bars, j->targets);
 				j->targetsVis = vis;
 				j->targetsN = bands.bars;
+				j->hint = {loudness, beats};
 				j->seq++;
 				j->stats.spectra = spectra;
 				j->stats.seeks = seeks;
@@ -325,7 +338,7 @@ namespace bp
 		if (wake) job->cv.notify_all();
 	}
 
-	bool VizTap::take(float* out, uint64_t& seq, int& vis, int& n)
+	bool VizTap::take(float* out, uint64_t& seq, int& vis, int& n, VizHint& hint)
 	{
 		if (!job) return false;
 		job->woken = false;
@@ -335,6 +348,7 @@ namespace bp
 		std::copy(job->targets, job->targets + job->targetsN, out);
 		vis = job->targetsVis;
 		n = job->targetsN;
+		hint = job->hint;
 		return true;
 	}
 

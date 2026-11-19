@@ -49,6 +49,8 @@ namespace bp
 	{
 		int bars = 40;
 		bool plain = false;
+		bool cut = true;	// (not plain) the bottom 40 steps cut off; Pocket console's graph kept them
+		double hi = 14000;	// the top band's upper edge, Hz
 	};
 	VizBands vizStyleBands(int vis);
 
@@ -56,7 +58,28 @@ namespace bp
 	// loudest bin in showfreqs' log scale (-120..0 dB), a slope of +3 dB an octave from 500 Hz (music falls to the
 	// right; log bands show it more than the graph's near-linear columns did); unless plain, its contrast pushed (each
 	// bar against its neighbours, Pocket console's) and the bottom 40 steps (the spectrum's near-constant bed) cut off
-	void vizBandTargets(const float* mag, const std::vector<int>& edges, int rate, int fft, bool plain, float* out);
+	void vizBandTargets(const float* mag, const std::vector<int>& edges, int rate, int fft, bool plain, float* out, bool cut = true);
+
+	// besides the bands, the worker's hint (Starfield, Helix and Sparks): the loudness 0..1 (the window's RMS, -42 dBFS
+	// to -6) and a count of the beats heard so far (a new one: the count moved on)
+	struct VizHint
+	{
+		float loud = 0;
+		uint32_t beats = 0;
+	};
+	float vizLoudness(const float* samples, int n);
+	// the bass's energy (40..160 Hz) in the magnitudes
+	float vizBassEnergy(const float* mag, int rate, int fft);
+	// a beat: the bass's energy jumping past 1.5x its mean of the last second, at most four a second, never in silence
+	struct VizBeat
+	{
+		double mean = -1, since = 1;	// (mean < 0: none yet, the first look sets it)
+		bool step(float bass, double dt);
+	};
+
+	// the styles drawn over the whole panel in Art + visualizer too (behind the art and the lines, kept off them by
+	// the keep-clear boxes), not in the band: Sparks and Starfield (the owner's word, 2026-11-19)
+	bool vizFullPanel(int vis);
 	inline void vizMirrorTargets(const float* mag, const std::vector<int>& edges, int rate, int fft, float* out)
 	{
 		vizBandTargets(mag, edges, rate, fft, false, out);
@@ -72,20 +95,51 @@ namespace bp
 	{
 		int vis = -1, n = 0;
 		float targets[VN_MAX_BARS] = {}, levels[VN_MAX_BARS] = {}, holds[VN_MAX_BARS] = {};
+		// the final ten's new six (2026-11-19): the worker's hint, as told and as eased
+		float loud = 0, loudShown = 0;
+		uint32_t beats = 0, beatsSeen = 0;
+		double phase = 0;	// Strings' swing, Helix's twist; Grid's time to its next row (0..1)
+		uint32_t rng = 1;	// (xorshift: the particles' and stars' chance, the same run to run)
+		float slow[VN_MAX_BARS] = {};	// Ribbon's slow line
+		static constexpr int GRID_ROWS = 17, GRID_BANDS = 17;
+		float gridRows[GRID_ROWS][GRID_BANDS] = {};	// Grid's moments ago, a ring: gridHead the newest
+		int gridCount = 0, gridHead = 0;
+		// Sparks: a fixed pool (nothing allocated a frame); sparkN live ones at the front
+		struct Spark
+		{
+			float x, y, vx, vy, life, max, r, ph;
+			bool big;
+		};
+		static constexpr int SPARKS = 400;
+		Spark sparks[SPARKS] = {};
+		int sparkN = 0;
+		struct Star
+		{
+			float x, y, z;
+		};
+		static constexpr int STARS = 160;
+		Star stars[STARS] = {};
+		float starV = 0;
 		void reset(int style);
+		float rand01();
 	};
 	// a frame on: the levels eased (Peaks: as measured, its bars aren't eased) and the holds let fall
 	void vizStep(VizStyleState& s, double dt);
 
 	// a shape to draw, in 640x480 units. kind 0 a box (x0,y0)-(x1,y1); kind 1 a ring round (x0,y0) from radius x1 to
 	// y1 (0: a disc). ink: VizInk; mix: VI_RAMP's place from BUTTON (0) to ACCENT (1); alpha: 1 opaque
-	enum VizInk { VI_ACCENT, VI_DIM, VI_BUTTON, VI_TEXT, VI_BG, VI_RAMP, VI_WHITE };
+	// VI_P_*: Pocket console's LCD shades (pocketInks: the theme's)
+	enum VizInk { VI_ACCENT, VI_DIM, VI_BUTTON, VI_TEXT, VI_BG, VI_RAMP, VI_WHITE, VI_P_INK, VI_P_MID, VI_P_SCREEN, VI_P_GRID, VI_P_LIGHT,
+		VI_P_BRIGHT };
+	// kind 2: a quad (x0,y0) (x1,y1) (x2,y2) (x3,y3) in order round, alpha at the first two corners and alpha2 at the
+	// other two (a fade)
 	struct VizRect
 	{
 		float x0, y0, x1, y1;
 		int ink;
 		float mix = 0, alpha = 1;
 		int kind = 0;
+		float x2 = 0, y2 = 0, x3 = 0, y3 = 0, alpha2 = 1;
 	};
 	// Mirror bars: n bars each grown up and down from a centre line by its level (the graph's: 16 units a bar, 12
 	// wide; the line 4 tall). band: Art + visualizer's band along the foot (rows 280..480, 94 at most each way);

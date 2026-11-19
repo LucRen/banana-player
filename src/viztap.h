@@ -37,8 +37,9 @@ namespace bp
 		void setStyle(int vis);	// a native style's bands (vizStyleBands): the next spectrum is measured for it
 		// the clock from mpv (main thread): pts < 0 unknown
 		void setClock(const VizClock& c);
-		// the newest targets (n of them, measured for style vis; out holds VN_MAX_BARS) when newer than seq; seq moves on
-		bool take(float* out, uint64_t& seq, int& vis, int& n);
+		// the newest targets (n of them, measured for style vis; out holds VN_MAX_BARS) and the hint (the loudness, the
+		// beats) when newer than seq; seq moves on
+		bool take(float* out, uint64_t& seq, int& vis, int& n, VizHint& hint);
 		// the file couldn't be opened or decoded: the caller falls back to the graph style
 		bool failed() const;
 		std::string info() const;	// what is decoded, for the log

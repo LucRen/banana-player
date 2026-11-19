@@ -3,6 +3,7 @@
 // small shader, coloured triangles in one buffer a frame), then the panel presented. Nothing else swaps the top
 // window while the style is up, so this path's own swap is what puts each frame on the glass (KMSDRM: Lite's lesson).
 #include "player.h"
+#include "settings.h"
 #include "theme.h"
 #include "topscreen.h"
 #include "viznative.h"
@@ -161,12 +162,18 @@ namespace bp
 		const bool mpvFrame = renderPending.exchange(false) && shown.frameDue();
 		float got[VN_MAX_BARS];
 		int vis = -1, n = 0;
-		bool fresh = shown.nativeTake(got, vis, n);
+		VizHint hint;
+		bool fresh = shown.nativeTake(got, vis, n, hint);
 		const bool first = !nativeUp;
 		// another native style chosen: its own state at once (paused too), the tap's levels for it from its next look
 		const bool restyled = nativeState.vis != shown.nativeStyle();
 		if (first || restyled) nativeState.reset(shown.nativeStyle());
-		if (fresh && vis == nativeState.vis && n == nativeState.n) std::copy(got, got + n, nativeState.targets);
+		if (fresh && vis == nativeState.vis && n == nativeState.n)
+		{
+			std::copy(got, got + n, nativeState.targets);
+			nativeState.loud = hint.loud;
+			nativeState.beats = hint.beats;
+		}
 		else fresh = false;
 		if (!mpvFrame && !fresh && !refresh && !first && !restyled) return;
 		const Uint32 now = SDL_GetTicks();
@@ -192,11 +199,18 @@ namespace bp
 		if (!g.ok) return;
 		std::vector<VizRect> shapes;
 		vizShapes(nativeState, shown.nativeBand(), shapes);
-		// the theme's inks, read each frame: a theme change shows at once
-		auto inkOf = [](const VizRect& r, float* c) {
+		// the theme's inks, read each frame: a theme change shows at once (Pocket console's four shades too)
+		const PocketInks pk = nativeState.vis == VIS_POCKET ? pocketInks() : PocketInks{};
+		auto inkOf = [&pk](const VizRect& r, float* c) {
 			theme::Rgb k;
 			switch (r.ink)
 			{
+			case VI_P_INK: k = pk.ink; break;
+			case VI_P_MID: k = pk.mid; break;
+			case VI_P_SCREEN: k = pk.screen; break;
+			case VI_P_GRID: k = pk.grid; break;
+			case VI_P_LIGHT: k = pk.light; break;
+			case VI_P_BRIGHT: k = pk.bright; break;
 			case VI_DIM: k = theme::DIM; break;
 			case VI_BUTTON: k = theme::BUTTON; break;
 			case VI_TEXT: k = theme::TEXT; break;
@@ -227,7 +241,8 @@ namespace bp
 			{
 				// a ring (or a disc) round (x0, y0) from radius x1 to y1: a strip of quads, ~3 px a segment
 				const float cx = r.x0 * sx, cy = r.y0 * sy, r0 = r.x1 * sy, r1 = r.y1 * sy;
-				const int seg = std::clamp((int)(r1 * 2.1f), 24, 256);
+				// (a small one, a spark or a bead: fewer sides, it's a few pixels across)
+				const int seg = std::clamp((int)(r1 * 2.1f), r1 < 8 ? 8 : 24, 256);
 				float pc = 1, ps = 0;
 				for (int i = 1; i <= seg; i++)
 				{
@@ -245,6 +260,14 @@ namespace bp
 				}
 				continue;
 			}
+			if (r.kind == 2)
+			{
+				// a quad: two triangles, its second pair of corners at alpha2
+				float c2[4] = {c[0], c[1], c[2], r.alpha2};
+				vert(r.x0 * sx, r.y0 * sy, c), vert(r.x1 * sx, r.y1 * sy, c), vert(r.x2 * sx, r.y2 * sy, c2);
+				vert(r.x0 * sx, r.y0 * sy, c), vert(r.x2 * sx, r.y2 * sy, c2), vert(r.x3 * sx, r.y3 * sy, c2);
+				continue;
+			}
 			// whole pixels, so each bar keeps its width across the row
 			const float x0 = std::round(r.x0 * sx), x1 = std::round(r.x1 * sx), y0 = std::round(r.y0 * sy), y1 = std::round(r.y1 * sy);
 			if (x1 <= x0 || y1 <= y0) continue;
@@ -254,6 +277,9 @@ namespace bp
 		// scissor pass for each free box (a few draws of the same buffer, nothing cut shape by shape)
 		std::vector<VizRect> free = {{0, 0, 640, 480, 0}};
 		for (const VizRect& keep : shown.nativeKeepClear()) vizCutOut(free, keep);
+		// in the band, nothing over the art's part (Grid's far ridges, Ribbon's glow reach up); Sparks and Starfield
+		// take the whole panel there, kept off the art and the lines by their boxes (nativeKeepClear)
+		if (shown.nativeBand() && !vizFullPanel(nativeState.vis)) vizCutOut(free, {0, 0, 640, 280, 0});
 		g.Viewport(0, 0, w, h);
 		g.Disable(GL_DEPTH_TEST_);
 		g.Disable(GL_CULL_FACE_);

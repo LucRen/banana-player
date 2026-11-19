@@ -101,5 +101,47 @@ same Inter); Dots' ~10k vertices a frame on the A55 (the main thread's share: th
 
 ## Left out
 
-Pocket console, Night city, Aurora and the scene styles still use graphs. The tap ignores a chosen second audio track
+Night city, Aurora and the scene styles still use graphs (now commented out of the list: The final ten). The tap ignores a chosen second audio track
 (the blank graph plays `[aid1]` too).
+
+## The final ten (same day)
+
+The owner's list, all drawn by the player: **Peaks, Ribbon, Mirror bars, Pocket console, Horizon, Grid, Starfield,
+Strings, Helix, Sparks** (`VIS_SHOWN`; the Display grid 5 x 2). Night city, Aurora, Dots, Steps, Barcode, Rings, Banana
+dancer, Pixel sea, Jelly wobble, Washing machine and Tube man are commented out of `VIS_SHOWN` (their graphs and
+native code kept, unreachable): a saved one reads as Peaks (readVisualizer's VIS_SHOWN check; Bubble tea, Long cat and
+Radial, whose replacements were Dots and Steps, too). The six new ids (`ribbon`, `grid`, `starfield`, `strings`,
+`helix`, `sparks`) are at the enum's end; their glyphs `G_VIS_RIBBON` … `G_VIS_SPARKS` (web/sprite.svg regenerated).
+
+- **The worker's hint** (`VizHint`): the loudness (the 32 ms window's RMS, -42..-6 dBFS as 0..1) and a beat count
+  (`VizBeat`: the 40..160 Hz energy past 1.5x its one-second mean, at most four a second, never in silence), handed
+  over with the bands. Starfield and Helix ease the loudness, Sparks bursts on each beat.
+- **New shapes:** besides boxes and rings, `VizRect` kind 2 is a quad with an alpha per pair of corners (a fade).
+  Lines are mitred strips (`polyline`: the pieces meet on the joins, so a faint glow has no dots), curves the proposal
+  page's midpoint quadratics (`smooth`), discs the rings' fan (8 sides when under 8 px). Still one buffer of coloured
+  triangles a frame, no textures, no images (the owner's rule).
+- **Motions** are the proposals' per-frame numbers at 30 fps, told over the real dt (`toward`: 1 - (1 - f)^(dt*30)).
+  Grid keeps 17 rows in a ring, one every 0.1 s (a long gap gives one row, not a burst); Sparks a fixed pool of 400
+  (`VizStyleState::sparks`, packed: a dead one swapped for the last; nothing allocated a frame); Starfield 160 stars;
+  the chance (spawns, star places) is a xorshift in the state, the same run to run (tests).
+- **Pocket console** natively: its graph's LCD as shapes (no texture, no picture): the screen box, 15 bars of 4-dot
+  columns (the ink the lower two thirds, mid the top third, the caps and the floor), the 1-unit grid (80 + 60 lines)
+  over everything, the four shades from `pocketInks()` read each frame. Its bands: 15, 40 Hz..8 kHz, contrast pushed
+  but no bed cut (as its graph). Alone, its lines (pixel type, its ink) sit in a screen-coloured ASS box (the shapes
+  keep off the lines' box, so mpv's picture shows there: this box keeps it the LCD's colour; the box 20% wider for the
+  pixel font). In the band, as its graph over the art: no screen, the lit dots the bright pair, the grid cut in BG.
+- **The band and the whole panel:** in Art + visualizer every style keeps below row 280 (a scissor box, so Grid's far
+  ridges and Ribbon's glow stop at it) except **Sparks and Starfield** (the owner's word), which use the whole panel
+  as alone, kept off the art's box and its lines' box (`groupArtBox`, `groupTextBox` from updateOverlay; the same
+  scissor cut-outs as the lines alone): they pass behind them.
+- **Network songs** (and a file the second decode can't read): Peaks' graph for every style (`Player::graphFor`, one log
+  line `viz-native: <file>: <style> can't be drawn by the player here (…): Peaks' graph instead`); the lines then
+  follow Peaks (`drawnStyle()`).
+
+Checked on the Mac (one run, generated tones with a test-card cover): the ten switched in turn with `set:`, a seek
+forward and back, Art + visualizer with Sparks, Starfield, Grid and Pocket console, and `flip:visualizer=ribbon|helix:6:300`:
+"<style> now (the same tap, no graph change)" for every switch, 47.7 frames a second at 45 fps.
+
+What may differ on the handheld: the main thread's vertex work. Heaviest: Grid (17 ridges, a BG occluder and a line
+each: ~1.1k quads, ~7k vertices) and Sparks at a full pool (400 discs of 8 sides plus the swell: ~10k vertices), about
+Dots' load; Ribbon's three glow strips blend over a third of the panel.

@@ -231,7 +231,7 @@ Like a song or a video to keep it in **Liked**, a playlist of its own. Photos an
 | **UP / DOWN** | Nothing: the Next line is a tap, and the chips are touch only. (They no longer change the speed; that is the **Speed** chip or View's Speed tab) |
 | **X** | **More**: a sheet with **Lock touch**, **Screen off**, **Info** and **Stop** (in red) as its first four keys, then **Like**, **Add to playlist…**, **Show in folder** and, while a dashboard page that can play is open, **Play on…**. The D-pad moves, **A** chooses, **X** or **B** closes |
 | **Y** | **List** (the **List** key): one sheet with **Up next** (the folder or playlist that plays, in its own order, the one playing marked **Now**) and **Chapters** (every chapter with its start; a file without chapters has only Up next), with **Shuffle**'s switch and **Repeat** (Off / All / One) in its header. **L / R** step the tabs, **UP / DOWN** move, **LEFT / RIGHT** page, **A** plays from the row, **L2 / R2** jump a chapter with the sheet open, **Y** or **B** closes |
-| **SELECT** | **View**, a sheet over the controls. A video: **Subtitles** (Off, the file's tracks, and **Subtitle style…**), **Audio**, **Picture** (Fit, Fill, Stretch) and **Speed** (0.5x to 2.5x). A song: **Display** (the four Show modes and a **Visualizer style** row), **Visualizer** (the fifteen styles as a grid), **Equalizer**, **Effects** and **Speed**. **L / R** switch tabs, **UP / DOWN** move, **LEFT / RIGHT** page a long list, **A** chooses, **SELECT** or **B** closes (on a song's Display, **SELECT** steps the Show mode); it opens on the tab you used last |
+| **SELECT** | **View**, a sheet over the controls. A video: **Subtitles** (Off, the file's tracks, and **Subtitle style…**), **Audio**, **Picture** (Fit, Fill, Stretch) and **Speed** (0.5x to 2.5x). A song: **Display** (the four Show modes and a **Visualizer style** row), **Visualizer** (the ten styles as a grid), **Equalizer**, **Effects** and **Speed**. **L / R** switch tabs, **UP / DOWN** move, **LEFT / RIGHT** page a long list, **A** chooses, **SELECT** or **B** closes (on a song's Display, **SELECT** steps the Show mode); it opens on the tab you used last |
 | **START** | **Settings**: the ten group tiles; **B** or **START** closes it back to where you were |
 | **L3** (press the stick, RG DS Plus) | Like / Unlike what plays |
 | **B** (or **Back**) | Back to the list: it keeps playing (see [Playing while you browse](#playing-while-you-browse)) |
@@ -529,37 +529,34 @@ Songs show their title, artist and album on the top screen. While a song plays:
   it too). One page: under "Top screen shows", four tiles in a row, one always in use: **Album art only** (default),
   **Art + visualizer** (the art above the visualizer along the foot), **Visualizer only**, or **None** (just the title:
   the lightest on the battery). Under them the line "Visualizer · <style>" (with Album art only or None: "<style> · not
-  shown now: the top screen shows <mode>"; the style can still be set, and is kept), then the fifteen styles in a 5 × 3
-  grid of tiles (the same fifteen, in the same order, on Settings' Visualizer style row). The tile in use is filled in
+  shown now: the top screen shows <mode>"; the style can still be set, and is kept), then the ten styles in a 5 × 2
+  grid of tiles (the same ten, in the same order, on Settings' Visualizer style row). The tile in use is filled in
   the theme's accent; the cursor is an accent edge. The styles: **Peaks** (default: 64 bars in the theme's accent,
   bass on the left, each with a cap in the theme's text colour that stays at the bar's highest point and slowly falls
-  back, over a faint grid), **Mirror bars** (the spectrum's bars growing up and down from a faint centre line),
-  **Pocket console** (Peaks on an old handheld's screen: 15 bars of chunky dots in four shades, with falling caps;
-  alone, the title is in the same ink in pixel type. In Yellow the old handheld's greens; in another theme four shades
-  of its accent on a screen tinted with it), **Night city** (a skyline whose windows light up with the music; in a
-  theme but Yellow its sky, buildings, windows and moon take the theme's colours), **Horizon** (the spectrum as a
+  back, over a faint grid), **Ribbon** (the spectrum as one smooth glowing line, bass to treble, a soft fade beneath
+  it and a slower line behind showing where the song has been sitting), **Mirror bars** (the spectrum's bars growing
+  up and down from a faint centre line), **Pocket console** (Peaks on an old handheld's screen: 15 bars of chunky dots
+  in four shades, with falling caps; alone, the title is in the same ink in pixel type. In Yellow the old handheld's
+  greens; in another theme four shades of its accent on a screen tinted with it), **Horizon** (the spectrum as a
   mirrored skyline, the bass in the middle, on a horizon line with a low sun behind and a striped reflection below),
-  **Aurora** (northern lights over a snowy ridge), **Dots** (a dot-matrix spectrum: columns of round dots lit from
-  the bottom over a faint grid of unlit ones), **Steps** (the spectrum as a 20-step staircase outline, faintly filled
-  beneath, with a slow line holding each step's peak), **Barcode** (96 full-height hairlines, each lighting from faint
-  to the full accent with its band), **Rings** (ten rings round a dot, the bass at the centre and the treble at the
-  rim, each thickening with its band; a quiet one leaves its faint guide), **Banana dancer** (a pixel banana dancing
-  on a disco floor whose colours keep running round the rainbow: bass bounces it, the mids wave its arms), **Pixel
-  sea** (moonlit waves and a little sailboat), **Jelly wobble** (a worried jelly squashing on the bass), **Washing
-  machine** (shaking and walking on the bass, socks and a duck tumbling) or **Tube man** (an inflatable tube man
-  dancing faster with the music). The bar styles' bars stand out from their neighbours, so the spectrum has peaks and
-  valleys. Every style measures the music evened out (only for the picture: the sound is untouched), so a quiet song
-  moves it about as much as a loud one, the treble side is lively too, and silence stays still. With Art +
-  visualizer, every style is drawn along the bottom of the screen, under the art, which it never covers, on the
-  theme's ground. Peaks, Mirror bars, Horizon, Dots, Steps, Barcode and Rings are drawn by the player, not mpv, at the
-  Visualizer frame rate setting: switching among them, or to None and back, never interrupts the sound, and with
-  Visualizer only they keep clear of the song's lines and of a volume or other card (a song from a network folder
-  keeps the older mpv-drawn versions, at 30 fps). They are drawn in the theme's colours
-  (accent, text, dim and button) on its ground, and the song's lines over them alone are in the theme's colours too.
-  Earlier styles no longer offered: Circle, Sound garden, Bubble tea and Long cat (and Area and Radial, offered for a
-  day) read as the style in their place (Mirror bars, Horizon, Dots, Steps); Wave, Levels, Campfire, Bunny hop,
-  Fishbowl, Vibing cat, Popcorn machine, Jellyfish, Music box, coral Peaks, Hi-fi LED, Synthwave, Banana stack,
-  Heartbeat, Oscilloscope, Turntable, Disco ball, Bars, Waves, Spectrum and Lite read as Peaks. The **D-pad** moves over both groups (DOWN from a mode to the style under
+  **Grid** (a floor in perspective: the front ridge is the spectrum now, bass in the middle, and each ridge behind it
+  a moment ago, rolling to the horizon and fading), **Starfield** (stars streaming out of the middle: quiet passages
+  drift, loud ones rush, each star stretching into a streak), **Strings** (eight strings across the screen, the thick
+  bass one at the foot, each vibrating as wide as its band is loud, the blur of its swing behind it), **Helix** (two
+  strands of beads twisting round each other, bass at the left: a bead swells with its band and the twist turns faster
+  as the song gets louder) or **Sparks** (small lights lifting off the foot where the music is, a louder band sending
+  more and higher, and a brighter handful on each beat). The bar styles' bars stand out from their neighbours, so the
+  spectrum has peaks and valleys; silence stays still. With Art + visualizer, every style is drawn along the bottom of
+  the screen, under the art, on the theme's ground, except **Sparks** and **Starfield**, which fill the whole screen
+  behind the art and the song's lines (they pass behind them, never over them). All ten are drawn by the player, not
+  mpv, at the Visualizer frame rate setting, in the theme's colours (a theme change recolours them at once):
+  switching among them, or to None and back, never interrupts the sound, and with Visualizer only they keep clear of
+  the song's lines and of a volume or other card. A song from a network folder shows Peaks (mpv-drawn, 30 fps)
+  whatever the style. Earlier styles no longer offered (Night city, Aurora, Dots, Steps, Barcode, Rings, Banana
+  dancer, Pixel sea, Jelly wobble, Washing machine, Tube man, and the older Circle, Sound garden, Bubble tea, Long
+  cat, Area, Radial, Wave, Levels, Campfire, Bunny hop, Fishbowl, Vibing cat, Popcorn machine, Jellyfish, Music box,
+  coral Peaks, Hi-fi LED, Synthwave, Banana stack, Heartbeat, Oscilloscope, Turntable, Disco ball, Bars, Waves,
+  Spectrum and Lite) read as Peaks. The **D-pad** moves over both groups (DOWN from a mode to the style under
   it, UP back), and moving changes nothing: **A** (or a tap) sets the mode or the style, and the top screen follows at
   once. **SELECT** steps the mode (Album art only → Art + visualizer → Visualizer only → None), **L** / **R** the tabs,
   **B** closes. The art is a square with rounded corners and a thin edge: 240 units on Album art only, 224 above the
@@ -582,16 +579,13 @@ Songs show their title, artist and album on the top screen. While a song plays:
 Settings › Music has the same two choices as **Music display** and **Visualizer style**. The song's title, artist and
 album (with its year) are always on the top screen (there is no setting), each line cut with "…" if it's too long.
 With Album art only, Art + visualizer and None the top screen takes the theme: its ground is the theme's background (light
-in a light theme) and the lines are in its text colours; Peaks alone (Visualizer only) is drawn on it too. The other
-styles alone keep their own picture, with the lines in white with a shadow. With the art (Album art only, Art + visualizer) the art moves left (240 units; 224 above the band) and the three
+in a light theme) and the lines are in its text colours; every style alone (Visualizer only) is drawn on it too. With the art (Album art only, Art + visualizer) the art moves left (240 units; 224 above the band) and the three
 lines sit to its right, centred on the art's middle; the art and the lines are centred together on their real width, so
 a short title doesn't leave them hugging the left, and nothing is ever written over the art. Over Visualizer only the
 lines are at the top left, with a shadow (Pocket console: in its own green pixel type). An audiobook's or a song's
 chapter is a line in the accent under the title. **None** shows the title in the middle (then "artist · album"). **Visualizer frame
-rate** (30, 45 or 60 fps; 45 by default) is how often the styles drawn at 60 (Pocket console and the pixel-art scenes)
-draw: everything moves at the same speed at any rate, only less smoothly at 30, which leaves the handheld more time
-for the sound. Peaks draws 30 a second at any setting. A style comes up quicker from the second time it's
-used: its lookup tables are worked out once in the background and kept beside the settings.
+rate** (30, 45 or 60 fps; 45 by default) is how often the styles draw: everything moves at the same speed at any
+rate, only less smoothly at 30, which leaves the handheld more time for the sound.
 
 ## Sound: equalizer and effects
 

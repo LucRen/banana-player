@@ -6151,6 +6151,124 @@ static void testVizNative()
 	CHECK_EQ(sky, 40);
 	CHECK(stripes > 10);
 
+	// the final ten (2026-11-19): all drawn by the player; the new six's band counts
+	for (int v : VIS_SHOWN) CHECK(vizNativeStyle(v));
+	CHECK_EQ(vizStyleBands(VIS_RIBBON).bars, 48);
+	CHECK_EQ(vizStyleBands(VIS_POCKET).bars, 15);
+	CHECK(!vizStyleBands(VIS_POCKET).cut && vizStyleBands(VIS_RIBBON).cut);
+	CHECK(vizFullPanel(VIS_SPARKS) && vizFullPanel(VIS_STARFIELD) && !vizFullPanel(VIS_RIBBON) && !vizFullPanel(VIS_GRID));
+	auto inside = [](const std::vector<VizRect>& rs, float y0) {
+		bool ok = true;
+		for (auto& q : rs)
+			if (q.kind == 2) ok = ok && std::isfinite(q.x0) && std::isfinite(q.y3) && q.alpha >= 0 && q.alpha <= 1 && q.alpha2 >= 0 && q.alpha2 <= 1;
+			else if (q.kind == 0) ok = ok && q.y0 >= y0 - 1 && q.y1 <= 481;
+		return ok;
+	};
+	// the loudness: silence 0, a full-scale sine 1; the beat: a jump of the bass over its mean, at most four a second
+	{
+		std::vector<float> sil(VN_FFT, 0.0f), sine(VN_FFT);
+		for (int i = 0; i < VN_FFT; i++) sine[i] = (float)std::sin(2 * M_PI * 100 * i / VN_RATE);
+		CHECK_EQ(vizLoudness(sil.data(), VN_FFT), 0.0f);
+		CHECK_EQ(vizLoudness(sine.data(), VN_FFT), 1.0f);
+		VizSpectrum sp;
+		std::vector<float> m(VN_FFT / 2);
+		sp.magnitudes(sine.data(), m.data());
+		CHECK(vizBassEnergy(m.data(), VN_RATE, VN_FFT) > 0.1f);
+		VizBeat b;
+		int beats = 0;
+		for (int i = 0; i < 60; i++) beats += b.step(0.001f, 1 / 30.0);	// a steady bed: none
+		CHECK_EQ(beats, 0);
+		CHECK(b.step(0.2f, 1 / 30.0));	// a kick
+		CHECK(!b.step(0.4f, 1 / 30.0));	// (not again a frame later)
+		VizBeat q;
+		q.step(0, 1);
+		CHECK(!q.step(0.00005f, 1));	// (never in silence)
+	}
+	// Ribbon: the line, its glow and fade within the panel; a flat line at silence sits on the base (422 alone)
+	st.reset(VIS_RIBBON);
+	vizShapes(st, false, r);
+	CHECK(inside(r, 0) && r.size() > 200);
+	for (int i = 0; i < 48; i++) st.targets[i] = VN_TOP;
+	for (int f = 0; f < 30; f++) vizStep(st, 1 / 30.0);
+	CHECK(st.levels[0] > 250 && st.slow[0] > 0 && st.slow[0] < st.levels[0]);
+	vizShapes(st, true, r);
+	CHECK(inside(r, 280));
+	// Grid: a row every 0.1 s, never more than its 17
+	st.reset(VIS_GRID);
+	vizStep(st, 0.35);
+	CHECK_EQ(st.gridCount, 1);	// (a long gap: one row, not a burst)
+	for (int f = 0; f < 120; f++) vizStep(st, 1 / 30.0);
+	CHECK_EQ(st.gridCount, VizStyleState::GRID_ROWS);
+	vizShapes(st, false, r);
+	CHECK(inside(r, 0) && inksOf(r, VI_BG) > 0);
+	// Sparks: the pool never past its 400 at full with a beat each frame, every live one alive; quiet, they die out
+	st.reset(VIS_SPARKS);
+	for (int i = 0; i < 32; i++) st.targets[i] = VN_TOP;
+	int most = 0;
+	for (int f = 0; f < 600; f++)
+	{
+		st.beats++;
+		vizStep(st, f % 7 ? 1 / 60.0 : 0.2);
+		most = std::max(most, st.sparkN);
+		CHECK(st.sparkN >= 0 && st.sparkN <= VizStyleState::SPARKS);
+	}
+	CHECK_EQ(most, VizStyleState::SPARKS);
+	bool alive = true;
+	for (int i = 0; i < st.sparkN; i++) alive = alive && st.sparks[i].life > 0;
+	CHECK(alive);
+	vizShapes(st, true, r);	// (the whole panel in the band too)
+	CHECK_EQ(inksOf(r, VI_TEXT) + inksOf(r, VI_ACCENT), st.sparkN);
+	for (int i = 0; i < 32; i++) st.targets[i] = 0;
+	for (int f = 0; f < 200; f++) vizStep(st, 1 / 30.0);
+	CHECK_EQ(st.sparkN, 0);
+	// Starfield: every star in its depth; louder, faster
+	st.reset(VIS_STARFIELD);
+	st.loud = 0;
+	for (int f = 0; f < 30; f++) vizStep(st, 1 / 30.0);
+	const float quiet = st.starV;
+	st.loud = 1;
+	for (int f = 0; f < 300; f++) vizStep(st, 1 / 30.0);
+	CHECK(st.starV > quiet * 5);
+	bool depth = true;
+	for (auto& p : st.stars) depth = depth && p.z >= 0.05f - 0.04f && p.z <= 1;
+	CHECK(depth);
+	vizShapes(st, false, r);
+	CHECK(inside(r, 0) && r.size() >= 100);
+	// Strings: eight alone (40 blur quads each), five in the band
+	st.reset(VIS_STRINGS);
+	vizShapes(st, false, r);
+	CHECK_EQ(inksOf(r, VI_BUTTON), 8 * 40);
+	vizShapes(st, true, r);
+	CHECK_EQ(inksOf(r, VI_BUTTON), 5 * 40);
+	CHECK(inside(r, 280));
+	// Helix: 32 rungs and 64 beads, a bead bigger as its band is louder
+	st.reset(VIS_HELIX);
+	vizShapes(st, false, r);
+	CHECK(inksOf(r, VI_BUTTON) >= 28);	// (a rung where the strands cross has no height)
+	CHECK_EQ(inksOf(r, VI_ACCENT) + inksOf(r, VI_DIM), 64);
+	float small = 0;
+	for (auto& q : r) if (q.kind == 1) small = std::max(small, q.y1);
+	for (int i = 0; i < 32; i++) st.targets[i] = VN_TOP;
+	vizStep(st, 1.0);
+	vizShapes(st, false, r);
+	float big = 0;
+	for (auto& q : r) if (q.kind == 1) big = std::max(big, q.y1);
+	CHECK(big > small * 2);
+	// Pocket console: the screen, the grid (80 + 60 lines alone), the floor; full, the bars' ink up to row 14
+	st.reset(VIS_POCKET);
+	vizShapes(st, false, r);
+	CHECK_EQ(inksOf(r, VI_P_SCREEN), 1);
+	CHECK_EQ(inksOf(r, VI_P_GRID), 80 + 60);
+	for (int i = 0; i < 15; i++) st.targets[i] = VN_TOP;
+	vizStep(st, 0.016);
+	vizShapes(st, false, r);
+	float inkTop = 480;
+	for (auto& q : r) if (q.ink == VI_P_MID && q.x0 == 16 && q.y1 < 470) inkTop = std::min(inkTop, q.y0);
+	CHECK_EQ(inkTop, 14 * 8.0f);
+	vizShapes(st, true, r);	// the band: no screen, the bright pair, the grid in BG
+	CHECK_EQ(inksOf(r, VI_P_SCREEN), 0);
+	CHECK(inksOf(r, VI_P_LIGHT) == 15 && inksOf(r, VI_BG) == 80 + 25);
+
 	// the clock: on at the speed while moving, held otherwise
 	VizClock c;
 	CHECK_EQ(c.at(5), -1.0);
@@ -6498,10 +6616,10 @@ static void testSettings()
 	CHECK_EQ(d.loop, (int)LOOP_OFF);
 	Settings m;
 	m.musicShow = SHOW_BOTH;
-	m.visualizer = VIS_STEPS;
+	m.visualizer = VIS_HELIX;
 	m.loop = LOOP_ONE;
 	Settings mb = parseSettings(serializeSettings(m));
-	CHECK_EQ(mb.musicShow == SHOW_BOTH && mb.visualizer == VIS_STEPS && mb.loop == LOOP_ONE, true);
+	CHECK_EQ(mb.musicShow == SHOW_BOTH && mb.visualizer == VIS_HELIX && mb.loop == LOOP_ONE, true);
 	CHECK_EQ(visualizerGraph(VIS_WAVES, false).rfind("[aid1] asplit [ao] [v]; [v] aformat=sample_rates=44100|48000,showwaves", 0), (size_t)0);
 	CHECK_EQ(visualizerGraph(VIS_SPECTRUM, true).find("[vid1]") != std::string::npos, true);
 	CHECK_EQ(visualizerGraph(VIS_SPECTRUM, true).find("showspectrum=s=640x200") != std::string::npos, true);
@@ -6529,10 +6647,12 @@ static void testSettings()
 	CHECK_EQ(visualizerGraph(VIS_WAVES, false).find(":colors=0xC08A22|0xC08A22,format=rgb0 [vo]") != std::string::npos, true);
 	CHECK_EQ(visualizerGraph(VIS_SPECTRUM, false).find(",fps="), std::string::npos);	// its own fps= only
 	// the styles retired for the simple ones (2026-11-19): a saved one reads as its replacement, written back as it
+	// (a replacement since commented out of the final ten, Dots or Steps: Peaks)
 	{
-		const std::pair<const char*, int> retired[] = {{"circle", VIS_MIRROR}, {"bubble-tea", VIS_DOTS}, {"sound-garden", VIS_HORIZON},
-			{"area", VIS_HORIZON}, {"long-cat", VIS_STEPS}, {"radial", VIS_STEPS}};
-		const char* ids[] = {"mirror-bars", "dots", "horizon", "horizon", "steps", "steps"};
+		const std::pair<const char*, int> retired[] = {{"circle", VIS_MIRROR}, {"bubble-tea", VIS_PEAKS_BANANA}, {"sound-garden", VIS_HORIZON},
+			{"area", VIS_HORIZON}, {"long-cat", VIS_PEAKS_BANANA}, {"radial", VIS_PEAKS_BANANA}};
+		const int repl[] = {VIS_MIRROR, VIS_DOTS, VIS_HORIZON, VIS_HORIZON, VIS_STEPS, VIS_STEPS};
+		const char* ids[] = {"mirror-bars", "peaks-yellow", "horizon", "horizon", "peaks-yellow", "peaks-yellow"};
 		const int olds[] = {VIS_CIRCLE, VIS_BOBA, VIS_GARDEN, VIS_AREA, VIS_LONGCAT, VIS_RADIAL};
 		for (int i = 0; i < 6; i++)
 		{
@@ -6540,7 +6660,7 @@ static void testSettings()
 			CHECK_EQ(r.visualizer, retired[i].second);
 			CHECK_EQ(serializeSettings(r).find(std::string("visualizer = ") + ids[i] + "\n") != std::string::npos, true);
 			CHECK_EQ(parseSettings(std::string("visualizer = ") + ids[i] + "\n").visualizer, retired[i].second);
-			CHECK_EQ(visualizerReplacement(olds[i]), retired[i].second);
+			CHECK_EQ(visualizerReplacement(olds[i]), repl[i]);
 			CHECK_EQ(visualizerOnGround(retired[i].second), true);
 		}
 		for (int v : {VIS_BARCODE, VIS_RINGS}) CHECK_EQ(visualizerOnGround(v), true);
@@ -6553,8 +6673,8 @@ static void testSettings()
 		}
 		for (int v : {VIS_WAVE, VIS_LEVELS, VIS_FIRE, VIS_BUNNY, VIS_FISHBOWL, VIS_CAT, VIS_POPCORN})
 			CHECK_EQ(visualizerGraph(v, true, "/tmp/x") == visualizerGraph(VIS_PEAKS_BANANA, true, "/tmp/x"), true);
-		// Tube man stays
-		CHECK_EQ(parseSettings("visualizer = tube-man\n").visualizer, (int)VIS_TUBEMAN);
+		// Tube man: commented out of the final ten (its code kept): Peaks
+		CHECK_EQ(parseSettings("visualizer = tube-man\n").visualizer, (int)VIS_PEAKS_BANANA);
 	}
 	// Peaks: read and written back by its id; Timeline (its first form) reads as Peaks
 	CHECK_EQ(parseSettings("visualizer = peaks\n").visualizer, (int)VIS_PEAKS_BANANA);
@@ -6610,17 +6730,30 @@ static void testSettings()
 	CHECK_EQ(visualizerGraph(VIS_PEAKS_BANANA, false).find("lagfun=decay=") != std::string::npos, true);
 	// the cycle: the offered ones (VIS_SHOWN), Peaks first; from one not offered as from Peaks
 	{
-		// the owner's final list, in its order, round
-		const int order[] = {VIS_PEAKS_BANANA, VIS_MIRROR, VIS_POCKET, VIS_CITY, VIS_HORIZON, VIS_AURORA, VIS_DOTS, VIS_STEPS, VIS_BARCODE,
-			VIS_RINGS, VIS_DANCER, VIS_SEA, VIS_WOBBLE, VIS_WASHER, VIS_TUBEMAN};
-		for (int i = 0; i < 15; i++)
+		// the owner's final ten (2026-11-19), in its order, round
+		const int order[] = {VIS_PEAKS_BANANA, VIS_RIBBON, VIS_MIRROR, VIS_POCKET, VIS_HORIZON, VIS_GRID, VIS_STARFIELD, VIS_STRINGS,
+			VIS_HELIX, VIS_SPARKS};
+		for (int i = 0; i < 10; i++)
 		{
-			CHECK_EQ(stepVisualizer(order[i], 1), order[(i + 1) % 15]);
-			CHECK_EQ(stepVisualizer(order[(i + 1) % 15], -1), order[i]);
+			CHECK_EQ(stepVisualizer(order[i], 1), order[(i + 1) % 10]);
+			CHECK_EQ(stepVisualizer(order[(i + 1) % 10], -1), order[i]);
 		}
+		// the six new ids, kept by their words
+		for (const char* id : {"ribbon", "grid", "starfield", "strings", "helix", "sparks"})
+		{
+			const int v = parseSettings(std::string("visualizer = ") + id + "\n").visualizer;
+			CHECK(v >= VIS_RIBBON && v <= VIS_SPARKS);
+			CHECK_EQ(parseSettings(serializeSettings(parseSettings(std::string("visualizer = ") + id + "\n"))).visualizer, v);
+		}
+		// the ones commented out of the list (their code kept) and the older retired ones read as Peaks
+		for (const char* id : {"night-city", "aurora", "dots", "steps", "barcode", "rings", "banana-dancer", "pixel-sea", "jelly-wobble",
+				 "washing-machine", "tube-man", "bubble-tea", "long-cat", "radial"})
+			CHECK_EQ(parseSettings(std::string("visualizer = ") + id + "\n").visualizer, (int)VIS_PEAKS_BANANA);
+		// a graph wanted for one of the six (no graph of its own): Peaks'
+		CHECK_EQ(visualizerGraph(VIS_SPARKS, false), visualizerGraph(VIS_PEAKS_BANANA, false));
 	}
-	CHECK_EQ(stepVisualizer(VIS_SPECTRUM, 1), (int)VIS_MIRROR);
-	CHECK_EQ(stepVisualizer(VIS_PEAKS, 1), (int)VIS_MIRROR);
+	CHECK_EQ(stepVisualizer(VIS_SPECTRUM, 1), (int)VIS_RIBBON);
+	CHECK_EQ(stepVisualizer(VIS_PEAKS, 1), (int)VIS_RIBBON);
 	// Lite (the player-drawn style) was removed for now: a saved choice of it reads as Peaks
 	CHECK_EQ(parseSettings("visualizer = lite\n").visualizer, (int)VIS_PEAKS_BANANA);
 	{
@@ -6628,7 +6761,7 @@ static void testSettings()
 		for (int i = 0, v = VIS_PEAKS_BANANA; i < VIS_SHOWN_COUNT; i++, v = stepVisualizer(v, 1)) seen |= 1ull << v;
 		unsigned long long want = 0;
 		for (int v : VIS_SHOWN) want |= 1ull << v;
-		CHECK_EQ(VIS_SHOWN_COUNT, 15);
+		CHECK_EQ(VIS_SHOWN_COUNT, 10);
 		CHECK_EQ(seen, want);
 	}
 	// Pocket console: kept by its id, named, its own graph (Peaks' caps, YUV only), alone and over the art
@@ -9678,8 +9811,8 @@ static void testKitLayout()
 		CHECK(b.code.h > 960 * 3 / 5);
 	}
 
-	// the Visualizer tab's style grid: 15 styles, five a row, inside its area, in rows that meet its edges
-	Box grid{16, 300, 608, 3 * 46 + 2 * 6};
+	// the Visualizer tab's style grid: the styles, five a row, inside its area, in rows that meet its edges
+	Box grid{16, 300, 608, 2 * 46 + 6};
 	auto cells = gridCells(grid, VIS_SHOWN_COUNT, 5, 6);
 	CHECK_EQ((int)cells.size(), VIS_SHOWN_COUNT);
 	CHECK_EQ(cells[0].x, 16);
@@ -12357,19 +12490,19 @@ static void testKitDisplayPage()
 	// a finger: the tile under it, -1 between them
 	CHECK_EQ(displayAt(d, d.style[7].x + 5, d.style[7].y + 5), 11);
 	CHECK_EQ(displayAt(d, d.mode[0].x + d.mode[0].w + 3, d.mode[0].y + 10), -1);
-	// the final list: 15, three rows of five, inside the sheet over its hints
+	// the final ten: two rows of five, inside the sheet over its hints
 	DisplayPage f = displayPage(VIS_SHOWN_COUNT);
-	CHECK_EQ(f.count(), 4 + 15);
-	CHECK_EQ(f.style[10].y - (f.style[5].y + f.style[5].h), 6); CHECK_EQ(f.style[14].x, f.style[4].x);
-	CHECK_EQ(f.style[0].y > f.styleLine.y && f.style[14].y + f.style[14].h <= f.sheet.hints.y, true);
+	CHECK_EQ(f.count(), 4 + 10);
+	CHECK_EQ(f.style[5].y - (f.style[0].y + f.style[0].h), 6); CHECK_EQ(f.style[9].x, f.style[4].x);
+	CHECK_EQ(f.style[0].y > f.styleLine.y && f.style[9].y + f.style[9].h <= f.sheet.hints.y, true);
 	for (int i = 0; i < f.count(); i++)
 	{
 		CHECK_EQ(kitInside(f.item(i), PANEL_W, PANEL_H), true);
 		if (i) CHECK_EQ(kitApart(f.item(i), f.item(i - 1)), true);
 	}
-	CHECK_EQ(displayMove(f, 4 + 9, Dir::Down), 4 + 14);
-	CHECK_EQ(displayMove(f, 4 + 14, Dir::Down), 4 + 14);
-	CHECK_EQ(displayAt(f, f.style[14].x + 5, f.style[14].y + 5), 4 + 14);
+	CHECK_EQ(displayMove(f, 4 + 4, Dir::Down), 4 + 9);
+	CHECK_EQ(displayMove(f, 4 + 9, Dir::Down), 4 + 9);
+	CHECK_EQ(displayAt(f, f.style[9].x + 5, f.style[9].y + 5), 4 + 9);
 }
 
 // the top panel's song layout (docs/redesign/components.md, Song layout): the drawings' numbers

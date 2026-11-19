@@ -2423,6 +2423,19 @@ namespace bp
 
 	std::string Player::graphFor(int vis, bool overCover)
 	{
+		// a style the player draws, on a song it can't draw for (a network song: the second decode reads local files
+		// only; a file it couldn't read): Peaks' graph for every one of them, the simplest fallback
+		if (vizNativeStyle(vis) && vis != VIS_PEAKS_BANANA)
+		{
+			const std::string key = currentPath() + "#" + std::to_string(vis);
+			if (key != nativeFallbackLogged)
+			{
+				nativeFallbackLogged = key;
+				fprintf(stderr, "viz-native: %s: %s can't be drawn by the player here (%s): Peaks' graph instead\n", baseName(currentPath()).c_str(),
+					visualizerLabel(vis), isNet || currentPath().find("://") != std::string::npos ? "a network song" : "the second decode failed");
+			}
+			vis = VIS_PEAKS_BANANA;
+		}
 		// the styles' stills (src/viz_more.h: the scenes' pictures): made the first time one is
 		// wanted, beside the settings, else (none kept, or a folder a filter graph can't name) in /tmp. Tried again at
 		// the next song when they couldn't be written (a full card) (and the folder for the lut tables of a style with
@@ -2576,7 +2589,19 @@ namespace bp
 	{
 		std::vector<VizRect> r = cardsUp();
 		if (shownMusic() == SHOW_VIS && linesBox.x1 > linesBox.x0) r.push_back(linesBox);
+		// Sparks and Starfield over the whole panel in Art + visualizer: off the art and its lines (drawn by mpv under them)
+		if (shownMusic() == SHOW_BOTH && vizFullPanel(settings.visualizer))
+		{
+			if (groupArtBox.x1 > groupArtBox.x0) r.push_back(groupArtBox);
+			if (groupTextBox.x1 > groupTextBox.x0) r.push_back(groupTextBox);
+		}
 		return r;
+	}
+
+	int Player::drawnStyle() const
+	{
+		const int v = settings.visualizer;
+		return vizNativeStyle(v) && !nativeViz() ? VIS_PEAKS_BANANA : v;
 	}
 
 	void Player::syncNative()
@@ -2807,7 +2832,7 @@ namespace bp
 			dropSongArt();
 			return;
 		}
-		linesBox = {0, 0, 0, 0, 0};
+		linesBox = groupArtBox = groupTextBox = {0, 0, 0, 0, 0};
 		// the song's lines (docs/redesign/components.md, Song layout); the ASS canvas is 960x720, 1.5x the units
 		const double K = 1.5;
 		auto u = [&](double v) { return (int)std::lround(v * K); };
@@ -2823,7 +2848,8 @@ namespace bp
 		if (c >= 0 && c < (int)chapters.size())
 			chapter = chapterUntitled(chapters[c].title) ? "Chapter " + std::to_string(c + 1) + " of " + std::to_string(chapters.size())
 				: chapters[c].title;
-		bool ownsArt = show == SHOW_BOTH && settings.visualizer == VIS_VINYL;
+		const int style = drawnStyle();
+		bool ownsArt = show == SHOW_BOTH && style == VIS_VINYL;
 		bool group = (show == SHOW_ART || show == SHOW_BOTH) && !ownsArt;
 		// the theme's ground (Album art only, Art + visualizer, None: app UI, docs/redesign Themes › The top screen):
 		// the lines TEXT, DIM_ON, DIM, the art's edge edgeOf(SURFACE); a visualizer alone keeps its picture
@@ -2831,8 +2857,7 @@ namespace bp
 		// simple ones (src/viz_simple.cpp), so their lines are the theme's; the other styles alone keep their picture
 		// and the white lines with a shadow
 		// (and Night city alone in a theme but Yellow: its sky is the theme's BG, docs/notes/2026-11-19-viz-theme.md)
-		const bool peaksAlone = show == SHOW_VIS && (visualizerOnGround(settings.visualizer) ||
-			(settings.visualizer == VIS_CITY && theme::currentTheme() != 0));
+		const bool peaksAlone = show == SHOW_VIS && (visualizerOnGround(style) || (style == VIS_CITY && theme::currentTheme() != 0));
 		const bool themed = group || show == SHOW_NONE || peaksAlone;
 		setGround(themed);
 		const std::string INK = ass(TEXT), INK2 = ass(DIM_ON), INK3 = ass(DIM), MARK = ass(ACCENT), EDGE = ass(edgeOf(SURFACE)),
@@ -2961,6 +2986,11 @@ namespace bp
 				artOverlayX = artOverlayY = -1;
 			}
 			const int X = u(l.artX), Y = u(l.artY), S = u(l.artS), R = u(SONG_ART_RADIUS), E = u(SONG_ART_EDGE);
+			if (show == SHOW_BOTH && l.art)
+			{
+				const float m = SONG_ART_EDGE + 2;
+				groupArtBox = {l.artX - m, l.artY - m, l.artX + l.artS + m, l.artY + l.artS + m, 0};
+			}
 			if (box == ART || box == OVERLAY)
 			{
 				// mpv's art has square corners: rounded by the ground laid over them (the overlay's are its
@@ -3054,6 +3084,9 @@ namespace bp
 				double h = 0;
 				for (auto& ln : lines) h += ln.gap + ln.fs * 1.2;
 				double y = l.midY - h / 2;
+				if (show == SHOW_BOTH)
+					groupTextBox = {(float)l.textX - 8, (float)(l.midY - h / 2 - 8), (float)(l.textX + std::min(widest, l.textW) + 8),
+						(float)(l.midY + h / 2 + 8), 0};
 				for (auto& ln : lines)
 				{
 					y += ln.gap;
@@ -3087,7 +3120,7 @@ namespace bp
 		{
 			// over a visualizer: top left, with a shadow. Pocket console alone: the screen's own ink, dark green in the
 			// pixel font, no shadow (the album line its mid green)
-			bool pocket = show == SHOW_VIS && settings.visualizer == VIS_POCKET;
+			bool pocket = show == SHOW_VIS && style == VIS_POCKET;
 			std::string look = pocket ? "\\q2\\fnPixelify Sans\\bord0\\shad0" : peaksAlone ? "\\q2\\bord0\\shad0"
 				: "\\q2\\bord2\\blur4\\3c&H000000&\\shad3\\4c&H000000&";
 			// a line each, from the top (22, 18): title 26, then 5 down the artist 17, 3 down the album 14
@@ -3107,8 +3140,18 @@ namespace bp
 			if (!chapter.empty()) line(chapter, 17, false, pocket ? PMID : peaksAlone ? MARK : ass(TOP_TITLE), 4);
 			if (!artist.empty()) line(artist, 17, false, pocket ? PINK : peaksAlone ? INK2 : CREAM, 5);
 			if (!album.empty()) line(album, 14, false, pocket ? PMID : peaksAlone ? INK3 : GREY, 3);
-			// the native styles are drawn after mpv's picture: they keep off the lines' box (8 units round them)
-			linesBox = {22 - 8, 18 - 8, 22 + (float)linesW + 8, (float)y + 6, 0};
+			// the native styles are drawn after mpv's picture: they keep off the lines' box (8 units round them; Pocket
+			// console's pixel font a little wider than the Inter they're measured in)
+			linesBox = {22 - 8, 18 - 8, 22 + (float)linesW * (pocket ? 1.2f : 1) + 8, (float)y + 6, 0};
+			// Pocket console drawn by the player: its LCD's screen colour behind the lines (the shapes keep off their box,
+			// so mpv's picture shows there: this box, the screen's colour, under the lines)
+			if (pocket && nativeViz())
+			{
+				const int bx = u(linesBox.x0), by = u(linesBox.y0), bw = u(linesBox.x1) - bx, bh = u(linesBox.y1) - by;
+				char d[160];
+				snprintf(d, sizeof d, "m %d %d l %d %d %d %d %d %d", bx, by, bx + bw, by, bx + bw, by + bh, bx, by + bh);
+				ev = "{\\an7\\pos(0,0)\\bord0\\shad0\\1c" + ass(pocketInks().screen) + "\\p1}" + d + "{\\p0}\n" + ev;
+			}
 		}
 		// the manga engine starting over Album art only (the visualizers rest as None): its note at the foot
 		if (engineLoading && show != SHOW_NONE)

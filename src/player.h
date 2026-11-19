@@ -114,7 +114,7 @@ namespace bp
 		bool nativeShown() const { return vizTap.running() && !vizTap.failed(); }
 		bool nativeBand() const { return nativeOverArt; }	// Art + visualizer: the band along the foot
 		// the newest targets (VN_MAX_BARS room), with the style and band count they're for, if new since the last take
-		bool nativeTake(float* out, int& vis, int& n) { return vizTap.take(out, nativeSeq, vis, n); }
+		bool nativeTake(float* out, int& vis, int& n, VizHint& hint) { return vizTap.take(out, nativeSeq, vis, n, hint); }
 		int nativeStyle() const { return settings.visualizer; }
 		// where the shapes mustn't go (640x480 units): mpv's cards, and alone the song's lines (drawn by mpv under them)
 		std::vector<VizRect> nativeKeepClear() const;
@@ -510,6 +510,13 @@ namespace bp
 		bool nativeFailed = false, nativeOverArt = false, nativeMoving = false;
 		int nativeStyleSent = -1;	// the style the tap measures for
 		VizRect linesBox{0, 0, 0, 0, 0};	// the song's lines over a visualizer alone (updateOverlay), in units
+		// Art + visualizer: the art's box and its lines' (updateOverlay), kept clear by the styles that take the whole
+		// panel there (Sparks, Starfield: vizFullPanel)
+		VizRect groupArtBox{0, 0, 0, 0, 0}, groupTextBox{0, 0, 0, 0, 0};
+		// the style drawn for this song: the chosen one, or Peaks' graph where the player can't draw it (a network song,
+		// a file the second decode can't read)
+		int drawnStyle() const;
+		std::string nativeFallbackLogged;	// (the log's line, once a song and style)
 		uint64_t nativeSeq = 0, nativeFrames = 0, nativeAt = 0, nativeLoggedAt = 0;
 		VizClock audioClock;	// mpv's audio-pts and when it came (observed: never read)
 		bool hidingVideo = false;	// hideVideo(true): a video's picture off (each video's loadfile says vid=no)
