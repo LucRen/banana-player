@@ -390,6 +390,7 @@ namespace bp
 		struct MarqueeAt
 		{
 			int offset = 0;	// units the text is moved left
+			float offsetF = 0;	// the same, continuous (the top panel moves it smoothly; the bottom one in whole steps)
 			float alpha = 1;	// the text's (the fade back to its start)
 			bool fadeLeft = false, fadeRight = false;	// the ground's fades at the box's edges (the text goes on there)
 			bool done = false;	// its passes over: still at its start from now on

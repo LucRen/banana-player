@@ -2571,11 +2571,20 @@ namespace bp
 	{
 		if (!topMarq.on) return;
 		const lay::MarqueeAt m = lay::marquee((int)(ticks() - topMarq.start), topMarq.textW, (int)topMarq.boxW, topMarq.fs);
-		if (m.step == topMarq.lastStep) return;
-		topMarq.lastStep = m.step;
+		// while it moves: smoothly, its place sent at most every ~16 ms (about 60 a second) with a fractional \pos (libass
+		// places text to 1/8 of a pixel); before, it moved in the spec's whole-unit steps, 24 a second, and looked choppy
+		const bool sliding = m.offsetF > 0 && m.offsetF < topMarq.textW - topMarq.boxW && m.alpha >= 1;
+		const uint64_t now = ticks();
+		const int key = sliding ? 1000000 + (int)(m.offsetF * 8) : m.step;
+		if (key == topMarq.lastStep) return;
+		if (sliding && now - topMarq.sentAt < 16) return;
+		topMarq.lastStep = key;
+		topMarq.sentAt = now;
+		const double off = sliding ? m.offsetF : m.offset;
 		// on the 960x720 canvas: the box's clip, the text moved left by whole units (1.5 canvas units each)
 		const double K = 1.5;
 		auto n = [](double v) { return std::to_string((long)std::lround(v)); };
+		auto f2 = [](double v) { char b[32]; snprintf(b, sizeof b, "%.2f", v); return std::string(b); };
 		const double top = topMarq.an == 4 ? topMarq.y - topMarq.fs * 0.8 : topMarq.y - 2, bot = topMarq.an == 4 ? topMarq.y + topMarq.fs * 0.8 : topMarq.y + topMarq.fs * 1.35;
 		const double x0 = topMarq.x, x1 = topMarq.x + topMarq.boxW;
 		// the text, clipped to (cx0, cx1), seen at vis (0..1)
@@ -2583,7 +2592,7 @@ namespace bp
 		auto part = [&](double cx0, double cx1, float vis) {
 			char a[8];
 			snprintf(a, sizeof a, "%02X", (int)std::lround(255 * (1 - std::clamp(vis, 0.0f, 1.0f))));
-			ev += "{\\an" + std::to_string(topMarq.an) + "\\pos(" + n((topMarq.x - m.offset) * K) + "," + n(topMarq.y * K) + ")\\clip(" + n(cx0 * K) +
+			ev += "{\\an" + std::to_string(topMarq.an) + "\\pos(" + f2((topMarq.x - off) * K) + "," + n(topMarq.y * K) + ")\\clip(" + n(cx0 * K) +
 				  "," + n(top * K) + "," + n(cx1 * K) + "," + n(bot * K) + ")" + topMarq.style + "\\alpha&H" + a + "&}" + assText(topMarq.text) + "\n";
 		};
 		const bool fadeL = topMarq.fade && m.fadeLeft, fadeR = topMarq.fade && m.fadeRight;

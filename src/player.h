@@ -469,6 +469,7 @@ namespace bp
 			bool fade = true;	// fades in the ground's colour (BG); none over a picture
 			uint64_t start = 0;
 			int lastStep = -1;
+			uint64_t sentAt = 0;	// (ticks) the last place sent while sliding
 		};
 		TopMarq topMarq;
 		void setTopMarquee(const std::string& text, const std::string& style, int an, double x, double y, double boxW, int fs, int textW, bool fade);

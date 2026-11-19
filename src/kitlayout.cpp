@@ -644,14 +644,16 @@ namespace bp
 			{
 				step = std::min(moveSteps, t * MARQ_STEPS / 1000 + 1);
 				m.offset = std::min(dist, step * per);
+				m.offsetF = std::min((float)dist, (float)t * per * MARQ_STEPS / 1000.0f);
 				if (t >= moveMs + MARQ_END_REST)
 				{
 					// the fade back: out at its end, in at its start
 					const int f = t - moveMs - MARQ_END_REST;
-					if (f < MARQ_FADE) m.alpha = 1 - (float)f / MARQ_FADE;
+					if (f < MARQ_FADE) m.alpha = 1 - (float)f / MARQ_FADE, m.offsetF = (float)dist;
 					else
 					{
 						m.offset = 0;
+						m.offsetF = 0;
 						m.alpha = (float)(f - MARQ_FADE) / MARQ_FADE;
 					}
 					step = moveSteps + 1 + f / 25;	// (the fades in 25 ms steps)
