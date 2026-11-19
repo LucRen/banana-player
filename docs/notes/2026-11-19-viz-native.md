@@ -145,3 +145,30 @@ forward and back, Art + visualizer with Sparks, Starfield, Grid and Pocket conso
 What may differ on the handheld: the main thread's vertex work. Heaviest: Grid (17 ridges, a BG occluder and a line
 each: ~1.1k quads, ~7k vertices) and Sparks at a full pool (400 discs of 8 sides plus the swell: ~10k vertices), about
 Dots' load; Ribbon's three glow strips blend over a third of the panel.
+
+## No graph for songs (same day)
+
+The owner: "let's not render anything with ffmpeg anymore". A song never has a `lavfi-complex` graph now (not the
+blank one, not the art pass-through, not a fallback): mpv plays its sound (`aid` set by its id on load and on every
+mode change, `applyAudioDisplay`, so a song is never left with no audio track: the old skip-to-next) and the player
+draws the top panel:
+
+- **Album art only:** the art as the same image overlay as Art + visualizer (decoded on a worker at the panel's
+  pixels, corners rounded; `overlay-add`, no texture of ours), on mpv's `background-color` = the theme's BG, the lines as
+  ASS; the placeholder as before. The file opens with `vid=no`.
+- **None:** the title as ASS on BG.
+- **Visualizer only / Art + visualizer:** the native styles over mpv's picture (the ground and the lines); no blank graph
+  to wait for, so `syncNative` starts the tap as soon as the song plays. mpv's `audio-pts` is told more often without
+  a picture (~15 a second here, was 5 under the blank graph's 5 fps).
+- **Network songs:** the style drawn **idle (flat)**, no tap (one line: `viz-native: <file>: <style> drawn idle (flat): a
+  network song …`); the same for a file the tap can't read. Reading bpnet:// in the worker (an AVIOContext over
+  NetStreams' open/read/seek) was left out: it doubles a remote file's traffic and NetStreams' callbacks are mpv's.
+  The one picture mpv still decodes: a network song's own art (`vid` = its art track, no graph, placed in the art's
+  box by the video margins) in Album art only and Art + visualizer, since the overlay's decode reads local files only.
+- Removed: `songGraph`, `graphFor` (and its lut warm-up and stills), the graph retry in `checkAudio`, the 500 ms wait
+  before a mode's graph (`applyAudioDisplay` now runs at once), `groundColour`, `vizColours`, `blankGround`,
+  `artPassGraph`. The graph builders in settings.cpp and `viz_*.cpp` stay (bpcore, tested), unreachable from the
+  player. Videos never had a graph; the idle screen and photos use none.
+
+Checked on the Mac: the four modes and a few styles on a song with art (48 kHz) and one without (44.1 kHz), a seek and
+a pause: no `lavfi-complex` in either log (`graph -` in the audio lines), the art and the placeholder in both art modes.

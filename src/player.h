@@ -111,7 +111,7 @@ namespace bp
 		// it couldn't read put back on the graph style
 		void syncNative();
 		// the top panel draws the native style now (a local song, its display a visualizer, not resting)
-		bool nativeShown() const { return vizTap.running() && !vizTap.failed(); }
+		bool nativeShown() const { return (vizTap.running() && !vizTap.failed()) || nativeIdle; }
 		bool nativeBand() const { return nativeOverArt; }	// Art + visualizer: the band along the foot
 		// the newest targets (VN_MAX_BARS room), with the style and band count they're for, if new since the last take
 		bool nativeTake(float* out, int& vis, int& n, VizHint& hint) { return vizTap.take(out, nativeSeq, vis, n, hint); }
@@ -403,9 +403,6 @@ namespace bp
 		void prop(const char* name, const std::string& value);
 		// an audio file: the visualizer (Audio display) and the title, artist and album over the top panel
 		void applyAudioDisplay();
-		std::string graphFor(int vis, bool overCover);	// visualizerGraph, with the styles' stills made first
-		std::string circleMaps;	// where they are, once made
-		bool lutsWarmed = false;	// every style's lut lookups asked for (graphFor), once a run
 		std::string graphSet;	// lavfi-complex as last set (prop)
 		// the freeze's log (watchLog: the play state for 10 s after a graph change; last values seen, never read)
 		std::string setValues[11], graphLabel, graphHash, seenPause = "?", seenCoreIdle = "?", seenIdleActive = "?", seenEof = "?";
@@ -452,14 +449,10 @@ namespace bp
 		bool lastArt = false;
 		std::string lastArtDir;
 		int shownMusic() const;	// MusicShow as it comes out now (None while the visualizer rests)
-		// the graph for a Show mode, by whether the song has art (Album art only with art: none, mpv shows the art)
-		std::string songGraph(int show, bool hasArt);
 		void updateOverlay();
-		// The song's art on the top panel (src/songlayout.h). Album art only: mpv's own video, put in the art's box
-		// by its video margins. Art + visualizer: the graph's top is black and the art is an image overlay, decoded
-		// here once (a thread of its own) at the panel's pixels, its corners rounded: so the art's place can follow
-		// the title's width without a new graph (a graph changed reopens the sound). A network song's art comes
-		// from mpv instead, placed by the graph at the spot a long title gives
+		// The song's art on the top panel (src/songlayout.h). The art is an image overlay (Album art only and Art + visualizer), decoded here once (a
+		// thread of its own) at the panel's pixels, its corners rounded. A network song's art is mpv's own video
+		// instead (the decode reads local files only), put in the art's box by the video's margins
 		struct SongArtJob
 		{
 			std::mutex m;
@@ -481,18 +474,7 @@ namespace bp
 		void dropSongArt();	// the overlay off and the job forgotten (another file, another mode)
 		std::string marginsSet;	// the video margins as last set ("" none)
 		// a song's top panel on the theme's ground (Album art only, Art + visualizer, None: docs/redesign, Song layout):
-		// BG as lavfi writes it ("0xRRGGBB"), None's and the placeholder's picture of it, and mpv's background-color
-		// (themed: BG; else black) as last sent
-		static std::string groundColour();
-		// the hook for themed visualizers (a style's ground and ink by the theme, not written yet): what the band of Art +
-		// visualizer is drawn over (today black, the styles' own) and the ink a style may take. A theme change rebuilds
-		// any graph that names them (themeChanged: displayDueAt, the switch timed by graphAskedAt)
-		struct VizColours { std::string ground = "black", ink; };
-		static VizColours vizColours();
-		std::string blankGround() const { return blankGraph(groundColour()); }
-		// Album art only reached from another mode while the song plays: its sound and its art through a graph that
-		// does nothing (the art one frame, as mpv gives it), so the switch is graph to graph (applyAudioDisplay)
-		static std::string artPassGraph() { return "[aid1] anull [ao]; [vid1] null [vo]"; }
+		// mpv's background-color (themed: BG; else black) as last sent. No graph draws any of it (2026-11-19)
 		std::string groundSet;
 		void setGround(bool themed, const char* why = nullptr);
 		void setSongMargins(const std::string& lrtb);
@@ -504,6 +486,9 @@ namespace bp
 		// Native visualizers: the style is drawn by the player (a local song: the tap decodes the file itself; a
 		// network one keeps the graph style), unless this song's file couldn't be read by the tap
 		bool nativeViz() const;
+		bool nativeCanTap() const;	// the tap can read this song (local, not failed); else the style is drawn idle
+		bool nativeIdle = false;	// the style shown flat (a network song)
+		std::string nativeIdlePath, displayLogged;
 		void nativeStop(const char* why);
 		VizTap vizTap;
 		std::function<void()> nativeWake;

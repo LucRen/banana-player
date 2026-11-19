@@ -551,8 +551,9 @@ Songs show their title, artist and album on the top screen. While a song plays:
   behind the art and the song's lines (they pass behind them, never over them). All ten are drawn by the player, not
   mpv, at the Visualizer frame rate setting, in the theme's colours (a theme change recolours them at once):
   switching among them, or to None and back, never interrupts the sound, and with Visualizer only they keep clear of
-  the song's lines and of a volume or other card. A song from a network folder shows Peaks (mpv-drawn, 30 fps)
-  whatever the style. Earlier styles no longer offered (Night city, Aurora, Dots, Steps, Barcode, Rings, Banana
+  the song's lines and of a volume or other card. A song from a network folder shows its style still (flat: the
+  player reads only local files for the visualizer). Nothing on the top screen is drawn by a filter graph any more:
+  mpv only plays the song's sound, so changing the mode or the style never reopens it. Earlier styles no longer offered (Night city, Aurora, Dots, Steps, Barcode, Rings, Banana
   dancer, Pixel sea, Jelly wobble, Washing machine, Tube man, and the older Circle, Sound garden, Bubble tea, Long
   cat, Area, Radial, Wave, Levels, Campfire, Bunny hop, Fishbowl, Vibing cat, Popcorn machine, Jellyfish, Music box,
   coral Peaks, Hi-fi LED, Synthwave, Banana stack, Heartbeat, Oscilloscope, Turntable, Disco ball, Bars, Waves,

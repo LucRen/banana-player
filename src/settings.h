@@ -24,8 +24,8 @@ namespace bp
 	// the page cache's cap as its row offers it (100 MB, 300 MB, 1 GB), the default, and the bytes of one
 	constexpr int MANGA_CACHES = 3, MANGA_CACHE_DEFAULT = 2;	// 1 GB: the least recently read pages go past it
 	uint64_t mangaCacheBytes(int v);
-	// Music on the top panel: its album art (embedded, or cover.jpg beside it), a visualizer drawn from the sound by
-	// FFmpeg's filters, or the art with the visualizer over its lower part; a song with no art shows the visualizer
+	// Music on the top panel: its album art (embedded, or cover.jpg beside it), a visualizer drawn by the player
+	// (src/viznative.h; no filter graph since 2026-11-19), or the art with the visualizer along its foot; a song with no art shows the visualizer
 	// whatever this says. The title, artist and album over either.
 	// None: neither, the title alone on black (the lightest)
 	enum MusicShow { SHOW_ART, SHOW_BOTH, SHOW_VIS, SHOW_NONE, SHOWS };

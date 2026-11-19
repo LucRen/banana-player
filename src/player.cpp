@@ -566,30 +566,13 @@ namespace bp
 		showIdle(false);
 		dropSongArt();
 		if (!isAudio) setSongMargins("");
-		// A song's picture is chosen before it opens, as far as it can be known: a filter graph changed (or taken off
-		// and put back) between songs closes and opens the sound output again, which takes the handheld a second or
-		// more. The art's graph ([vid1]) only where the art is sure (a cover file: a song without the track it names
-		// doesn't open at all); else the visualizer alone, or (Album art) a guess from the folder's last song, put right
-		// at FILE_LOADED (applyAudioDisplay)
-		std::string graph;
-		if (isAudio)
-		{
-			size_t slash = path.rfind('/');
-			std::string dir = slash == std::string::npos ? "." : path.substr(0, slash);
-			bool cover = isNet ? !coverFileFor(namesIn(netParent(path))).empty() : folderHasCover(path), guessArt = cover || (dir == lastArtDir && lastArt);
-			if (vizResting() && (settings.musicShow == SHOW_VIS || settings.musicShow == SHOW_BOTH)) graph = blankGround();
-			else if (settings.musicShow == SHOW_VIS) graph = songGraph(SHOW_VIS, cover);
-			else if (settings.musicShow == SHOW_NONE) graph = blankGround();
-			else if (settings.musicShow == SHOW_BOTH) graph = songGraph(SHOW_BOTH, cover);
-			else graph = guessArt ? "" : blankGround();
-		}
-		// the same graph as the last song's: kept. Else the last file's off first: under a graph mpv's tracks can't
-		// be chosen (aid, sid below)
-		bool keepGraph = !graph.empty() && graphSet == graph;
+		// A song has no filter graph (2026-11-19, docs/notes/2026-11-19-viz-native.md, No graph for songs): mpv plays
+		// its sound and nothing else is rendered by FFmpeg; the player draws the top panel (the native styles, the art
+		// as an image overlay, the lines as ASS). A network song alone shows its art as mpv's own picture (below)
+		const std::string graph;
 		// the equalizer and effect for this file (none on a video), before the loadfile rebuilds the chain from af: a
 		// song after a song with the same ones, nothing sent
 		syncEq(true);
-		if (!keepGraph) prop("lavfi-complex", "");
 
 		// what this file is remembered with, as the file's own options (loadfile's last argument: they hold for this
 		// file alone). Not set as properties beforehand: a property reaches the file still playing, and an aid it
@@ -609,6 +592,9 @@ namespace bp
 		// a video's picture: always on (one under a photo decodes on, unseen: hideVideo); the file's own option, so a
 		// vid set as a property by an older build never reaches the next file
 		if (!isAudio && !isPhoto) fileOpts += ",vid=auto";
+		// a song's picture: none (its art is the player's overlay), but a network song's art, which the overlay's decode
+		// can't read, is mpv's own (applyAudioDisplay: in the art's box by the video's margins)
+		else if (isAudio) fileOpts += isNet ? ",vid=auto" : ",vid=no";
 		else if (isAudio && vidOff)
 		{
 			// a song after a video hidden under a photo: its art or graph needs the picture back (the video still
@@ -639,7 +625,6 @@ namespace bp
 		if (settings.rememberSubs && !resume.lastSubLang.empty()) slang = resume.lastSubLang + (slang.empty() ? "" : "," + slang);
 		prop("slang", slang);
 
-		if (!graph.empty() && !keepGraph) prop("lavfi-complex", graph);
 		// a song that plays to its end stays loaded there (keep-open; its end is heard as eof-reached, above): the
 		// Session moves on to the next, or takes the list's last song back to its start, paused. A video's file ends
 		// as before (keep-open no)
@@ -1305,29 +1290,10 @@ namespace bp
 		// try again by itself). Opened again, three times at most, each in the log
 		if (!loaded || !audioCheckAt || ticks() < audioCheckAt) return;
 		audioCheckAt = 0;
-		// a song's graph that mpv couldn't put up (its art's [vid1] on a song with none: "Pad vid1 is not connected"):
-		// mpv then drops every track, and the song sits silent at its first second. Drawn without the art, else none
-		if (!selected(TrackType::Audio) && !tracksOf(TrackType::Audio).empty() && !graphSet.empty())
-		{
-			if (audioChecks >= 3) return;
-			audioChecks++;
-			bool art = graphSet.find("[vid1]") != std::string::npos;
-			fprintf(stderr, "banana-player: %s: the music's graph failed (%s); %s (try %d)\n", baseName(currentPath()).c_str(),
-				art ? "with the art" : "without art", art ? "the visualizer alone" : "no graph", audioChecks);
-			syncEq(true);
-			if (art) prop("lavfi-complex", graphFor(settings.visualizer, false));
-			else
-			{
-				prop("lavfi-complex", "");
-				prop("aid", songAid(0));
-			}
-			audioCheckAt = ticks() + 1500;
-			return;
-		}
 		// a file with audio tracks and none chosen (not under a graph, which chooses its own): mpv dropped the track
 		// when the sound device wouldn't open (its error_on_track), and ao-reload does nothing with no device. The
 		// track chosen again opens the device anew. (The Audio page has no Off: this is never the person's choice)
-		if (!selected(TrackType::Audio) && !tracksOf(TrackType::Audio).empty() && graphSet.empty())
+		if (!selected(TrackType::Audio) && !tracksOf(TrackType::Audio).empty())
 		{
 			if (audioChecks >= 3) return;
 			audioChecks++;
@@ -1741,10 +1707,9 @@ namespace bp
 		settings = s;
 		if (displayChanged && isAudio && loaded)
 		{
-			// the title's place at once; the graph once the presses stop (each change of it reopens the sound output,
-			// a second on the handheld)
-			updateOverlay();
-			displayDueAt = ticks() + 500;
+			// at once: no graph to wait for (the song's sound chosen again, its picture off; the native style follows in
+			// syncNative)
+			applyAudioDisplay();
 		}
 		if (soundChanged) syncEq(false);
 		if (loopChanged && isAudio) prop("loop-file", s.loop == LOOP_ONE ? "inf" : "no");
@@ -2022,10 +1987,9 @@ namespace bp
 		if (idleShown) { showIdle(true); sent++; }
 		if (isAudio && loaded)
 		{
-			// the lines' colours and mpv's ground at once; a graph with the ground in it (None, no art, Art +
-			// visualizer) once the steps stop: each change of it reopens the sound output (a second on the handheld)
+			// the lines' colours and mpv's ground at once (no graph holds the ground; the native styles read the theme
+			// each frame)
 			updateOverlay();
-			displayDueAt = ticks() + 500;
 			sent++;
 		}
 		// (a Loading card is drawn again at its next step, every 100 ms; a level card lasts a second or two)
@@ -2324,7 +2288,6 @@ namespace bp
 		applyPhotoView();
 		updateOverlay();	// the title off the top panel
 		showIdle(true);
-		prop("lavfi-complex", "");
 	}
 
 	void Player::pathsMoved(const std::string& from, const std::string& to)
@@ -2421,152 +2384,43 @@ namespace bp
 		updateOverlay();	// (the line under the title, whatever the top panel shows)
 	}
 
-	std::string Player::graphFor(int vis, bool overCover)
-	{
-		// a style the player draws, on a song it can't draw for (a network song: the second decode reads local files
-		// only; a file it couldn't read): Peaks' graph for every one of them, the simplest fallback
-		if (vizNativeStyle(vis) && vis != VIS_PEAKS_BANANA)
-		{
-			const std::string key = currentPath() + "#" + std::to_string(vis);
-			if (key != nativeFallbackLogged)
-			{
-				nativeFallbackLogged = key;
-				fprintf(stderr, "viz-native: %s: %s can't be drawn by the player here (%s): Peaks' graph instead\n", baseName(currentPath()).c_str(),
-					visualizerLabel(vis), isNet || currentPath().find("://") != std::string::npos ? "a network song" : "the second decode failed");
-			}
-			vis = VIS_PEAKS_BANANA;
-		}
-		// the styles' stills (src/viz_more.h: the scenes' pictures): made the first time one is
-		// wanted, beside the settings, else (none kept, or a folder a filter graph can't name) in /tmp. Tried again at
-		// the next song when they couldn't be written (a full card) (and the folder for the lut tables of a style with
-		// no stills, Peaks or Pocket console)
-		if (circleMaps.empty() && (visualizerNeedsMaps(vis) || visualizerGraphMarked(vis, overCover).find("bplut") != std::string::npos))
-		{
-			std::string dir = lavfiSafePath(opts.stateDir) ? opts.stateDir : "/tmp/banana-player";
-			if (writeVisualizerMaps(dir)) circleMaps = dir;
-			else fprintf(stderr, "banana-player: the visualizers' stills couldn't be written in %s: drawn as Bars or Peaks\n", dir.c_str());
-		}
-		// at the chosen frame rate; the lut and lut2 expressions as their lookups, read from their files
-		// (src/vizcache.h). Those not made yet keep their expressions this time and are made on a thread of their
-		// own, with every other style's the first time (so a change of style is quick from then on, this run and the
-		// next); files no style reads any more removed
-		// (and the measured copy of the sound evened out: src/vizcache.h)
-		// the simple styles (Mirror bars, Dots, Steps, Barcode, Rings, Horizon) at 30 frames a second whatever the setting,
-		// as Peaks: on the handheld they stalled mpv at 45 (sound and picture stopped, Play did nothing) and never at 30
-		// (owner's test, 2026-11-19; docs/notes/2026-11-19-viz-simple.md, The stall)
-		bool simple = vis == VIS_MIRROR || vis == VIS_DOTS || vis == VIS_STEPS || vis == VIS_BARCODE || vis == VIS_RINGS || vis == VIS_HORIZON;
-		std::string g = vizShapeInput(vizAtFps(visualizerGraphMarked(vis, overCover, circleMaps), simple ? 30 : settings.vizFps));
-		if (circleMaps.empty()) return vizPlainLuts(g);
-		std::vector<std::string> missing;
-		g = vizCacheLuts(g, circleMaps, &missing);
-		std::vector<std::string> graphs;
-		if (!lutsWarmed)
-		{
-			lutsWarmed = true;
-			for (int v : VIS_SHOWN)
-			{
-				for (int art = 0; art < 2; art++)
-				{
-					graphs.push_back(visualizerGraphMarked(v, art == 1, circleMaps));
-					for (const std::string& k : vizLutKeys(graphs.back())) missing.push_back(k);
-				}
-			}
-		}
-		if (!missing.empty())
-		{
-			std::string dir = circleMaps;
-			// (files only: the thread never touches the player)
-			std::thread([dir, missing, graphs] {
-#ifdef __linux__
-				setpriority(PRIO_PROCESS, 0, 10);	// (this thread alone, on Linux): the song's decoding first
-#endif
-				auto t0 = std::chrono::steady_clock::now();
-				vizWriteLuts(missing, dir);
-				if (!graphs.empty()) vizPruneLuts(dir, graphs);
-				fprintf(stderr, "music: %zu visualizer lookups checked or made in %.1f s\n", missing.size(),
-						std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count());
-			}).detach();
-		}
-		return g;
-	}
-
-	std::string Player::songGraph(int show, bool hasArt)
-	{
-		// a native style (Mirror bars on a local song): the player draws it over the theme's ground, mpv only plays the
-		// sound under the blank graph (as None: the same graph, so None and the style switch without a sound reopen)
-		if ((show == SHOW_VIS || show == SHOW_BOTH) && nativeViz()) return blankGround();
-		if (show == SHOW_VIS) return graphFor(settings.visualizer, false);
-		if (show == SHOW_NONE) return blankGround();
-		// Album art only: mpv shows the art itself (no graph: mpv's background-color is the ground round it); without
-		// art, the theme's ground under the placeholder
-		if (show == SHOW_ART) return hasArt ? "" : blankGround();
-		// Art + visualizer: the band (black, the style's own ground) under the theme's ground, the art laid over it
-		// (updateOverlay): the same graph with art or without, so an album that mixes them never reopens the sound.
-		// A style that uses the art its own way (Turntable's label) keeps it, and without art is drawn alone
-		std::string g = graphFor(settings.visualizer, true), ground = groundColour();
-		if (vizPlaceArt(g, 0, 0, 0).find("[vid1]") != std::string::npos) return hasArt ? g : graphFor(settings.visualizer, false);
-		// a network song's art from mpv (the overlay's decode reads local files only), placed once by the graph
-		// where a long title puts it: the title's own width can't move it without a new graph
-		if (isNet && hasArt)
-		{
-			SongLayout l = songLayout(false, 9999);
-			return vizPlaceArt(g, l.artX, l.artY, l.artS, ground, vizColours().ground);
-		}
-		return vizPlaceArt(g, 0, 0, 0, ground, vizColours().ground);
-	}
-
 	void Player::applyAudioDisplay()
 	{
 		// for the next song's guess (load): an album's songs mostly all have art, or none
 		size_t slash = currentPath().rfind('/');
 		lastArtDir = slash == std::string::npos ? "." : currentPath().substr(0, slash);
 		lastArt = hasCover(tracks);
-		int show = shownMusic();
-		std::string graph = songGraph(show, hasCover(tracks));
-		// Album art only on a playing song with art, from a graph: the art passed through a graph of its own, never
-		// the graph cleared. Cleared, mpv drops the tracks it fed and, for a moment, nothing is selected: the file
-		// ended (EOF) and the Session played the next song. Graph to graph, the tracks stay taken
-		if (graph.empty() && !graphSet.empty() && show == SHOW_ART && hasCover(tracks))
+		const int show = shownMusic();
+		// no graph, whatever the mode: the song's sound chosen by its id every time (a song must never be left with no
+		// audio track: it would read as ended and the Session would play the next), and its picture off, but for a
+		// network song's art shown as mpv's own (Album art only, Art + visualizer)
+		prop("aid", songAid(seenAid));
+		int64_t art = 0;
+		if (isNet && (show == SHOW_ART || show == SHOW_BOTH))
+			for (auto& t : tracks)
+				if (t.type == TrackType::Video && !art) art = t.id;
+		prop("vid", art ? std::to_string(art) : "no");
+		const std::string why = std::string(show == SHOW_ART ? "Album art only" : show == SHOW_BOTH ? "Art + visualizer" : show == SHOW_VIS ? "Visualizer only" : "None") +
+								(art ? ", the art mpv's" : "");
+		if (why != displayLogged)
 		{
-			graph = artPassGraph();
-			fprintf(stderr, "music: %s: Album art only from a graph: the art through a graph of its own (never no track)\n",
-				baseName(currentPath()).c_str());
+			displayLogged = why;
+			fprintf(stderr, "music: %s: %s, no graph (the player draws the top panel)\n", baseName(currentPath()).c_str(), why.c_str());
 		}
-		if (graphSet != graph)
-		{
-			// (in the log: a graph changed as a song starts, by the art its track list says it has)
-			fprintf(stderr, "music: %s: %s art, %d tracks; graph %s\n", baseName(currentPath()).c_str(),
-				hasCover(tracks) ? "has" : "no", (int)tracks.size(), graph.empty() ? "off" : graph == artPassGraph() ? "passing the art through"
-				: graph.find("[vid1]") != std::string::npos ? "with the art" : "without art");
-			syncEq(true);	// the graph's change rebuilds the chain from af
-			prop("lavfi-complex", graph);
-			// (in the log: how long a style takes to come up, the sound's restart and the picture's, on the handheld)
-			graphAskedAt = ticks();
-			graphFrameLogged = false;
-			// the art's box and the lines for the picture the new graph makes (mpv's art in the margins, or the whole
-			// panel the graph's): a mode's change set them for the old graph, half a second before
-			updateOverlay();
-		}
-		if (graph.empty())
-		{
-			// the song's sound (the graph taken off leaves the track unselected)
-			prop("aid", songAid(seenAid));
-			if (show == SHOW_ART)
-			{
-				// by its id: "auto" while playing doesn't pick the art again
-				int64_t art = 0;
-				for (auto& t : tracks)
-					if (t.type == TrackType::Video && !art) art = t.id;
-				prop("vid", art ? std::to_string(art) : "auto");
-			}
-		}
+		updateOverlay();
 	}
 
 	bool Player::nativeViz() const
 	{
-		// a network song keeps the graph style: the tap's second decode opens local files only (bpnet:// goes through
-		// mpv's stream callbacks), and a second read of a remote file would double its traffic
-		return vizNativeStyle(settings.visualizer) && isAudio && !isNet && currentPath().find("://") == std::string::npos && !nativeFailed;
+		return vizNativeStyle(settings.visualizer) && isAudio;
+	}
+
+	bool Player::nativeCanTap() const
+	{
+		// a network song: the tap's second decode opens local files only (bpnet:// goes through mpv's stream callbacks,
+		// and a second read of a remote file would double its traffic), so its style is drawn idle (flat); the same for a
+		// file the tap couldn't read
+		return !isNet && currentPath().find("://") == std::string::npos && !nativeFailed;
 	}
 
 	static uint64_t steadyNs()
@@ -2600,26 +2454,37 @@ namespace bp
 
 	int Player::drawnStyle() const
 	{
-		const int v = settings.visualizer;
-		return vizNativeStyle(v) && !nativeViz() ? VIS_PEAKS_BANANA : v;
+		return settings.visualizer;
 	}
 
 	void Player::syncNative()
 	{
 		const int show = shownMusic();
-		// what the top panel shows is the native style: a local song, a visualizer shown, mpv's blank graph up (its
-		// ground; until then the last style's picture is still mpv's)
-		static const std::string blank = blankGraph("").substr(0, blankGraph("").find("drawbox=c="));	// (any ground's colour)
-		const bool blankUp = graphSet.compare(0, blank.size(), blank) == 0;
-		const bool want = isAudio && loaded && playing() && nativeViz() && (show == SHOW_VIS || show == SHOW_BOTH) && blankUp;
+		// what the top panel shows is the native style: a song, a visualizer shown (no graph: mpv's picture is the
+		// theme's ground and the lines)
+		const bool want = isAudio && loaded && playing() && nativeViz() && (show == SHOW_VIS || show == SHOW_BOTH);
 		const std::string path = currentPath();
 		if (!want)
 		{
-			nativeStop(!playing() || !isAudio ? "nothing plays" : !nativeViz() ? "another style" : show == SHOW_VIS || show == SHOW_BOTH ? "the graph isn't the blank one"
-				: "the display shows no visualizer");
+			nativeIdle = false;
+			nativeStop(!playing() || !isAudio ? "nothing plays" : !nativeViz() ? "another style" : "the display shows no visualizer");
 			return;
 		}
 		nativeOverArt = show == SHOW_BOTH;
+		if (!nativeCanTap())
+		{
+			// a network song (or a file the tap couldn't read): the style drawn idle, flat, no tap
+			nativeStop("no tap for this song");
+			if (!nativeIdle || nativeIdlePath != path)
+			{
+				nativeIdle = true;
+				nativeIdlePath = path;
+				fprintf(stderr, "viz-native: %s: %s drawn idle (flat): %s\n", baseName(path).c_str(), visualizerLabel(settings.visualizer),
+					nativeFailed ? "the second decode couldn't read it" : "a network song (the tap reads local files only)");
+			}
+			return;
+		}
+		nativeIdle = false;
 		if (!vizTap.running() || vizTap.path() != path)
 		{
 			nativeStop("another file");
@@ -2635,11 +2500,9 @@ namespace bp
 		}
 		if (vizTap.failed())
 		{
-			// the tap couldn't read the file: the graph style for this song
+			// the tap couldn't read the file: the style idle for this song (next pass)
 			nativeStop("the second decode failed");
 			nativeFailed = true;
-			fprintf(stderr, "viz-native: %s: the graph style instead\n", baseName(path).c_str());
-			applyAudioDisplay();
 			return;
 		}
 		vizTap.setFps(settings.vizFps);
@@ -2713,22 +2576,6 @@ namespace bp
 		double pan = lrtb.empty() ? (aspect == AspectMode::Fill ? 1 : 0) : 1;	// (none: a video's own aspect mode)
 		mpv_set_property_async(mpv, 0, "panscan", MPV_FORMAT_DOUBLE, &pan);
 		fprintf(stderr, "music: top panel margins %s, panscan %g\n", lrtb.empty() ? "none (the whole panel)" : lrtb.c_str(), pan);
-	}
-
-	std::string Player::groundColour()
-	{
-		char c[16];
-		snprintf(c, sizeof c, "0x%02X%02X%02X", theme::BG.r, theme::BG.g, theme::BG.b);
-		return c;
-	}
-
-	Player::VizColours Player::vizColours()
-	{
-		// the band over the theme's ground, as the styles were laid over the art before (their strips draw over
-		// their slice of the input: no ground of their own, but those that paint a scene); inks the styles' own for now
-		VizColours c;
-		c.ground = groundColour();
-		return c;
 	}
 
 	void Player::setGround(bool themed, const char* why)
@@ -2865,9 +2712,9 @@ namespace bp
 		std::string ev;
 		std::string why;	// for the log: what the art box holds
 
-		// the art shown as mpv's own video (Album art only, no graph): put in the art's box by the video's margins,
-		// in the layout of the mode it is shown in (a mode just changed: the graph comes half a second later)
-		bool videoArt = (graphSet.empty() || graphSet == artPassGraph()) && hasCover(tracks);
+		// the art shown as mpv's own video (a network song's: the overlay's decode reads local files only): put in the
+		// art's box by the video's margins, in the layout of the mode it is shown in
+		bool videoArt = isNet && (show == SHOW_ART || show == SHOW_BOTH) && hasCover(tracks);
 		// the lines' widths as libass will draw them: measured in the bundle's Inter (what libass uses on the handheld),
 		// \fs being the font's ascent + descent; the letter estimate (songTextWidth) where the fonts can't be read. The
 		// estimate ran ~8% wide, and the group (art + lines) centred on it sat left of the middle
@@ -2906,23 +2753,20 @@ namespace bp
 		SongLayout artOnly = songLayout(true, widest);
 		if (videoArt)
 		{
+			const SongLayout v = show == SHOW_ART ? artOnly : songLayout(false, widest);
 			char m[96];
-			snprintf(m, sizeof m, "%.5f %.5f %.5f %.5f", artOnly.artX / 640.0, (640 - artOnly.artX - artOnly.artS) / 640.0,
-					 artOnly.artY / 480.0, (480 - artOnly.artY - artOnly.artS) / 480.0);
+			snprintf(m, sizeof m, "%.5f %.5f %.5f %.5f", v.artX / 640.0, (640 - v.artX - v.artS) / 640.0, v.artY / 480.0,
+					 (480 - v.artY - v.artS) / 480.0);
 			setSongMargins(m);
 		}
 		else setSongMargins("");
 
 		if (group)
 		{
-			// a network song's art placed by the graph: the layout of a long title, as the graph was made with
-			bool graphArt = show == SHOW_BOTH && isNet && graphSet.find("[vid1]") != std::string::npos;
-			SongLayout l = show == SHOW_ART ? artOnly : songLayout(false, graphArt ? 9999 : widest);
-			// the art: mpv's (Album art only), the graph's (a network song), or the overlay's (decoded here)
+			SongLayout l = show == SHOW_ART ? artOnly : songLayout(false, widest);
+			// the art: mpv's (a network song), or the overlay's (decoded here, both modes)
 			enum { NOTHING, ART, OVERLAY, PLACEHOLDER } box = NOTHING;
-			// (a song with art whose graph hasn't switched yet: nothing for that half second, not the placeholder)
-			if (show == SHOW_ART) box = tracks.empty() ? NOTHING : videoArt ? ART : hasCover(tracks) ? NOTHING : PLACEHOLDER;
-			else if (isNet) box = tracks.empty() ? NOTHING : graphArt ? ART : PLACEHOLDER;
+			if (isNet) box = tracks.empty() ? NOTHING : videoArt ? ART : PLACEHOLDER;
 			else
 			{
 				const int pw = topW > 0 ? topW : 960, ph = topH > 0 ? topH : 720;
@@ -3063,7 +2907,7 @@ namespace bp
 					}
 				ev += "{\\an7\\pos(0,0)\\bord0\\shad0\\1c&HFFFFFF&\\p1}" + path + "{\\p0}\n";
 			}
-			why = box == ART ? (show == SHOW_ART ? "mpv's art in the margins" : "the graph's art") : box == OVERLAY ? "the decoded art"
+			why = box == ART ? "mpv's art in the margins" : box == OVERLAY ? "the decoded art"
 				: box == PLACEHOLDER ? "the placeholder" : "nothing yet";
 			char lg[320];
 			const int pw = topW > 0 ? topW : 960, ph = topH > 0 ? topH : 720;
@@ -3274,16 +3118,12 @@ namespace bp
 		header("Audio");
 		if (isAudio)
 		{
-			// what the top panel shows, as mpv has it now
-			std::string graph = get("lavfi-complex");
-			// (the style by its setting: fifteen graphs can't be told apart by a filter's name)
-			std::string vis = visualizerLabel(visualizerReplacement(settings.visualizer));
-			row("Top screen", graph == artPassGraph() ? std::string("Album art") : graph == blankGround() ? (shownMusic() == SHOW_ART ? "Album art (none: the placeholder)"
-				: nativeShown() ? (shownMusic() == SHOW_BOTH ? "Album art + " : "Visualizer: ") + vis + " (drawn by the player)" : "Title only")
-				: graph.find("[vid1]") != std::string::npos || graph.find(":s=640x480:r=1:d=1") != std::string::npos ? "Album art + " + vis
-				: !graph.empty() ? "Visualizer: " + vis
-				: shownMusic() == SHOW_NONE ? "Title only"
-				: hasCover(tracks) ? "Album art" : "Title");
+			// what the top panel shows (no graph: all of it the player's)
+			std::string vis = visualizerLabel(settings.visualizer);
+			const int show = shownMusic();
+			row("Top screen", nativeShown() ? (show == SHOW_BOTH ? "Album art + " : "Visualizer: ") + vis + (nativeIdle ? " (idle: no tap for this song)" : " (drawn by the player)")
+				: show == SHOW_NONE ? std::string("Title only") : show == SHOW_ART ? (artState == ArtState::None && !isNet ? "Album art (none: the placeholder)" : "Album art")
+				: "Title");
 		}
 		if (a)
 		{
