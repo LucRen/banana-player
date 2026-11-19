@@ -1,6 +1,7 @@
 // The parts without a window: aspect modes, track labels, mpv's track-list, times.
 #include "kitlayout.h"
 #include "songlayout.h"
+#include "artph.h"
 #include "viznative.h"
 #include "slider.h"
 #include "filesave.h"
@@ -12676,6 +12677,27 @@ static void testKitDisplayPage()
 }
 
 // the top panel's song layout (docs/redesign/components.md, Song layout): the drawings' numbers
+static void testArtPlaceholder()
+{
+	// the preview's four names land on its four placements
+	CHECK_EQ(artph::shape(240, "Yellow Album").variant, 0);
+	CHECK_EQ(artph::shape(240, "Red Room").variant, 1);
+	CHECK_EQ(artph::shape(240, "Wheel").variant, 2);
+	CHECK_EQ(artph::shape(240, "Field Recordings").variant, 3);
+	// whole: 72% centred; half out: 88%, centre on the edge's middle
+	artph::Shape w = artph::shape(240, "Yellow Album");
+	CHECK_EQ(w.record, 172); CHECK_EQ(w.band, 106); CHECK_EQ(w.label, 58); CHECK_EQ(w.hole, 12); CHECK_EQ(w.cx, 120); CHECK_EQ(w.cy, 120);
+	artph::Shape b = artph::shape(240, "Red Room");
+	CHECK_EQ(b.record, 212); CHECK_EQ(b.cx, 120); CHECK_EQ(b.cy, 240);
+	// small: always whole, no band; at 30 the record 22, the label 8, the hole 2
+	artph::Shape s = artph::shape(30, "Red Room");
+	CHECK_EQ(s.variant, 0); CHECK_EQ(s.band, 0); CHECK_EQ(s.record, 22); CHECK_EQ(s.label, 8); CHECK_EQ(s.hole, 2);
+	CHECK_EQ(artph::shape(63, "Wheel").variant, 0);
+	// the same key, the same drawing; every diameter even
+	CHECK_EQ(artph::shape(96, "x").variant == artph::shape(96, "x").variant, true);
+	CHECK_EQ(artph::shape(120, "abc").record % 2, 0);
+}
+
 static void testSongLayout()
 {
 	// the title lines are always on (no setting): Album art only, a long title: art 240 at the 40 margin, the text to 600
@@ -12732,6 +12754,7 @@ int main()
 {
 	testSlider();
 	testSongLayout();
+	testArtPlaceholder();
 	testVizTheme();
 	testVizSimple();
 	testVizNative();

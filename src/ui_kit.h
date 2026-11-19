@@ -41,6 +41,10 @@ namespace bp
 		static SDL_Color off(SDL_Color c, bool isOff = true);	// c as an unavailable piece shows it
 		static SDL_Color edgeOf(SDL_Color fill);
 		void flat(Rect r, SDL_Color fill, int rad, SDL_Color edge);
+		// the art placeholder: a record in its sleeve in the theme's roles (artph.h), r a square; key: the album's name,
+		// else the title, else the file's name. rad: the art box's radius; edge: a 1-unit edgeOf(BUTTON) edge inside the
+		// square (where the art has no edge of its own; a Cover cell has none)
+		void artPlaceholder(Rect r, const std::string& key, int rad = 5, bool edge = true);
 
 		// ---- key caps and the hint bar ----
 		// keys: one name or several apart by '/' ("L2/R2"); LEFT, RIGHT, UP, DOWN are drawn as arrows. ground: what

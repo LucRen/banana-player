@@ -12,6 +12,7 @@
 #include "netstream.h"
 #include "sidecar.h"
 #include "songlayout.h"
+#include "artph.h"
 #include "kitlayout.h"
 #include "soundfx.h"
 #include "playlist.h"
@@ -2639,6 +2640,21 @@ namespace bp
 		return d;
 	}
 
+	bool Player::songArtMissing() const
+	{
+		if (!isAudio) return false;
+		return isNet ? !tracks.empty() && !hasCover(tracks) : artState == ArtState::None;
+	}
+
+	std::string Player::artPlaceholderKey() const
+	{
+		if (!tagAlbum.empty()) return tagAlbum;
+		if (!title.empty()) return title;
+		std::string f = currentPath();
+		size_t k = f.find_last_of('/');
+		return k == std::string::npos ? f : f.substr(k + 1);
+	}
+
 	void Player::setSongMargins(const std::string& lrtb)
 	{
 		if (lrtb == marginsSet) return;
@@ -2794,6 +2810,7 @@ namespace bp
 		const bool themed = group || show == SHOW_NONE || peaksAlone;
 		// (a song with a native style shown: mpv's picture composed over the shapes, its ground clear)
 		setGround(themed, nullptr, themed && isAudio && nativeViz() && (show == SHOW_VIS || show == SHOW_BOTH) && !noLayer);
+		const std::string artKeyText = artPlaceholderKey();
 		const std::string INK = ass(TEXT), INK2 = ass(DIM_ON), INK3 = ass(DIM), MARK = ass(ACCENT), EDGE = ass(edgeOf(SURFACE)),
 			GROUND = ass(BG);
 		// the lines over a visualizer: no box round them (the shapes pass under them: mpv's layer, topviz.cpp), kept
@@ -2963,52 +2980,23 @@ namespace bp
 			}
 			else if (box == PLACEHOLDER)
 			{
-				// no art: the colour wheel (wedges round a point a little below the middle, clipped to the box), a dark
-				// rounded square on it at 38%, and the note
-				static const int WHEEL[][3] = {{0xff, 0xd2, 0x3f}, {0xff, 0x9f, 0x43}, {0xf0, 0x64, 0x5a}, {0x7a, 0x3b, 0x8f},
-											   {0x2f, 0x6f, 0xb0}, {0x2f, 0x8f, 0x6a}, {0xff, 0xd2, 0x3f}};
-				const int N = 72;
-				const double cx = X + S * 0.5, cy = Y + S * 0.55, far = S * 1.5;
-				std::string clip = "\\clip(" + roundPath(X, Y, S, S, R, false) + ")";
+				// no art: the Art placeholder (artph.h): a record in its sleeve, in the theme's roles, the discs cut to the box
+				// and the same 2-unit edge as the art's own. Drawn as vector shapes: no picture to load or scale
+				const artph::Shape a = artph::shape(S, artKeyText);
+				auto disc = [&](int dia, const std::string& col) {
+					const int cx = X + a.cx, cy = Y + a.cy, h = dia / 2, k = (int)std::lround(h * 0.5523);
+					char d[320];
+					snprintf(d, sizeof d, "m %d %d b %d %d %d %d %d %d b %d %d %d %d %d %d b %d %d %d %d %d %d b %d %d %d %d %d %d ", cx + h, cy,
+						cx + h, cy + k, cx + k, cy + h, cx, cy + h, cx - k, cy + h, cx - h, cy + k, cx - h, cy, cx - h, cy - k, cx - k, cy - h, cx, cy - h,
+						cx + k, cy - h, cx + h, cy - k, cx + h, cy);
+					ev += "{\\an7\\pos(0,0)\\bord0\\shad0\\clip(" + roundPath(X, Y, S, S, R, false) + ")\\1c" + col + "\\p1}" + d + "{\\p0}\n";
+				};
 				ev += "{\\an7\\pos(0,0)\\bord0\\shad0\\1c" + EDGE + "\\p1}" + roundPath(X - E, Y - E, S + 2 * E, S + 2 * E, R + E, false) + "{\\p0}\n";
-				for (int i = 0; i < N; i++)
-				{
-					double t = (i + 0.5) / N * 6;
-					int k = std::min(5, (int)t);
-					double f = t - k;
-					int rgb[3];
-					for (int j = 0; j < 3; j++) rgb[j] = (int)std::lround(WHEEL[k][j] + (WHEEL[k + 1][j] - WHEEL[k][j]) * f);
-					// from 210 degrees, clockwise (CSS's conic-gradient: 0 is up)
-					double a0 = (210 + 360.0 * i / N) * M_PI / 180, a1 = (210 + 360.0 * (i + 1.05) / N) * M_PI / 180;
-					char w[256], col[16];
-					snprintf(w, sizeof w, "m %d %d l %d %d %d %d", (int)cx, (int)cy, (int)std::lround(cx + far * std::sin(a0)),
-						(int)std::lround(cy - far * std::cos(a0)), (int)std::lround(cx + far * std::sin(a1)), (int)std::lround(cy - far * std::cos(a1)));
-					snprintf(col, sizeof col, "&H%02X%02X%02X&", rgb[2], rgb[1], rgb[0]);
-					ev += "{\\an7\\pos(0,0)\\bord0\\shad0" + clip + "\\1c" + col + "\\p1}" + w + "{\\p0}\n";
-				}
-				const int in = (int)std::lround(S * 0.38), ix = X + (S - in) / 2, iy = Y + (S - in) / 2;
-				ev += "{\\an7\\pos(0,0)\\bord0\\shad0\\1c&H000000&\\1a&H61&\\p1}" + roundPath(ix, iy, in, in, (int)std::lround(S * 0.08), false) + "{\\p0}\n";
-				// the note (G_NOTE's cells) at 22% of the box
-				const Ui::Glyph& g = G_NOTE;
-				int gw = 0;
-				for (int y = 0; y < g.h; y++) gw = std::max(gw, (int)strlen(g.rows[y]));
-				const double cell = S * 0.22 / std::max(gw, g.h);
-				const double gx = X + S / 2.0 - gw * cell / 2, gy = Y + S / 2.0 - g.h * cell / 2;
-				std::string path;
-				for (int y = 0; y < g.h; y++)
-					for (int x = 0; g.rows[y][x];)
-					{
-						if (g.rows[y][x] != '#') { x++; continue; }
-						int e = x;
-						while (g.rows[y][e] == '#') e++;
-						char r[128];
-						int x0 = (int)std::lround(gx + x * cell), x1 = (int)std::lround(gx + e * cell), y0 = (int)std::lround(gy + y * cell),
-							y1 = (int)std::lround(gy + (y + 1) * cell);
-						snprintf(r, sizeof r, "m %d %d l %d %d %d %d %d %d ", x0, y0, x1, y0, x1, y1, x0, y1);
-						path += r;
-						x = e;
-					}
-				ev += "{\\an7\\pos(0,0)\\bord0\\shad0\\1c&HFFFFFF&\\p1}" + path + "{\\p0}\n";
+				ev += "{\\an7\\pos(0,0)\\bord0\\shad0\\1c" + ass(BUTTON) + "\\p1}" + roundPath(X, Y, S, S, R, false) + "{\\p0}\n";
+				disc(a.record, GROUND);
+				if (a.band) disc(a.band, ass(SURFACE));
+				disc(a.label, MARK);
+				disc(a.hole, GROUND);
 			}
 			why = box == ART ? "mpv's art in the margins" : box == OVERLAY ? "the decoded art"
 				: box == PLACEHOLDER ? "the placeholder" : "nothing yet";

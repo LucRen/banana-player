@@ -187,6 +187,9 @@ select.sel { background: var(--btn); color: var(--cream); border: var(--bw) soli
 .tile .mark { position: absolute; right: 3px; bottom: 3px; color: #fff; }
 /* a generated cover: a gradient keyed on the path, a pixel motif */
 .gc { position: absolute; inset: 0; display: grid; place-items: center; color: rgba(255, 255, 255, .88); }
+/* the Art placeholder: the sleeve is BUTTON with a 1px edge; its record and label are drawn in the svg (components.js) */
+.gc.ph { background: var(--btn); box-shadow: inset 0 0 0 1px var(--e-btn); overflow: hidden; border-radius: inherit; }
+.gc.ph svg { display: block; }
 .gc .ic { filter: drop-shadow(0 1px 0 rgba(0, 0, 0, .25)); }
 .mosaic { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; place-items: stretch; }
 .mosaic > span { position: relative; }

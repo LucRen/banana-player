@@ -2081,7 +2081,13 @@ namespace bp
 			{
 				// a song: who it's by, and the album
 				int cy = l.line.y + l.line.h / 2, tx = l.line.x + 26;
-				ui.drawGlyphMid(G_NOTE, l.line.x + 10, cy, DIM_ON);
+				if (p.songArtMissing())
+				{
+					// a song with no cover: the Art placeholder at 30, where its thumbnail would be
+					k.artPlaceholder({l.line.x + 2, cy - 15, 30, 30}, p.artPlaceholderKey());
+					tx = l.line.x + 40;
+				}
+				else ui.drawGlyphMid(G_NOTE, l.line.x + 10, cy, DIM_ON);
 				if (!p.artist().empty())
 				{
 					ui.drawTextMid(p.artist(), F_P14, TEXT, tx, cy, 300);
@@ -2196,7 +2202,7 @@ namespace bp
 		NextUp nx = nextUp(p);
 		std::string sig = "|pp" + std::to_string(pressed) + "," +
 			std::to_string(touchLocked) + "," + std::to_string(seekHeld >= 0) + "|" + nx.path + "|" + nx.note + (nx.round ? "r" : "") + (nx.any ? "a" : "") +
-			"|" + p.artist() + "|" + p.album();
+			"|" + p.artist() + "|" + p.album() + (p.songArtMissing() ? "|ph" + p.artPlaceholderKey() : "");
 		if (touchLocked && lockHoldAt) sig += "|hold" + std::to_string((SDL_GetTicks() - lockHoldAt) / 50);
 		if (listPulseAt) sig += "|pulse" + std::to_string((SDL_GetTicks() - listPulseAt) / 33);
 		return sig;

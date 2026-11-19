@@ -305,6 +305,10 @@ namespace bp
 		// a song's artist and album from its tags ("" none)
 		const std::string& artist() const { return tagArtist; }
 		const std::string& album() const { return tagAlbum; }
+		// a song with no cover (the Art placeholder stands in), and what its drawing is keyed by: the album's name, else
+		// the title, else the file's name
+		bool songArtMissing() const;
+		std::string artPlaceholderKey() const;
 
 		// the Media info page: sections (header rows) of label/value rows, read from mpv as it plays
 		struct InfoRow

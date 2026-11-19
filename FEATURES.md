@@ -574,7 +574,7 @@ Songs show their title, artist and album on the top screen. While a song plays:
   **B** closes. The art is a square with rounded corners and a thin edge: 240 units on Album art only, 224 above the
   visualizer on Art + visualizer. A song without art shows a placeholder in the art's place (a colour wheel with a note on it), in
   the same layout: the mode you chose is the mode you see. Album art can be inside the song file or a `cover.jpg` in
-  the same folder.
+  the same folder. A song with no cover shows a flat **record in its sleeve** in the theme's colours (on the top screen, by the artist line on the player page and on the dashboard's covers), placed one of four ways by the album's name so a grid of them is not one drawing repeated.
 - **Y: List**, as on a video: **Up next**, and **Chapters** when the song or audiobook has them (**L2** / **R2** jump
   from either tab); a tap on the chapter line above the progress bar opens its **Chapters** tab. **Shuffle**'s switch
   and **Repeat** Off / All / One are in the sheet's header, and the song's fourth chip is a **Shuffle** switch of its own.

@@ -1,6 +1,7 @@
 // The redesign's component kit: each piece drawn once (ui_kit.h says what each is; docs/redesign/components.md its
 // anatomy). Nothing here keeps state: a component draws what it is given, where it is given.
 #include "ui_kit.h"
+#include "artph.h"
 #include <cmath>
 
 namespace bp
@@ -40,6 +41,28 @@ namespace bp
 	}
 
 	SDL_Color Ui::Kit::edgeOf(SDL_Color fill) { return sdl(theme::edgeOf(rgb(fill))); }
+
+	void Ui::Kit::artPlaceholder(Rect r, const std::string& key, int rad, bool edge)
+	{
+		const artph::Shape a = artph::shape(r.w, key);
+		if (edge) flat(r, BUTTON, rad, edgeOf(BUTTON));
+		else ui.fillRound(r, BUTTON, rad);
+		// the discs reach past the square (half out): cut to it
+		SDL_Rect old, d = ui.devRect(r);
+		const bool had = SDL_RenderIsClipEnabled(ui.ren);
+		if (had)
+		{
+			SDL_RenderGetClipRect(ui.ren, &old);
+			if (!SDL_IntersectRect(&d, &old, &d)) return;
+		}
+		SDL_RenderSetClipRect(ui.ren, &d);
+		auto disc = [&](int dia, SDL_Color c) { ui.fillRound({r.x + a.cx - dia / 2, r.y + a.cy - dia / 2, dia, dia}, c, dia / 2); };
+		disc(a.record, BG);
+		if (a.band) disc(a.band, SURFACE);
+		disc(a.label, ACCENT);
+		disc(a.hole, BG);
+		SDL_RenderSetClipRect(ui.ren, had ? &old : nullptr);
+	}
 
 	void Ui::Kit::flat(Rect r, SDL_Color fill, int rad, SDL_Color edge)
 	{
